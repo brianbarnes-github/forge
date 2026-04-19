@@ -3,9 +3,9 @@
 #include "Diagnostics.h"
 #include "Song.h"
 
+#include <iosfwd>
 #include <stdexcept>
-
-namespace juce { class File; }
+#include <string_view>
 
 namespace lotro
 {
@@ -16,9 +16,9 @@ public:
     using std::runtime_error::runtime_error;
 };
 
-// Load a MIDI file. For now the file argument is still a juce::File because
-// juce::MidiFile is the underlying parser; a future refactor can take
-// std::istream instead.
-Song importMidi (const juce::File& file, Diagnostics& diagnostics);
+// Load a MIDI file from any byte stream. `sourceName` is used as the Song
+// title and in error messages — callers pass the filename (sans extension)
+// for file-backed streams, or a display label for in-memory MIDI.
+Song importMidi (std::istream& input, std::string_view sourceName, Diagnostics& diagnostics);
 
 } // namespace lotro

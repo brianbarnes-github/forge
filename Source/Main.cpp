@@ -11,6 +11,7 @@
 
 #include <juce_core/juce_core.h>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -108,7 +109,18 @@ int main (int argc, char* argv[])
     try
     {
         lotro::Diagnostics diagnostics;
-        auto song = lotro::importMidi (opts.inputFile, diagnostics);
+
+        std::ifstream midiStream (opts.inputFile.getFullPathName().toStdString(),
+                                  std::ios::binary);
+        if (! midiStream)
+        {
+            std::cerr << "Error: could not open MIDI file: "
+                      << opts.inputFile.getFullPathName().toStdString() << "\n";
+            return 1;
+        }
+
+        const auto sourceName = opts.inputFile.getFileNameWithoutExtension().toStdString();
+        auto song = lotro::importMidi (midiStream, sourceName, diagnostics);
 
         if (opts.listTracks)
         {

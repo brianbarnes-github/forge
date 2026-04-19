@@ -5,24 +5,25 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 namespace
 {
-    struct FixtureFile
+    // Serialise a juce::MidiFile to a std::istringstream that Core can read.
+    // Avoids round-tripping through the filesystem — MidiImporter now
+    // accepts any std::istream, which is the whole point of the refactor.
+    std::istringstream serialise (const juce::MidiFile& midi)
     {
-        juce::TemporaryFile temp { ".mid" };
-
-        juce::File get() const { return temp.getFile(); }
-
-        void write (const juce::MidiFile& midi)
-        {
-            juce::FileOutputStream stream (temp.getFile());
-            REQUIRE (stream.openedOk());
-            REQUIRE (midi.writeTo (stream));
-        }
-    };
+        juce::MemoryBlock block;
+        juce::MemoryOutputStream out (block, false);
+        REQUIRE (midi.writeTo (out));
+        out.flush();
+        return std::istringstream (std::string (static_cast<const char*> (block.getData()),
+                                                block.getSize()));
+    }
 
     juce::MidiMessageSequence makeHeaderSequence (double bpm, int numerator, int denominator)
     {
@@ -61,13 +62,13 @@ TEST_CASE ("MidiImporter: loads a tiny format-1 MIDI round-trip", "[midi]")
     midi.addTrack (makeHeaderSequence (120.0, 4, 4));
     midi.addTrack (makeSingleNoteTrack ("Melody", 1, 60, 100, 0, 480));
 
-    FixtureFile fixture;
-    fixture.write (midi);
+    auto input = serialise (midi);
 
     lotro::Diagnostics warnings;
-    auto song = lotro::importMidi (fixture.get(), warnings);
+    auto song = lotro::importMidi (input, "round-trip", warnings);
 
     CHECK (warnings.empty());
+    CHECK (song.title == "round-trip");
     CHECK (song.ticksPerQuarter == 480);
     REQUIRE (song.tempoMap.size() == 1);
     CHECK (song.tempoMap.front().bpm == Catch::Approx (120.0));
@@ -95,11 +96,10 @@ TEST_CASE ("MidiImporter: channel-10 tracks auto-detect as Drums", "[midi]")
     midi.addTrack (makeHeaderSequence (120.0, 4, 4));
     midi.addTrack (makeSingleNoteTrack ("Percussion", 10, 38, 100, 0, 240));
 
-    FixtureFile fixture;
-    fixture.write (midi);
+    auto input = serialise (midi);
 
     lotro::Diagnostics warnings;
-    auto song = lotro::importMidi (fixture.get(), warnings);
+    auto song = lotro::importMidi (input, "drums", warnings);
 
     REQUIRE (song.tracks.size() == 1);
     const auto& track = song.tracks.front();
@@ -115,11 +115,10 @@ TEST_CASE ("MidiImporter: missing tempo/meter get defaults", "[midi]")
     midi.setTicksPerQuarterNote (96);
     midi.addTrack (makeSingleNoteTrack ("Bare", 1, 64, 80, 0, 96));
 
-    FixtureFile fixture;
-    fixture.write (midi);
+    auto input = serialise (midi);
 
     lotro::Diagnostics warnings;
-    auto song = lotro::importMidi (fixture.get(), warnings);
+    auto song = lotro::importMidi (input, "bare", warnings);
 
     CHECK (song.ticksPerQuarter == 96);
     REQUIRE (song.tempoMap.size() == 1);
@@ -128,10 +127,20 @@ TEST_CASE ("MidiImporter: missing tempo/meter get defaults", "[midi]")
     CHECK (song.meterMap.front().numerator == 4);
 }
 
-TEST_CASE ("MidiImporter: rejects missing file", "[midi]")
+TEST_CASE ("MidiImporter: rejects empty input", "[midi]")
 {
+    std::istringstream empty;
     lotro::Diagnostics warnings;
     REQUIRE_THROWS_AS (
-        lotro::importMidi (juce::File ("/tmp/does-not-exist-zzzz.mid"), warnings),
+        lotro::importMidi (empty, "empty", warnings),
+        lotro::MidiImportError);
+}
+
+TEST_CASE ("MidiImporter: rejects malformed input", "[midi]")
+{
+    std::istringstream garbage ("not a midi file, just plain text");
+    lotro::Diagnostics warnings;
+    REQUIRE_THROWS_AS (
+        lotro::importMidi (garbage, "garbage", warnings),
         lotro::MidiImportError);
 }

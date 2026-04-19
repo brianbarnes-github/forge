@@ -11,6 +11,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -18,7 +19,11 @@ namespace
 {
     lotro::Song runPipeline (const juce::File& midiFile, lotro::Diagnostics& diagnostics)
     {
-        auto song = lotro::importMidi (midiFile, diagnostics);
+        std::ifstream input (midiFile.getFullPathName().toStdString(), std::ios::binary);
+        REQUIRE (input);
+        auto song = lotro::importMidi (input,
+                                       midiFile.getFileNameWithoutExtension().toStdString(),
+                                       diagnostics);
 
         for (auto& track : song.tracks)
         {

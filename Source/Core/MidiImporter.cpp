@@ -2,7 +2,10 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <istream>
+#include <iterator>
 #include <string>
+#include <vector>
 
 namespace lotro
 {
@@ -106,27 +109,36 @@ namespace
     }
 }
 
-Song importMidi (const juce::File& file, Diagnostics& diagnostics)
+Song importMidi (std::istream& input, std::string_view sourceName, Diagnostics& diagnostics)
 {
-    if (! file.existsAsFile())
-        throw MidiImportError ("MIDI file not found: " + file.getFullPathName().toStdString());
+    const std::string name (sourceName);
 
-    juce::FileInputStream stream (file);
-    if (! stream.openedOk())
-        throw MidiImportError ("Could not open MIDI file: " + file.getFullPathName().toStdString());
+    if (! input.good())
+        throw MidiImportError ("MIDI input stream is not readable: " + name);
+
+    // Slurp the stream into a byte buffer. juce::MidiFile::readFrom wants a
+    // juce::InputStream; the simplest adapter is to hand it a
+    // juce::MemoryInputStream over the buffer. MIDI files are small enough
+    // that full-buffering is fine (megabytes at most).
+    std::vector<char> buffer ((std::istreambuf_iterator<char> (input)),
+                              std::istreambuf_iterator<char>());
+    if (buffer.empty())
+        throw MidiImportError ("MIDI input is empty: " + name);
+
+    juce::MemoryInputStream stream (buffer.data(), buffer.size(), false);
 
     juce::MidiFile midi;
     if (! midi.readFrom (stream))
-        throw MidiImportError ("Malformed MIDI file: " + file.getFullPathName().toStdString());
+        throw MidiImportError ("Malformed MIDI data: " + name);
 
     const short timeFormat = midi.getTimeFormat();
     if (timeFormat <= 0)
         throw MidiImportError ("SMPTE time format is not supported (time format "
-                               + std::to_string (timeFormat) + ")");
+                               + std::to_string (timeFormat) + "): " + name);
 
     Song song;
     song.ticksPerQuarter = timeFormat;
-    song.title           = file.getFileNameWithoutExtension().toStdString();
+    song.title           = name;
 
     for (int trackIndex = 0; trackIndex < midi.getNumTracks(); ++trackIndex)
     {
