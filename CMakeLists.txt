@@ -61,7 +61,8 @@ juce_generate_juce_header(converter)
 
 target_sources(converter PRIVATE
     Source/Main.cpp
-    Source/Cli/CliOptions.cpp)
+    Source/Cli/CliOptions.cpp
+    Source/Cli/DrumMapLoader.cpp)
 
 target_compile_definitions(converter PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter,JUCE_PRODUCT_NAME>"

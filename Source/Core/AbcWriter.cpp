@@ -123,11 +123,11 @@ namespace
         return groups;
     }
 
-    std::string emitNotePart (const Note& note, bool isDrum)
+    std::string emitNotePart (const Note& note, bool isDrum, const DrumMap& drumMap)
     {
         if (isDrum)
         {
-            auto mapped = mapDrumPitch (note.pitch);
+            auto mapped = drumMap.lookup (note.pitch);
             if (! mapped.has_value())
                 return {};
             return std::string (mapped->data(), mapped->size());
@@ -171,7 +171,8 @@ namespace
     ClusterEmission buildCluster (const NoteGroup& group,
                                   const Track&     track,
                                   int              advanceNeeded,
-                                  int              ticksPerQuarter)
+                                  int              ticksPerQuarter,
+                                  const DrumMap&   drumMap)
     {
         const bool isDrum = (track.instrument == LotroInstrument::Drums);
 
@@ -182,7 +183,7 @@ namespace
 
         for (const auto& n : group.notes)
         {
-            const auto np = emitNotePart (n, isDrum);
+            const auto np = emitNotePart (n, isDrum, drumMap);
             if (np.empty()) continue;
             parts.push_back (np + abcDurationToken (n.durationTicks, ticksPerQuarter));
             clusterMin = std::min (clusterMin, n.durationTicks);
@@ -301,7 +302,7 @@ namespace
                                              ? advanceNeeded - advanceForChord
                                              : 0;
 
-            auto emission = buildCluster (group, track, advanceForChord, song.ticksPerQuarter);
+            auto emission = buildCluster (group, track, advanceForChord, song.ticksPerQuarter, song.drumMap);
 
             if (! emission.chord.empty())
             {
@@ -328,7 +329,8 @@ std::string abcPitchToken (int midiPitch)
 {
     Note n;
     n.pitch = midiPitch;
-    return emitNotePart (n, false);
+    static const DrumMap unused;   // non-drum path, the map is never consulted
+    return emitNotePart (n, false, unused);
 }
 
 std::string abcDurationToken (int durationTicks, int ticksPerQuarter)

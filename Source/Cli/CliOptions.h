@@ -13,6 +13,7 @@ struct CliOptions
 {
     juce::File                         inputFile;
     juce::File                         outputFile;
+    juce::File                         drumMapFile;        // --drum-map PATH (optional)
     std::map<int, LotroInstrument>     instrumentOverrides;
     std::optional<double>              tempoOverride;
     int                                transposeSemitones = 0;

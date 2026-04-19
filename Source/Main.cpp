@@ -1,4 +1,5 @@
 #include "Cli/CliOptions.h"
+#include "Cli/DrumMapLoader.h"
 #include "Core/AutoInstrument.h"
 #include "Core/Diagnostics.h"
 #include "Core/MidiImporter.h"
@@ -122,6 +123,18 @@ int main (int argc, char* argv[])
 
         const auto sourceName = opts.inputFile.getFileNameWithoutExtension().toStdString();
         auto song = lotro::importMidi (midiStream, sourceName, diagnostics);
+
+        if (opts.drumMapFile != juce::File())
+        {
+            const auto err = lotro::loadDrumMapFromFile (
+                opts.drumMapFile.getFullPathName().toStdString(),
+                song.drumMap);
+            if (! err.empty())
+            {
+                std::cerr << "Error: " << err << "\n";
+                return 1;
+            }
+        }
 
         if (opts.listTracks)
         {

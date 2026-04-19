@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DrumMap.h"
 #include "Track.h"
 
 #include <string>
@@ -29,6 +30,10 @@ struct Song
     std::vector<MeterChange> meterMap;
     std::string              title;
     std::string              transcriber = "LotroAbcConverter v0.1";
+
+    // Maps GM drum pitches to LOTRO ABC drum-slot letters. Defaults to the
+    // spec §2.6 set; users can load a drum_map.json to override per-song.
+    DrumMap                  drumMap     = defaultDrumMap();
 };
 
 } // namespace lotro

@@ -11,6 +11,7 @@ juce::String usageText()
         "  --instrument N=NAME   Assign instrument to track N (repeatable)\n"
         "  --tempo BPM           Override detected main tempo\n"
         "  --transpose N         Global semitone transpose (pre range-clamp)\n"
+        "  --drum-map PATH       Load drum-map JSON file, merged onto defaults\n"
         "  --list-tracks         Print track table and exit\n"
         "  --list-instruments    Print valid instrument NAME values and exit\n"
         "  -v, --verbose         Log constraint warnings to stderr\n"
@@ -70,6 +71,14 @@ CliParseResult parseCli (const juce::StringArray& rawArgs)
             const auto value = takeValue (rawArgs, i, arg, result.error);
             if (result.error.isNotEmpty()) return result;
             opts.transposeSemitones = value.getIntValue();
+            continue;
+        }
+
+        if (arg == "--drum-map")
+        {
+            const auto value = takeValue (rawArgs, i, arg, result.error);
+            if (result.error.isNotEmpty()) return result;
+            opts.drumMapFile = juce::File::getCurrentWorkingDirectory().getChildFile (value);
             continue;
         }
 
