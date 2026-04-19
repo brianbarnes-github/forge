@@ -52,11 +52,13 @@ namespace
                 if (holder->noteOffObject == nullptr)
                 {
                     Diagnostic d;
-                    d.severity = Severity::Warning;
-                    d.source   = "MidiImporter";
-                    d.message  = "Unmatched note-on; skipping";
-                    d.tick     = tick;
-                    d.pitch    = message.getNoteNumber();
+                    d.severity         = Severity::Warning;
+                    d.source           = "MidiImporter";
+                    d.message          = "Unmatched note-on; skipping";
+                    d.tick             = tick;
+                    d.pitch            = message.getNoteNumber();
+                    d.sourceTrackIndex = midiTrackIndex;
+                    d.sourceEventIndex = thisNoteOrdinal;
                     diagnostics.push_back (std::move (d));
                     continue;
                 }
@@ -67,11 +69,13 @@ namespace
                 if (duration <= 0)
                 {
                     Diagnostic d;
-                    d.severity = Severity::Warning;
-                    d.source   = "MidiImporter";
-                    d.message  = "Zero-length note; skipping";
-                    d.tick     = tick;
-                    d.pitch    = message.getNoteNumber();
+                    d.severity         = Severity::Warning;
+                    d.source           = "MidiImporter";
+                    d.message          = "Zero-length note; skipping";
+                    d.tick             = tick;
+                    d.pitch            = message.getNoteNumber();
+                    d.sourceTrackIndex = midiTrackIndex;
+                    d.sourceEventIndex = thisNoteOrdinal;
                     diagnostics.push_back (std::move (d));
                     continue;
                 }

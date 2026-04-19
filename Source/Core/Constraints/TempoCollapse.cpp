@@ -43,11 +43,13 @@ void applyTempoCollapse (Track& track, const Song& song, Diagnostics& diagnostic
         if (rescaled <= 0)
         {
             Diagnostic d;
-            d.severity = Severity::Warning;
-            d.source   = "TempoCollapse";
-            d.message  = "Tempo scaling collapsed note to 0 duration on '" + track.name + "'";
-            d.tick     = note.startTick;
-            d.pitch    = note.pitch;
+            d.severity         = Severity::Warning;
+            d.source           = "TempoCollapse";
+            d.message          = "Tempo scaling collapsed note to 0 duration on '" + track.name + "'";
+            d.tick             = note.startTick;
+            d.pitch            = note.pitch;
+            d.sourceTrackIndex = note.sourceTrackIndex;
+            d.sourceEventIndex = note.sourceEventIndex;
             diagnostics.push_back (std::move (d));
             note.durationTicks = 1;
         }

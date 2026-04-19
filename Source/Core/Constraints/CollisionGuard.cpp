@@ -32,11 +32,13 @@ void applyCollisionGuard (Track& track, Diagnostics& diagnostics)
             if (trimmedDuration <= 0)
             {
                 Diagnostic d;
-                d.severity = Severity::Warning;
-                d.source   = "CollisionGuard";
-                d.message  = "Dropped same-pitch collision note on '" + track.name + "'";
-                d.tick     = prev->startTick;
-                d.pitch    = pitch;
+                d.severity         = Severity::Warning;
+                d.source           = "CollisionGuard";
+                d.message          = "Dropped same-pitch collision note on '" + track.name + "'";
+                d.tick             = prev->startTick;
+                d.pitch            = pitch;
+                d.sourceTrackIndex = prev->sourceTrackIndex;
+                d.sourceEventIndex = prev->sourceEventIndex;
                 diagnostics.push_back (std::move (d));
                 toDrop.push_back (prev);
             }

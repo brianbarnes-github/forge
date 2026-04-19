@@ -45,12 +45,14 @@ void applyRangeConstraint (Track& track, Diagnostics& diagnostics)
         if (! ok)
         {
             Diagnostic d;
-            d.severity = Severity::Warning;
-            d.source   = "RangeConstraint";
-            d.message  = "Dropped note — could not fit into ABC envelope C,..c' on '"
-                       + track.name + "'";
-            d.tick     = readIndex->startTick;
-            d.pitch    = readIndex->pitch;
+            d.severity         = Severity::Warning;
+            d.source           = "RangeConstraint";
+            d.message          = "Dropped note — could not fit into ABC envelope C,..c' on '"
+                               + track.name + "'";
+            d.tick             = readIndex->startTick;
+            d.pitch            = readIndex->pitch;
+            d.sourceTrackIndex = readIndex->sourceTrackIndex;
+            d.sourceEventIndex = readIndex->sourceEventIndex;
             diagnostics.push_back (std::move (d));
             continue;
         }
