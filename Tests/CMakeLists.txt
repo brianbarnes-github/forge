@@ -12,7 +12,8 @@ add_executable(converter_tests
     DynamicMapper_tests.cpp
     AbcWriter_tests.cpp
     BarAlignment_tests.cpp
-    EndToEnd_tests.cpp)
+    EndToEnd_tests.cpp
+    Provenance_tests.cpp)
 
 target_link_libraries(converter_tests PRIVATE
     Catch2::Catch2WithMain

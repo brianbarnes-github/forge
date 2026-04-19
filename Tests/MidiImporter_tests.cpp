@@ -127,6 +127,73 @@ TEST_CASE ("MidiImporter: missing tempo/meter get defaults", "[midi]")
     CHECK (song.meterMap.front().numerator == 4);
 }
 
+TEST_CASE ("MidiImporter: imported notes carry source track/event provenance", "[midi]")
+{
+    // Two source tracks, each with three note-on events. The importer
+    // should tag every note with its source MIDI-track index and the
+    // ordinal of its note-on event within that track, so a later editor
+    // can jump back to the originating event in the MIDI file.
+    auto trackA = makeHeaderSequence (120.0, 4, 4);
+    juce::MidiMessageSequence melody;
+    melody.addEvent (juce::MidiMessage::textMetaEvent (3, "Melody"));
+    for (int i = 0; i < 3; ++i)
+    {
+        auto on  = juce::MidiMessage::noteOn  (1, 60 + i, (juce::uint8) 100);
+        auto off = juce::MidiMessage::noteOff (1, 60 + i);
+        on.setTimeStamp  (i * 480);
+        off.setTimeStamp (i * 480 + 240);
+        melody.addEvent (on);
+        melody.addEvent (off);
+    }
+    melody.updateMatchedPairs();
+    melody.addEvent (juce::MidiMessage::endOfTrack());
+
+    juce::MidiMessageSequence bass;
+    bass.addEvent (juce::MidiMessage::textMetaEvent (3, "Bass"));
+    for (int i = 0; i < 3; ++i)
+    {
+        auto on  = juce::MidiMessage::noteOn  (1, 40 + i, (juce::uint8) 90);
+        auto off = juce::MidiMessage::noteOff (1, 40 + i);
+        on.setTimeStamp  (i * 480);
+        off.setTimeStamp (i * 480 + 240);
+        bass.addEvent (on);
+        bass.addEvent (off);
+    }
+    bass.updateMatchedPairs();
+    bass.addEvent (juce::MidiMessage::endOfTrack());
+
+    juce::MidiFile midi;
+    midi.setTicksPerQuarterNote (480);
+    midi.addTrack (trackA);    // MIDI track 0 (header only)
+    midi.addTrack (melody);    // MIDI track 1
+    midi.addTrack (bass);      // MIDI track 2
+
+    auto input = serialise (midi);
+
+    lotro::Diagnostics warnings;
+    auto song = lotro::importMidi (input, "provenance", warnings);
+
+    REQUIRE (song.tracks.size() == 2);
+
+    // Melody's notes come from MIDI track 1, events 0..2.
+    const auto& melodyTrack = song.tracks[0];
+    REQUIRE (melodyTrack.notes.size() == 3);
+    for (int i = 0; i < 3; ++i)
+    {
+        CHECK (melodyTrack.notes[(size_t) i].sourceTrackIndex == 1);
+        CHECK (melodyTrack.notes[(size_t) i].sourceEventIndex == i);
+    }
+
+    // Bass's notes come from MIDI track 2, events 0..2.
+    const auto& bassTrack = song.tracks[1];
+    REQUIRE (bassTrack.notes.size() == 3);
+    for (int i = 0; i < 3; ++i)
+    {
+        CHECK (bassTrack.notes[(size_t) i].sourceTrackIndex == 2);
+        CHECK (bassTrack.notes[(size_t) i].sourceEventIndex == i);
+    }
+}
+
 TEST_CASE ("MidiImporter: rejects empty input", "[midi]")
 {
     std::istringstream empty;

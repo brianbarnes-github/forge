@@ -15,11 +15,16 @@ namespace
     constexpr int drumChannel = 10;
 
     Track importTrack (const juce::MidiMessageSequence& source,
-                       int                              fallbackIndex,
+                       int                              midiTrackIndex,
                        Diagnostics&                     diagnostics)
     {
         Track track;
-        track.name = "Track " + std::to_string (fallbackIndex);
+        track.name = "Track " + std::to_string (midiTrackIndex);
+
+        // We tag each Note with the ordinal of its source note-on event
+        // within this MIDI track (note events only, non-notes don't count)
+        // so an editor can find the exact source event later.
+        int noteOnOrdinal = 0;
 
         for (int eventIndex = 0; eventIndex < source.getNumEvents(); ++eventIndex)
         {
@@ -35,6 +40,7 @@ namespace
 
             if (message.isNoteOn())
             {
+                const int thisNoteOrdinal = noteOnOrdinal++;
                 const int channel = message.getChannel();
 
                 if (channel == drumChannel)
@@ -71,11 +77,13 @@ namespace
                 }
 
                 Note note;
-                note.pitch         = message.getNoteNumber();
-                note.startTick     = tick;
-                note.durationTicks = duration;
-                note.velocity      = message.getVelocity();
-                note.isDrum        = (channel == drumChannel);
+                note.pitch            = message.getNoteNumber();
+                note.startTick        = tick;
+                note.durationTicks    = duration;
+                note.velocity         = message.getVelocity();
+                note.isDrum           = (channel == drumChannel);
+                note.sourceTrackIndex = midiTrackIndex;
+                note.sourceEventIndex = thisNoteOrdinal;
                 track.notes.push_back (note);
             }
         }
