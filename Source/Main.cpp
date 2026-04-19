@@ -1,0 +1,143 @@
+#include "Cli/CliOptions.h"
+#include "Core/Diagnostics.h"
+#include "Core/MidiImporter.h"
+#include "Core/AbcWriter.h"
+#include "Core/Constraints/RangeConstraint.h"
+#include "Core/Constraints/DurationConstraint.h"
+#include "Core/Constraints/TempoCollapse.h"
+#include "Core/Constraints/ChordConstraint.h"
+#include "Core/Constraints/CollisionGuard.h"
+#include "Core/Constraints/DynamicMapper.h"
+
+#include <juce_core/juce_core.h>
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <vector>
+
+namespace
+{
+    void printHelp()
+    {
+        std::cout << lotro::usageText().toStdString();
+    }
+
+    void printInstruments()
+    {
+        for (const auto& name : lotro::allInstrumentNames())
+            std::cout << std::string (name) << "\n";
+    }
+
+    void printTracks (const lotro::Song& song)
+    {
+        std::cout << "Idx | Channel | Notes | Name\n";
+        std::cout << "----+---------+-------+-----\n";
+        for (size_t i = 0; i < song.tracks.size(); ++i)
+        {
+            const auto& t = song.tracks[i];
+            std::printf ("%3zu | %7d | %5zu | %s\n",
+                         i, t.sourceMidiChannel,
+                         t.notes.size(),
+                         t.name.c_str());
+        }
+    }
+
+    void applyOverrides (lotro::Song& song, const lotro::CliOptions& opts)
+    {
+        for (const auto& [trackIdx, instrument] : opts.instrumentOverrides)
+        {
+            if (trackIdx < 0 || trackIdx >= (int) song.tracks.size())
+                continue;
+            song.tracks[(size_t) trackIdx].instrument = instrument;
+        }
+
+        if (opts.transposeSemitones != 0)
+            for (auto& track : song.tracks)
+                track.transposeSemitones = opts.transposeSemitones;
+
+        if (opts.tempoOverride.has_value())
+        {
+            if (song.tempoMap.empty())
+                song.tempoMap.push_back ({ 0, *opts.tempoOverride });
+            else
+                song.tempoMap.front().bpm = *opts.tempoOverride;
+        }
+    }
+
+    void runPipeline (lotro::Song& song, lotro::Diagnostics& diagnostics)
+    {
+        for (size_t trackIdx = 0; trackIdx < song.tracks.size(); ++trackIdx)
+        {
+            auto& track = song.tracks[trackIdx];
+            if (! track.enabled) continue;
+
+            const size_t before = diagnostics.size();
+            lotro::applyRangeConstraint    (track, diagnostics);
+            lotro::applyChordConstraint    (track, diagnostics);
+            lotro::applyDurationConstraint (track, song, diagnostics);
+            lotro::applyTempoCollapse      (track, song, diagnostics);
+            lotro::applyCollisionGuard     (track, diagnostics);
+            lotro::applyDynamicMapper      (track, diagnostics);
+
+            for (size_t i = before; i < diagnostics.size(); ++i)
+                if (diagnostics[i].trackIndex < 0)
+                    diagnostics[i].trackIndex = (int) trackIdx;
+        }
+    }
+}
+
+int main (int argc, char* argv[])
+{
+    juce::StringArray rawArgs;
+    for (int i = 1; i < argc; ++i)
+        rawArgs.add (juce::String::fromUTF8 (argv[i]));
+
+    const auto parsed = lotro::parseCli (rawArgs);
+
+    if (parsed.error.isNotEmpty())
+    {
+        std::cerr << parsed.error.toStdString() << "\n";
+        return 2;
+    }
+
+    const auto& opts = *parsed.options;
+
+    if (opts.help)           { printHelp();        return 0; }
+    if (opts.listInstruments){ printInstruments(); return 0; }
+
+    try
+    {
+        lotro::Diagnostics diagnostics;
+        auto song = lotro::importMidi (opts.inputFile, diagnostics);
+
+        if (opts.listTracks)
+        {
+            printTracks (song);
+            return 0;
+        }
+
+        applyOverrides (song, opts);
+        runPipeline (song, diagnostics);
+
+        const auto abc = lotro::writeAbc (song);
+
+        if (! opts.outputFile.replaceWithText (juce::String (abc)))
+        {
+            std::cerr << "Failed to write output file: "
+                      << opts.outputFile.getFullPathName().toStdString() << "\n";
+            return 1;
+        }
+
+        if (opts.verbose)
+            for (const auto& d : diagnostics)
+                std::cerr << lotro::formatDiagnostic (d) << "\n";
+
+        std::cout << "Wrote " << opts.outputFile.getFullPathName().toStdString() << "\n";
+        return 0;
+    }
+    catch (const lotro::MidiImportError& e)
+    {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
+}

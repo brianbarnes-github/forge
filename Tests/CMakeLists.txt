@@ -1,0 +1,22 @@
+add_subdirectory(Catch2)
+
+add_executable(converter_tests
+    smoke_test.cpp
+    DrumMap_tests.cpp
+    MidiImporter_tests.cpp
+    RangeConstraint_tests.cpp
+    DurationConstraint_tests.cpp
+    ChordConstraint_tests.cpp
+    CollisionGuard_tests.cpp
+    TempoCollapse_tests.cpp
+    DynamicMapper_tests.cpp
+    AbcWriter_tests.cpp
+    BarAlignment_tests.cpp
+    EndToEnd_tests.cpp)
+
+target_link_libraries(converter_tests PRIVATE
+    Catch2::Catch2WithMain
+    converter_core)
+
+include(${CMAKE_SOURCE_DIR}/Tests/Catch2/extras/Catch.cmake)
+catch_discover_tests(converter_tests)

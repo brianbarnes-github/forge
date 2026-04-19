@@ -1,0 +1,69 @@
+% LOTRO Drum Map
+% Created using Maestro v2.5.0
+%
+% Format is: [MIDI Drum ID] => [LOTRO Drum ID]
+% LOTRO Drum IDs are in the range 36 (C,) to 72 (c')
+% A LOTRO Drum ID of -1 indicates that the drum is not mapped
+% Comments begin with %
+
+27 => -1  % Synth Zap     => None
+28 => -1  % (Unknown)     => None
+29 => -1  % Scratch 1     => None
+30 => -1  % Scratch 2     => None
+31 => -1  % Drum Sticks   => None
+32 => -1  % (Unknown)     => None
+33 => -1  % Metr. Click   => None
+34 => -1  % Metr. Bell    => None
+35 => -1  % Acou. Bass    => None
+36 => 36  % Bass Drum     => Conga High 1 (C,)
+37 => 37  % Rim Shot      => Rattle Short 1 (^C,)
+38 => 38  % Acou. Snare   => Bongo High (D,)
+39 => 39  % Hand Clap     => Slap 1 (^D,)
+40 => 40  % Elec. Snare   => Slap 2 (E,)
+41 => 41  % Low Tom A     => Muted 1 (F,)
+42 => 42  % Closed Hi-Hat => Rattle Short 2 (^F,)
+43 => 43  % Low Tom B     => Tom High 1 (G,)
+44 => 44  % Pedal Hi-Hat  => Rattle Short 3 (^G,)
+45 => 45  % Mid Tom A     => Tom High 2 (A,)
+46 => 46  % Open Hi-Hat   => Tambourine (^A,)
+47 => 47  % Mid Tom B     => Tom Mid 1 (B,)
+48 => 48  % High Tom A    => Muted Mid (C)
+49 => 49  % Crash Cym. 1  => Bass Slap 1 (^C)
+50 => 50  % High Tom B    => Bass Slap 2 (D)
+51 => 51  % Ride Cym. 1   => Rim Shot 1 (^D)
+52 => 52  % Chinese Cym.  => Slap 3 (E)
+53 => 53  % Ride Bell     => Rim Shot 2 (F)
+54 => 54  % Tambourine    => Slap 4 (^F)
+55 => 55  % Splash Cym.   => Rattle 1 (G)
+56 => 56  % Cowbell       => Bass (^G)
+57 => 57  % Crash Cym. 2  => Rattle Long (A)
+58 => 58  % Vibraslap     => Bass Open (^A)
+59 => 59  % Ride Cym. 2   => Rattle 2 (B)
+60 => 60  % Hi Bongo      => Rattle 3 (c)
+61 => 61  % Low Bongo     => Muted 2 (^c)
+62 => 62  % Mute Hi Conga => Bend Low Up (d)
+63 => 63  % Open Hi Conga => Tom Mid 2 (^d)
+64 => 64  % Low Conga     => Bend Mid Down (e)
+65 => 65  % High Timbale  => Bend High Up (f)
+66 => 66  % Low Timbale   => Slap 5 (^f)
+67 => 67  % High Agogo    => Conga Low (g)
+68 => 68  % Low Agogo     => Slap 6 (^g)
+69 => 69  % Cabasa        => Bongo Low (a)
+70 => 70  % Maracas       => Conga High 2 (^a)
+71 => 71  % Short Whistle => Conga Mid (b)
+72 => 72  % Long Whistle  => Slap 7 (c')
+73 => -1  % Short Guiro   => None
+74 => -1  % Long Guiro    => None
+75 => -1  % Claves        => None
+76 => -1  % High Block    => None
+77 => -1  % Low Block     => None
+78 => -1  % Mute Cuica    => None
+79 => -1  % Open Cuica    => None
+80 => -1  % Mute Triangle => None
+81 => -1  % Open Triangle => None
+82 => -1  % Cabasa 2      => None
+83 => -1  % Bells         => None
+84 => -1  % Chimes        => None
+85 => -1  % Castanet      => None
+86 => -1  % Muted Lg Drum => None
+87 => -1  % Large Drum    => None

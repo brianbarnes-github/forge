@@ -1,0 +1,70 @@
+% LOTRO Drum Map
+% Vydor's Drum Set
+%
+% Format is: [MIDI Drum ID] => [LOTRO Drum ID]
+% LOTRO Drum IDs are in the range 55 (C,) to 55 (c')
+% A LOTRO Drum ID of -1 indicates that the drum is not mapped
+% Comments begin with %
+
+26 => -1  % (Unknown)       => None
+27 => -1  % High Q          => None
+28 => -1  % Slap            => None
+29 => -1  % Scratch 1       => None
+30 => -1  % Scratch 2       => None
+31 => 72  % Drum Sticks     => Slap 2 => c'
+32 => -1  % Square Click    => None
+33 => 52  % Metr. Click     => Slap 3 => E
+34 => -1  % Metr. Bell      => None
+35 => 58  % Acou. Bass      => Bass Open => ^A
+36 => 56  % Bass Drum       => Bass => ^G
+37 => 66  % Side Stick      => Slap 5 (^f)
+38 => 52  % Acou. Snare     => Slap 3 => E
+39 => -1  % Hand Clap       => None
+40 => 52  % Elec. Snare     => Slap 3 => E
+41 => 47  % Low Floor Tom   => Tom Mid 1 => B,
+42 => -1  % Closed Hi-Hat   => Rattle Short 3 => ^G,
+43 => 43  % High Floor Tom  => Tom High 1 => G,
+44 => -1  % Pedal Hi-Hat    => Rattle Short 3 => ^G,
+45 => 47  % Low Tom         => Tom Mid 1 => B,
+46 => -1  % Open Hi-Hat     => Rattle Short 2 => ^F,
+47 => 63  % Low Mid Tom     => Tom Mid 2 => ^d
+48 => 43  % High Mid Tom    => Tom High 1 => G,
+49 => -1  % Crash Cym. 1    => Rattle Long => A
+50 => 43  % High Tom        => Tom High 1 => G,
+51 => -1  % Ride Cym. 1     => Rattle Short 3 => ^G,
+52 => -1  % Chinese Cym.    => Rattle Long => A
+53 => -1  % Ride Bell       => Rattle Short 1 => ^C,
+54 => -1  % Tambourine      => Tambourine => ^A,
+55 => -1  % Splash Cym.     => Rattle Long => A
+56 => 41  % Cowbell         => Muted 1 => F,
+57 => -1  % Crash Cym. 2    => Rattle Long => A
+58 => -1  % Vibraslap       => Slap 1 => ^D,
+59 => -1  % Ride Cym. 2     => Rattle Short 3 => ^G,
+60 => -1  % Hi Bongo        => Bongo High => D,
+61 => -1  % Low Bongo       => Bongo Low => a
+62 => -1  % Mute Hi Conga   => Conga High 2 => ^a
+63 => -1  % Open Hi Conga   => Conga High 1 => C,
+64 => -1  % Low Conga       => Conga Low => g
+65 => -1  % High Timbale    => Muted 1 => F,
+66 => -1  % Low Timbale     => Muted 2 => ^c
+67 => -1  % High Agogo      => Muted 1 => F,
+68 => -1  % Low Agogo       => Muted 2 => ^c
+69 => -1  % Cabasa          => Rattle Short 1 => ^C,
+70 => -1  % Maracas         => Rattle Short 2 => ^F,
+71 => -1  % Short Whistle   => None
+72 => -1  % Long Whistle    => None
+73 => -1  % Short Guiro     => Rattle Short 1 => ^C,
+74 => -1  % Long Guiro      => Rattle Long => A
+75 => 40  % Claves          => Slap 2 => E,
+76 => -1  % High Wood Block => Slap 2 => E,
+77 => 39  % Low Wood Block  => Slap 1 => ^D,
+78 => 37  % Mute Cuica      => Rattle Short 1 => ^C,
+79 => 42  % Open Cuica      => Rattle Short 2 => ^F,
+80 => -1  % Mute Triangle   => None
+81 => -1  % Open Triangle   => None
+82 => -1  % Cabasa 2        => Rattle Short 1 => ^C,
+83 => -1  % Bells           => None
+84 => -1  % Chimes          => None
+85 => -1  % Castanet        => Slap 7 => c'
+86 => -1  % Muted Lg Drum   => Muted Mid => C
+87 => -1  % Large Drum      => Bass Open => ^A
