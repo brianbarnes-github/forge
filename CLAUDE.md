@@ -1,19 +1,35 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Status: v0.1 CLI prototype under construction
+## Status: v0.1 CLI complete, editor-ready Core library
 
-Scope is a **CLI MIDI → LOTRO ABC converter**, no GUI. The project is defined by `lotro-abc-converter-spec.md` (560 lines). **Read the spec in full before making implementation decisions** — the constraint rules in §2 (note range, chord size, duration quantization, tempo collapse, drum mapping) are non-negotiable because LOTRO will reject ABC that violates them. Follow spec §10 implementation order, minus the GUI step.
+This repo is a **CLI MIDI → LOTRO ABC converter** whose Core layer is
+designed to also back a future **MIDI editor + converter GUI**. The CLI
+(`converter`) is a thin wrapper around a static library (`converter_core`)
+that is JUCE-free at its public surface.
+
+The original spec is `lotro-abc-converter-spec.md` (560 lines). Some of
+its design decisions have been revised in practice; see "Deltas from spec"
+below before assuming a section is still authoritative.
 
 ## Target platform and toolchain
 
-- **v0.1 prototype builds natively on WSL/Linux with GCC.** Spec §1/§4.3 name Windows + MSVC; both are overridden. MSVC was rejected outright. MinGW-w64 cross-compile was tried and abandoned because JUCE explicitly does not support MinGW (`juce_TargetPlatform.h` has `#error "MinGW is not supported"` and `JUCE_64BIT` is gated on `_MSC_VER`). Native Linux builds clean.
-- Output `.abc` is plain text and platform-agnostic, so the conversion math is fully provable on Linux. Windows packaging is deferred.
+- **Native Linux/WSL with GCC.** Spec §1/§4.3 name Windows + MSVC; both
+  are overridden. MSVC was rejected outright. MinGW-w64 cross-compile was
+  tried and abandoned because JUCE explicitly does not support MinGW
+  (`juce_TargetPlatform.h` has `#error "MinGW is not supported"` and
+  `JUCE_64BIT` is gated on `_MSC_VER`). Output `.abc` is plain text and
+  platform-agnostic, so the conversion math is fully provable on Linux.
+  Windows packaging is deferred.
 - CMake ≥ 3.22, C++17, Ninja.
-- JUCE (submodule at `./JUCE`) — linked modules: `juce_audio_basics`, `juce_audio_formats` (for `juce::MidiFile`), `juce_core`. Console app via `juce_add_console_app` — no GUI modules.
+- JUCE (submodule at `./JUCE`) — modules linked: `juce_audio_basics`,
+  `juce_audio_formats`, `juce_core`. Console app via `juce_add_console_app`
+  — no GUI modules.
 - Catch2 (submodule at `./Tests/Catch2`, tracking `devel`).
-- `cmake/mingw-w64-toolchain.cmake` exists but is currently unused. Kept for reference. If we ever revisit Windows cross-compile, evaluate `llvm-mingw` + clang before retrying GCC-mingw.
+- `cmake/mingw-w64-toolchain.cmake` exists but is unused; kept for
+  reference. Revisit with `llvm-mingw` + clang if we ever retry Windows
+  cross-compile.
 
 ## Build / test commands
 
@@ -27,36 +43,190 @@ ctest --test-dir build --output-on-failure
 
 Converter binary: `build/converter_artefacts/Debug/converter`.
 
-Run a single Catch2 test: `ctest --test-dir build -R <test_name> --output-on-failure`, or invoke `build/Tests/converter_tests` directly with `"[tag]"` / `"test name"`.
+Run a single Catch2 test: `ctest --test-dir build -R <name> --output-on-failure`,
+or invoke `build/Tests/converter_tests` directly with `"[tag]"` / `"test name"`.
 
 First-time clone only: `git submodule update --init --recursive`.
 
 ## Architecture
 
-Pipeline (spec §3.2): `MidiImporter` → `RangeConstraint` → `DurationConstraint` → `TempoCollapse` → `ChordConstraint` → `CollisionGuard` → `DynamicMapper` → `AbcWriter`. **Constraint order is load-bearing** — do not reorder without re-running all tests.
+### Build targets (CMakeLists.txt)
 
-Only `MidiImporter` touches `juce::MidiFile`; every constraint takes a `Track&` and mutates it in place. `Source/Core/` contains all conversion logic; `Source/Cli/` and `Source/Main.cpp` are the thin CLI wrapper.
+```
+converter_core   (static library)  ─────────────► converter_tests (Catch2 exe)
+       ▲                                          ▲
+       │ depends on                               │
+       │                                          │
+converter (console-app exe, thin CLI wrapper on top of converter_core)
+```
 
-## CLI shape (v0.1)
+The Core library compiles once and is linked by both the CLI and the
+test binary. A future GUI will link the same library.
+
+### Source layout
+
+```
+Source/
+├── Core/                        JUCE-free public API at the header surface
+│   ├── Diagnostics.h            Severity + Diagnostic (source, tick, pitch,
+│   │                            sourceTrackIndex, sourceEventIndex, trackIndex)
+│   ├── Note.h                   POD; carries sourceTrackIndex/sourceEventIndex
+│   ├── Track.h                  POD; std::string name, vector<Note>, …
+│   ├── Song.h                   POD; includes a DrumMap member
+│   ├── LotroInstrument.{h,cpp}  enum + InstrumentRange lookup; std::string API
+│   ├── AutoInstrument.{h,cpp}   pickInstrumentForTrack() — heuristic default
+│   ├── DrumMap.{h,cpp}          DrumMap class (set/clear/lookup); defaultDrumMap()
+│   ├── MidiImporter.{h,cpp}     takes std::istream; juce::MidiFile *internally*
+│   ├── AbcWriter.{h,cpp}        std::string writeAbc(Song). Internal ChordEmitter
+│   │                            class encapsulates the emit loop's state.
+│   └── Constraints/
+│       ├── RangeConstraint      clamp pitches to instrument's ABC envelope
+│       ├── ChordConstraint      group by startTick; trim chords > 6 by velocity
+│       ├── DurationConstraint   drop zero-duration notes (currently a near-no-op)
+│       ├── TempoCollapse        scale durations for mid-song tempo changes
+│       ├── CollisionGuard       trim same-pitch overlaps
+│       └── DynamicMapper        velocity → +dynamic+ markings (loudest-per-tick)
+├── Cli/
+│   ├── CliOptions.{h,cpp}       hand-rolled arg parser (juce::String internally)
+│   └── DrumMapLoader.{h,cpp}    JSON parser for --drum-map (uses juce::JSON)
+└── Main.cpp                     wires import → auto-instrument → overrides →
+                                  pipeline → writer, converts at boundaries
+```
+
+### Pipeline (in `Main.cpp::runPipeline`, applied per-track)
+
+```
+  Range → Chord → Duration → Tempo → Collision → Dynamic → AbcWriter
+```
+
+**Order is load-bearing** — do not reorder without re-running all tests.
+
+Only `MidiImporter.cpp` touches `juce::MidiFile`. Every constraint takes a
+`Track&` and mutates it in place. All Core public headers are `juce::`-free
+(verified: `grep juce Source/Core/*.h Source/Core/**/*.h` returns nothing).
+
+### Emission model — the thing worth understanding
+
+`AbcWriter` does **not** use tied notes to express polyphony. Instead it
+uses the **cluster-at-boundary with z-pulse** trick (see the ~30-line
+design comment at the top of `AbcWriter.cpp`):
+
+- Walk MIDI notes by start-tick cluster (all notes starting at the same
+  tick become one emission).
+- Each cluster emits one chord token `[note1dur1 note2dur2 ...]` where
+  each note has its own duration. The **shortest inner element**
+  controls how far the stream advances; longer voices keep ringing as
+  subsequent tokens play on top.
+- When a voice extends past the next cluster's start, we add a `z` rest
+  **inside the chord brackets** as the pulse. Non-standard ABC but LOTRO
+  and Maestro both accept it (verified against 2011-era reference output
+  `rideintochetwood.abc`).
+- The z-pulse is **capped at the remaining bar space**, so each
+  `% bar N` comment covers exactly one bar of tokens. Held notes keep
+  their full MIDI ring duration via the inner-per-note-duration
+  mechanism; the cap only limits the chord's *advance*, not any note's
+  duration.
+
+`BarAlignment_tests.cpp` pins this invariant. The `ChordEmitter` class
+inside the `AbcWriter.cpp` anonymous namespace owns the emit-loop state
+(body buffer, stream-tick cursor, bar-label state); `emitBody` is a
+short walk over note clusters feeding the emitter.
+
+### Diagnostics
+
+`Diagnostic` is a struct with `severity`, `source` (e.g.
+"RangeConstraint"), `message`, `trackIndex`, `tick`, `pitch`, plus the
+stable-identity pair `sourceTrackIndex` / `sourceEventIndex` that points
+back to the originating MIDI event. `formatDiagnostic(d)` renders a
+one-line display. The CLI's `-v` flag prints these; a GUI will render
+them as clickable list items and use the source IDs to jump-to-source.
+
+## CLI shape
 
 ```
 converter [OPTIONS] INPUT.mid [OUTPUT.abc]
   --instrument N=NAME   Assign instrument to track N (repeatable)
   --tempo BPM           Override detected main tempo
   --transpose N         Global semitone transpose (pre range-clamp)
+  --drum-map PATH       Load drum-map JSON file, merged onto defaults
   --list-tracks         Print track table and exit
   --list-instruments    Print valid instrument NAME values and exit
-  -v, --verbose         Log constraint warnings to stderr
+  -v, --verbose         Log Diagnostics to stderr
+  -h, --help            Print this help and exit
 ```
 
-Defaults: all tracks → `LuteOfAges`; MIDI channel-10 tracks auto-detect to `Drums`. Output path defaults to `<input-stem>.abc` next to the input.
+**Defaults:**
+- Instrument per track is chosen by `pickInstrumentForTrack()` —
+  whichever LOTRO instrument's native MIDI range covers the most notes
+  without octave transposition, with tiebreak preference for the
+  natural-melody instruments (LuteOfAges → Harp → BasicLute → …).
+  `--instrument N=NAME` overrides the auto-pick.
+- MIDI channel-10 tracks auto-detect to `Drums` in `MidiImporter`.
+- Output path defaults to `<input-stem>.abc` next to the input.
+- Drum mappings default to the spec §2.6 + extended-GM-percussion set
+  in `defaultDrumMap()`. `--drum-map` merges overrides on top; unlisted
+  pitches keep their defaults.
+
+## Deltas from the spec
+
+These are intentional and verified against test fixtures:
+
+- **Spec §2.4 "quantize to 1/16 grid" was removed.** We preserve exact
+  MIDI tick positions. See `findings/drum-timing.md` for context —
+  empirical testing showed quantization introduced audible drift; the
+  user-requested "preserve exact ticks" emission proved accurate when
+  playback was verified against the MIDI source.
+- **Spec §2.4 "split long notes at bar lines with ties"**: we don't
+  split note tokens. `DurationConstraint` passes notes through
+  unchanged except for dropping zero-duration ones. Long sustains
+  survive intact inside cluster chord tokens.
+- **Ties** (`-`): removed entirely. Not needed with the z-pulse
+  emission model.
+- **PolyphonyFlatten**: existed briefly, removed. The z-pulse trick
+  supersedes slice-based flattening and eliminates the re-articulation
+  problem for held voices.
+- **ABC `L:1/8`** is still the fixed default length. `Q:` `M:` `K:`
+  headers match the spec format.
+- **Dynamics**: `DynamicMapper` does loudest-per-tick bucketing to
+  avoid stacked `+ff++mp+` markings. See `findings/dynamics.md` for
+  the rationale and known limitations.
 
 ## Reference material in this repo
 
-- `drummaps/default.txt`, `drums.txt`, `cymbals.txt` — **Maestro-format drum maps, AGPL-licensed reference data only**. Read for GM → LOTRO drum-note mappings; do not ship verbatim. The spec §2.6 table is hardcoded in `Source/Core/DrumMap.cpp` for v0.1.
-- `midi/Barnes Brothers Band - Pull The Wires.mid` — end-to-end fixture. Tiny unit-test MIDIs live under `Tests/fixtures/`.
+- `drummaps/default.txt`, `drums.txt`, `cymbals.txt` — **Maestro-format
+  drum maps, AGPL-licensed reference data only**. Read for GM → LOTRO
+  drum-note mappings; do not ship verbatim. The defaults live in
+  `Source/Core/DrumMap.cpp`'s `specDefaults` array; users can override
+  at runtime via `--drum-map drum_map.json`.
+- `drum_map.json` (repo root) — sample JSON reproducing the built-in
+  defaults. Edit to customise.
+- `midi/*.mid` — test fixtures. `Barnes Brothers Band - Pull The Wires.mid`
+  is the end-to-end reference used by `EndToEnd_tests.cpp`.
+- `correct right.abc`, `rideintochetwood.abc` — reference outputs from
+  other LOTRO converters (Maestro / 2011-era) kept as comparison
+  targets. `rideintochetwood.abc` is the origin of the z-pulse trick.
+
+## Git
+
+Atomic commit history starting from `1f24708`. Conventional-commit
+prefixes (`feat:`, `fix:`, `refactor:`). Never push without explicit
+approval.
+
+## Testing notes
+
+- Test count as of the ChordEmitter refactor: **64/64**.
+- `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
+  for the day bar alignment was off in track 5.
+- `Provenance_tests.cpp` verifies source-track/event IDs survive the
+  full pipeline.
+- `AutoInstrument_tests.cpp` verifies heuristic instrument selection.
+- End-to-end test reads `midi/Barnes Brothers Band - Pull The Wires.mid`
+  from disk, runs the full pipeline, checks structural ABC invariants.
 
 ## Licensing guardrails
 
-- **Maestro** (github.com/NikolaiVChr/maestro, github.com/digero/maestro) is AGPL-3.0. Treat it as a spec reference for algorithms and data tables. Do not paste its source.
-- JUCE's license tier depends on distribution; re-check before any public release.
+- **Maestro** (github.com/NikolaiVChr/maestro, github.com/digero/maestro)
+  is AGPL-3.0. Treat it as a spec reference for algorithms and data
+  tables. Do not paste its source.
+- JUCE's license tier depends on distribution; re-check before any
+  public release.

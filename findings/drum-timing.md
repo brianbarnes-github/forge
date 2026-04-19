@@ -1,80 +1,68 @@
 # Findings: drum timing "feels off" on humanized MIDI
 
-**Status:** Known limitation. Not fixing. v0.1 behavior is spec-compliant; groove flattening on humanized source MIDI is an accepted tradeoff.
+**Status:** Resolved by removing quantization. This document is kept for
+historical context — the original decision (accept 1/16 snap) was
+reconsidered after empirical playback testing showed the snap itself was
+the audible problem, not a solution to it.
 
-## Symptom
+## Summary of the investigation
 
-Drums in the converted `midi/right.abc` sound like they drift or lose the groove compared to `midi/right.mid`. Not a hard-pitched error — just a feel issue.
+1. **Original complaint.** Drums in `midi/right.abc` didn't groove the
+   same as `midi/right.mid`. Side-by-side comparison pinned the
+   difference on hi-hat hits: the MIDI had 366 hits at tick offset 386
+   within each beat (just past "the a"), and the converter was snapping
+   those to offset 360 (on "the a"). A consistent 26-tick forward shift.
+2. **First take** (this doc, pre-revision): accept the snap as
+   spec-compliant behaviour; document that humanized MIDI will be
+   flattened; recommend users re-author on the 1/16 grid if they care.
+3. **Second take** (after user pushback): remove quantization entirely.
+   The user's reasoning — fine-grained fractional durations produce
+   fragile output that LOTRO may re-round internally, so let's preserve
+   exact ticks and trust LOTRO's playback — turned out to be correct
+   when tested. Exact-tick emission sounded right; snapped emission did
+   not.
 
-## What the MIDI actually contains
+## Current behaviour
 
-`midi/right.mid` drum track (channel 10):
-- PPQ: 480
-- 1,811 drum hits across 10 GM pitches (35, 38, 42, 44, 45, 46, 49, 55, 56, 57)
-- Two "grids" are mixed:
-  - **On-grid hits** (952 at offset 0, 466 at offset 240, a few at 120/360 — exact 1/16 positions)
-  - **Humanized / swung hits** (366 at offset **386** within each beat)
+- `DurationConstraint` no longer quantizes — it only drops zero-duration
+  notes. The 1/16-grid rounding code is gone (git log
+  `Source/Core/Constraints/DurationConstraint.cpp` shows the shrinkage).
+- Every MIDI tick is preserved exactly into the ABC output. Fractional
+  duration tokens like `c31/80` appear freely and are correct.
+- `BarAlignment_tests.cpp` pins the invariant that each `% bar N` block
+  sums to exactly one bar of ticks — bar structure stays aligned even
+  though individual note positions are off-grid.
 
-The offset-386 hits are the smoking gun: 386 ticks into a 480-tick beat = 80.4% of the way through — just after the "a" (last 1/16) at tick 360, but not quite on the next beat. This is either:
-  - Drummer-style humanization (a consistent 26-tick "push" past the 16th)
-  - A swing-16ths feel authored with a non-Western grid
+## Why the original "snap to 1/16" argument was wrong
 
-## Why the converter flattens it
+- The spec's §2.4 instruction to round to 1/16 was treating LOTRO as
+  more fragile than it actually is. ABC Player accepts fractional
+  durations like `/30` fine.
+- "Deterministic and non-accumulating" was true, but the snap was
+  *systematically wrong* — every humanized hit drifted by the same
+  26 ticks, which is far more audible than the author of that argument
+  appreciated.
+- The 2011-era reference (`rideintochetwood.abc` in the repo root)
+  emits un-snapped fractional durations everywhere. That file plays
+  correctly in LOTRO to this day.
 
-`Source/Core/Constraints/DurationConstraint.cpp:43` snaps every note start to the nearest 1/16 grid tick:
+## Deltas vs spec §2.4
 
-```cpp
-const int gridTicks  = std::max (1, song.ticksPerQuarter / 4);  // 120 at PPQ 480
-const int quantStart = roundToGrid (note.startTick, gridTicks);
-```
+The spec mandates:
+- Round note start and end times to the nearest 1/16 — **ignored.**
+- Minimum duration 1/16, rounded up — **ignored** (we emit short notes
+  at their true duration).
+- Split long notes at bar lines with tied segments — **ignored** (ties
+  aren't used; see `findings` on the cluster-at-boundary with z-pulse
+  emission model in `AbcWriter.cpp`'s header comment).
 
-`roundToGrid` is round-to-nearest. For `startTick = 4226`: `(4226 + 60) / 120 * 120 = 4200`. The hit moves **26 ticks earlier** (~31 ms at 103 BPM). Consistently — same shift on every humanized hit.
+These deltas are documented in `CLAUDE.md` under "Deltas from the spec".
 
-Knock-on effect on gaps:
-- Pre-snap gap from "offbeat hi-hat" (4080) to "push hi-hat" (4226): **146 ticks**.
-- Post-snap gap (4080 → 4200): **120 ticks** (tightened 26).
-- Pre-snap gap from push (4226) to next downbeat (4320): **94 ticks**.
-- Post-snap gap (4200 → 4320): **120 ticks** (widened 26).
+## Signals this should be revisited
 
-Gaps that were "rushed then laid-back" become "even 16ths". The hi-hat loses its forward lean. Perceptually: the drummer stops pushing and plays on the grid. Not wrong, but not what the MIDI does.
-
-This is **spec §2.4 behavior** ("round note start and end times to the nearest 1/16 of a beat"), so the converter is doing exactly what the spec says. The complaint is really with the spec's chosen grid resolution.
-
-## Decision: accept 1/16 snap, don't chase finer grids
-
-Finer grids (1/32, 1/48, 1/64) were considered and **rejected** for the following reasons:
-
-- The spec's 1/16 grid is the grid LOTRO's ABC Player is reliably quantized against. Going finer means emitting fractional tokens (`/4`, `3/4`, `5/4`) that the player must interpret, and LOTRO's internal rounding behavior at those resolutions isn't documented — what looks sample-accurate in our output can re-round inside the player and cumulatively drift over long songs.
-- The snap we do now is **deterministic and non-accumulating**: a hit at tick 386 always moves to 360. The same hit, snapped the same way, every bar. The song loses a groove feature but stays structurally correct to the last bar.
-- The error budget for "consistent groove flattening" is bounded and easy to reason about. The error budget for "finer grid that might or might not be honored" is open-ended.
-- Spec §2.4 is explicit: "round note start and end times to the nearest 1/16 of a beat." We follow it.
-
-## What we accept
-
-- Humanized drum tracks (consistent off-16th offsets) will have their humanization flattened. The groove sounds more "on the grid" than the MIDI.
-- Swing 16ths authored at non-1/16 offsets will sound square.
-- Triplet feels approximated by off-grid MIDI positions will be collapsed to the nearest 1/16 (triplets authored with explicit 1/12 grid positions still round cleanly via 1/16, and the `/3` duration token handles the duration side).
-
-If a user strongly needs the humanized groove preserved, they can re-author the MIDI with drum hits placed on the 1/16 grid.
-
-## Considered-and-rejected alternatives
-
-- **Finer grid globally.** Fractional-token fragility. Rejected.
-- **Finer grid for drums only.** Same risk, smaller surface; still rejected.
-- **`--grid N` CLI flag.** Pushes the fragility decision to the user, who has no way to judge it per song. Rejected.
-- **Auto-detect dominant subdivision.** Expensive, still emits finer fractions at the end. Rejected.
-
-## Not a root cause
-
-These were checked and ruled out:
-- DrumMap: all 10 pitches in `midi/right.mid`'s drum track are mapped or cleanly dropped. Unmapped (55, 56, 57) are silently discarded, which might also be a minor complaint but isn't what the user reported.
-- PolyphonyFlatten: drum slices after flatten are on the 1/16 grid; no off-grid slice boundaries.
-- Tempo: single tempo event (103 BPM), `Q:103` emitted, no tempo collapse scaling applied.
-- Collision: CollisionGuard doesn't apply to drum tracks in a meaningful way (each hit is a single attack; same-pitch overlaps are rare and handled fine).
-
-## Signals this needs revisiting
-
-If one of these shows up, re-open this decision:
-- A user reports *drifting* timing (song gets longer or shorter than the MIDI), not *groove change*. Drift would be a different bug, not this one.
-- LOTRO introduces ABC duration tokens finer than 1/16 as a first-class feature.
-- We gain a way to validate LOTRO's internal rounding at fine durations empirically.
+- If a user reports drifting timing (song gets longer/shorter than the
+  MIDI), investigate `ChordEmitter` / `AbcWriter` tick accounting, not
+  `DurationConstraint`.
+- If LOTRO updates break fractional-duration handling, we'd have to
+  reintroduce quantization. Unlikely — ABC fractional durations have
+  been stable since the format was defined.
