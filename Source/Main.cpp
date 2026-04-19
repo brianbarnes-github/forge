@@ -1,4 +1,5 @@
 #include "Cli/CliOptions.h"
+#include "Core/AutoInstrument.h"
 #include "Core/Diagnostics.h"
 #include "Core/MidiImporter.h"
 #include "Core/AbcWriter.h"
@@ -127,6 +128,11 @@ int main (int argc, char* argv[])
             printTracks (song);
             return 0;
         }
+
+        // Auto-pick an instrument per track based on pitch range. Explicit
+        // --instrument flags run next and override the picked default.
+        for (auto& track : song.tracks)
+            track.instrument = lotro::pickInstrumentForTrack (track);
 
         applyOverrides (song, opts);
         runPipeline (song, diagnostics);
