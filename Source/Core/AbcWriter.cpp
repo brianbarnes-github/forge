@@ -229,81 +229,59 @@ namespace
         return m.numerator * song.ticksPerQuarter * 4 / m.denominator;
     }
 
-    std::string emitBody (const Song& song, const Track& track)
+    // Accumulates the ABC body for one part. Owns the stream-tick cursor,
+    // bar-label state, and the text buffer. Callers feed it rests, clusters,
+    // and dynamic markings in tick order; emitter handles bar-break emission
+    // and rest splitting internally.
+    class ChordEmitter
     {
-        const auto groups = groupByStartTick (track.notes);
-        if (groups.empty())
-            return {};
-
-        std::vector<DynamicChangeRef> changes = track.dynamicChanges;
-
-        std::string body;
-        int    streamTick  = 0;
-        size_t changeIdx   = 0;
-        const int bar      = barTicks (song);
-        int    nextBarTick = bar;
-        int    barNumber   = 1;
-
-        if (bar > 0)
-            body += "% bar " + std::to_string (barNumber) + "\n";
-
-        auto flushBarBreaks = [&] ()
+    public:
+        ChordEmitter (int barTicks, int ticksPerQuarter)
+            : bar (barTicks),
+              ppq (ticksPerQuarter),
+              nextBarTick (barTicks)
         {
-            while (bar > 0 && streamTick >= nextBarTick)
-            {
-                body += "\n";
-                ++barNumber;
+            if (bar > 0)
                 body += "% bar " + std::to_string (barNumber) + "\n";
-                nextBarTick += bar;
-            }
-        };
+        }
+
+        int currentTick() const noexcept { return streamTick; }
+
+        // Ticks remaining in the bar that contains `fromTick`. Used to cap
+        // a cluster's z-pulse so a chord token never spans a bar boundary.
+        int barRemainderFrom (int fromTick) const noexcept
+        {
+            return (bar > 0) ? std::max (0, nextBarTick - fromTick) : 0;
+        }
+
+        void emitDynamic (const char* marking)
+        {
+            body += '+';
+            body += marking;
+            body += '+';
+        }
 
         // Emit a rest of `ticks`, splitting at bar boundaries so each bar
-        // gets its own line. Chord tokens are never split this way — held
-        // notes inside a chord must stay intact to preserve ring-through.
-        auto emitRestSplit = [&] (int ticks)
+        // gets its own line.
+        void emitRest (int ticks)
         {
             while (ticks > 0)
             {
                 const int untilBar = (bar > 0) ? (nextBarTick - streamTick) : ticks;
                 const int chunk    = (untilBar > 0) ? std::min (ticks, untilBar) : ticks;
-                body += "z" + abcDurationToken (chunk, song.ticksPerQuarter) + " ";
+                body += "z" + abcDurationToken (chunk, ppq) + " ";
                 streamTick += chunk;
                 ticks      -= chunk;
                 flushBarBreaks();
             }
-        };
+        }
 
-        for (size_t i = 0; i < groups.size(); ++i)
+        // Emit a cluster's chord token followed by its trailing filler rest.
+        // The chord itself is never split at bar boundaries — a chord may
+        // contain held notes whose duration legitimately spans past the bar,
+        // and splitting them would force re-articulation.
+        void emitCluster (const ClusterEmission& emission)
         {
-            const auto& group = groups[i];
-
-            while (changeIdx < changes.size() && changes[changeIdx].startTick <= group.startTick)
-            {
-                body += "+";
-                body += abcMarkingFor ((DynamicMarking) changes[changeIdx].marking);
-                body += "+";
-                ++changeIdx;
-            }
-
-            if (streamTick < group.startTick)
-                emitRestSplit (group.startTick - streamTick);
-
-            const int nextStart     = (i + 1 < groups.size()) ? groups[i + 1].startTick : 0;
-            const int advanceNeeded = (nextStart > group.startTick) ? (nextStart - group.startTick) : 0;
-
-            // Cap the chord's z-pulse at the remaining space in the current
-            // bar so the chord token never spans a bar boundary.
-            const int barRemainder = (bar > 0) ? std::max (0, nextBarTick - group.startTick) : advanceNeeded;
-            const int advanceForChord   = (advanceNeeded > 0 && barRemainder > 0)
-                                             ? std::min (advanceNeeded, barRemainder)
-                                             : advanceNeeded;
-            const int advanceAfterChord = (advanceNeeded > 0)
-                                             ? advanceNeeded - advanceForChord
-                                             : 0;
-
-            auto emission = buildCluster (group, track, advanceForChord, song.ticksPerQuarter, song.drumMap);
-
             if (! emission.chord.empty())
             {
                 body += emission.chord;
@@ -312,16 +290,83 @@ namespace
             }
 
             if (emission.fillerTicks > 0)
-                emitRestSplit (emission.fillerTicks);
-
-            if (advanceAfterChord > 0)
-                emitRestSplit (advanceAfterChord);
+                emitRest (emission.fillerTicks);
         }
 
-        if (body.empty() || body.back() != '\n')
-            body += '\n';
+        // Finalise and return the accumulated ABC body.
+        std::string finish()
+        {
+            if (body.empty() || body.back() != '\n')
+                body += '\n';
+            return std::move (body);
+        }
 
-        return body;
+    private:
+        void flushBarBreaks()
+        {
+            while (bar > 0 && streamTick >= nextBarTick)
+            {
+                body += "\n";
+                ++barNumber;
+                body += "% bar " + std::to_string (barNumber) + "\n";
+                nextBarTick += bar;
+            }
+        }
+
+        std::string body;
+        int         streamTick  = 0;
+        int         nextBarTick = 0;
+        int         barNumber   = 1;
+        const int   bar;
+        const int   ppq;
+    };
+
+    std::string emitBody (const Song& song, const Track& track)
+    {
+        const auto groups = groupByStartTick (track.notes);
+        if (groups.empty())
+            return {};
+
+        ChordEmitter emitter (barTicks (song), song.ticksPerQuarter);
+
+        std::vector<DynamicChangeRef> changes = track.dynamicChanges;
+        size_t changeIdx = 0;
+
+        for (size_t i = 0; i < groups.size(); ++i)
+        {
+            const auto& group = groups[i];
+
+            while (changeIdx < changes.size() && changes[changeIdx].startTick <= group.startTick)
+            {
+                emitter.emitDynamic (abcMarkingFor ((DynamicMarking) changes[changeIdx].marking));
+                ++changeIdx;
+            }
+
+            if (emitter.currentTick() < group.startTick)
+                emitter.emitRest (group.startTick - emitter.currentTick());
+
+            const int nextStart     = (i + 1 < groups.size()) ? groups[i + 1].startTick : 0;
+            const int advanceNeeded = (nextStart > group.startTick) ? (nextStart - group.startTick) : 0;
+
+            // Cap the chord's z-pulse at the remaining space in the current
+            // bar so the chord token never spans a bar boundary.
+            const int barRemainder      = emitter.barRemainderFrom (group.startTick);
+            const int advanceForChord   = (advanceNeeded > 0 && barRemainder > 0)
+                                             ? std::min (advanceNeeded, barRemainder)
+                                             : advanceNeeded;
+            const int advanceAfterChord = (advanceNeeded > 0)
+                                             ? advanceNeeded - advanceForChord
+                                             : 0;
+
+            const auto emission = buildCluster (group, track, advanceForChord,
+                                                song.ticksPerQuarter, song.drumMap);
+            emitter.emitCluster (emission);
+
+            if (advanceAfterChord > 0)
+                emitter.emitRest (advanceAfterChord);
+        }
+
+        return emitter.finish();
     }
 }
 
