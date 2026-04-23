@@ -1,21 +1,22 @@
 # Findings: dynamics handling
 
-**Status:** v0.1 workaround ("loudest-per-tick") is in place and
-shipping. Production refinements deferred until a GUI is available to
-drive the decisions.
+**Status:** Settled. `DynamicMapper` emits at most one marking per tick,
+using the loudest velocity within each tick-cluster. This is the correct
+end state — not a workaround — and no further smoothing, hysteresis, or
+centroid-pooling passes should be added.
 
-## Symptom
+## The original symptom
 
-Before the fix, generated ABC emitted stacked dynamic markings like
-`+ff++mp+` or `+p++mp+` before a single note. ABC Player accepts this
-(the last marking wins per standard ABC decoration stacking), but:
-- The output is ugly and confusing to anyone editing the ABC by hand.
-- Information is thrown away — the quieter dynamic in the stack has no
+Before the loudest-per-tick fix, generated ABC emitted stacked markings
+like `+ff++mp+` before a single note. ABC Player accepts this (the last
+marking wins per standard decoration stacking), but:
+
+- Output is ugly to anyone editing by hand.
+- Information is thrown away — the quieter stacked dynamic has no
   effect on playback.
-- A stricter ABC validator may reject it.
+- A strict ABC validator may reject it.
 
-Seen on `midi/land.mid`: 142 occurrences in a single conversion
-(pre-fix).
+Seen on `midi/land.mid`: 142 occurrences in a single conversion pre-fix.
 
 ## Root cause
 
@@ -27,16 +28,16 @@ multiple changes could fire at the same tick.
 
 (Historical note: this was first observed with a short-lived
 `PolyphonyFlatten` pass that produced per-slice chords. That pass has
-since been removed — the z-pulse emission in `AbcWriter` supersedes it.
-The dynamics problem remained because clusters naturally group notes
-with different velocities.)
+since been removed — z-pulse emission in `AbcWriter` supersedes it. The
+dynamics stacking remained because clusters naturally group notes with
+different velocities, which is unrelated to slicing.)
 
-## Current fix: loudest-per-tick
+## Current design: loudest-per-tick
 
 `DynamicMapper.cpp` groups notes by `startTick` and takes the **maximum
 velocity** within each group before bucketing. A dynamic change emits
-at most once per tick, and only when that tick's bucket differs from the
-previous tick's bucket.
+at most once per tick, and only when that tick's bucket differs from
+the previous tick's bucket.
 
 Verification:
 ```bash
@@ -45,45 +46,71 @@ grep -cE '\+[a-z]+\+\+[a-z]+\+' /tmp/land.abc
 # expect: 0
 ```
 
-## Known limitations of the workaround
+## Why loudest-wins is correct, not a compromise
 
-1. **Softer voices get masked.** A soft sustained pad underneath a loud
-   melody gets the melody's dynamic. Fine for melody-dominant material,
-   wrong for ensemble balance.
-2. **Rapid velocity variance produces rapid markings.** A melody with
-   expressive per-note dynamics (normal for human-played MIDI) still
-   emits a change per tick when the bucket boundary is crossed. LOTRO
-   plays that faithfully but the ABC output clutters.
-3. **No hysteresis.** A one-note blip into `+ff+` then back to `+mp+`
-   is emitted as written, even if it lasts one 1/16th note.
+LOTRO's ABC player has a **single active dynamic per instrument at any
+moment** — every note the instrument plays sounds at whatever dynamic
+was most recently set. If `DynamicMapper` aggregated per-tick
+velocities using the median or the mean (a chord-centroid approach),
+the loudest voice — typically the melody — would sound at a softer
+dynamic than the author intended, and worst case become inaudible
+against other instruments.
 
-## Production fix options (pick when a GUI exists)
+Loudest-wins guarantees the loudest voice in any cluster is always at
+least as loud as authored. Softer voices ride along at that same
+dynamic. This is the minimum necessary editorial decision under the
+one-dynamic-per-instrument constraint; nothing weaker preserves
+audibility.
 
-### A. Chord-centroid dynamic
-Instead of loudest-wins, take the **velocity median** (or average) of
-all notes at the tick. More faithful to ensemble feel; still one
-marking per tick.
+## Why there will be no smoothing / hysteresis pass
 
-### B. Hysteresis / minimum-duration threshold
-Only emit a change if the new bucket holds for ≥ N ticks, or differs
-by ≥ 2 buckets from the previous. Smooths out noisy velocity data.
-Pair with A.
+The converter's guiding principle is that the MIDI is the source of
+truth and the ABC should reflect it as literally as possible, with the
+fewest editorial decisions the converter can get away with. Any
+hysteresis, drift-suppression, or threshold-based smoothing would
+deliberately hide detail the user authored in the MIDI — even if it's
+"only cosmetic" (e.g. collapsing a `+mp++mf+` drift caused by velocity
+jitter near a bucket boundary).
 
-### C. Per-source-note velocity baseline
-Drop dynamic changes that are just "slice velocity drift" within one
-source note's lifetime. With `Note::sourceTrackIndex` /
-`sourceEventIndex` now available, DynamicMapper can identify these.
+If a real song produces cluttered dynamics in the output, the fix is
+in the source MIDI (flatten the velocities) or in the user's
+expectations (that's what they played), not in the converter.
 
-### D. Per-voice dynamics via ABC `V:` voices
-Split into voices, each with its own dynamic track. **LOTRO does not
-honor `V:` in ABC — ignored.** Out unless LOTRO adds voice support.
+## Retired proposals
 
-**Recommended combo for production:** A + B. Median gives a more
-musical result than loudest; hysteresis kills the micro-change clutter.
+Earlier versions of this doc listed four "production fix options" for
+`DynamicMapper`:
 
-## Files touched by the workaround
+- **A. Chord-centroid (median/mean) velocity pooling.** Retired:
+  violates loudest-wins under the one-dynamic-per-instrument
+  constraint.
+- **B. Duration- or magnitude-based hysteresis.** Retired: suppresses
+  detail that the user authored. Contrary to the MIDI-is-truth
+  principle.
+- **C. Per-source-note velocity baseline using `Note::sourceEventIndex`.**
+  Retired: this was aimed at a slice-based emission model
+  (`PolyphonyFlatten`) that no longer exists. Each `Note` now maps
+  1:1 with a source MIDI note-on, so there is no intra-note velocity
+  drift to suppress.
+- **D. Per-voice dynamics via ABC `V:` voices.** Retired: LOTRO does
+  not honour `V:` in ABC.
+
+The previous "recommended combo A + B" guidance in this doc is
+**withdrawn**. Do not propose or implement either.
+
+## Files and tests
 
 - `Source/Core/Constraints/DynamicMapper.cpp` — groups notes by
-  `startTick` and takes max velocity per group before bucketing.
+  `startTick`, takes max velocity per group before bucketing.
 - `Tests/DynamicMapper_tests.cpp` — multi-note-same-tick regression
-  test.
+  test plus base cases.
+
+## Signals this should be revisited
+
+- A LOTRO client update that changes the one-dynamic-per-instrument
+  constraint (e.g. honouring `V:` voices with independent dynamics).
+  Then per-voice dynamics open up.
+- A complaint that a specific song's ABC is less audible than the
+  MIDI suggests. Investigation should start at the bucket boundaries
+  in `bucketForVelocity` or the MIDI's own velocities, not at adding
+  a smoothing pass.
