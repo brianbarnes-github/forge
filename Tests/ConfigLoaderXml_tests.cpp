@@ -78,3 +78,22 @@ TEST_CASE ("config-loader: XML malformed input returns error", "[config-loader][
     const auto err = lotro::loadConfigFromString (text, lotro::ConfigFormat::Xml, config);
     CHECK_FALSE (err.empty());
 }
+
+TEST_CASE ("config-loader: XML non-numeric tempo returns descriptive error", "[config-loader][xml]")
+{
+    const std::string text = R"(<?xml version="1.0"?>
+<config>
+  <input>song.mid</input>
+  <tempo>not-a-number</tempo>
+  <instruments>
+    <instrument x="1" name="LuteOfAges">
+      <sources><source>0</source></sources>
+    </instrument>
+  </instruments>
+</config>)";
+
+    lotro::Config config;
+    const auto err = lotro::loadConfigFromString (text, lotro::ConfigFormat::Xml, config);
+    CHECK_FALSE (err.empty());
+    CHECK (err.find ("tempo") != std::string::npos);
+}

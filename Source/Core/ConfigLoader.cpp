@@ -90,10 +90,22 @@ namespace
         out.transcriber = childText (*xml, "transcriber");
 
         if (auto t = childText (*xml, "tempo"))
-            out.tempo = std::stod (*t);
+        {
+            try { out.tempo = std::stod (*t); }
+            catch (const std::exception&)
+            {
+                return "config XML: <tempo> is not a number (got '" + *t + "')";
+            }
+        }
 
         if (auto t = childText (*xml, "transpose"))
-            out.transpose = std::stoi (*t);
+        {
+            try { out.transpose = std::stoi (*t); }
+            catch (const std::exception&)
+            {
+                return "config XML: <transpose> is not an integer (got '" + *t + "')";
+            }
+        }
 
         auto* instrumentsElem = xml->getChildByName ("instruments");
         if (instrumentsElem == nullptr)
@@ -122,9 +134,23 @@ namespace
             }
 
             if (auto t = childText (*inst, "transposeSemitones"))
-                ci.transposeSemitones = std::stoi (*t);
+            {
+                try { ci.transposeSemitones = std::stoi (*t); }
+                catch (const std::exception&)
+                {
+                    return "config XML: instrument " + std::to_string (out.instruments.size())
+                         + " <transposeSemitones> is not an integer (got '" + *t + "')";
+                }
+            }
             if (auto t = childText (*inst, "volumePercent"))
-                ci.volumePercent = std::stoi (*t);
+            {
+                try { ci.volumePercent = std::stoi (*t); }
+                catch (const std::exception&)
+                {
+                    return "config XML: instrument " + std::to_string (out.instruments.size())
+                         + " <volumePercent> is not an integer (got '" + *t + "')";
+                }
+            }
             ci.drumMap = childText (*inst, "drumMap");
 
             out.instruments.push_back (std::move (ci));
