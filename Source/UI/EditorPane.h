@@ -32,6 +32,7 @@ public:
     // Notifies listeners (typically MainWindow) that the in-memory Config
     // has been mutated.
     std::function<void()> onConfigChanged;
+    std::function<void()> onRunRequested;
 
     void resized() override;
     void paint (juce::Graphics& g) override;
@@ -42,6 +43,7 @@ private:
     std::unique_ptr<GlobalSettingsView>   globalView;
     std::unique_ptr<InstrumentsTable>     instrumentsTable;
     std::unique_ptr<InstrumentDetailForm> detailForm;
+    juce::TextButton                      runButton { "Run Converter" };
 };
 
 } // namespace lotro

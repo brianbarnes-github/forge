@@ -24,6 +24,8 @@ EditorPane::EditorPane()
     addAndMakeVisible (*globalView);
     addAndMakeVisible (*instrumentsTable);
     addAndMakeVisible (*detailForm);
+    addAndMakeVisible (runButton);
+    runButton.onClick = [this] { if (onRunRequested) onRunRequested(); };
 }
 
 EditorPane::~EditorPane() = default;
@@ -46,6 +48,8 @@ void EditorPane::resized()
     area.removeFromTop (8);
     instrumentsTable->setBounds (area.removeFromTop (200));
     area.removeFromTop (8);
+    runButton.setBounds (area.removeFromBottom (32));
+    area.removeFromBottom (8);
     detailForm->setBounds (area);
 }
 

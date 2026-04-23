@@ -2,6 +2,9 @@
 #include "EditorPane.h"
 #include "DiagnosticsPane.h"
 
+#include "Core/AbcWriter.h"
+#include "Core/Config.h"
+#include "Core/InstrumentAssembly.h"
 #include "Core/MidiImporter.h"
 #include "Core/Pipeline.h"
 
@@ -100,6 +103,8 @@ MainWindow::MainWindow()
     body->setBounds (0, 24, hostRaw->getWidth(), hostRaw->getHeight() - 24);
 
     setVisible (true);
+
+    body->getEditor().onRunRequested = [this] { runConversion(); };
 }
 
 MainWindow::~MainWindow() = default;
@@ -216,6 +221,48 @@ void MainWindow::openMidiFromPath (const juce::File& file)
         std::nullopt, 0, {});
 
     body->getEditor().loadFromMidi (std::move (raw), std::move (cfg));
+}
+
+void MainWindow::runConversion()
+{
+    auto& editor = body->getEditor();
+    const auto& cfg = editor.getConfig();
+    const auto& raw = editor.getRawSong();
+
+    Diagnostics diagnostics;
+
+    const auto validErr = validateConfig (cfg, (int) raw.tracks.size());
+    if (! validErr.empty())
+    {
+        Diagnostic err;
+        err.severity = Severity::Error;
+        err.source   = "Config";
+        err.message  = validErr;
+        diagnostics.push_back (err);
+        body->getDiagnostics().show (std::move (diagnostics), {});
+        return;
+    }
+
+    Song assembled;
+    std::string abc;
+    try
+    {
+        assembled = assembleInstruments (raw, cfg, diagnostics);
+        runPipeline (assembled, diagnostics);
+        abc = writeAbc (assembled);
+    }
+    catch (const std::exception& e)
+    {
+        Diagnostic err;
+        err.severity = Severity::Error;
+        err.source   = "Pipeline";
+        err.message  = e.what();
+        diagnostics.push_back (err);
+        body->getDiagnostics().show (std::move (diagnostics), {});
+        return;
+    }
+
+    body->getDiagnostics().show (std::move (diagnostics), std::move (abc));
 }
 
 } // namespace lotro

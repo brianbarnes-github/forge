@@ -50,6 +50,7 @@ private:
 
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
+    void runConversion();
 };
 
 } // namespace lotro
