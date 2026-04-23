@@ -10,3 +10,13 @@ build-*/
 
 # WSL/Windows artifacts
 *:Zone.Identifier
+
+# Personal porting scratch
+transport/
+transport.zip
+
+# Generated ABC output (converter runs produce these; not project artifacts)
+*.abc
+
+# User-dropped test MIDIs (personal scratch; tracked fixtures remain tracked)
+midi/*.mid
