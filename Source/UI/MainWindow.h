@@ -1,15 +1,18 @@
 #pragma once
 
-#include "EditorPane.h"
-#include "DiagnosticsPane.h"
-
 #include <juce_gui_basics/juce_gui_basics.h>
+
+#include <memory>
 
 namespace lotro
 {
 
+class EditorPane;
+class DiagnosticsPane;
+
 class MainWindow : public juce::DocumentWindow,
-                   public juce::MenuBarModel
+                   public juce::MenuBarModel,
+                   public juce::FileDragAndDropTarget
 {
 public:
     MainWindow();
@@ -17,11 +20,14 @@ public:
 
     void closeButtonPressed() override;
 
-    // MenuBarModel
     juce::StringArray getMenuBarNames() override;
     juce::PopupMenu   getMenuForIndex (int topLevelMenuIndex,
                                        const juce::String& menuName) override;
     void              menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
+
+    // FileDragAndDropTarget
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped           (const juce::StringArray& files, int x, int y) override;
 
 private:
     enum CommandId
@@ -38,8 +44,12 @@ private:
     };
 
     class Body;
-    std::unique_ptr<Body> body;
+    std::unique_ptr<Body>                   body;
     std::unique_ptr<juce::MenuBarComponent> menuBar;
+    std::unique_ptr<juce::FileChooser>      fileChooser;
+
+    void openMidiViaDialog();
+    void openMidiFromPath (const juce::File& file);
 };
 
 } // namespace lotro
