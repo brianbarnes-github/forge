@@ -3,6 +3,11 @@ add_subdirectory(Catch2)
 add_executable(converter_tests
     smoke_test.cpp
     AutoInstrument_tests.cpp
+    Config_tests.cpp
+    ConfigLoader_tests.cpp
+    ConfigLoaderXml_tests.cpp
+    ConfigLoaderToml_tests.cpp
+    ConfigPipeline_tests.cpp
     DrumMap_tests.cpp
     MidiImporter_tests.cpp
     RangeConstraint_tests.cpp
@@ -13,8 +18,11 @@ add_executable(converter_tests
     TempoPipeline_tests.cpp
     DynamicMapper_tests.cpp
     AbcWriter_tests.cpp
+    AbcWriterConfig_tests.cpp
     BarAlignment_tests.cpp
     EndToEnd_tests.cpp
+    EndToEndConfig_tests.cpp
+    InstrumentAssembly_tests.cpp
     Provenance_tests.cpp)
 
 target_link_libraries(converter_tests PRIVATE

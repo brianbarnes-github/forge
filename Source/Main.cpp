@@ -1,6 +1,9 @@
 #include "Cli/CliOptions.h"
-#include "Cli/DrumMapLoader.h"
+#include "Core/DrumMapLoader.h"
 #include "Core/AutoInstrument.h"
+#include "Core/Config.h"
+#include "Core/ConfigLoader.h"
+#include "Core/InstrumentAssembly.h"
 #include "Core/Diagnostics.h"
 #include "Core/MidiImporter.h"
 #include "Core/AbcWriter.h"
@@ -45,26 +48,33 @@ namespace
         }
     }
 
-    void applyOverrides (lotro::Song& song, const lotro::CliOptions& opts)
+    lotro::Config synthesiseConfig (const lotro::CliOptions& opts,
+                                    const lotro::Song&       raw)
     {
-        for (const auto& [trackIdx, instrument] : opts.instrumentOverrides)
-        {
-            if (trackIdx < 0 || trackIdx >= (int) song.tracks.size())
-                continue;
-            song.tracks[(size_t) trackIdx].instrument = instrument;
-        }
-
-        if (opts.transposeSemitones != 0)
-            for (auto& track : song.tracks)
-                track.transposeSemitones = opts.transposeSemitones;
-
+        lotro::Config cfg;
+        cfg.input = opts.inputFile.getFullPathName().toStdString();
+        if (opts.outputFile != juce::File())
+            cfg.output = opts.outputFile.getFullPathName().toStdString();
         if (opts.tempoOverride.has_value())
+            cfg.tempo = *opts.tempoOverride;
+        cfg.transpose = opts.transposeSemitones;
+
+        for (size_t i = 0; i < raw.tracks.size(); ++i)
         {
-            if (song.tempoMap.empty())
-                song.tempoMap.push_back ({ 0, *opts.tempoOverride });
-            else
-                song.tempoMap.front().bpm = *opts.tempoOverride;
+            lotro::ConfigInstrument inst;
+            inst.x       = (int) (i + 1);
+            inst.sources = { (int) i };
+
+            const auto picked = lotro::pickInstrumentForTrack (raw.tracks[i]);
+            inst.name = std::string (lotro::displayName (picked));
+
+            auto overrideIt = opts.instrumentOverrides.find ((int) i);
+            if (overrideIt != opts.instrumentOverrides.end())
+                inst.name = std::string (lotro::displayName (overrideIt->second));
+
+            cfg.instruments.push_back (inst);
         }
+        return cfg;
     }
 
     void runPipeline (lotro::Song& song, lotro::Diagnostics& diagnostics)
@@ -114,16 +124,71 @@ int main (int argc, char* argv[])
     {
         lotro::Diagnostics diagnostics;
 
-        std::ifstream midiStream (opts.inputFile.getFullPathName().toStdString(),
+        // Resolve the effective input and output paths. In config mode we may
+        // need to load the config before we know the MIDI path, so we handle
+        // config loading up front when --config is present.
+        juce::File effectiveInput  = opts.inputFile;
+        juce::File effectiveOutput = opts.outputFile;
+        lotro::Config cfg;
+
+        if (opts.configFile != juce::File())
+        {
+            // Reject --instrument in config mode (spec).
+            if (! opts.instrumentOverrides.empty())
+            {
+                std::cerr << "config error: --instrument is not allowed with --config "
+                          << "(use the config's instruments[].name to assign instruments)\n";
+                return 2;
+            }
+
+            // Load the config (auto-detect format unless --config-format overrides).
+            const auto format = opts.configFormat.isEmpty()
+                ? lotro::ConfigFormat::Auto
+                : (opts.configFormat == "json" ? lotro::ConfigFormat::Json
+                 : opts.configFormat == "toml" ? lotro::ConfigFormat::Toml
+                 :                               lotro::ConfigFormat::Xml);
+
+            const auto loadErr = lotro::loadConfigFromFile (
+                opts.configFile.getFullPathName().toStdString(),
+                format,
+                cfg);
+            if (! loadErr.empty())
+            {
+                std::cerr << "config error: " << loadErr << "\n";
+                return 2;
+            }
+
+            if (opts.tempoOverride.has_value())
+                cfg.tempo = *opts.tempoOverride;
+            if (opts.transposeSemitones != 0)
+                cfg.transpose += opts.transposeSemitones;
+
+            // Positional INPUT.mid overrides config's input; if absent, fall
+            // back to cfg.input. Relative paths in the config are resolved
+            // against the config file's directory (per spec).
+            const auto configDir = opts.configFile.getParentDirectory();
+            if (effectiveInput == juce::File() && ! cfg.input.empty())
+                effectiveInput = configDir.getChildFile (cfg.input);
+
+            // Same for output.
+            if (effectiveOutput == juce::File() && cfg.output.has_value())
+                effectiveOutput = configDir.getChildFile (*cfg.output);
+
+            // Last resort: derive output from effective input stem.
+            if (effectiveOutput == juce::File())
+                effectiveOutput = effectiveInput.withFileExtension (".abc");
+        }
+
+        std::ifstream midiStream (effectiveInput.getFullPathName().toStdString(),
                                   std::ios::binary);
         if (! midiStream)
         {
             std::cerr << "Error: could not open MIDI file: "
-                      << opts.inputFile.getFullPathName().toStdString() << "\n";
+                      << effectiveInput.getFullPathName().toStdString() << "\n";
             return 1;
         }
 
-        const auto sourceName = opts.inputFile.getFileNameWithoutExtension().toStdString();
+        const auto sourceName = effectiveInput.getFileNameWithoutExtension().toStdString();
         auto song = lotro::importMidi (midiStream, sourceName, diagnostics);
 
         if (opts.drumMapFile != juce::File())
@@ -144,20 +209,30 @@ int main (int argc, char* argv[])
             return 0;
         }
 
-        // Auto-pick an instrument per track based on pitch range. Explicit
-        // --instrument flags run next and override the picked default.
-        for (auto& track : song.tracks)
-            track.instrument = lotro::pickInstrumentForTrack (track);
+        if (opts.configFile != juce::File())
+        {
+            const auto validErr = lotro::validateConfig (cfg, (int) song.tracks.size());
+            if (! validErr.empty())
+            {
+                std::cerr << "config error: " << validErr << "\n";
+                return 2;
+            }
+        }
+        else
+        {
+            cfg = synthesiseConfig (opts, song);
+        }
 
-        applyOverrides (song, opts);
-        runPipeline (song, diagnostics);
+        auto assembled = lotro::assembleInstruments (song, cfg, diagnostics);
 
-        const auto abc = lotro::writeAbc (song);
+        runPipeline (assembled, diagnostics);
 
-        if (! opts.outputFile.replaceWithText (juce::String (abc)))
+        const auto abc = lotro::writeAbc (assembled);
+
+        if (! effectiveOutput.replaceWithText (juce::String (abc)))
         {
             std::cerr << "Failed to write output file: "
-                      << opts.outputFile.getFullPathName().toStdString() << "\n";
+                      << effectiveOutput.getFullPathName().toStdString() << "\n";
             return 1;
         }
 
@@ -165,7 +240,7 @@ int main (int argc, char* argv[])
             for (const auto& d : diagnostics)
                 std::cerr << lotro::formatDiagnostic (d) << "\n";
 
-        std::cout << "Wrote " << opts.outputFile.getFullPathName().toStdString() << "\n";
+        std::cout << "Wrote " << effectiveOutput.getFullPathName().toStdString() << "\n";
         return 0;
     }
     catch (const lotro::MidiImportError& e)

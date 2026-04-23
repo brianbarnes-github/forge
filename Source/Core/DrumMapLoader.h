@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Core/DrumMap.h"
+#include "DrumMap.h"
 
 #include <string>
 

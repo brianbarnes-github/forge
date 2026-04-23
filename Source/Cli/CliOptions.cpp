@@ -8,7 +8,9 @@ juce::String usageText()
     return
         "converter [OPTIONS] INPUT.mid [OUTPUT.abc]\n"
         "\n"
-        "  --instrument N=NAME   Assign instrument to track N (repeatable)\n"
+        "  --config PATH         Load a config file (JSON/TOML/XML)\n"
+        "  --config-format FMT   Override format detection (json|toml|xml)\n"
+        "  --instrument N=NAME   Assign instrument to track N (repeatable; config-less mode only)\n"
         "  --tempo BPM           Override detected main tempo\n"
         "  --transpose N         Global semitone transpose (pre range-clamp)\n"
         "  --drum-map PATH       Load drum-map JSON file, merged onto defaults\n"
@@ -82,6 +84,28 @@ CliParseResult parseCli (const juce::StringArray& rawArgs)
             continue;
         }
 
+        if (arg == "--config")
+        {
+            const auto value = takeValue (rawArgs, i, arg, result.error);
+            if (result.error.isNotEmpty()) return result;
+            opts.configFile = juce::File::getCurrentWorkingDirectory().getChildFile (value);
+            continue;
+        }
+
+        if (arg == "--config-format")
+        {
+            const auto value = takeValue (rawArgs, i, arg, result.error);
+            if (result.error.isNotEmpty()) return result;
+            const auto lower = value.toLowerCase();
+            if (lower != "json" && lower != "toml" && lower != "xml")
+            {
+                result.error = "--config-format must be json, toml, or xml (got '" + value + "')";
+                return result;
+            }
+            opts.configFormat = lower;
+            continue;
+        }
+
         if (arg == "--instrument")
         {
             const auto value = takeValue (rawArgs, i, arg, result.error);
@@ -124,18 +148,21 @@ CliParseResult parseCli (const juce::StringArray& rawArgs)
         return result;
     }
 
-    if (positionals.isEmpty())
+    if (positionals.isEmpty() && opts.configFile == juce::File())
     {
         result.error = "Missing input MIDI file.\n" + usageText();
         return result;
     }
 
-    opts.inputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[0]);
+    if (! positionals.isEmpty())
+    {
+        opts.inputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[0]);
 
-    if (positionals.size() >= 2)
-        opts.outputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[1]);
-    else
-        opts.outputFile = opts.inputFile.withFileExtension (".abc");
+        if (positionals.size() >= 2)
+            opts.outputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[1]);
+        else
+            opts.outputFile = opts.inputFile.withFileExtension (".abc");
+    }
 
     result.options = opts;
     return result;

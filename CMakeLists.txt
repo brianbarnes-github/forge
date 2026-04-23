@@ -24,8 +24,12 @@ add_subdirectory(JUCE)
 # UI-specific code.
 add_library(converter_core STATIC
     Source/Core/AutoInstrument.cpp
-    Source/Core/LotroInstrument.cpp
+    Source/Core/Config.cpp
+    Source/Core/ConfigLoader.cpp
     Source/Core/DrumMap.cpp
+    Source/Core/DrumMapLoader.cpp
+    Source/Core/InstrumentAssembly.cpp
+    Source/Core/LotroInstrument.cpp
     Source/Core/MidiImporter.cpp
     Source/Core/Constraints/RangeConstraint.cpp
     Source/Core/Constraints/DurationConstraint.cpp
@@ -35,7 +39,9 @@ add_library(converter_core STATIC
     Source/Core/Constraints/DynamicMapper.cpp
     Source/Core/AbcWriter.cpp)
 
-target_include_directories(converter_core PUBLIC Source)
+target_include_directories(converter_core PUBLIC
+    Source
+    Source/ThirdParty/tomlplusplus)
 
 target_compile_definitions(converter_core PUBLIC
     JUCE_WEB_BROWSER=0
@@ -61,8 +67,7 @@ juce_generate_juce_header(converter)
 
 target_sources(converter PRIVATE
     Source/Main.cpp
-    Source/Cli/CliOptions.cpp
-    Source/Cli/DrumMapLoader.cpp)
+    Source/Cli/CliOptions.cpp)
 
 target_compile_definitions(converter PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter,JUCE_PRODUCT_NAME>"

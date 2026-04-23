@@ -177,7 +177,9 @@ them as clickable list items and use the source IDs to jump-to-source.
 
 ```
 converter [OPTIONS] INPUT.mid [OUTPUT.abc]
-  --instrument N=NAME   Assign instrument to track N (repeatable)
+  --config PATH         Load a config file (JSON/TOML/XML)
+  --config-format FMT   Override format detection (json|toml|xml)
+  --instrument N=NAME   Assign instrument to track N (config-less mode only)
   --tempo BPM           Override detected main tempo
   --transpose N         Global semitone transpose (pre range-clamp)
   --drum-map PATH       Load drum-map JSON file, merged onto defaults
@@ -186,6 +188,18 @@ converter [OPTIONS] INPUT.mid [OUTPUT.abc]
   -v, --verbose         Log Diagnostics to stderr
   -h, --help            Print this help and exit
 ```
+
+### Config mode
+
+`--config PATH` loads a JSON, TOML, or XML config that
+authoritatively describes the output: which MIDI tracks become which ABC
+parts, per-instrument transpose and volume scaling, X: index assignment,
+track merging, and per-instrument drum-map overrides. Without `--config`,
+the converter synthesises an equivalent internal `Config` from the CLI
+flags so existing one-shot invocations keep working bit-for-bit.
+
+See `docs/superpowers/specs/2026-04-23-config-driven-conversion-design.md`
+for the full schema.
 
 **Defaults:**
 - Instrument per track is chosen by `pickInstrumentForTrack()` —
@@ -260,7 +274,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **76/76**.
+- Test count: **120/120**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
