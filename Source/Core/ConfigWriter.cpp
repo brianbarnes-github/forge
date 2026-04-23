@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 
 namespace lotro
@@ -61,6 +62,60 @@ namespace
         return {};
     }
 
+    std::string escapeToml (const std::string& s)
+    {
+        std::string out = "\"";
+        for (char c : s)
+        {
+            if      (c == '\\') out += "\\\\";
+            else if (c == '"')  out += "\\\"";
+            else if (c == '\n') out += "\\n";
+            else if (c == '\r') out += "\\r";
+            else if (c == '\t') out += "\\t";
+            else                out += c;
+        }
+        out += "\"";
+        return out;
+    }
+
+    std::string writeToml (const Config& cfg, std::string& out)
+    {
+        std::string s;
+        s += "input = " + escapeToml (cfg.input) + "\n";
+        if (cfg.output.has_value())      s += "output = "      + escapeToml (*cfg.output)      + "\n";
+        if (cfg.title.has_value())       s += "title = "       + escapeToml (*cfg.title)       + "\n";
+        if (cfg.transcriber.has_value()) s += "transcriber = " + escapeToml (*cfg.transcriber) + "\n";
+        if (cfg.tempo.has_value())       s += "tempo = "       + std::to_string ((int) std::lround (*cfg.tempo)) + "\n";
+        if (cfg.transpose != 0)          s += "transpose = "   + std::to_string (cfg.transpose) + "\n";
+
+        for (const auto& inst : cfg.instruments)
+        {
+            s += "\n[[instruments]]\n";
+            s += "x = "    + std::to_string (inst.x) + "\n";
+            s += "name = " + escapeToml (inst.name) + "\n";
+            if (inst.label.has_value())
+                s += "label = " + escapeToml (*inst.label) + "\n";
+
+            s += "sources = [";
+            for (size_t i = 0; i < inst.sources.size(); ++i)
+            {
+                if (i > 0) s += ", ";
+                s += std::to_string (inst.sources[i]);
+            }
+            s += "]\n";
+
+            if (inst.transposeSemitones != 0)
+                s += "transposeSemitones = " + std::to_string (inst.transposeSemitones) + "\n";
+            if (inst.volumePercent != 100)
+                s += "volumePercent = " + std::to_string (inst.volumePercent) + "\n";
+            if (inst.drumMap.has_value())
+                s += "drumMap = " + escapeToml (*inst.drumMap) + "\n";
+        }
+
+        out = std::move (s);
+        return {};
+    }
+
     ConfigFormat detectFormat (const std::string& path)
     {
         const auto dot = path.find_last_of ('.');
@@ -83,7 +138,7 @@ std::string writeConfigToString (ConfigFormat format, const Config& cfg, std::st
     switch (format)
     {
         case ConfigFormat::Json: return writeJson (cfg, out);
-        case ConfigFormat::Toml: return "TOML writer not yet implemented";
+        case ConfigFormat::Toml: return writeToml (cfg, out);
         case ConfigFormat::Xml:  return "XML writer not yet implemented";
         case ConfigFormat::Auto: return "internal error: Auto not resolved";
     }

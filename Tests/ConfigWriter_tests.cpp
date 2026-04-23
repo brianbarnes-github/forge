@@ -70,3 +70,15 @@ TEST_CASE ("config-writer: JSON round-trip preserves all fields", "[config-write
 
     checkConfigsEqual (parsed, original);
 }
+
+TEST_CASE ("config-writer: TOML round-trip preserves all fields", "[config-writer][toml]")
+{
+    const auto original = richConfig();
+    std::string text;
+    REQUIRE (lotro::writeConfigToString (lotro::ConfigFormat::Toml, original, text).empty());
+
+    lotro::Config parsed;
+    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Toml, parsed).empty());
+
+    checkConfigsEqual (parsed, original);
+}
