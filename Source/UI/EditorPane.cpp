@@ -26,6 +26,7 @@ EditorPane::EditorPane()
     addAndMakeVisible (*detailForm);
     addAndMakeVisible (runButton);
     runButton.onClick = [this] { if (onRunRequested) onRunRequested(); };
+    runButton.setEnabled (false);
 }
 
 EditorPane::~EditorPane() = default;
@@ -38,6 +39,7 @@ void EditorPane::loadFromMidi (Song newRaw, Config newCfg)
     instrumentsTable->refresh();
     detailForm->editInstrument (-1);
     repaint();
+    runButton.setEnabled (! raw.tracks.empty());
     if (onConfigChanged) onConfigChanged();
 }
 
@@ -53,6 +55,16 @@ void EditorPane::resized()
     detailForm->setBounds (area);
 }
 
-void EditorPane::paint (juce::Graphics& g) { g.fillAll (juce::Colours::white); }
+void EditorPane::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colours::white);
+    if (raw.tracks.empty())
+    {
+        g.setColour (juce::Colours::grey);
+        g.setFont (16.0f);
+        g.drawText ("Drop a MIDI file here, or use File -> Open MIDI...",
+                    getLocalBounds(), juce::Justification::centred);
+    }
+}
 
 } // namespace lotro
