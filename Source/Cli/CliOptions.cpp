@@ -148,18 +148,21 @@ CliParseResult parseCli (const juce::StringArray& rawArgs)
         return result;
     }
 
-    if (positionals.isEmpty())
+    if (positionals.isEmpty() && opts.configFile == juce::File())
     {
         result.error = "Missing input MIDI file.\n" + usageText();
         return result;
     }
 
-    opts.inputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[0]);
+    if (! positionals.isEmpty())
+    {
+        opts.inputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[0]);
 
-    if (positionals.size() >= 2)
-        opts.outputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[1]);
-    else
-        opts.outputFile = opts.inputFile.withFileExtension (".abc");
+        if (positionals.size() >= 2)
+            opts.outputFile = juce::File::getCurrentWorkingDirectory().getChildFile (positionals[1]);
+        else
+            opts.outputFile = opts.inputFile.withFileExtension (".abc");
+    }
 
     result.options = opts;
     return result;

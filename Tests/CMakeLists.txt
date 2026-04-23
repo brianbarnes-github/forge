@@ -21,6 +21,7 @@ add_executable(converter_tests
     AbcWriterConfig_tests.cpp
     BarAlignment_tests.cpp
     EndToEnd_tests.cpp
+    EndToEndConfig_tests.cpp
     InstrumentAssembly_tests.cpp
     Provenance_tests.cpp)
 
