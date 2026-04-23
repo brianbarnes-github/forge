@@ -83,7 +83,7 @@ target_link_libraries(converter PRIVATE
 # converter_ui — JUCE GUI editor for converter config files
 # ---------------------------------------------------------------------------
 juce_add_gui_app(converter_ui
-    PRODUCT_NAME "LotroAbcConverterUi"
+    PRODUCT_NAME "converter_ui"
     COMPANY_NAME "LotroAbcConverter"
     VERSION ${PROJECT_VERSION})
 
