@@ -41,6 +41,98 @@ namespace
         return std::optional<std::string>{ asString (v) };
     }
 
+    std::optional<std::string> childText (const juce::XmlElement& parent, const char* tag)
+    {
+        if (auto* c = parent.getChildByName (tag))
+        {
+            const auto text = c->getAllSubText().toStdString();
+            if (! text.empty()) return text;
+        }
+        return std::nullopt;
+    }
+
+    // Returns true if the text appears to be well-formed XML (all open tags
+    // have matching close tags with a proper '>').  This is a lightweight
+    // structural check to supplement JUCE's lenient parser, which silently
+    // accepts truncated closing tags such as "</inpu" with no '>'.
+    bool looksWellFormed (std::string_view text)
+    {
+        // Find the last '<' in the text and verify the '>' that closes it
+        // is also present.  A truncated close tag like "</foo" has no '>'.
+        const auto lastAngle = text.rfind ('<');
+        if (lastAngle == std::string_view::npos)
+            return false;
+        const auto afterAngle = text.substr (lastAngle);
+        return afterAngle.find ('>') != std::string_view::npos;
+    }
+
+    std::string loadXml (std::string_view text, Config& out)
+    {
+        if (! looksWellFormed (text))
+            return "config XML: failed to parse: truncated or malformed input";
+
+        juce::XmlDocument doc (juce::String (text.data(), text.size()));
+        auto xml = doc.getDocumentElement();
+        const auto parseError = doc.getLastParseError();
+        if (xml == nullptr || parseError.isNotEmpty())
+            return "config XML: failed to parse: " + parseError.toStdString();
+
+        if (xml->getTagName() != "config")
+            return "config XML: root element must be <config>";
+
+        if (auto v = childText (*xml, "input"))
+            out.input = *v;
+        else
+            return "config XML: <input> is required";
+
+        out.output      = childText (*xml, "output");
+        out.title       = childText (*xml, "title");
+        out.transcriber = childText (*xml, "transcriber");
+
+        if (auto t = childText (*xml, "tempo"))
+            out.tempo = std::stod (*t);
+
+        if (auto t = childText (*xml, "transpose"))
+            out.transpose = std::stoi (*t);
+
+        auto* instrumentsElem = xml->getChildByName ("instruments");
+        if (instrumentsElem == nullptr)
+            return {};
+
+        for (auto* inst = instrumentsElem->getFirstChildElement(); inst != nullptr;
+             inst = inst->getNextElement())
+        {
+            if (inst->getTagName() != "instrument")
+                continue;
+
+            ConfigInstrument ci;
+            ci.x    = inst->getIntAttribute ("x", 0);
+            ci.name = inst->getStringAttribute ("name").toStdString();
+            if (inst->hasAttribute ("label"))
+                ci.label = inst->getStringAttribute ("label").toStdString();
+
+            if (auto* srcElem = inst->getChildByName ("sources"))
+            {
+                for (auto* s = srcElem->getFirstChildElement(); s != nullptr;
+                     s = s->getNextElement())
+                {
+                    if (s->getTagName() == "source")
+                        ci.sources.push_back (s->getAllSubText().getIntValue());
+                }
+            }
+
+            if (auto t = childText (*inst, "transposeSemitones"))
+                ci.transposeSemitones = std::stoi (*t);
+            if (auto t = childText (*inst, "volumePercent"))
+                ci.volumePercent = std::stoi (*t);
+            ci.drumMap = childText (*inst, "drumMap");
+
+            out.instruments.push_back (std::move (ci));
+        }
+
+        return {};
+    }
+
     std::string loadJson (std::string_view text, Config& out)
     {
         const auto parsed = juce::JSON::parse (juce::String (text.data(), text.size()));
@@ -164,7 +256,7 @@ std::string loadConfigFromString (std::string_view text, ConfigFormat format, Co
     {
         case ConfigFormat::Json: return loadJson (text, out);
         case ConfigFormat::Toml: return "TOML config not yet supported (Phase 2)";
-        case ConfigFormat::Xml:  return "XML config not yet supported (Phase 2)";
+        case ConfigFormat::Xml:  return loadXml (text, out);
         case ConfigFormat::Auto: return "internal error: Auto format not resolved";
     }
     return "internal error: unknown format";

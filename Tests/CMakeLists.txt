@@ -5,6 +5,7 @@ add_executable(converter_tests
     AutoInstrument_tests.cpp
     Config_tests.cpp
     ConfigLoader_tests.cpp
+    ConfigLoaderXml_tests.cpp
     ConfigPipeline_tests.cpp
     DrumMap_tests.cpp
     MidiImporter_tests.cpp
