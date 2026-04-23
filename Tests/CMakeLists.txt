@@ -8,6 +8,7 @@ add_executable(converter_tests
     ConfigLoaderXml_tests.cpp
     ConfigLoaderToml_tests.cpp
     ConfigPipeline_tests.cpp
+    ConfigWriter_tests.cpp
     DrumMap_tests.cpp
     MidiImporter_tests.cpp
     Pipeline_tests.cpp
