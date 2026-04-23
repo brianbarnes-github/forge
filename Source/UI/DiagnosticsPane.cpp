@@ -3,14 +3,29 @@
 namespace lotro
 {
 
-DiagnosticsPane::DiagnosticsPane() = default;
-
-void DiagnosticsPane::paint (juce::Graphics& g)
+DiagnosticsPane::DiagnosticsPane()
+    : diagList (std::make_unique<DiagnosticListView>()),
+      abcView  (std::make_unique<AbcPreviewView>())
 {
-    g.fillAll (juce::Colours::whitesmoke);
-    g.setColour (juce::Colours::darkgrey);
-    g.setFont (16.0f);
-    g.drawText ("Diagnostics pane (stub)", getLocalBounds(), juce::Justification::centred);
+    addAndMakeVisible (*diagList);
+    addAndMakeVisible (*abcView);
+}
+
+DiagnosticsPane::~DiagnosticsPane() = default;
+
+void DiagnosticsPane::show (Diagnostics diagnostics, std::string abc)
+{
+    diagList->setDiagnostics (std::move (diagnostics));
+    abcView->setAbc (abc);
+}
+
+void DiagnosticsPane::resized()
+{
+    auto area = getLocalBounds().reduced (4);
+    auto top = area.removeFromTop (area.getHeight() / 2);
+    diagList->setBounds (top);
+    area.removeFromTop (4);
+    abcView->setBounds (area);
 }
 
 } // namespace lotro

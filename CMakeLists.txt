@@ -96,7 +96,9 @@ target_sources(converter_ui PRIVATE
     Source/UI/GlobalSettingsView.cpp
     Source/UI/InstrumentsTable.cpp
     Source/UI/InstrumentDetailForm.cpp
-    Source/UI/DiagnosticsPane.cpp)
+    Source/UI/DiagnosticsPane.cpp
+    Source/UI/DiagnosticListView.cpp
+    Source/UI/AbcPreviewView.cpp)
 
 target_compile_definitions(converter_ui PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter_ui,JUCE_PRODUCT_NAME>"
