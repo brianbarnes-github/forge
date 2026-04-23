@@ -191,7 +191,7 @@ converter [OPTIONS] INPUT.mid [OUTPUT.abc]
 
 ### Config mode
 
-`--config PATH` loads a JSON (Phase 1) / TOML / XML (Phase 2) config that
+`--config PATH` loads a JSON, TOML, or XML config that
 authoritatively describes the output: which MIDI tracks become which ABC
 parts, per-instrument transpose and volume scaling, X: index assignment,
 track merging, and per-instrument drum-map overrides. Without `--config`,
@@ -274,7 +274,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **113/113**.
+- Test count: **120/120**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
