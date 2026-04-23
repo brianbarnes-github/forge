@@ -10,6 +10,7 @@ add_executable(converter_tests
     ConfigPipeline_tests.cpp
     DrumMap_tests.cpp
     MidiImporter_tests.cpp
+    Pipeline_tests.cpp
     RangeConstraint_tests.cpp
     DurationConstraint_tests.cpp
     ChordConstraint_tests.cpp

@@ -31,6 +31,7 @@ add_library(converter_core STATIC
     Source/Core/InstrumentAssembly.cpp
     Source/Core/LotroInstrument.cpp
     Source/Core/MidiImporter.cpp
+    Source/Core/Pipeline.cpp
     Source/Core/Constraints/RangeConstraint.cpp
     Source/Core/Constraints/DurationConstraint.cpp
     Source/Core/Constraints/ChordConstraint.cpp
