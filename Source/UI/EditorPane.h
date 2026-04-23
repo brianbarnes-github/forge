@@ -13,6 +13,7 @@ namespace lotro
 
 class GlobalSettingsView;
 class InstrumentsTable;
+class InstrumentDetailForm;
 
 class EditorPane : public juce::Component
 {
@@ -36,10 +37,11 @@ public:
     void paint (juce::Graphics& g) override;
 
 private:
-    Config                              config;
-    Song                                raw;
-    std::unique_ptr<GlobalSettingsView> globalView;
-    std::unique_ptr<InstrumentsTable>   instrumentsTable;
+    Config                                config;
+    Song                                  raw;
+    std::unique_ptr<GlobalSettingsView>   globalView;
+    std::unique_ptr<InstrumentsTable>     instrumentsTable;
+    std::unique_ptr<InstrumentDetailForm> detailForm;
 };
 
 } // namespace lotro
