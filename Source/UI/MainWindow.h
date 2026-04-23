@@ -36,13 +36,10 @@ private:
     {
         FileOpenMidi    = 1,
         FileOpenConfig,
-        FileSaveConfig,
         FileSaveAsJson,
         FileSaveAsToml,
         FileSaveAsXml,
-        FileQuit,
-        EditAddInstrument,
-        EditRemoveSelected
+        FileQuit
     };
 
     class Body;

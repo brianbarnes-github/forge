@@ -115,7 +115,7 @@ void MainWindow::closeButtonPressed()
     juce::JUCEApplication::getInstance()->systemRequestedQuit();
 }
 
-juce::StringArray MainWindow::getMenuBarNames() { return { "File", "Edit" }; }
+juce::StringArray MainWindow::getMenuBarNames() { return { "File" }; }
 
 juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::String&)
 {
@@ -125,7 +125,6 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         m.addItem (FileOpenMidi,    "Open MIDI...",    true, false);
         m.addItem (FileOpenConfig,  "Open Config...",  true, false);
         m.addSeparator();
-        m.addItem (FileSaveConfig,  "Save Config",     false, false);
         juce::PopupMenu saveAs;
         saveAs.addItem (FileSaveAsJson, "JSON (.json)", true, false);
         saveAs.addItem (FileSaveAsToml, "TOML (.toml)", true, false);
@@ -133,11 +132,6 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         m.addSubMenu ("Save Config As", saveAs);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
-    }
-    else if (topLevelMenuIndex == 1)
-    {
-        m.addItem (EditAddInstrument,    "Add Instrument",    false, false);
-        m.addItem (EditRemoveSelected,   "Remove Selected",   false, false);
     }
     return m;
 }

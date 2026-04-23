@@ -24,8 +24,8 @@ public:
     void resized() override;
 
 private:
-    std::unique_ptr<DiagnosticListView> diagList;
-    std::unique_ptr<AbcPreviewView>     abcView;
+    class Body;
+    std::unique_ptr<Body> body;
 };
 
 } // namespace lotro
