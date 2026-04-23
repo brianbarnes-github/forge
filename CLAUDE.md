@@ -38,6 +38,11 @@ this principle rules out tempting improvements.
 - JUCE (submodule at `./JUCE`) — modules linked: `juce_audio_basics`,
   `juce_audio_formats`, `juce_core`. Console app via `juce_add_console_app`
   — no GUI modules.
+- The `converter_ui` GUI binary additionally links `juce_gui_basics`
+  and `juce_gui_extra`. Linux/WSL build needs system packages
+  `libfreetype-dev`, `libfontconfig-dev`, `libx11-dev`, `libxrandr-dev`,
+  `libxinerama-dev`, `libxcursor-dev`, `libasound2-dev`. The CLI build
+  does not need these.
 - Catch2 (submodule at `./Tests/Catch2`, tracking `devel`).
 - `cmake/mingw-w64-toolchain.cmake` exists but is unused; kept for
   reference. Revisit with `llvm-mingw` + clang if we ever retry Windows
@@ -55,6 +60,8 @@ ctest --test-dir build --output-on-failure
 
 Converter binary: `build/converter_artefacts/Debug/converter`.
 
+UI binary: `build/converter_ui_artefacts/Debug/converter_ui`.
+
 Run a single Catch2 test: `ctest --test-dir build -R <name> --output-on-failure`,
 or invoke `build/Tests/converter_tests` directly with `"[tag]"` / `"test name"`.
 
@@ -68,8 +75,9 @@ First-time clone only: `git submodule update --init --recursive`.
 converter_core   (static library)  ─────────────► converter_tests (Catch2 exe)
        ▲                                          ▲
        │ depends on                               │
+       ├──────────────────────────────────────────┤
        │                                          │
-converter (console-app exe, thin CLI wrapper on top of converter_core)
+converter (CLI exe)                       converter_ui (JUCE GUI exe)
 ```
 
 The Core library compiles once and is linked by both the CLI and the
@@ -103,6 +111,16 @@ Source/
 ├── Cli/
 │   ├── CliOptions.{h,cpp}       hand-rolled arg parser (juce::String internally)
 │   └── DrumMapLoader.{h,cpp}    JSON parser for --drum-map (uses juce::JSON)
+├── UI/                          JUCE GUI app — converter_ui binary.
+│   ├── UiMain.cpp               JUCE app entry point
+│   ├── MainWindow.{h,cpp}       Window, menus, splitter, drag-drop
+│   ├── EditorPane.{h,cpp}       Left pane container; owns Config + Song
+│   ├── GlobalSettingsView.{h,cpp}    Top-of-editor form
+│   ├── InstrumentsTable.{h,cpp}      Master view of instruments
+│   ├── InstrumentDetailForm.{h,cpp}  Detail view for selected instrument
+│   ├── DiagnosticsPane.{h,cpp}       Right pane container
+│   ├── DiagnosticListView.{h,cpp}    Diagnostic table
+│   └── AbcPreviewView.{h,cpp}        Read-only ABC text + status line
 └── Main.cpp                     wires import → auto-instrument → overrides →
                                   pipeline → writer, converts at boundaries
 ```
@@ -274,7 +292,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **120/120**.
+- Test count: **127/127**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the

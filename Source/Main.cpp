@@ -7,6 +7,7 @@
 #include "Core/Diagnostics.h"
 #include "Core/MidiImporter.h"
 #include "Core/AbcWriter.h"
+#include "Core/Pipeline.h"
 #include "Core/Constraints/RangeConstraint.h"
 #include "Core/Constraints/DurationConstraint.h"
 #include "Core/Constraints/TempoCollapse.h"
@@ -48,57 +49,6 @@ namespace
         }
     }
 
-    lotro::Config synthesiseConfig (const lotro::CliOptions& opts,
-                                    const lotro::Song&       raw)
-    {
-        lotro::Config cfg;
-        cfg.input = opts.inputFile.getFullPathName().toStdString();
-        if (opts.outputFile != juce::File())
-            cfg.output = opts.outputFile.getFullPathName().toStdString();
-        if (opts.tempoOverride.has_value())
-            cfg.tempo = *opts.tempoOverride;
-        cfg.transpose = opts.transposeSemitones;
-
-        for (size_t i = 0; i < raw.tracks.size(); ++i)
-        {
-            lotro::ConfigInstrument inst;
-            inst.x       = (int) (i + 1);
-            inst.sources = { (int) i };
-
-            const auto picked = lotro::pickInstrumentForTrack (raw.tracks[i]);
-            inst.name = std::string (lotro::displayName (picked));
-
-            auto overrideIt = opts.instrumentOverrides.find ((int) i);
-            if (overrideIt != opts.instrumentOverrides.end())
-                inst.name = std::string (lotro::displayName (overrideIt->second));
-
-            cfg.instruments.push_back (inst);
-        }
-        return cfg;
-    }
-
-    void runPipeline (lotro::Song& song, lotro::Diagnostics& diagnostics)
-    {
-        for (size_t trackIdx = 0; trackIdx < song.tracks.size(); ++trackIdx)
-        {
-            auto& track = song.tracks[trackIdx];
-            if (! track.enabled) continue;
-
-            const size_t before = diagnostics.size();
-            lotro::applyRangeConstraint    (track, diagnostics);
-            lotro::applyChordConstraint    (track, diagnostics);
-            lotro::applyDurationConstraint (track, song, diagnostics);
-            lotro::applyTempoCollapse      (track, song, diagnostics);
-            lotro::applyCollisionGuard     (track, diagnostics);
-            lotro::applyDynamicMapper      (track, diagnostics);
-
-            for (size_t i = before; i < diagnostics.size(); ++i)
-                if (diagnostics[i].trackIndex < 0)
-                    diagnostics[i].trackIndex = (int) trackIdx;
-        }
-
-        lotro::applyTempoCollapseToSongMaps (song);
-    }
 }
 
 int main (int argc, char* argv[])
@@ -220,12 +170,20 @@ int main (int argc, char* argv[])
         }
         else
         {
-            cfg = synthesiseConfig (opts, song);
+            cfg = lotro::synthesiseConfig (
+                song,
+                opts.inputFile.getFullPathName().toStdString(),
+                opts.outputFile != juce::File()
+                    ? opts.outputFile.getFullPathName().toStdString()
+                    : std::string{},
+                opts.tempoOverride,
+                opts.transposeSemitones,
+                opts.instrumentOverrides);
         }
 
         auto assembled = lotro::assembleInstruments (song, cfg, diagnostics);
 
-        runPipeline (assembled, diagnostics);
+        lotro::runPipeline (assembled, diagnostics);
 
         const auto abc = lotro::writeAbc (assembled);
 
