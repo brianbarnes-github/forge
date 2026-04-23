@@ -93,6 +93,7 @@ target_sources(converter_ui PRIVATE
     Source/UI/UiMain.cpp
     Source/UI/MainWindow.cpp
     Source/UI/EditorPane.cpp
+    Source/UI/GlobalSettingsView.cpp
     Source/UI/DiagnosticsPane.cpp)
 
 target_compile_definitions(converter_ui PRIVATE
