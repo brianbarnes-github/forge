@@ -17,6 +17,7 @@ add_executable(converter_tests
     AbcWriter_tests.cpp
     BarAlignment_tests.cpp
     EndToEnd_tests.cpp
+    InstrumentAssembly_tests.cpp
     Provenance_tests.cpp)
 
 target_link_libraries(converter_tests PRIVATE

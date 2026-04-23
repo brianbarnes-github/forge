@@ -26,7 +26,9 @@ add_library(converter_core STATIC
     Source/Core/AutoInstrument.cpp
     Source/Core/Config.cpp
     Source/Core/ConfigLoader.cpp
+    Source/Cli/DrumMapLoader.cpp
     Source/Core/DrumMap.cpp
+    Source/Core/InstrumentAssembly.cpp
     Source/Core/LotroInstrument.cpp
     Source/Core/MidiImporter.cpp
     Source/Core/Constraints/RangeConstraint.cpp
@@ -63,8 +65,7 @@ juce_generate_juce_header(converter)
 
 target_sources(converter PRIVATE
     Source/Main.cpp
-    Source/Cli/CliOptions.cpp
-    Source/Cli/DrumMapLoader.cpp)
+    Source/Cli/CliOptions.cpp)
 
 target_compile_definitions(converter PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter,JUCE_PRODUCT_NAME>"
