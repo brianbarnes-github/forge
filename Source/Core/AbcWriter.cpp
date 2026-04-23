@@ -220,13 +220,28 @@ namespace
         return result;
     }
 
-    int barTicks (const Song& song) noexcept
+    int barTicksForMeter (const MeterChange& m, int ticksPerQuarter) noexcept
     {
-        if (song.meterMap.empty())
-            return song.ticksPerQuarter * 4;
-        const auto& m = song.meterMap.front();
-        if (m.denominator <= 0) return song.ticksPerQuarter * 4;
-        return m.numerator * song.ticksPerQuarter * 4 / m.denominator;
+        if (m.denominator <= 0) return ticksPerQuarter * 4;
+        return m.numerator * ticksPerQuarter * 4 / m.denominator;
+    }
+
+    // Returns the length (in ticks) of the bar containing `atTick`, using
+    // the most recent meter change at or before that tick. When meterMap is
+    // empty or has a single entry, the result is constant.
+    int barTicksAt (const std::vector<MeterChange>& meterMap,
+                    int ticksPerQuarter, int atTick) noexcept
+    {
+        if (meterMap.empty())
+            return ticksPerQuarter * 4;
+
+        const MeterChange* current = &meterMap.front();
+        for (const auto& m : meterMap)
+        {
+            if (m.tick <= atTick) current = &m;
+            else                  break;
+        }
+        return barTicksForMeter (*current, ticksPerQuarter);
     }
 
     // Accumulates the ABC body for one part. Owns the stream-tick cursor,
@@ -236,12 +251,13 @@ namespace
     class ChordEmitter
     {
     public:
-        ChordEmitter (int barTicks, int ticksPerQuarter)
-            : bar (barTicks),
-              ppq (ticksPerQuarter),
-              nextBarTick (barTicks)
+        ChordEmitter (const std::vector<MeterChange>& meterMap, int ticksPerQuarter)
+            : meters (meterMap),
+              ppq (ticksPerQuarter)
         {
-            if (bar > 0)
+            const int firstBar = barTicksAt (meters, ppq, 0);
+            nextBarTick = firstBar;
+            if (firstBar > 0)
                 body += "% bar " + std::to_string (barNumber) + "\n";
         }
 
@@ -251,7 +267,7 @@ namespace
         // a cluster's z-pulse so a chord token never spans a bar boundary.
         int barRemainderFrom (int fromTick) const noexcept
         {
-            return (bar > 0) ? std::max (0, nextBarTick - fromTick) : 0;
+            return (nextBarTick > 0) ? std::max (0, nextBarTick - fromTick) : 0;
         }
 
         void emitDynamic (const char* marking)
@@ -267,7 +283,7 @@ namespace
         {
             while (ticks > 0)
             {
-                const int untilBar = (bar > 0) ? (nextBarTick - streamTick) : ticks;
+                const int untilBar = (nextBarTick > 0) ? (nextBarTick - streamTick) : ticks;
                 const int chunk    = (untilBar > 0) ? std::min (ticks, untilBar) : ticks;
                 body += "z" + abcDurationToken (chunk, ppq) + " ";
                 streamTick += chunk;
@@ -304,21 +320,23 @@ namespace
     private:
         void flushBarBreaks()
         {
-            while (bar > 0 && streamTick >= nextBarTick)
+            while (nextBarTick > 0 && streamTick >= nextBarTick)
             {
                 body += "\n";
                 ++barNumber;
                 body += "% bar " + std::to_string (barNumber) + "\n";
-                nextBarTick += bar;
+                const int thisBarLen = barTicksAt (meters, ppq, nextBarTick);
+                if (thisBarLen <= 0) break;
+                nextBarTick += thisBarLen;
             }
         }
 
-        std::string body;
-        int         streamTick  = 0;
-        int         nextBarTick = 0;
-        int         barNumber   = 1;
-        const int   bar;
-        const int   ppq;
+        std::string                     body;
+        int                             streamTick  = 0;
+        int                             nextBarTick = 0;
+        int                             barNumber   = 1;
+        const std::vector<MeterChange>& meters;
+        const int                       ppq;
     };
 
     std::string emitBody (const Song& song, const Track& track)
@@ -327,7 +345,7 @@ namespace
         if (groups.empty())
             return {};
 
-        ChordEmitter emitter (barTicks (song), song.ticksPerQuarter);
+        ChordEmitter emitter (song.meterMap, song.ticksPerQuarter);
 
         std::vector<DynamicChangeRef> changes = track.dynamicChanges;
         size_t changeIdx = 0;

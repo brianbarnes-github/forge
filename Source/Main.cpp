@@ -86,6 +86,8 @@ namespace
                 if (diagnostics[i].trackIndex < 0)
                     diagnostics[i].trackIndex = (int) trackIdx;
         }
+
+        lotro::applyTempoCollapseToMeterMap (song);
     }
 }
 

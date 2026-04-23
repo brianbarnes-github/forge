@@ -36,6 +36,8 @@ namespace
             lotro::applyDynamicMapper      (track, diagnostics);
         }
 
+        lotro::applyTempoCollapseToMeterMap (song);
+
         return song;
     }
 

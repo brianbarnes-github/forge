@@ -18,6 +18,37 @@ namespace
         }
         return bpm;
     }
+
+    // Cumulative transform from original MIDI ticks to main-tempo stream
+    // ticks. Walks tempo segments in order, scaling each segment's length
+    // by `mainBpm / segBpm` so the perceived duration of that segment is
+    // preserved under the fixed `Q:` emitted from tempoMap.front().
+    int scaleTickToMainTempo (int                             originalTick,
+                              const std::vector<TempoChange>& tempoMap,
+                              double                          mainBpm) noexcept
+    {
+        if (originalTick <= 0 || mainBpm <= 0.0)
+            return originalTick;
+
+        double accumulated = 0.0;
+        int    prevSegTick = 0;
+        double prevSegBpm  = mainBpm;
+
+        for (const auto& change : tempoMap)
+        {
+            if (change.tick >= originalTick)
+                break;
+            if (prevSegBpm > 0.0)
+                accumulated += (change.tick - prevSegTick) * (mainBpm / prevSegBpm);
+            prevSegTick = change.tick;
+            prevSegBpm  = change.bpm;
+        }
+
+        if (prevSegBpm > 0.0)
+            accumulated += (originalTick - prevSegTick) * (mainBpm / prevSegBpm);
+
+        return (int) std::lround (accumulated);
+    }
 }
 
 void applyTempoCollapse (Track& track, const Song& song, Diagnostics& diagnostics)
@@ -31,33 +62,50 @@ void applyTempoCollapse (Track& track, const Song& song, Diagnostics& diagnostic
 
     for (auto& note : track.notes)
     {
-        const double localBpm = localBpmAt (song.tempoMap, note.startTick, mainBpm);
-        if (localBpm <= 0.0)
-            continue;
+        const int    originalStartTick = note.startTick;
+        const double localBpm          = localBpmAt (song.tempoMap, originalStartTick, mainBpm);
 
-        const double scale = mainBpm / localBpm;
-        if (std::abs (scale - 1.0) < 1e-9)
-            continue;
+        if (localBpm > 0.0)
+        {
+            const double scale = mainBpm / localBpm;
+            if (std::abs (scale - 1.0) >= 1e-9)
+            {
+                const int rescaled = (int) std::lround ((double) note.durationTicks * scale);
+                if (rescaled <= 0)
+                {
+                    Diagnostic d;
+                    d.severity         = Severity::Warning;
+                    d.source           = "TempoCollapse";
+                    d.message          = "Tempo scaling collapsed note to 0 duration on '" + track.name + "'";
+                    d.tick             = originalStartTick;
+                    d.pitch            = note.pitch;
+                    d.sourceTrackIndex = note.sourceTrackIndex;
+                    d.sourceEventIndex = note.sourceEventIndex;
+                    diagnostics.push_back (std::move (d));
+                    note.durationTicks = 1;
+                }
+                else
+                {
+                    note.durationTicks = rescaled;
+                }
+            }
+        }
 
-        const int rescaled = (int) std::lround ((double) note.durationTicks * scale);
-        if (rescaled <= 0)
-        {
-            Diagnostic d;
-            d.severity         = Severity::Warning;
-            d.source           = "TempoCollapse";
-            d.message          = "Tempo scaling collapsed note to 0 duration on '" + track.name + "'";
-            d.tick             = note.startTick;
-            d.pitch            = note.pitch;
-            d.sourceTrackIndex = note.sourceTrackIndex;
-            d.sourceEventIndex = note.sourceEventIndex;
-            diagnostics.push_back (std::move (d));
-            note.durationTicks = 1;
-        }
-        else
-        {
-            note.durationTicks = rescaled;
-        }
+        note.startTick = scaleTickToMainTempo (originalStartTick, song.tempoMap, mainBpm);
     }
+}
+
+void applyTempoCollapseToMeterMap (Song& song)
+{
+    if (song.tempoMap.empty() || song.meterMap.empty())
+        return;
+
+    const double mainBpm = song.tempoMap.front().bpm;
+    if (mainBpm <= 0.0)
+        return;
+
+    for (auto& meter : song.meterMap)
+        meter.tick = scaleTickToMainTempo (meter.tick, song.tempoMap, mainBpm);
 }
 
 } // namespace lotro
