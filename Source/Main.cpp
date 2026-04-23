@@ -1,5 +1,5 @@
 #include "Cli/CliOptions.h"
-#include "Cli/DrumMapLoader.h"
+#include "Core/DrumMapLoader.h"
 #include "Core/AutoInstrument.h"
 #include "Core/Diagnostics.h"
 #include "Core/MidiImporter.h"

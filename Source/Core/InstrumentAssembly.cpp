@@ -1,6 +1,6 @@
 #include "InstrumentAssembly.h"
 
-#include "Cli/DrumMapLoader.h"
+#include "DrumMapLoader.h"
 #include "LotroInstrument.h"
 
 #include <algorithm>
