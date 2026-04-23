@@ -39,7 +39,9 @@ add_library(converter_core STATIC
     Source/Core/Constraints/DynamicMapper.cpp
     Source/Core/AbcWriter.cpp)
 
-target_include_directories(converter_core PUBLIC Source)
+target_include_directories(converter_core PUBLIC
+    Source
+    Source/ThirdParty/tomlplusplus)
 
 target_compile_definitions(converter_core PUBLIC
     JUCE_WEB_BROWSER=0

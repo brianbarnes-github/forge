@@ -6,6 +6,7 @@ add_executable(converter_tests
     Config_tests.cpp
     ConfigLoader_tests.cpp
     ConfigLoaderXml_tests.cpp
+    ConfigLoaderToml_tests.cpp
     ConfigPipeline_tests.cpp
     DrumMap_tests.cpp
     MidiImporter_tests.cpp

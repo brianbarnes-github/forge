@@ -1,6 +1,7 @@
 #include "ConfigLoader.h"
 
 #include <juce_core/juce_core.h>
+#include <toml.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -159,6 +160,61 @@ namespace
         return {};
     }
 
+    std::string loadToml (std::string_view text, Config& out)
+    {
+        toml::table tbl;
+        try
+        {
+            tbl = toml::parse (text);
+        }
+        catch (const toml::parse_error& e)
+        {
+            return std::string ("config TOML: ") + e.what();
+        }
+
+        if (auto v = tbl["input"].value<std::string>())
+            out.input = *v;
+        else
+            return "config TOML: 'input' is required";
+
+        if (auto v = tbl["output"].value<std::string>())           out.output      = *v;
+        if (auto v = tbl["title"].value<std::string>())            out.title       = *v;
+        if (auto v = tbl["transcriber"].value<std::string>())      out.transcriber = *v;
+        if (auto v = tbl["tempo"].value<double>())                 out.tempo       = *v;
+        if (auto v = tbl["transpose"].value<int64_t>())            out.transpose   = (int) *v;
+
+        if (auto* arr = tbl["instruments"].as_array())
+        {
+            for (auto& el : *arr)
+            {
+                const auto* instTbl = el.as_table();
+                if (instTbl == nullptr) continue;
+
+                ConfigInstrument inst;
+                if (auto v = (*instTbl)["x"].value<int64_t>())               inst.x    = (int) *v;
+                if (auto v = (*instTbl)["name"].value<std::string>())        inst.name = *v;
+                if (auto v = (*instTbl)["label"].value<std::string>())       inst.label = *v;
+                if (auto v = (*instTbl)["transposeSemitones"].value<int64_t>())
+                    inst.transposeSemitones = (int) *v;
+                if (auto v = (*instTbl)["volumePercent"].value<int64_t>())
+                    inst.volumePercent = (int) *v;
+                if (auto v = (*instTbl)["drumMap"].value<std::string>())
+                    inst.drumMap = *v;
+
+                if (auto* src = (*instTbl)["sources"].as_array())
+                {
+                    for (auto& s : *src)
+                        if (auto i = s.value<int64_t>())
+                            inst.sources.push_back ((int) *i);
+                }
+
+                out.instruments.push_back (std::move (inst));
+            }
+        }
+
+        return {};
+    }
+
     std::string loadJson (std::string_view text, Config& out)
     {
         const auto parsed = juce::JSON::parse (juce::String (text.data(), text.size()));
@@ -281,7 +337,7 @@ std::string loadConfigFromString (std::string_view text, ConfigFormat format, Co
     switch (format)
     {
         case ConfigFormat::Json: return loadJson (text, out);
-        case ConfigFormat::Toml: return "TOML config not yet supported (Phase 2)";
+        case ConfigFormat::Toml: return loadToml (text, out);
         case ConfigFormat::Xml:  return loadXml (text, out);
         case ConfigFormat::Auto: return "internal error: Auto format not resolved";
     }
