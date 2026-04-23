@@ -4,6 +4,7 @@
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
+#include "Core/ConfigWriter.h"
 #include "Core/InstrumentAssembly.h"
 #include "Core/MidiImporter.h"
 #include "Core/Pipeline.h"
@@ -145,9 +146,12 @@ void MainWindow::menuItemSelected (int menuItemID, int)
 {
     switch (menuItemID)
     {
-        case FileOpenMidi:  openMidiViaDialog();                                           return;
-        case FileQuit:      juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
-        default:                                                                            return;
+        case FileOpenMidi:    openMidiViaDialog();                                           return;
+        case FileSaveAsJson:  saveConfigAs (ConfigFormat::Json);                              return;
+        case FileSaveAsToml:  saveConfigAs (ConfigFormat::Toml);                              return;
+        case FileSaveAsXml:   saveConfigAs (ConfigFormat::Xml);                               return;
+        case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
+        default:                                                                              return;
     }
 }
 
@@ -221,6 +225,38 @@ void MainWindow::openMidiFromPath (const juce::File& file)
         std::nullopt, 0, {});
 
     body->getEditor().loadFromMidi (std::move (raw), std::move (cfg));
+}
+
+void MainWindow::saveConfigAs (ConfigFormat format)
+{
+    const juce::String ext =
+        (format == ConfigFormat::Json) ? ".json"
+      : (format == ConfigFormat::Toml) ? ".toml"
+      :                                    ".xml";
+
+    fileChooser = std::make_unique<juce::FileChooser> (
+        "Save Config", juce::File(), "*" + ext);
+
+    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                            | juce::FileBrowserComponent::canSelectFiles
+                            | juce::FileBrowserComponent::warnAboutOverwriting,
+        [this, format, ext] (const juce::FileChooser& fc)
+        {
+            auto file = fc.getResult();
+            if (file == juce::File()) return;
+            if (! file.getFileName().endsWithIgnoreCase (ext))
+                file = file.withFileExtension (ext);
+
+            const auto& cfg = body->getEditor().getConfig();
+            const auto err = writeConfigToFile (file.getFullPathName().toStdString(),
+                                                format, cfg);
+            if (! err.empty())
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Save failed", juce::String (err));
+            }
+        });
 }
 
 void MainWindow::runConversion()

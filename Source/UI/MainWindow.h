@@ -2,6 +2,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "Core/ConfigLoader.h"
+
 #include <memory>
 
 namespace lotro
@@ -51,6 +53,7 @@ private:
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
     void runConversion();
+    void saveConfigAs (ConfigFormat format);
 };
 
 } // namespace lotro
