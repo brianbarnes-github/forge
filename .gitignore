@@ -11,6 +11,9 @@ build-*/
 # WSL/Windows artifacts
 *:Zone.Identifier
 
+# Git worktrees (feature-branch isolation workspaces)
+.worktrees/
+
 # Personal porting scratch
 transport/
 transport.zip
