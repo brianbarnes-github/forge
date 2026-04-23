@@ -24,8 +24,9 @@ add_subdirectory(JUCE)
 # UI-specific code.
 add_library(converter_core STATIC
     Source/Core/AutoInstrument.cpp
-    Source/Core/LotroInstrument.cpp
+    Source/Core/Config.cpp
     Source/Core/DrumMap.cpp
+    Source/Core/LotroInstrument.cpp
     Source/Core/MidiImporter.cpp
     Source/Core/Constraints/RangeConstraint.cpp
     Source/Core/Constraints/DurationConstraint.cpp
