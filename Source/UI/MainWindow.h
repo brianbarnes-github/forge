@@ -52,6 +52,8 @@ private:
 
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
+    void openConfigViaDialog();
+    void openConfigFromPath (const juce::File& file);
     void runConversion();
     void saveConfigAs (ConfigFormat format);
 };

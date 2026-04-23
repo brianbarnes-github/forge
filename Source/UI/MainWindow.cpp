@@ -147,6 +147,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
     switch (menuItemID)
     {
         case FileOpenMidi:    openMidiViaDialog();                                           return;
+        case FileOpenConfig:  openConfigViaDialog();                                          return;
         case FileSaveAsJson:  saveConfigAs (ConfigFormat::Json);                              return;
         case FileSaveAsToml:  saveConfigAs (ConfigFormat::Toml);                              return;
         case FileSaveAsXml:   saveConfigAs (ConfigFormat::Xml);                               return;
@@ -161,6 +162,7 @@ bool MainWindow::isInterestedInFileDrag (const juce::StringArray& files)
     {
         const auto ext = juce::File (f).getFileExtension().toLowerCase();
         if (ext == ".mid" || ext == ".midi") return true;
+        if (ext == ".json" || ext == ".toml" || ext == ".xml") return true;
     }
     return false;
 }
@@ -171,11 +173,9 @@ void MainWindow::filesDropped (const juce::StringArray& files, int, int)
     {
         const auto file = juce::File (f);
         const auto ext = file.getFileExtension().toLowerCase();
-        if (ext == ".mid" || ext == ".midi")
-        {
-            openMidiFromPath (file);
-            return;
-        }
+        if (ext == ".mid" || ext == ".midi") { openMidiFromPath (file);   return; }
+        if (ext == ".json" || ext == ".toml" || ext == ".xml")
+                                              { openConfigFromPath (file); return; }
     }
 }
 
@@ -257,6 +257,73 @@ void MainWindow::saveConfigAs (ConfigFormat format)
                     "Save failed", juce::String (err));
             }
         });
+}
+
+void MainWindow::openConfigViaDialog()
+{
+    fileChooser = std::make_unique<juce::FileChooser> (
+        "Choose a Config", juce::File(), "*.json;*.toml;*.xml");
+
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                            | juce::FileBrowserComponent::canSelectFiles,
+        [this] (const juce::FileChooser& fc)
+        {
+            const auto file = fc.getResult();
+            if (file == juce::File()) return;
+            openConfigFromPath (file);
+        });
+}
+
+void MainWindow::openConfigFromPath (const juce::File& file)
+{
+    Config cfg;
+    const auto loadErr = loadConfigFromFile (file.getFullPathName().toStdString(),
+                                             ConfigFormat::Auto, cfg);
+    if (! loadErr.empty())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "Open Config failed", juce::String (loadErr));
+        return;
+    }
+
+    if (cfg.input.empty())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "Open Config failed",
+            "Config has no 'input' field — cannot load the referenced MIDI.");
+        return;
+    }
+
+    const auto configDir = file.getParentDirectory();
+    const auto midiFile  = configDir.getChildFile (juce::String (cfg.input));
+
+    std::ifstream stream (midiFile.getFullPathName().toStdString(), std::ios::binary);
+    if (! stream)
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "Open Config failed",
+            "Could not read MIDI referenced by the config: " + midiFile.getFullPathName());
+        return;
+    }
+
+    Diagnostics importDiags;
+    Song raw;
+    try
+    {
+        raw = importMidi (stream, midiFile.getFileNameWithoutExtension().toStdString(), importDiags);
+    }
+    catch (const std::exception& e)
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "Open Config failed", juce::String (e.what()));
+        return;
+    }
+
+    body->getEditor().loadFromMidi (std::move (raw), std::move (cfg));
 }
 
 void MainWindow::runConversion()
