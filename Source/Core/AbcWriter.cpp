@@ -251,14 +251,25 @@ namespace
     class ChordEmitter
     {
     public:
-        ChordEmitter (const std::vector<MeterChange>& meterMap, int ticksPerQuarter)
-            : meters (meterMap),
+        ChordEmitter (const std::vector<TempoChange>& tempoMap,
+                      const std::vector<MeterChange>& meterMap,
+                      int ticksPerQuarter)
+            : tempos (tempoMap),
+              meters (meterMap),
               ppq (ticksPerQuarter)
         {
+            // The first entry of each map is already reflected in the part
+            // header (Q:, M:); skip it so we don't re-report.
+            if (! tempos.empty()) reportedTempoIdx = 1;
+            if (! meters.empty()) reportedMeterIdx = 1;
+
             const int firstBar = barTicksAt (meters, ppq, 0);
             nextBarTick = firstBar;
             if (firstBar > 0)
+            {
                 body += "% bar " + std::to_string (barNumber) + "\n";
+                emitChangesInRange (0, firstBar);
+            }
         }
 
         int currentTick() const noexcept { return streamTick; }
@@ -325,16 +336,51 @@ namespace
                 body += "\n";
                 ++barNumber;
                 body += "% bar " + std::to_string (barNumber) + "\n";
-                const int thisBarLen = barTicksAt (meters, ppq, nextBarTick);
+                const int newBarStart = nextBarTick;
+                const int thisBarLen  = barTicksAt (meters, ppq, newBarStart);
                 if (thisBarLen <= 0) break;
-                nextBarTick += thisBarLen;
+                nextBarTick = newBarStart + thisBarLen;
+                emitChangesInRange (newBarStart, nextBarTick);
+            }
+        }
+
+        // Emit `% tempo: N bpm` / `% meter: n/d` comments for any unreported
+        // entries whose tick lies in [lo, hi). Consumes the reported indices
+        // so each change is surfaced at most once. Non-standard ABC; purely
+        // informational for readers.
+        void emitChangesInRange (int lo, int hi)
+        {
+            while (reportedTempoIdx < tempos.size() && tempos[reportedTempoIdx].tick < hi)
+            {
+                if (tempos[reportedTempoIdx].tick >= lo)
+                {
+                    body += "% tempo: ";
+                    body += std::to_string ((int) std::lround (tempos[reportedTempoIdx].bpm));
+                    body += " bpm\n";
+                }
+                ++reportedTempoIdx;
+            }
+            while (reportedMeterIdx < meters.size() && meters[reportedMeterIdx].tick < hi)
+            {
+                if (meters[reportedMeterIdx].tick >= lo)
+                {
+                    body += "% meter: ";
+                    body += std::to_string (meters[reportedMeterIdx].numerator);
+                    body += '/';
+                    body += std::to_string (meters[reportedMeterIdx].denominator);
+                    body += '\n';
+                }
+                ++reportedMeterIdx;
             }
         }
 
         std::string                     body;
-        int                             streamTick  = 0;
-        int                             nextBarTick = 0;
-        int                             barNumber   = 1;
+        int                             streamTick       = 0;
+        int                             nextBarTick      = 0;
+        int                             barNumber        = 1;
+        size_t                          reportedTempoIdx = 0;
+        size_t                          reportedMeterIdx = 0;
+        const std::vector<TempoChange>& tempos;
         const std::vector<MeterChange>& meters;
         const int                       ppq;
     };
@@ -345,7 +391,7 @@ namespace
         if (groups.empty())
             return {};
 
-        ChordEmitter emitter (song.meterMap, song.ticksPerQuarter);
+        ChordEmitter emitter (song.tempoMap, song.meterMap, song.ticksPerQuarter);
 
         std::vector<DynamicChangeRef> changes = track.dynamicChanges;
         size_t changeIdx = 0;

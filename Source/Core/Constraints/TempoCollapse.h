@@ -13,10 +13,11 @@ namespace lotro
 // the fixed `Q:` from `song.tempoMap.front()`. Must be called once per track.
 void applyTempoCollapse (Track& track, const Song& song, Diagnostics& diagnostics);
 
-// Rescales `song.meterMap[i].tick` values from original-MIDI-tick space into
-// main-tempo stream-tick space so bar labelling aligns with where notes now
-// sit after `applyTempoCollapse`. Call once per song, after every track has
-// been through `applyTempoCollapse`. Safe to call when `meterMap` is empty.
-void applyTempoCollapseToMeterMap (Song& song);
+// Rescales the tick anchors on both `song.meterMap` and `song.tempoMap` from
+// original-MIDI-tick space into main-tempo stream-tick space, so bar labelling
+// and mid-song tempo/meter annotations align with where notes now sit after
+// `applyTempoCollapse`. Call once per song, after every track has been through
+// `applyTempoCollapse`. Safe to call when either map is empty.
+void applyTempoCollapseToSongMaps (Song& song);
 
 } // namespace lotro

@@ -97,11 +97,17 @@ TEST_CASE ("tempo: meter-map ticks rescale alongside note ticks", "[tempo][meter
     song.meterMap.push_back ({    0, 4, 4 });
     song.meterMap.push_back ({ 3840, 3, 4 });
 
-    lotro::applyTempoCollapseToMeterMap (song);
+    lotro::applyTempoCollapseToSongMaps (song);
 
     REQUIRE (song.meterMap.size() == 2);
     CHECK (song.meterMap[0].tick ==    0);
     CHECK (song.meterMap[1].tick == 5760);
+
+    // tempoMap ticks rescale on the same axis. The tempo change was at
+    // original tick 1920 under the 120 bpm section, so it stays at 1920.
+    REQUIRE (song.tempoMap.size() == 2);
+    CHECK (song.tempoMap[0].tick ==    0);
+    CHECK (song.tempoMap[1].tick == 1920);
 }
 
 TEST_CASE ("tempo: song tempoMap is not mutated by collapse", "[tempo]")

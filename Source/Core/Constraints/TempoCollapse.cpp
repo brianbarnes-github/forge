@@ -95,17 +95,25 @@ void applyTempoCollapse (Track& track, const Song& song, Diagnostics& diagnostic
     }
 }
 
-void applyTempoCollapseToMeterMap (Song& song)
+void applyTempoCollapseToSongMaps (Song& song)
 {
-    if (song.tempoMap.empty() || song.meterMap.empty())
+    if (song.tempoMap.empty())
         return;
 
     const double mainBpm = song.tempoMap.front().bpm;
     if (mainBpm <= 0.0)
         return;
 
+    // Snapshot the tempo map before we mutate it — scaleTickToMainTempo walks
+    // it using original ticks, so rescaling tempoMap in-place would corrupt
+    // the scaling of later entries.
+    const auto original = song.tempoMap;
+
     for (auto& meter : song.meterMap)
-        meter.tick = scaleTickToMainTempo (meter.tick, song.tempoMap, mainBpm);
+        meter.tick = scaleTickToMainTempo (meter.tick, original, mainBpm);
+
+    for (auto& change : song.tempoMap)
+        change.tick = scaleTickToMainTempo (change.tick, original, mainBpm);
 }
 
 } // namespace lotro

@@ -87,7 +87,7 @@ namespace
                     diagnostics[i].trackIndex = (int) trackIdx;
         }
 
-        lotro::applyTempoCollapseToMeterMap (song);
+        lotro::applyTempoCollapseToSongMaps (song);
     }
 }
 

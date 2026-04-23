@@ -47,7 +47,7 @@ namespace
             lotro::applyDynamicMapper      (track, diagnostics);
         }
 
-        lotro::applyTempoCollapseToMeterMap (song);
+        lotro::applyTempoCollapseToSongMaps (song);
     }
 
     bool contains (const std::string& haystack, const std::string& needle)
@@ -264,6 +264,95 @@ TEST_CASE ("tempo-pipeline: meter-change ticks travel through tempo collapse", "
     // Last note should land at stream tick 5760 as well.
     REQUIRE (song.tracks[0].notes.size() == 3);
     CHECK (song.tracks[0].notes[2].startTick == 5760);
+}
+
+TEST_CASE ("tempo-pipeline: mid-song tempo change emits a % tempo: comment", "[tempo][pipeline][annotations]")
+{
+    lotro::Song song;
+    song.ticksPerQuarter = 480;
+    song.meterMap.push_back ({ 0, 4, 4 });
+    song.tempoMap.push_back ({    0, 120.0 });
+    song.tempoMap.push_back ({ 1920,  60.0 });
+
+    lotro::Track t;
+    t.instrument = lotro::LotroInstrument::LuteOfAges;
+    t.notes.push_back (note (60,    0, 480));
+    t.notes.push_back (note (62, 1920, 480));
+    song.tracks.push_back (t);
+
+    lotro::Diagnostics diagnostics;
+    runPipeline (song, diagnostics);
+
+    const auto abc = lotro::writeAbc (song);
+
+    CHECK (contains (abc, "% tempo: 60 bpm"));
+    CHECK (countOccurrences (abc, "% tempo: ") == 1);
+    // The main tempo from the header is not re-emitted as a mid-song comment.
+    CHECK_FALSE (contains (abc, "% tempo: 120 bpm"));
+
+    // Comment sits inside bar 2, after its label — not before.
+    const auto bar2     = abc.find ("% bar 2");
+    const auto tempoCom = abc.find ("% tempo: 60 bpm");
+    const auto bar3     = abc.find ("% bar 3");
+    REQUIRE (bar2     != std::string::npos);
+    REQUIRE (tempoCom != std::string::npos);
+    CHECK (bar2 < tempoCom);
+    if (bar3 != std::string::npos)
+        CHECK (tempoCom < bar3);
+}
+
+TEST_CASE ("tempo-pipeline: mid-song meter change emits a % meter: comment", "[tempo][pipeline][annotations]")
+{
+    lotro::Song song;
+    song.ticksPerQuarter = 480;
+    song.meterMap.push_back ({    0, 4, 4 });
+    song.meterMap.push_back ({ 3840, 3, 4 });
+    song.tempoMap.push_back ({    0, 120.0 });
+
+    lotro::Track t;
+    t.instrument = lotro::LotroInstrument::LuteOfAges;
+    t.notes.push_back (note (60,    0, 480));
+    t.notes.push_back (note (62, 1920, 480));
+    t.notes.push_back (note (64, 3840, 480));
+    t.notes.push_back (note (65, 5280, 480));
+    song.tracks.push_back (t);
+
+    lotro::Diagnostics diagnostics;
+    runPipeline (song, diagnostics);
+
+    const auto abc = lotro::writeAbc (song);
+
+    CHECK (contains (abc, "% meter: 3/4"));
+    CHECK (countOccurrences (abc, "% meter: ") == 1);
+    CHECK_FALSE (contains (abc, "% meter: 4/4"));
+
+    const auto bar3 = abc.find ("% bar 3");
+    const auto mcom = abc.find ("% meter: 3/4");
+    REQUIRE (bar3 != std::string::npos);
+    REQUIRE (mcom != std::string::npos);
+    CHECK (bar3 < mcom);
+}
+
+TEST_CASE ("tempo-pipeline: constant tempo and meter produce no change comments", "[tempo][pipeline][annotations]")
+{
+    lotro::Song song;
+    song.ticksPerQuarter = 480;
+    song.meterMap.push_back ({ 0, 4, 4 });
+    song.tempoMap.push_back ({ 0, 120.0 });
+
+    lotro::Track t;
+    t.instrument = lotro::LotroInstrument::LuteOfAges;
+    for (int i = 0; i < 8; ++i)
+        t.notes.push_back (note (60 + (i % 5), i * 480, 480));
+    song.tracks.push_back (t);
+
+    lotro::Diagnostics diagnostics;
+    runPipeline (song, diagnostics);
+
+    const auto abc = lotro::writeAbc (song);
+
+    CHECK_FALSE (contains (abc, "% tempo: "));
+    CHECK_FALSE (contains (abc, "% meter: "));
 }
 
 TEST_CASE ("tempo-pipeline: single-tempo control case emits unchanged durations", "[tempo][pipeline]")
