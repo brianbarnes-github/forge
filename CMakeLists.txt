@@ -25,6 +25,7 @@ add_subdirectory(JUCE)
 add_library(converter_core STATIC
     Source/Core/AutoInstrument.cpp
     Source/Core/Config.cpp
+    Source/Core/ConfigLoader.cpp
     Source/Core/DrumMap.cpp
     Source/Core/LotroInstrument.cpp
     Source/Core/MidiImporter.cpp
