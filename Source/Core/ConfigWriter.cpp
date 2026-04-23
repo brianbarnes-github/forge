@@ -116,6 +116,56 @@ namespace
         return {};
     }
 
+    std::string writeXml (const Config& cfg, std::string& out)
+    {
+        juce::XmlElement top ("config");
+
+        top.createNewChildElement ("input")->addTextElement (juce::String (cfg.input));
+
+        auto addOptional = [&] (const char* tag, const std::optional<std::string>& v)
+        {
+            if (v.has_value())
+                top.createNewChildElement (tag)->addTextElement (juce::String (*v));
+        };
+        addOptional ("output",      cfg.output);
+        addOptional ("title",       cfg.title);
+        addOptional ("transcriber", cfg.transcriber);
+
+        if (cfg.tempo.has_value())
+            top.createNewChildElement ("tempo")
+               ->addTextElement (juce::String ((int) std::lround (*cfg.tempo)));
+        if (cfg.transpose != 0)
+            top.createNewChildElement ("transpose")
+               ->addTextElement (juce::String (cfg.transpose));
+
+        auto* instrumentsElem = top.createNewChildElement ("instruments");
+        for (const auto& inst : cfg.instruments)
+        {
+            auto* iElem = instrumentsElem->createNewChildElement ("instrument");
+            iElem->setAttribute ("x", inst.x);
+            iElem->setAttribute ("name", juce::String (inst.name));
+            if (inst.label.has_value())
+                iElem->setAttribute ("label", juce::String (*inst.label));
+
+            auto* sources = iElem->createNewChildElement ("sources");
+            for (int s : inst.sources)
+                sources->createNewChildElement ("source")->addTextElement (juce::String (s));
+
+            if (inst.transposeSemitones != 0)
+                iElem->createNewChildElement ("transposeSemitones")
+                     ->addTextElement (juce::String (inst.transposeSemitones));
+            if (inst.volumePercent != 100)
+                iElem->createNewChildElement ("volumePercent")
+                     ->addTextElement (juce::String (inst.volumePercent));
+            if (inst.drumMap.has_value())
+                iElem->createNewChildElement ("drumMap")
+                     ->addTextElement (juce::String (*inst.drumMap));
+        }
+
+        out = top.toString().toStdString();
+        return {};
+    }
+
     ConfigFormat detectFormat (const std::string& path)
     {
         const auto dot = path.find_last_of ('.');
@@ -139,7 +189,7 @@ std::string writeConfigToString (ConfigFormat format, const Config& cfg, std::st
     {
         case ConfigFormat::Json: return writeJson (cfg, out);
         case ConfigFormat::Toml: return writeToml (cfg, out);
-        case ConfigFormat::Xml:  return "XML writer not yet implemented";
+        case ConfigFormat::Xml:  return writeXml (cfg, out);
         case ConfigFormat::Auto: return "internal error: Auto not resolved";
     }
     return "internal error: unknown format";

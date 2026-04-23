@@ -82,3 +82,15 @@ TEST_CASE ("config-writer: TOML round-trip preserves all fields", "[config-write
 
     checkConfigsEqual (parsed, original);
 }
+
+TEST_CASE ("config-writer: XML round-trip preserves all fields", "[config-writer][xml]")
+{
+    const auto original = richConfig();
+    std::string text;
+    REQUIRE (lotro::writeConfigToString (lotro::ConfigFormat::Xml, original, text).empty());
+
+    lotro::Config parsed;
+    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Xml, parsed).empty());
+
+    checkConfigsEqual (parsed, original);
+}
