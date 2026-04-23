@@ -10,6 +10,7 @@ add_executable(converter_tests
     ChordConstraint_tests.cpp
     CollisionGuard_tests.cpp
     TempoCollapse_tests.cpp
+    TempoPipeline_tests.cpp
     DynamicMapper_tests.cpp
     AbcWriter_tests.cpp
     BarAlignment_tests.cpp
