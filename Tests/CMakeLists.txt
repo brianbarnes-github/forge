@@ -15,6 +15,7 @@ add_executable(converter_tests
     TempoPipeline_tests.cpp
     DynamicMapper_tests.cpp
     AbcWriter_tests.cpp
+    AbcWriterConfig_tests.cpp
     BarAlignment_tests.cpp
     EndToEnd_tests.cpp
     InstrumentAssembly_tests.cpp
