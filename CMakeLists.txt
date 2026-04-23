@@ -79,5 +79,31 @@ target_link_libraries(converter PRIVATE
     converter_core
     juce::juce_recommended_lto_flags)
 
+# ---------------------------------------------------------------------------
+# converter_ui — JUCE GUI editor for converter config files
+# ---------------------------------------------------------------------------
+juce_add_gui_app(converter_ui
+    PRODUCT_NAME "LotroAbcConverterUi"
+    COMPANY_NAME "LotroAbcConverter"
+    VERSION ${PROJECT_VERSION})
+
+juce_generate_juce_header(converter_ui)
+
+target_sources(converter_ui PRIVATE
+    Source/UI/UiMain.cpp)
+
+target_compile_definitions(converter_ui PRIVATE
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter_ui,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:converter_ui,JUCE_VERSION>"
+    JUCE_USE_DARK_SPLASH_SCREEN=1
+    JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_REPORT_APP_USAGE=0)
+
+target_link_libraries(converter_ui PRIVATE
+    converter_core
+    juce::juce_gui_basics
+    juce::juce_gui_extra
+    juce::juce_recommended_lto_flags)
+
 enable_testing()
 add_subdirectory(Tests)
