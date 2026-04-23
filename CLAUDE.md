@@ -13,6 +13,18 @@ The original spec is `lotro-abc-converter-spec.md` (560 lines). Some of
 its design decisions have been revised in practice; see "Deltas from spec"
 below before assuming a section is still authoritative.
 
+## Guiding principle
+
+**The MIDI is the source of truth; the converter makes as few decisions
+for the user as possible.** The ABC should reflect the input MIDI as
+literally as LOTRO's format allows. Transformations are only acceptable
+when LOTRO's parser forces our hand (range clamp, 6-note chord cap,
+single `Q:`/`M:` per part, single dynamic per instrument). No smoothing,
+hysteresis, quantization, or "clean-up" passes — if the MIDI has detail,
+the ABC should show it. Diagnostic `%` comments are freely added; they
+don't change audio. See `findings/dynamics.md` for a concrete case where
+this principle rules out tempting improvements.
+
 ## Target platform and toolchain
 
 - **Native Linux/WSL with GCC.** Spec §1/§4.3 name Windows + MSVC; both
@@ -83,7 +95,9 @@ Source/
 │       ├── RangeConstraint      clamp pitches to instrument's ABC envelope
 │       ├── ChordConstraint      group by startTick; trim chords > 6 by velocity
 │       ├── DurationConstraint   drop zero-duration notes (currently a near-no-op)
-│       ├── TempoCollapse        scale durations for mid-song tempo changes
+│       ├── TempoCollapse        scale note startTick + durationTicks to stream-tick
+│       │                        space; also exposes applyTempoCollapseToSongMaps
+│       │                        which rescales tempoMap and meterMap ticks
 │       ├── CollisionGuard       trim same-pitch overlaps
 │       └── DynamicMapper        velocity → +dynamic+ markings (loudest-per-tick)
 ├── Cli/
@@ -93,11 +107,20 @@ Source/
                                   pipeline → writer, converts at boundaries
 ```
 
-### Pipeline (in `Main.cpp::runPipeline`, applied per-track)
+### Pipeline (in `Main.cpp::runPipeline`)
 
+Per-track loop:
 ```
-  Range → Chord → Duration → Tempo → Collision → Dynamic → AbcWriter
+  Range → Chord → Duration → Tempo → Collision → Dynamic
 ```
+
+Then once per song, after every track has been through the per-track
+loop: `applyTempoCollapseToSongMaps(song)` rescales `tempoMap[i].tick`
+and `meterMap[i].tick` into stream-tick space so the emitter's bar
+labels, `% tempo:` comments, and `% meter:` comments line up with the
+already-rescaled note ticks.
+
+Finally: `AbcWriter::writeAbc(song)`.
 
 **Order is load-bearing** — do not reorder without re-running all tests.
 
@@ -129,8 +152,17 @@ design comment at the top of `AbcWriter.cpp`):
 
 `BarAlignment_tests.cpp` pins this invariant. The `ChordEmitter` class
 inside the `AbcWriter.cpp` anonymous namespace owns the emit-loop state
-(body buffer, stream-tick cursor, bar-label state); `emitBody` is a
-short walk over note clusters feeding the emitter.
+(body buffer, stream-tick cursor, bar-label state, and reported-index
+trackers for mid-song tempo/meter annotations); `emitBody` is a short
+walk over note clusters feeding the emitter.
+
+`ChordEmitter` is **meter-aware**: it takes `song.meterMap` and looks
+up the current bar length per bar boundary, so `% bar N` labels track
+mid-song meter changes even though the emitted `M:` in the header is
+only the first one. At each bar boundary it also emits `% tempo: N bpm`
+and `% meter: n/d` comments for any tempo/meter changes that fall in
+that bar — purely informational markers (LOTRO ignores them, since it
+only honours the first `Q:` and `M:` per part).
 
 ### Diagnostics
 
@@ -187,9 +219,23 @@ These are intentional and verified against test fixtures:
   problem for held voices.
 - **ABC `L:1/8`** is still the fixed default length. `Q:` `M:` `K:`
   headers match the spec format.
-- **Dynamics**: `DynamicMapper` does loudest-per-tick bucketing to
-  avoid stacked `+ff++mp+` markings. See `findings/dynamics.md` for
-  the rationale and known limitations.
+- **Mid-song tempo changes**: LOTRO honours only the first `Q:` per
+  part, so `TempoCollapse` absorbs all tempo changes into scaled
+  `startTick` + `durationTicks` values under a single fixed `Q:`.
+  Rest gaps stretch or compress with the tempo just like notes do.
+- **Mid-song meter changes**: LOTRO also honours only the first `M:`.
+  `applyTempoCollapseToSongMaps` rescales `meterMap[i].tick` into
+  stream-tick space, and `ChordEmitter` looks up the current bar
+  length per bar boundary so `% bar N` labels track the real bar
+  structure even with a single emitted `M:`.
+- **`% tempo:` and `% meter:` comments**: emitted at the bar where a
+  change takes effect (LOTRO ignores comments; purely diagnostic for
+  humans).
+- **Dynamics**: `DynamicMapper` does loudest-per-tick bucketing. This
+  is the correct end state under LOTRO's one-dynamic-per-instrument
+  constraint, not a workaround. See `findings/dynamics.md` — the
+  previously-proposed smoothing/hysteresis/centroid passes are
+  retired under the MIDI-is-truth principle.
 
 ## Reference material in this repo
 
@@ -214,12 +260,18 @@ approval.
 
 ## Testing notes
 
-- Test count as of the ChordEmitter refactor: **64/64**.
+- Test count: **76/76**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
   full pipeline.
 - `AutoInstrument_tests.cpp` verifies heuristic instrument selection.
+- `TempoCollapse_tests.cpp` covers unit-level tempo/meter scaling:
+  duration rescaling, startTick rescaling, and
+  `applyTempoCollapseToSongMaps` on both maps.
+- `TempoPipeline_tests.cpp` covers pipeline-level behaviour across a
+  mid-song tempo or meter change: rest-gap stretch, `% tempo:` and
+  `% meter:` annotation emission, bar-label positioning.
 - End-to-end test reads `midi/Barnes Brothers Band - Pull The Wires.mid`
   from disk, runs the full pipeline, checks structural ABC invariants.
 
