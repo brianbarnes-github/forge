@@ -3,6 +3,7 @@ add_subdirectory(Catch2)
 add_executable(converter_tests
     smoke_test.cpp
     AutoInstrument_tests.cpp
+    Config_tests.cpp
     DrumMap_tests.cpp
     MidiImporter_tests.cpp
     RangeConstraint_tests.cpp

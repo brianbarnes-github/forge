@@ -31,4 +31,10 @@ struct Config
     std::vector<ConfigInstrument>         instruments;
 };
 
+// Validates a Config against a MIDI file with `midiTrackCount` tracks.
+// Returns an empty string on success; otherwise a human-readable error
+// message suitable for stderr. All rules are checked eagerly — the
+// message reports the first failure.
+std::string validateConfig (const Config& config, int midiTrackCount);
+
 } // namespace lotro
