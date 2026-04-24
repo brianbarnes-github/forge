@@ -98,7 +98,12 @@ target_sources(converter_ui PRIVATE
     Source/UI/InstrumentDetailForm.cpp
     Source/UI/DiagnosticsPane.cpp
     Source/UI/DiagnosticListView.cpp
-    Source/UI/AbcPreviewView.cpp)
+    Source/UI/AbcPreviewView.cpp
+    Source/UI/SongPropertyPage.cpp
+    Source/UI/InstrumentPropertyPage.cpp
+    Source/UI/SourcePropertyPage.cpp
+    Source/UI/PropertyPageHost.cpp
+    Source/UI/InstrumentsTree.cpp)
 
 target_compile_definitions(converter_ui PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter_ui,JUCE_PRODUCT_NAME>"
