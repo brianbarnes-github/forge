@@ -37,6 +37,13 @@ namespace
 }
 
 // ---- SourceItem ------------------------------------------------------------
+//
+// Invariant for all three item classes below: the stored instrumentIdx /
+// sourceIdx are valid for this item's lifetime. Any Config mutation
+// (adding/removing instruments or sources) MUST call
+// InstrumentsTree::rebuild() so a fresh set of items is constructed with
+// correct indices. `paintItem` and `mightContainSubItems` dereference
+// `config.instruments[idx]` unguarded on that assumption.
 
 class InstrumentsTree::SourceItem : public juce::TreeViewItem
 {
