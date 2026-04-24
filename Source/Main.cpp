@@ -1,6 +1,5 @@
 #include "Cli/CliOptions.h"
 #include "Core/DrumMapLoader.h"
-#include "Core/AutoInstrument.h"
 #include "Core/Config.h"
 #include "Core/ConfigLoader.h"
 #include "Core/InstrumentAssembly.h"

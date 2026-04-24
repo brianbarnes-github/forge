@@ -1,6 +1,5 @@
 #include "Pipeline.h"
 
-#include "AutoInstrument.h"
 #include "Constraints/ChordConstraint.h"
 #include "Constraints/CollisionGuard.h"
 #include "Constraints/DurationConstraint.h"
@@ -32,8 +31,16 @@ Config synthesiseConfig (const Song&                                  raw,
         inst.x       = (int) (i + 1);
         inst.sources = { ConfigSource{ (int) i, 0, 0 } };
 
-        const auto picked = pickInstrumentForTrack (raw.tracks[i]);
-        inst.name = std::string (displayName (picked));
+        // No auto-picking per-track: every non-drum track defaults to the
+        // same fixed instrument and the user is expected to pick the real
+        // one. Channel-10 tracks imported as Drums keep that identity
+        // because it's what the MIDI itself declares (General MIDI
+        // channel-10 convention), not a converter decision.
+        const LotroInstrument defaulted =
+            (raw.tracks[i].instrument == LotroInstrument::Drums)
+                ? LotroInstrument::Drums
+                : LotroInstrument::LuteOfAges;
+        inst.name = std::string (displayName (defaulted));
 
         const auto overrideIt = instrumentOverrides.find ((int) i);
         if (overrideIt != instrumentOverrides.end())
