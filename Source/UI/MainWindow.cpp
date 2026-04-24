@@ -159,6 +159,8 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         saveAs.addItem (FileSaveAsToml, "TOML (.toml)", true, false);
         saveAs.addItem (FileSaveAsXml,  "XML (.xml)",   true, false);
         m.addSubMenu ("Save Config As", saveAs);
+        // Save ABC is greyed until Run Converter has produced output.
+        m.addItem (FileSaveAbc, "Save ABC As...", ! lastAbc.empty(), false);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
     }
@@ -174,6 +176,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FileSaveAsJson:  saveConfigAs (ConfigFormat::Json);                              return;
         case FileSaveAsToml:  saveConfigAs (ConfigFormat::Toml);                              return;
         case FileSaveAsXml:   saveConfigAs (ConfigFormat::Xml);                               return;
+        case FileSaveAbc:     saveAbcAs();                                                    return;
         case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
         default:                                                                              return;
     }
@@ -388,7 +391,49 @@ void MainWindow::runConversion()
         return;
     }
 
+    lastAbc = abc;
     body->getDiagnostics().show (std::move (diagnostics), std::move (abc));
+}
+
+void MainWindow::saveAbcAs()
+{
+    if (lastAbc.empty())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::InfoIcon,
+            "No ABC to save",
+            "Run Converter first to generate ABC output.");
+        return;
+    }
+
+    // Default the dialog's initial filename to <input-stem>.abc so a saved
+    // ABC lands next to the MIDI's name by default.
+    const auto& cfg = body->getEditor().getConfig();
+    juce::File defaultPath;
+    if (! cfg.input.empty())
+        defaultPath = juce::File (juce::String (cfg.input)).withFileExtension (".abc");
+
+    fileChooser = std::make_unique<juce::FileChooser> (
+        "Save ABC", defaultPath, "*.abc");
+
+    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                            | juce::FileBrowserComponent::canSelectFiles
+                            | juce::FileBrowserComponent::warnAboutOverwriting,
+        [this] (const juce::FileChooser& fc)
+        {
+            auto file = fc.getResult();
+            if (file == juce::File()) return;
+            if (! file.getFileName().endsWithIgnoreCase (".abc"))
+                file = file.withFileExtension (".abc");
+
+            if (! file.replaceWithText (juce::String (lastAbc)))
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Save ABC failed",
+                    "Could not write: " + file.getFullPathName());
+            }
+        });
 }
 
 } // namespace lotro

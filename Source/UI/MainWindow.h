@@ -39,6 +39,7 @@ private:
         FileSaveAsJson,
         FileSaveAsToml,
         FileSaveAsXml,
+        FileSaveAbc,
         FileQuit
     };
 
@@ -53,6 +54,9 @@ private:
     void openConfigFromPath (const juce::File& file);
     void runConversion();
     void saveConfigAs (ConfigFormat format);
+    void saveAbcAs();
+
+    std::string lastAbc;   // populated by runConversion(); consumed by saveAbcAs()
 };
 
 } // namespace lotro

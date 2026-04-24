@@ -133,6 +133,9 @@ File
     JSON (.json)                       ← writeConfigToFile (JSON)
     TOML (.toml)                       ← writeConfigToFile (TOML)
     XML  (.xml)                        ← writeConfigToFile (XML)
+  Save ABC As…                         ← writes the last Run's ABC output
+                                         (greyed until Run Converter has
+                                         produced something)
   ─────────
   Quit                                  ← systemRequestedQuit
 ```
