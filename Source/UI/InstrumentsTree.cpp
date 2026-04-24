@@ -1,4 +1,5 @@
 #include "InstrumentsTree.h"
+#include <set>
 
 namespace lotro
 {
@@ -71,6 +72,28 @@ public:
             owner.notifySelection (PropertyPageHost::Kind::Source, instrumentIdx, sourceIdx);
     }
 
+    void itemClicked (const juce::MouseEvent& e) override
+    {
+        if (! e.mods.isRightButtonDown()) return;
+
+        juce::PopupMenu m;
+        m.addItem (1, "Delete Source");
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (owner),
+            [this] (int result)
+            {
+                if (result == 1) deleteSelf();
+            });
+    }
+
+    void deleteSelf()
+    {
+        auto& inst = owner.config.instruments[(size_t) instrumentIdx];
+        if (sourceIdx >= 0 && sourceIdx < (int) inst.sources.size())
+            inst.sources.erase (inst.sources.begin() + sourceIdx);
+        if (owner.notifyMutation) owner.notifyMutation();
+        owner.rebuild();
+    }
+
     InstrumentsTree& owner;
     int instrumentIdx;
     int sourceIdx;
@@ -121,6 +144,61 @@ public:
         }
     }
 
+    void itemClicked (const juce::MouseEvent& e) override
+    {
+        if (! e.mods.isRightButtonDown()) return;
+
+        juce::PopupMenu m;
+        juce::PopupMenu addSub;
+        const auto& inst = owner.config.instruments[(size_t) instrumentIdx];
+        std::set<int> already;
+        for (const auto& s : inst.sources) already.insert (s.midiTrackIndex);
+
+        int anyAvailable = 0;
+        for (size_t i = 0; i < owner.raw.tracks.size(); ++i)
+        {
+            if (already.count ((int) i) > 0) continue;
+            const auto& t = owner.raw.tracks[i];
+            juce::String label = "MIDI " + juce::String ((int) i) + ": "
+                               + juce::String (t.name)
+                               + " (chan " + juce::String (t.sourceMidiChannel)
+                               + ", " + juce::String ((int) t.notes.size()) + ")";
+            addSub.addItem (100 + (int) i, label);
+            ++anyAvailable;
+        }
+        if (anyAvailable == 0)
+            addSub.addItem (-1, "(no unused MIDI tracks)", false);
+
+        m.addSubMenu ("Add Source", addSub);
+        m.addSeparator();
+        m.addItem (2, "Delete Instrument");
+
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (owner),
+            [this] (int result)
+            {
+                if (result >= 100)
+                    addSourceForMidi (result - 100);
+                else if (result == 2)
+                    deleteSelf();
+            });
+    }
+
+    void addSourceForMidi (int midiIndex)
+    {
+        auto& inst = owner.config.instruments[(size_t) instrumentIdx];
+        inst.sources.push_back (ConfigSource{ midiIndex, 0, 0 });
+        if (owner.notifyMutation) owner.notifyMutation();
+        owner.rebuild();
+    }
+
+    void deleteSelf()
+    {
+        if (instrumentIdx >= 0 && instrumentIdx < (int) owner.config.instruments.size())
+            owner.config.instruments.erase (owner.config.instruments.begin() + instrumentIdx);
+        if (owner.notifyMutation) owner.notifyMutation();
+        owner.rebuild();
+    }
+
     InstrumentsTree& owner;
     int instrumentIdx;
 };
@@ -164,6 +242,32 @@ public:
         {
             clearSubItems();
         }
+    }
+
+    void itemClicked (const juce::MouseEvent& e) override
+    {
+        if (! e.mods.isRightButtonDown()) return;
+
+        juce::PopupMenu m;
+        m.addItem (1, "Add Instrument");
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (owner),
+            [this] (int result)
+            {
+                if (result == 1) addInstrument();
+            });
+    }
+
+    void addInstrument()
+    {
+        ConfigInstrument fresh;
+        int nextX = 1;
+        for (const auto& inst : owner.config.instruments)
+            nextX = std::max (nextX, inst.x + 1);
+        fresh.x    = nextX;
+        fresh.name = "LuteOfAges";
+        owner.config.instruments.push_back (fresh);
+        if (owner.notifyMutation) owner.notifyMutation();
+        owner.rebuild();
     }
 
 private:
