@@ -1,30 +1,27 @@
 #include "EditorPane.h"
-#include "GlobalSettingsView.h"
-#include "InstrumentsTable.h"
-#include "InstrumentDetailForm.h"
+#include "InstrumentsTree.h"
+#include "PropertyPageHost.h"
 
 namespace lotro
 {
 
 EditorPane::EditorPane()
 {
-    globalView = std::make_unique<GlobalSettingsView> (
-        config, [this] { if (onConfigChanged) onConfigChanged(); });
+    host = std::make_unique<PropertyPageHost> (
+        config, raw,
+        [this] { if (onConfigChanged) onConfigChanged(); });
 
-    detailForm = std::make_unique<InstrumentDetailForm> (
-        config, raw, [this] { if (onConfigChanged) onConfigChanged();
-                              if (instrumentsTable) instrumentsTable->refresh(); });
+    tree = std::make_unique<InstrumentsTree> (
+        config, raw,
+        /*onSelection*/ [this] (PropertyPageHost::Kind k, int iIdx, int sIdx)
+                         { host->showFor (k, iIdx, sIdx); },
+        /*onMutation*/  [this] { if (onConfigChanged) onConfigChanged();
+                                  host->refresh(); });
 
-    instrumentsTable = std::make_unique<InstrumentsTable> (
-        config,
-        /*onSelectionChanged*/ [this] (int row) { if (detailForm) detailForm->editInstrument (row); },
-        /*onConfigMutated*/    [this]            { if (onConfigChanged) onConfigChanged();
-                                                   if (detailForm) detailForm->refresh(); });
-
-    addAndMakeVisible (*globalView);
-    addAndMakeVisible (*instrumentsTable);
-    addAndMakeVisible (*detailForm);
+    addAndMakeVisible (*tree);
+    addAndMakeVisible (*host);
     addAndMakeVisible (runButton);
+
     runButton.onClick = [this] { if (onRunRequested) onRunRequested(); };
     runButton.setEnabled (false);
 }
@@ -35,24 +32,23 @@ void EditorPane::loadFromMidi (Song newRaw, Config newCfg)
 {
     raw    = std::move (newRaw);
     config = std::move (newCfg);
-    globalView->refresh();
-    instrumentsTable->refresh();
-    detailForm->editInstrument (-1);
-    repaint();
+    tree->rebuild();
+    host->showFor (PropertyPageHost::Kind::Song);
+    host->refresh();
     runButton.setEnabled (! raw.tracks.empty());
+    repaint();
     if (onConfigChanged) onConfigChanged();
 }
 
 void EditorPane::resized()
 {
     auto area = getLocalBounds().reduced (8);
-    globalView->setBounds (area.removeFromTop (220));
-    area.removeFromTop (8);
-    instrumentsTable->setBounds (area.removeFromTop (200));
-    area.removeFromTop (8);
     runButton.setBounds (area.removeFromBottom (32));
     area.removeFromBottom (8);
-    detailForm->setBounds (area);
+    const int treeHeight = area.getHeight() * 2 / 5;   // tree gets top 40%
+    tree->setBounds (area.removeFromTop (treeHeight));
+    area.removeFromTop (8);
+    host->setBounds (area);
 }
 
 void EditorPane::paint (juce::Graphics& g)
