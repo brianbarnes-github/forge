@@ -94,4 +94,11 @@ TEST_CASE ("end-to-end: sample MIDI converts to structurally valid ABC", "[e2e]"
 
     // Sanity: output is non-trivially sized
     CHECK (abc.size() > 1000);
+
+    // LOTRO ABC letters must stay strictly in the 3-octave range C,..c':
+    // never a double comma (,,) or double apostrophe (''), whatever
+    // instrument the track was assigned. AbcWriter's per-instrument
+    // pitch shift is what enforces this.
+    CHECK_FALSE (contains (abc, ",,"));
+    CHECK_FALSE (contains (abc, "''"));
 }

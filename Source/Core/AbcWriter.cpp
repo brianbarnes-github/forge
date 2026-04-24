@@ -123,7 +123,19 @@ namespace
         return groups;
     }
 
-    std::string emitNotePart (const Note& note, bool isDrum, const DrumMap& drumMap)
+    // LOTRO ABC letters are always in the 3-octave range C, .. c' (no ,,
+    // or '' notation). Each instrument's native MIDI range maps to those
+    // same letters — LOTRO applies its per-instrument pitch shift on
+    // playback. So before converting to a letter, we shift the absolute
+    // MIDI pitch so that the instrument's `midiLow` becomes MIDI 48
+    // (standard ABC's "C,"). The letter/octave math downstream then
+    // always lands in [C, .. c']. Clarinet (midiLow=48) is the identity
+    // shift; Lute (36) shifts +12; Theorbo (24) shifts +24; Flute (60)
+    // shifts -12; etc.
+    std::string emitNotePart (const Note& note,
+                              LotroInstrument instrument,
+                              bool isDrum,
+                              const DrumMap& drumMap)
     {
         if (isDrum)
         {
@@ -133,10 +145,13 @@ namespace
             return std::string (mapped->data(), mapped->size());
         }
 
-        bool needsSharp = false;
-        const char* base = letterFor (note.pitch % 12, needsSharp);
+        const int  midiLow      = rangeFor (instrument).midiLow;
+        const int  shiftedPitch = note.pitch - midiLow + 48;
 
-        const int octaveIndex = (int) std::floor ((note.pitch - 60) / 12.0);
+        bool needsSharp = false;
+        const char* base = letterFor (shiftedPitch % 12, needsSharp);
+
+        const int octaveIndex = (int) std::floor ((shiftedPitch - 60) / 12.0);
 
         std::string token;
         if (needsSharp) token += '^';
@@ -183,7 +198,7 @@ namespace
 
         for (const auto& n : group.notes)
         {
-            const auto np = emitNotePart (n, isDrum, drumMap);
+            const auto np = emitNotePart (n, track.instrument, isDrum, drumMap);
             if (np.empty()) continue;
             parts.push_back (np + abcDurationToken (n.durationTicks, ticksPerQuarter));
             clusterMin = std::min (clusterMin, n.durationTicks);
@@ -437,10 +452,17 @@ namespace
 
 std::string abcPitchToken (int midiPitch)
 {
+    // Clarinet's midiLow=48 makes the shift a no-op — output matches the
+    // standard-ABC letter mapping (MIDI 48→"C,", 60→"C", 72→"c", 84→"c'").
+    return abcPitchToken (midiPitch, LotroInstrument::Clarinet);
+}
+
+std::string abcPitchToken (int midiPitch, LotroInstrument instrument)
+{
     Note n;
     n.pitch = midiPitch;
     static const DrumMap unused;   // non-drum path, the map is never consulted
-    return emitNotePart (n, false, unused);
+    return emitNotePart (n, instrument, false, unused);
 }
 
 std::string abcDurationToken (int durationTicks, int ticksPerQuarter)
