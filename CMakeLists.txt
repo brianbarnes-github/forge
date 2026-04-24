@@ -23,7 +23,6 @@ add_subdirectory(JUCE)
 # A future GUI target will link this same library — keep it free of CLI- or
 # UI-specific code.
 add_library(converter_core STATIC
-    Source/Core/AutoInstrument.cpp
     Source/Core/Config.cpp
     Source/Core/ConfigLoader.cpp
     Source/Core/ConfigWriter.cpp

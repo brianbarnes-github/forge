@@ -72,3 +72,38 @@ TEST_CASE ("pipeline: synthesiseConfig propagates tempo and transpose", "[pipeli
     CHECK (cfg.tempo     == std::optional<double>{ 140.0 });
     CHECK (cfg.transpose == -5);
 }
+
+TEST_CASE ("pipeline: synthesiseConfig defaults every non-drum track to LuteOfAges", "[pipeline][synth]")
+{
+    const auto raw = threeTrackRaw();
+    const auto cfg = lotro::synthesiseConfig (raw, "in.mid", "",
+                                              std::nullopt, 0, {});
+    REQUIRE (cfg.instruments.size() == 3);
+    for (const auto& inst : cfg.instruments)
+        CHECK (inst.name == "LuteOfAges");
+}
+
+TEST_CASE ("pipeline: synthesiseConfig keeps Drums on tracks the importer already flagged as drums", "[pipeline][synth]")
+{
+    lotro::Song raw;
+    raw.ticksPerQuarter = 480;
+    raw.tempoMap.push_back ({ 0, 120.0 });
+    raw.meterMap.push_back ({ 0, 4, 4 });
+
+    lotro::Track melody;
+    melody.name = "Melody";
+    melody.notes.push_back (note (60, 0, 480));
+    raw.tracks.push_back (melody);
+
+    lotro::Track drums;
+    drums.name       = "Drums";
+    drums.instrument = lotro::LotroInstrument::Drums;   // imported from channel 10
+    drums.notes.push_back (note (36, 0, 120));
+    raw.tracks.push_back (drums);
+
+    const auto cfg = lotro::synthesiseConfig (raw, "in.mid", "",
+                                              std::nullopt, 0, {});
+    REQUIRE (cfg.instruments.size() == 2);
+    CHECK (cfg.instruments[0].name == "LuteOfAges");
+    CHECK (cfg.instruments[1].name == "Drums");
+}

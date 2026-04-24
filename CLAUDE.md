@@ -94,7 +94,6 @@ Source/
 │   ├── Track.h                  POD; std::string name, vector<Note>, …
 │   ├── Song.h                   POD; includes a DrumMap member
 │   ├── LotroInstrument.{h,cpp}  enum + InstrumentRange lookup; std::string API
-│   ├── AutoInstrument.{h,cpp}   pickInstrumentForTrack() — heuristic default
 │   ├── DrumMap.{h,cpp}          DrumMap class (set/clear/lookup); defaultDrumMap()
 │   ├── MidiImporter.{h,cpp}     takes std::istream; juce::MidiFile *internally*
 │   ├── AbcWriter.{h,cpp}        std::string writeAbc(Song). Internal ChordEmitter
@@ -123,8 +122,9 @@ Source/
 │   ├── DiagnosticsPane.{h,cpp}       Right pane container
 │   ├── DiagnosticListView.{h,cpp}    Diagnostic table
 │   └── AbcPreviewView.{h,cpp}        Read-only ABC text + status line
-└── Main.cpp                     wires import → auto-instrument → overrides →
-                                  pipeline → writer, converts at boundaries
+└── Main.cpp                     wires import → synthesise default config →
+                                  overrides → pipeline → writer, converts
+                                  at boundaries
 ```
 
 ### Pipeline (in `Main.cpp::runPipeline`)
@@ -222,12 +222,15 @@ See `docs/superpowers/specs/2026-04-23-config-driven-conversion-design.md`
 for the full schema.
 
 **Defaults:**
-- Instrument per track is chosen by `pickInstrumentForTrack()` —
-  whichever LOTRO instrument's native MIDI range covers the most notes
-  without octave transposition, with tiebreak preference for the
-  natural-melody instruments (LuteOfAges → Harp → BasicLute → …).
-  `--instrument N=NAME` overrides the auto-pick.
-- MIDI channel-10 tracks auto-detect to `Drums` in `MidiImporter`.
+- Instrument per track defaults to `LuteOfAges` for every non-drum
+  track. The converter does **not** auto-pick based on note ranges —
+  the MIDI-is-source-of-truth principle means we don't second-guess
+  the song writer. The user is expected to pick the real instrument
+  via `--instrument N=NAME` (CLI) or the Instrument property page
+  dropdown (GUI).
+- MIDI channel-10 tracks are imported as `Drums` in `MidiImporter`
+  because General MIDI declares channel 10 as percussion; this is
+  reading the MIDI, not a converter heuristic.
 - Output path defaults to `<input-stem>.abc` next to the input.
 - Drum mappings default to the spec §2.6 + extended-GM-percussion set
   in `defaultDrumMap()`. `--drum-map` merges overrides on top; unlisted
@@ -299,7 +302,6 @@ approval.
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
   full pipeline.
-- `AutoInstrument_tests.cpp` verifies heuristic instrument selection.
 - `TempoCollapse_tests.cpp` covers unit-level tempo/meter scaling:
   duration rescaling, startTick rescaling, and
   `applyTempoCollapseToSongMaps` on both maps.
