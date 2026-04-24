@@ -48,7 +48,7 @@ TEST_CASE ("assembly: one instrument per track, no merging", "[assembly]")
         lotro::ConfigInstrument inst;
         inst.x       = i + 1;
         inst.name    = "LuteOfAges";
-        inst.sources = { i };
+        inst.sources = { { i, 0, 0 } };
         cfg.instruments.push_back (inst);
     }
 
@@ -73,7 +73,7 @@ TEST_CASE ("assembly: two sources merge into one instrument", "[assembly]")
     lotro::ConfigInstrument inst;
     inst.x       = 1;
     inst.name    = "LuteOfAges";
-    inst.sources = { 0, 2 };
+    inst.sources = { { 0, 0, 0 }, { 2, 0, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -98,7 +98,7 @@ TEST_CASE ("assembly: unreferenced MIDI track emits diagnostic and is dropped", 
     lotro::ConfigInstrument inst;
     inst.x       = 1;
     inst.name    = "LuteOfAges";
-    inst.sources = { 0 };
+    inst.sources = { { 0, 0, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -112,17 +112,16 @@ TEST_CASE ("assembly: unreferenced MIDI track emits diagnostic and is dropped", 
     CHECK (droppedCount == 2);
 }
 
-TEST_CASE ("assembly: per-instrument transposeSemitones shifts every note", "[assembly]")
+TEST_CASE ("assembly: per-source transposeSemitones shifts every note from that source", "[assembly]")
 {
     const auto raw = threeTrackRaw();
 
     lotro::Config cfg;
     cfg.input = "x.mid";
     lotro::ConfigInstrument inst;
-    inst.x                  = 1;
-    inst.name               = "LuteOfAges";
-    inst.sources            = { 0 };
-    inst.transposeSemitones = -12;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, -12, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -132,7 +131,7 @@ TEST_CASE ("assembly: per-instrument transposeSemitones shifts every note", "[as
     CHECK (assembled.tracks[0].notes[0].pitch == 48);
 }
 
-TEST_CASE ("assembly: global transpose adds to per-instrument transpose", "[assembly]")
+TEST_CASE ("assembly: global transpose adds to per-source transpose", "[assembly]")
 {
     const auto raw = threeTrackRaw();
 
@@ -140,10 +139,9 @@ TEST_CASE ("assembly: global transpose adds to per-instrument transpose", "[asse
     cfg.input     = "x.mid";
     cfg.transpose = -5;
     lotro::ConfigInstrument inst;
-    inst.x                  = 1;
-    inst.name               = "LuteOfAges";
-    inst.sources            = { 0 };
-    inst.transposeSemitones = -7;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, -7, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -160,10 +158,9 @@ TEST_CASE ("assembly: volumePercent -20 scales velocity down 20%", "[assembly]")
     lotro::Config cfg;
     cfg.input = "x.mid";
     lotro::ConfigInstrument inst;
-    inst.x             = 1;
-    inst.name          = "LuteOfAges";
-    inst.sources       = { 0 };
-    inst.volumePercent = -20;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, 0, -20 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -182,7 +179,7 @@ TEST_CASE ("assembly: volumePercent 0 leaves velocity unchanged", "[assembly]")
     lotro::ConfigInstrument inst;
     inst.x       = 1;
     inst.name    = "LuteOfAges";
-    inst.sources = { 0 };
+    inst.sources = { { 0, 0, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -199,10 +196,9 @@ TEST_CASE ("assembly: volumePercent 100 on velocity 100 clamps to 127 and emits 
     lotro::Config cfg;
     cfg.input = "x.mid";
     lotro::ConfigInstrument inst;
-    inst.x             = 1;
-    inst.name          = "LuteOfAges";
-    inst.sources       = { 0 };
-    inst.volumePercent = 100;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, 0, 100 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -227,13 +223,13 @@ TEST_CASE ("assembly: label populates track.name; defaults to first source's MID
     withLabel.x       = 1;
     withLabel.name    = "LuteOfAges";
     withLabel.label   = std::string ("Lead");
-    withLabel.sources = { 0 };
+    withLabel.sources = { { 0, 0, 0 } };
     cfg.instruments.push_back (withLabel);
 
     lotro::ConfigInstrument noLabel;
     noLabel.x       = 2;
     noLabel.name    = "Harp";
-    noLabel.sources = { 1 };
+    noLabel.sources = { { 1, 0, 0 } };
     cfg.instruments.push_back (noLabel);
 
     lotro::Diagnostics diag;
@@ -252,7 +248,7 @@ TEST_CASE ("assembly: Drums instrument with drumMap populates track.drumMap", "[
     lotro::ConfigInstrument inst;
     inst.x       = 1;
     inst.name    = "Drums";
-    inst.sources = { 0 };
+    inst.sources = { { 0, 0, 0 } };
     const auto drumMapPath = juce::File (__FILE__)
                                  .getParentDirectory()
                                  .getParentDirectory()

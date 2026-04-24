@@ -101,7 +101,8 @@ int main (int argc, char* argv[])
             const auto loadErr = lotro::loadConfigFromFile (
                 opts.configFile.getFullPathName().toStdString(),
                 format,
-                cfg);
+                cfg,
+                diagnostics);
             if (! loadErr.empty())
             {
                 std::cerr << "config error: " << loadErr << "\n";

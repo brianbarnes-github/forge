@@ -39,21 +39,28 @@ std::string validateConfig (const Config& config, int midiTrackCount)
         if (inst.sources.empty())
             return where + "'sources' array must have at least one entry";
 
-        for (int src : inst.sources)
+        std::set<int> seenMidi;
+        for (size_t si = 0; si < inst.sources.size(); ++si)
         {
-            if (src < 0)
-                return where + "source index " + std::to_string (src) + " is negative";
-            if (src >= midiTrackCount)
-                return where + "source index " + std::to_string (src)
-                     + " exceeds MIDI track count (" + std::to_string (midiTrackCount) + ")";
-        }
+            const auto& src = inst.sources[si];
+            const auto sWhere = where + "sources[" + std::to_string (si) + "]: ";
 
-        // volumePercent is an adjustment: 0 = no change, +10 = +10%, -20 = -20%.
-        // <= -100 would mean silence or worse (negative volume), which makes
-        // no musical sense and almost certainly indicates a config mistake.
-        if (inst.volumePercent <= -100)
-            return where + "'volumePercent' must be greater than -100 (got "
-                 + std::to_string (inst.volumePercent) + ")";
+            if (src.midiTrackIndex < 0)
+                return sWhere + "'midiTrack' must be >= 0 (got "
+                     + std::to_string (src.midiTrackIndex) + ")";
+            if (src.midiTrackIndex >= midiTrackCount)
+                return sWhere + "'midiTrack' index " + std::to_string (src.midiTrackIndex)
+                     + " exceeds MIDI track count (" + std::to_string (midiTrackCount) + ")";
+            if (! seenMidi.insert (src.midiTrackIndex).second)
+                return sWhere + "duplicate MIDI track index " + std::to_string (src.midiTrackIndex)
+                     + " in this instrument";
+
+            // volumePercent is an adjustment: 0 = no change, +N louder, -N quieter.
+            // <= -100 would silence or invert the velocity.
+            if (src.volumePercent <= -100)
+                return sWhere + "'volumePercent' must be greater than -100 (got "
+                     + std::to_string (src.volumePercent) + ")";
+        }
 
         if (inst.drumMap.has_value() && parsed != LotroInstrument::Drums)
             return where + "'drumMap' is only valid on name == \"Drums\"";

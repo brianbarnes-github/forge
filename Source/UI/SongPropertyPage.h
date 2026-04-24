@@ -9,21 +9,20 @@
 namespace lotro
 {
 
-class GlobalSettingsView : public juce::Component,
-                           private juce::TextEditor::Listener
+class SongPropertyPage : public juce::Component,
+                         private juce::TextEditor::Listener
 {
 public:
-    GlobalSettingsView (Config& configRef, std::function<void()> onChange);
+    SongPropertyPage (Config& configRef, std::function<void()> onChange);
 
     void refresh();
-
     void resized() override;
 
 private:
     void textEditorTextChanged (juce::TextEditor&) override;
 
-    Config&                       config;
-    std::function<void()>         notifyChange;
+    Config&               config;
+    std::function<void()> notifyChange;
 
     juce::Label       inputLabel       { {}, "Input MIDI:" };
     juce::Label       inputValue;

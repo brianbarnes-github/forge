@@ -76,16 +76,15 @@ TEST_CASE ("end-to-end-config: a JSON config selects a subset of BBB tracks via 
         inst.x       = 1;
         inst.name    = "LuteOfAges";
         inst.label   = std::string ("Lute v1");
-        inst.sources = { 0 };
+        inst.sources = { { 0, 0, 0 } };
         cfg.instruments.push_back (inst);
     }
     {
         lotro::ConfigInstrument inst;
-        inst.x                  = 2;
-        inst.name               = "Theorbo";
-        inst.label              = std::string ("Bass");
-        inst.sources            = { 1 };
-        inst.transposeSemitones = -12;
+        inst.x       = 2;
+        inst.name    = "Theorbo";
+        inst.label   = std::string ("Bass");
+        inst.sources = { { 1, -12, 0 } };
         cfg.instruments.push_back (inst);
     }
 

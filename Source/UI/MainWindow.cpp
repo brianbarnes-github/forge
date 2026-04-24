@@ -303,8 +303,9 @@ void MainWindow::openConfigViaDialog()
 void MainWindow::openConfigFromPath (const juce::File& file)
 {
     Config cfg;
+    Diagnostics migDiag;
     const auto loadErr = loadConfigFromFile (file.getFullPathName().toStdString(),
-                                             ConfigFormat::Auto, cfg);
+                                             ConfigFormat::Auto, cfg, migDiag);
     if (! loadErr.empty())
     {
         juce::NativeMessageBox::showMessageBoxAsync (

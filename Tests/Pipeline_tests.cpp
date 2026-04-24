@@ -43,8 +43,11 @@ TEST_CASE ("pipeline: synthesiseConfig produces one instrument per raw track", "
     REQUIRE (cfg.instruments.size() == 3);
     for (int i = 0; i < 3; ++i)
     {
-        CHECK (cfg.instruments[(size_t) i].x       == i + 1);
-        CHECK (cfg.instruments[(size_t) i].sources == std::vector<int>{ i });
+        CHECK (cfg.instruments[(size_t) i].x == i + 1);
+        REQUIRE (cfg.instruments[(size_t) i].sources.size() == 1);
+        CHECK (cfg.instruments[(size_t) i].sources[0].midiTrackIndex == i);
+        CHECK (cfg.instruments[(size_t) i].sources[0].transposeSemitones == 0);
+        CHECK (cfg.instruments[(size_t) i].sources[0].volumePercent == 0);
         lotro::LotroInstrument parsed;
         CHECK (lotro::parseName (cfg.instruments[(size_t) i].name, parsed).empty());
     }
