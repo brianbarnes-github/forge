@@ -114,10 +114,12 @@ Source/
 ├── UI/                          JUCE GUI app — converter_ui binary.
 │   ├── UiMain.cpp               JUCE app entry point
 │   ├── MainWindow.{h,cpp}       Window, menus, splitter, drag-drop
-│   ├── EditorPane.{h,cpp}       Left pane container; owns Config + Song
-│   ├── GlobalSettingsView.{h,cpp}    Top-of-editor form
-│   ├── InstrumentsTable.{h,cpp}      Master view of instruments
-│   ├── InstrumentDetailForm.{h,cpp}  Detail view for selected instrument
+│   ├── EditorPane.{h,cpp}       Left pane: tree + property page host + Run
+│   ├── InstrumentsTree.{h,cpp}  Three-level treeview (Song/Instrument/Source)
+│   ├── PropertyPageHost.{h,cpp} Swaps the visible property page on selection
+│   ├── SongPropertyPage.{h,cpp}      Song-node property page
+│   ├── InstrumentPropertyPage.{h,cpp} Instrument-node property page
+│   ├── SourcePropertyPage.{h,cpp}    Source-node property page
 │   ├── DiagnosticsPane.{h,cpp}       Right pane container
 │   ├── DiagnosticListView.{h,cpp}    Diagnostic table
 │   └── AbcPreviewView.{h,cpp}        Read-only ABC text + status line
@@ -292,7 +294,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **127/127**.
+- Test count: **136/136**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
