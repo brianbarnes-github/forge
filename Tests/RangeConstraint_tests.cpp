@@ -86,30 +86,48 @@ TEST_CASE ("range: user transpose is applied before clamping", "[range]")
     CHECK (track.notes.front().pitch == 48);
 }
 
-TEST_CASE ("range: notes below C, get transposed into the ABC envelope", "[range]")
+// Each LOTRO instrument has its own 36-semitone native MIDI range (see
+// Picture1.jpg / LotroInstrument.cpp). Fold targets THAT range, not a
+// shared C,..c' envelope — earlier code was intersecting with [48,84]
+// which chopped off Theorbo's bottom and Flute's top octaves.
+TEST_CASE ("range: LuteOfAges accepts MIDI 36 (its low C) without folding", "[range]")
 {
     lotro::Track track;
-    track.instrument = lotro::LotroInstrument::LuteOfAges;  // spec range 36..72
-    track.notes.push_back (noteAt (36));                    // C,, in ABC — below envelope
+    track.instrument = lotro::LotroInstrument::LuteOfAges;  // range 36..72
+    track.notes.push_back (noteAt (36));
 
     lotro::Diagnostics warnings;
     lotro::applyRangeConstraint (track, warnings);
 
     REQUIRE (track.notes.size() == 1);
-    CHECK (track.notes.front().pitch >= 48);
-    CHECK (track.notes.front().pitch <= 84);
+    CHECK (track.notes.front().pitch == 36);
+    CHECK (warnings.empty());
 }
 
-TEST_CASE ("range: notes above c' get transposed into the ABC envelope", "[range]")
+TEST_CASE ("range: Flute accepts MIDI 96 (its high c) without folding", "[range]")
 {
     lotro::Track track;
-    track.instrument = lotro::LotroInstrument::Flute;       // spec range 60..96
-    track.notes.push_back (noteAt (96));                    // c'' in ABC — above envelope
+    track.instrument = lotro::LotroInstrument::Flute;       // range 60..96
+    track.notes.push_back (noteAt (96));
 
     lotro::Diagnostics warnings;
     lotro::applyRangeConstraint (track, warnings);
 
     REQUIRE (track.notes.size() == 1);
-    CHECK (track.notes.front().pitch >= 48);
-    CHECK (track.notes.front().pitch <= 84);
+    CHECK (track.notes.front().pitch == 96);
+    CHECK (warnings.empty());
+}
+
+TEST_CASE ("range: Theorbo accepts MIDI 24 (its low C) without folding", "[range]")
+{
+    lotro::Track track;
+    track.instrument = lotro::LotroInstrument::Theorbo;     // range 24..60
+    track.notes.push_back (noteAt (24));
+
+    lotro::Diagnostics warnings;
+    lotro::applyRangeConstraint (track, warnings);
+
+    REQUIRE (track.notes.size() == 1);
+    CHECK (track.notes.front().pitch == 24);
+    CHECK (warnings.empty());
 }

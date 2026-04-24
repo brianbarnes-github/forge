@@ -90,6 +90,10 @@ Song assembleInstruments (const Song&         raw,
             t.name = inst.name;
         }
 
+        // Pitch handling: add per-source + global transpose to the raw MIDI
+        // pitch. The per-track fold into the instrument's native MIDI range
+        // happens later in `RangeConstraint` (see Pipeline). We don't fold
+        // here so that all transpose math is additive and easy to follow.
         for (const auto& src : inst.sources)
         {
             const int sIdx = src.midiTrackIndex;

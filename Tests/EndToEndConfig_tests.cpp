@@ -84,7 +84,7 @@ TEST_CASE ("end-to-end-config: a JSON config selects a subset of BBB tracks via 
         inst.x       = 2;
         inst.name    = "Theorbo";
         inst.label   = std::string ("Bass");
-        inst.sources = { { 1, -12, 0 } };
+        inst.sources = { { 1, 0, 0 } };
         cfg.instruments.push_back (inst);
     }
 
