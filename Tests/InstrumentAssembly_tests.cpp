@@ -150,6 +150,101 @@ TEST_CASE ("assembly: global transpose adds to per-source transpose", "[assembly
     CHECK (assembled.tracks[0].notes[0].pitch == 48);
 }
 
+// The user's per-source transpose must land literally when the target
+// is in range. Previously, a RangeConstraint octave-fold was being
+// applied AFTER the transpose, which silently undid the user's shift
+// for notes near the envelope ceiling. See findings/transpose.md.
+TEST_CASE ("assembly: +12 on an in-envelope source shifts the note up one octave", "[assembly][transpose]")
+{
+    lotro::Song raw;
+    raw.ticksPerQuarter = 480;
+    raw.tempoMap.push_back ({ 0, 120.0 });
+    raw.meterMap.push_back ({ 0, 4, 4 });
+
+    lotro::Track t0;
+    t0.name = "Src";
+    t0.notes.push_back (makeNote (60, 0, 480, 100));   // middle C — in LuteOfAges envelope [48,72]
+    raw.tracks.push_back (t0);
+
+    lotro::Config cfg;
+    cfg.input = "x.mid";
+    lotro::ConfigInstrument inst;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, 12, 0 } };   // +12 semitones on source 0
+    cfg.instruments.push_back (inst);
+
+    lotro::Diagnostics diag;
+    const auto assembled = lotro::assembleInstruments (raw, cfg, diag);
+
+    REQUIRE (assembled.tracks.size() == 1);
+    REQUIRE (assembled.tracks[0].notes.size() == 1);
+    CHECK (assembled.tracks[0].notes[0].pitch == 72);   // literal +12, not folded back to 60
+}
+
+TEST_CASE ("assembly: transpose that pushes a note out of envelope drops it with a TransposeOutOfRange diagnostic", "[assembly][transpose]")
+{
+    lotro::Song raw;
+    raw.ticksPerQuarter = 480;
+    raw.tempoMap.push_back ({ 0, 120.0 });
+    raw.meterMap.push_back ({ 0, 4, 4 });
+
+    lotro::Track t0;
+    t0.name = "Src";
+    t0.notes.push_back (makeNote (65, 0, 480, 100));   // MIDI 65 on LuteOfAges ceiling 72
+    raw.tracks.push_back (t0);
+
+    lotro::Config cfg;
+    cfg.input = "x.mid";
+    lotro::ConfigInstrument inst;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, 12, 0 } };   // +12 → 77, above 72 ceiling
+    cfg.instruments.push_back (inst);
+
+    lotro::Diagnostics diag;
+    const auto assembled = lotro::assembleInstruments (raw, cfg, diag);
+
+    REQUIRE (assembled.tracks.size() == 1);
+    CHECK (assembled.tracks[0].notes.empty());
+
+    const auto it = std::find_if (diag.begin(), diag.end(),
+        [] (const lotro::Diagnostic& d) { return d.source == "TransposeOutOfRange"; });
+    REQUIRE (it != diag.end());
+    CHECK (it->severity == lotro::Severity::Warning);
+    CHECK (it->pitch    == 65);
+}
+
+TEST_CASE ("assembly: source note outside envelope is songwriter-folded, then user transpose applies to the folded pitch", "[assembly][transpose]")
+{
+    lotro::Song raw;
+    raw.ticksPerQuarter = 480;
+    raw.tempoMap.push_back ({ 0, 120.0 });
+    raw.meterMap.push_back ({ 0, 4, 4 });
+
+    lotro::Track t0;
+    t0.name = "Src";
+    // MIDI 86 is above LuteOfAges ceiling 72. Songwriter-fold by -12 → 74 (still too high),
+    // then -12 → 62 (in range). User transpose 0 → final 62.
+    t0.notes.push_back (makeNote (86, 0, 480, 100));
+    raw.tracks.push_back (t0);
+
+    lotro::Config cfg;
+    cfg.input = "x.mid";
+    lotro::ConfigInstrument inst;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, 0, 0 } };
+    cfg.instruments.push_back (inst);
+
+    lotro::Diagnostics diag;
+    const auto assembled = lotro::assembleInstruments (raw, cfg, diag);
+
+    REQUIRE (assembled.tracks.size() == 1);
+    REQUIRE (assembled.tracks[0].notes.size() == 1);
+    CHECK (assembled.tracks[0].notes[0].pitch == 62);   // folded, same pitch class as source
+}
+
 TEST_CASE ("assembly: volumePercent -20 scales velocity down 20%", "[assembly]")
 {
     // Source velocity 100. volumePercent -20 -> scale 0.8 -> 80.

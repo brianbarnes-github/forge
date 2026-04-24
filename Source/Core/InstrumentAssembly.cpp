@@ -90,6 +90,30 @@ Song assembleInstruments (const Song&         raw,
             t.name = inst.name;
         }
 
+        // Pitch handling per the MIDI-is-source-of-truth principle:
+        //
+        //   1. Octave-fold the original source pitch into the instrument's
+        //      envelope ("songwriter fit" — the melody may have been authored
+        //      for a different instrument's range; we shift it in whole
+        //      octaves to fit without transposing pitch class).
+        //   2. Add user transpose literally (Config.transpose + ConfigSource
+        //      .transposeSemitones). This is user intent — we do not fold
+        //      it away. If it pushes the note out of the envelope, we drop
+        //      the note with a `TransposeOutOfRange` Warning diagnostic.
+        //
+        // Drums skip both steps (no envelope, no useful transpose).
+        const bool isDrums = (parsed == LotroInstrument::Drums);
+        int effectiveLow  = 0;
+        int effectiveHigh = 0;
+        if (! isDrums)
+        {
+            constexpr int abcLowMidi  = 48;
+            constexpr int abcHighMidi = 84;
+            const auto r = rangeFor (parsed);
+            effectiveLow  = std::max (r.midiLow,  abcLowMidi);
+            effectiveHigh = std::min (r.midiHigh, abcHighMidi);
+        }
+
         for (const auto& src : inst.sources)
         {
             const int sIdx = src.midiTrackIndex;
@@ -105,7 +129,39 @@ Song assembleInstruments (const Song&         raw,
             for (const auto& srcNote : srcTrack.notes)
             {
                 Note n = srcNote;
-                n.pitch = srcNote.pitch + totalTranspose;
+
+                if (isDrums)
+                {
+                    n.pitch = srcNote.pitch + totalTranspose;
+                }
+                else
+                {
+                    int folded = srcNote.pitch;
+                    while (folded < effectiveLow  && folded + 12 <= effectiveHigh) folded += 12;
+                    while (folded > effectiveHigh && folded - 12 >= effectiveLow)  folded -= 12;
+
+                    const int target = folded + totalTranspose;
+                    if (target < effectiveLow || target > effectiveHigh)
+                    {
+                        Diagnostic d;
+                        d.severity = Severity::Warning;
+                        d.source   = "TransposeOutOfRange";
+                        d.message  = "note dropped: transpose shifted MIDI "
+                                   + std::to_string (srcNote.pitch)
+                                   + " to " + std::to_string (target)
+                                   + " outside ["
+                                   + std::to_string (effectiveLow) + ","
+                                   + std::to_string (effectiveHigh) + "] on '"
+                                   + t.name + "' source MIDI-" + std::to_string (sIdx);
+                        d.tick             = srcNote.startTick;
+                        d.pitch            = srcNote.pitch;
+                        d.sourceTrackIndex = srcNote.sourceTrackIndex;
+                        d.sourceEventIndex = srcNote.sourceEventIndex;
+                        diagnostics.push_back (std::move (d));
+                        continue;
+                    }
+                    n.pitch = target;
+                }
 
                 if (std::abs (volumeScale - 1.0) > 1e-9)
                 {
