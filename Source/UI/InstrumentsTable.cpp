@@ -60,7 +60,7 @@ void InstrumentsTable::paintCell (juce::Graphics& g, int rowNumber, int columnId
         case 4:
         {
             juce::StringArray parts;
-            for (int s : inst.sources) parts.add (juce::String (s));
+            for (const auto& s : inst.sources) parts.add (juce::String (s.midiTrackIndex));
             text = parts.joinIntoString (", ");
             break;
         }

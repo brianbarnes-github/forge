@@ -16,19 +16,17 @@ namespace
         c.transpose   = -2;
         {
             lotro::ConfigInstrument i;
-            i.x                  = 1;
-            i.name               = "LuteOfAges";
-            i.label              = std::string ("Lead");
-            i.sources            = { 0, 2 };
-            i.transposeSemitones = -12;
-            i.volumePercent      = 110;
+            i.x       = 1;
+            i.name    = "LuteOfAges";
+            i.label   = std::string ("Lead");
+            i.sources = { { 0, 0, 0 }, { 2, -12, 10 } };
             c.instruments.push_back (i);
         }
         {
             lotro::ConfigInstrument i;
             i.x       = 3;
             i.name    = "Drums";
-            i.sources = { 9 };
+            i.sources = { { 9, 0, 0 } };
             i.drumMap = std::string ("kit.json");
             c.instruments.push_back (i);
         }
@@ -48,13 +46,17 @@ namespace
         {
             const auto& ai = a.instruments[i];
             const auto& bi = b.instruments[i];
-            CHECK (ai.x                  == bi.x);
-            CHECK (ai.name               == bi.name);
-            CHECK (ai.label              == bi.label);
-            CHECK (ai.sources            == bi.sources);
-            CHECK (ai.transposeSemitones == bi.transposeSemitones);
-            CHECK (ai.volumePercent      == bi.volumePercent);
-            CHECK (ai.drumMap            == bi.drumMap);
+            CHECK (ai.x       == bi.x);
+            CHECK (ai.name    == bi.name);
+            CHECK (ai.label   == bi.label);
+            CHECK (ai.drumMap == bi.drumMap);
+            REQUIRE (ai.sources.size() == bi.sources.size());
+            for (size_t j = 0; j < ai.sources.size(); ++j)
+            {
+                CHECK (ai.sources[j].midiTrackIndex     == bi.sources[j].midiTrackIndex);
+                CHECK (ai.sources[j].transposeSemitones == bi.sources[j].transposeSemitones);
+                CHECK (ai.sources[j].volumePercent      == bi.sources[j].volumePercent);
+            }
         }
     }
 }
@@ -66,7 +68,8 @@ TEST_CASE ("config-writer: JSON round-trip preserves all fields", "[config-write
     REQUIRE (lotro::writeConfigToString (lotro::ConfigFormat::Json, original, text).empty());
 
     lotro::Config parsed;
-    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Json, parsed).empty());
+    lotro::Diagnostics mig;
+    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Json, parsed, mig).empty());
 
     checkConfigsEqual (parsed, original);
 }
@@ -78,7 +81,8 @@ TEST_CASE ("config-writer: TOML round-trip preserves all fields", "[config-write
     REQUIRE (lotro::writeConfigToString (lotro::ConfigFormat::Toml, original, text).empty());
 
     lotro::Config parsed;
-    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Toml, parsed).empty());
+    lotro::Diagnostics mig;
+    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Toml, parsed, mig).empty());
 
     checkConfigsEqual (parsed, original);
 }
@@ -90,7 +94,8 @@ TEST_CASE ("config-writer: XML round-trip preserves all fields", "[config-writer
     REQUIRE (lotro::writeConfigToString (lotro::ConfigFormat::Xml, original, text).empty());
 
     lotro::Config parsed;
-    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Xml, parsed).empty());
+    lotro::Diagnostics mig;
+    REQUIRE (lotro::loadConfigFromString (text, lotro::ConfigFormat::Xml, parsed, mig).empty());
 
     checkConfigsEqual (parsed, original);
 }

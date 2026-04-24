@@ -27,8 +27,8 @@ namespace
     {
         std::set<int> referenced;
         for (const auto& inst : config.instruments)
-            for (int s : inst.sources)
-                referenced.insert (s);
+            for (const auto& s : inst.sources)
+                referenced.insert (s.midiTrackIndex);
 
         for (int i = 0; i < (int) raw.tracks.size(); ++i)
         {
@@ -79,28 +79,28 @@ Song assembleInstruments (const Song&         raw,
             t.name = *inst.label;
         }
         else if (! inst.sources.empty()
-                 && inst.sources.front() < (int) raw.tracks.size()
-                 && ! raw.tracks[(size_t) inst.sources.front()].name.empty())
+                 && inst.sources.front().midiTrackIndex >= 0
+                 && inst.sources.front().midiTrackIndex < (int) raw.tracks.size()
+                 && ! raw.tracks[(size_t) inst.sources.front().midiTrackIndex].name.empty())
         {
-            t.name = raw.tracks[(size_t) inst.sources.front()].name;
+            t.name = raw.tracks[(size_t) inst.sources.front().midiTrackIndex].name;
         }
         else
         {
             t.name = inst.name;
         }
 
-        const int totalTranspose = inst.transposeSemitones + config.transpose;
-        // volumePercent is an adjustment: 0 = no change, +N = +N% louder,
-        // -N = -N% quieter. The scale multiplier is therefore (1 + percent/100).
-        const double volumeScale = 1.0 + ((double) inst.volumePercent / 100.0);
-
-        for (int src : inst.sources)
+        for (const auto& src : inst.sources)
         {
-            if (src < 0 || src >= (int) raw.tracks.size()) continue;
-            const auto& srcTrack = raw.tracks[(size_t) src];
+            const int sIdx = src.midiTrackIndex;
+            if (sIdx < 0 || sIdx >= (int) raw.tracks.size()) continue;
+            const auto& srcTrack = raw.tracks[(size_t) sIdx];
 
             if (srcTrack.sourceMidiChannel == 10)
                 t.sourceMidiChannel = 10;
+
+            const int    totalTranspose = src.transposeSemitones + config.transpose;
+            const double volumeScale    = 1.0 + ((double) src.volumePercent / 100.0);
 
             for (const auto& srcNote : srcTrack.notes)
             {
@@ -119,7 +119,8 @@ Song assembleInstruments (const Song&         raw,
                         Diagnostic d;
                         d.severity         = Severity::Warning;
                         d.source           = "VolumeScale";
-                        d.message          = "velocity clamped during volume scale on '" + t.name + "'";
+                        d.message          = "velocity clamped on '" + t.name
+                                           + "' source MIDI-" + std::to_string (sIdx);
                         d.tick             = srcNote.startTick;
                         d.pitch            = srcNote.pitch;
                         d.sourceTrackIndex = srcNote.sourceTrackIndex;

@@ -1,6 +1,8 @@
 #include "InstrumentDetailForm.h"
 #include "Core/LotroInstrument.h"
 
+#include <algorithm>
+
 namespace lotro
 {
 
@@ -83,8 +85,11 @@ void InstrumentDetailForm::refresh()
     }
 
     labelField.setText      (juce::String (inst.label.value_or (std::string{})), juce::dontSendNotification);
-    transposeField.setText  (juce::String (inst.transposeSemitones), juce::dontSendNotification);
-    volumeField.setText     (juce::String (inst.volumePercent), juce::dontSendNotification);
+    // Per-source fields: show values from the first source if available, else 0.
+    const int srcTranspose = inst.sources.empty() ? 0 : inst.sources.front().transposeSemitones;
+    const int srcVolume    = inst.sources.empty() ? 0 : inst.sources.front().volumePercent;
+    transposeField.setText  (juce::String (srcTranspose), juce::dontSendNotification);
+    volumeField.setText     (juce::String (srcVolume), juce::dontSendNotification);
     drumMapField.setText    (juce::String (inst.drumMap.value_or (std::string{})), juce::dontSendNotification);
 
     LotroInstrument parsed = LotroInstrument::LuteOfAges;
@@ -110,9 +115,9 @@ void InstrumentDetailForm::rebuildSourceCheckboxes()
             + ", " + juce::String ((int) track.notes.size()) + " notes)";
         auto* cb = sourceChecks.add (new juce::ToggleButton (label));
         addAndMakeVisible (cb);
-        cb->setToggleState (
-            std::find (inst.sources.begin(), inst.sources.end(), (int) i) != inst.sources.end(),
-            juce::dontSendNotification);
+        const bool checked = std::any_of (inst.sources.begin(), inst.sources.end(),
+            [i] (const lotro::ConfigSource& s) { return s.midiTrackIndex == (int) i; });
+        cb->setToggleState (checked, juce::dontSendNotification);
         cb->addListener (this);
     }
 }
@@ -134,23 +139,17 @@ void InstrumentDetailForm::pushFromControlsToConfig()
         inst.label = s.empty() ? std::optional<std::string>{} : std::optional<std::string>{ s };
     }
     {
-        const auto t = transposeField.getText();
-        inst.transposeSemitones = t.isEmpty() ? 0 : t.getIntValue();
-    }
-    {
-        const auto v = volumeField.getText();
-        inst.volumePercent = v.isEmpty() ? 0 : v.getIntValue();
-    }
-    {
         const auto s = drumMapField.getText().toStdString();
         inst.drumMap = s.empty() ? std::optional<std::string>{} : std::optional<std::string>{ s };
     }
     {
-        std::vector<int> picked;
+        std::vector<lotro::ConfigSource> newSources;
         for (int i = 0; i < sourceChecks.size(); ++i)
+        {
             if (sourceChecks[i]->getToggleState())
-                picked.push_back (i);
-        inst.sources = std::move (picked);
+                newSources.push_back ({ i, 0, 0 });
+        }
+        inst.sources = std::move (newSources);
     }
 
     LotroInstrument parsed = LotroInstrument::LuteOfAges;

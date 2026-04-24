@@ -65,7 +65,7 @@ TEST_CASE ("config-pipeline: two MIDI sources merge into one instrument; chord f
     lotro::ConfigInstrument inst;
     inst.x       = 1;
     inst.name    = "LuteOfAges";
-    inst.sources = { 0, 1 };
+    inst.sources = { { 0, 0, 0 }, { 1, 0, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -88,10 +88,9 @@ TEST_CASE ("config-pipeline: per-instrument transpose shifts the emitted pitch",
     lotro::Config cfg;
     cfg.input = "x.mid";
     lotro::ConfigInstrument inst;
-    inst.x                  = 1;
-    inst.name               = "LuteOfAges";
-    inst.sources            = { 0 };
-    inst.transposeSemitones = 12;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { { 0, 12, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -112,11 +111,10 @@ TEST_CASE ("config-pipeline: volume scale down lands in the quieter dynamic buck
     lotro::Config cfg;
     cfg.input = "x.mid";
     lotro::ConfigInstrument inst;
-    inst.x             = 1;
-    inst.name          = "LuteOfAges";
-    inst.sources       = { 0 };
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
     // -70%: velocity 100 * 0.3 = 30 -> pp bucket.
-    inst.volumePercent = -70;
+    inst.sources = { { 0, 0, -70 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -148,7 +146,7 @@ TEST_CASE ("config-pipeline: three instruments emit in x-ascending order", "[con
         lotro::ConfigInstrument inst;
         inst.x       = xs[i];
         inst.name    = "LuteOfAges";
-        inst.sources = { sources[i] };
+        inst.sources = { { sources[i], 0, 0 } };
         cfg.instruments.push_back (inst);
     }
 
@@ -182,7 +180,7 @@ TEST_CASE ("config-pipeline: config label becomes T: suffix", "[config-pipeline]
     inst.x       = 1;
     inst.name    = "LuteOfAges";
     inst.label   = std::string ("Lead Lute");
-    inst.sources = { 0 };
+    inst.sources = { { 0, 0, 0 } };
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -210,7 +208,8 @@ TEST_CASE ("config-pipeline: full JSON round-trip through loader + assembly + wr
     })";
 
     lotro::Config cfg;
-    REQUIRE (lotro::loadConfigFromString (json, lotro::ConfigFormat::Json, cfg).empty());
+    lotro::Diagnostics mig;
+    REQUIRE (lotro::loadConfigFromString (json, lotro::ConfigFormat::Json, cfg, mig).empty());
 
     lotro::Diagnostics diag;
     auto song = lotro::assembleInstruments (raw, cfg, diag);

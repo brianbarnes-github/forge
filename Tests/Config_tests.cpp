@@ -11,7 +11,7 @@ namespace
         lotro::ConfigInstrument inst;
         inst.x       = x;
         inst.name    = name;
-        inst.sources = { 0 };
+        inst.sources = { { 0, 0, 0 } };
         c.instruments.push_back (inst);
         return c;
     }
@@ -47,7 +47,7 @@ TEST_CASE ("config: duplicate x values fail", "[config][validate]")
     lotro::ConfigInstrument dup;
     dup.x       = 1;
     dup.name    = "Harp";
-    dup.sources = { 1 };
+    dup.sources = { { 1, 0, 0 } };
     config.instruments.push_back (dup);
     const auto err = lotro::validateConfig (config, 2);
     CHECK_FALSE (err.empty());
@@ -81,38 +81,48 @@ TEST_CASE ("config: empty sources fails", "[config][validate]")
     CHECK (err.find ("sources") != std::string::npos);
 }
 
-TEST_CASE ("config: source index negative fails", "[config][validate]")
+TEST_CASE ("config: source midiTrack negative fails", "[config][validate]")
 {
     auto config = minimalValid();
-    config.instruments[0].sources = { -1 };
+    config.instruments[0].sources = { { -1, 0, 0 } };
     const auto err = lotro::validateConfig (config, 1);
     CHECK_FALSE (err.empty());
-    CHECK (err.find ("source") != std::string::npos);
+    CHECK (err.find ("midiTrack") != std::string::npos);
 }
 
-TEST_CASE ("config: source index out of range fails", "[config][validate]")
+TEST_CASE ("config: source midiTrack out of range fails", "[config][validate]")
 {
     auto config = minimalValid();
-    config.instruments[0].sources = { 5 };
+    config.instruments[0].sources = { { 5, 0, 0 } };
     const auto err = lotro::validateConfig (config, 1);
     CHECK_FALSE (err.empty());
-    CHECK (err.find ("source") != std::string::npos);
+    CHECK (err.find ("midiTrack") != std::string::npos);
 }
 
-TEST_CASE ("config: volumePercent 0 (no change) passes", "[config][validate]")
+TEST_CASE ("config: source volumePercent 0 (no change) passes", "[config][validate]")
 {
     auto config = minimalValid();
-    config.instruments[0].volumePercent = 0;
+    config.instruments[0].sources[0].volumePercent = 0;
     CHECK (lotro::validateConfig (config, 1).empty());
 }
 
-TEST_CASE ("config: volumePercent <= -100 fails (would silence the note)", "[config][validate]")
+TEST_CASE ("config: source volumePercent <= -100 fails (would silence the note)",
+           "[config][validate]")
 {
     auto config = minimalValid();
-    config.instruments[0].volumePercent = -100;
+    config.instruments[0].sources[0].volumePercent = -100;
     const auto err = lotro::validateConfig (config, 1);
     CHECK_FALSE (err.empty());
     CHECK (err.find ("volumePercent") != std::string::npos);
+}
+
+TEST_CASE ("config: duplicate midiTrack within one instrument fails", "[config][validate]")
+{
+    auto config = minimalValid();
+    config.instruments[0].sources = { { 0, 0, 0 }, { 0, 0, 0 } };
+    const auto err = lotro::validateConfig (config, 5);
+    CHECK_FALSE (err.empty());
+    CHECK (err.find ("duplicate") != std::string::npos);
 }
 
 TEST_CASE ("config: drumMap on non-Drums instrument fails", "[config][validate]")
@@ -140,7 +150,7 @@ TEST_CASE ("config: gaps in x are allowed", "[config][validate]")
         lotro::ConfigInstrument inst;
         inst.x       = x;
         inst.name    = "LuteOfAges";
-        inst.sources = { 0 };
+        inst.sources = { { 0, 0, 0 } };
         c.instruments.push_back (inst);
     }
     CHECK (lotro::validateConfig (c, 1).empty());

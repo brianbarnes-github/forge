@@ -30,7 +30,7 @@ Config synthesiseConfig (const Song&                                  raw,
     {
         ConfigInstrument inst;
         inst.x       = (int) (i + 1);
-        inst.sources = { (int) i };
+        inst.sources = { ConfigSource{ (int) i, 0, 0 } };
 
         const auto picked = pickInstrumentForTrack (raw.tracks[i]);
         inst.name = std::string (displayName (picked));

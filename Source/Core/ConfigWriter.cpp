@@ -16,16 +16,11 @@ namespace
     {
         auto* top = new juce::DynamicObject();
         top->setProperty ("input", juce::String (cfg.input));
-        if (cfg.output.has_value())
-            top->setProperty ("output", juce::String (*cfg.output));
-        if (cfg.title.has_value())
-            top->setProperty ("title", juce::String (*cfg.title));
-        if (cfg.transcriber.has_value())
-            top->setProperty ("transcriber", juce::String (*cfg.transcriber));
-        if (cfg.tempo.has_value())
-            top->setProperty ("tempo", *cfg.tempo);
-        if (cfg.transpose != 0)
-            top->setProperty ("transpose", cfg.transpose);
+        if (cfg.output.has_value())       top->setProperty ("output",      juce::String (*cfg.output));
+        if (cfg.title.has_value())        top->setProperty ("title",       juce::String (*cfg.title));
+        if (cfg.transcriber.has_value())  top->setProperty ("transcriber", juce::String (*cfg.transcriber));
+        if (cfg.tempo.has_value())        top->setProperty ("tempo",       *cfg.tempo);
+        if (cfg.transpose != 0)           top->setProperty ("transpose",   cfg.transpose);
 
         juce::Array<juce::var> instrumentsArr;
         for (const auto& inst : cfg.instruments)
@@ -37,14 +32,18 @@ namespace
                 obj->setProperty ("label", juce::String (*inst.label));
 
             juce::Array<juce::var> sourcesArr;
-            for (int s : inst.sources)
-                sourcesArr.add (juce::var (s));
+            for (const auto& src : inst.sources)
+            {
+                auto* sobj = new juce::DynamicObject();
+                sobj->setProperty ("midiTrack", src.midiTrackIndex);
+                if (src.transposeSemitones != 0)
+                    sobj->setProperty ("transposeSemitones", src.transposeSemitones);
+                if (src.volumePercent != 0)
+                    sobj->setProperty ("volumePercent", src.volumePercent);
+                sourcesArr.add (juce::var (sobj));
+            }
             obj->setProperty ("sources", sourcesArr);
 
-            if (inst.transposeSemitones != 0)
-                obj->setProperty ("transposeSemitones", inst.transposeSemitones);
-            if (inst.volumePercent != 0)
-                obj->setProperty ("volumePercent", inst.volumePercent);
             if (inst.drumMap.has_value())
                 obj->setProperty ("drumMap", juce::String (*inst.drumMap));
 
@@ -58,7 +57,7 @@ namespace
     std::string writeJson (const Config& cfg, std::string& out)
     {
         const auto v = toJsonVar (cfg);
-        out = juce::JSON::toString (v, /*allOnOneLine=*/false).toStdString();
+        out = juce::JSON::toString (v, false).toStdString();
         return {};
     }
 
@@ -82,11 +81,11 @@ namespace
     {
         std::string s;
         s += "input = " + escapeToml (cfg.input) + "\n";
-        if (cfg.output.has_value())      s += "output = "      + escapeToml (*cfg.output)      + "\n";
-        if (cfg.title.has_value())       s += "title = "       + escapeToml (*cfg.title)       + "\n";
-        if (cfg.transcriber.has_value()) s += "transcriber = " + escapeToml (*cfg.transcriber) + "\n";
-        if (cfg.tempo.has_value())       s += "tempo = "       + std::to_string ((int) std::lround (*cfg.tempo)) + "\n";
-        if (cfg.transpose != 0)          s += "transpose = "   + std::to_string (cfg.transpose) + "\n";
+        if (cfg.output.has_value())       s += "output = "      + escapeToml (*cfg.output)      + "\n";
+        if (cfg.title.has_value())        s += "title = "       + escapeToml (*cfg.title)       + "\n";
+        if (cfg.transcriber.has_value())  s += "transcriber = " + escapeToml (*cfg.transcriber) + "\n";
+        if (cfg.tempo.has_value())        s += "tempo = "       + std::to_string ((int) std::lround (*cfg.tempo)) + "\n";
+        if (cfg.transpose != 0)           s += "transpose = "   + std::to_string (cfg.transpose) + "\n";
 
         for (const auto& inst : cfg.instruments)
         {
@@ -95,21 +94,18 @@ namespace
             s += "name = " + escapeToml (inst.name) + "\n";
             if (inst.label.has_value())
                 s += "label = " + escapeToml (*inst.label) + "\n";
-
-            s += "sources = [";
-            for (size_t i = 0; i < inst.sources.size(); ++i)
-            {
-                if (i > 0) s += ", ";
-                s += std::to_string (inst.sources[i]);
-            }
-            s += "]\n";
-
-            if (inst.transposeSemitones != 0)
-                s += "transposeSemitones = " + std::to_string (inst.transposeSemitones) + "\n";
-            if (inst.volumePercent != 0)
-                s += "volumePercent = " + std::to_string (inst.volumePercent) + "\n";
             if (inst.drumMap.has_value())
                 s += "drumMap = " + escapeToml (*inst.drumMap) + "\n";
+
+            for (const auto& src : inst.sources)
+            {
+                s += "\n[[instruments.sources]]\n";
+                s += "midiTrack = " + std::to_string (src.midiTrackIndex) + "\n";
+                if (src.transposeSemitones != 0)
+                    s += "transposeSemitones = " + std::to_string (src.transposeSemitones) + "\n";
+                if (src.volumePercent != 0)
+                    s += "volumePercent = " + std::to_string (src.volumePercent) + "\n";
+            }
         }
 
         out = std::move (s);
@@ -119,7 +115,6 @@ namespace
     std::string writeXml (const Config& cfg, std::string& out)
     {
         juce::XmlElement top ("config");
-
         top.createNewChildElement ("input")->addTextElement (juce::String (cfg.input));
 
         auto addOptional = [&] (const char* tag, const std::optional<std::string>& v)
@@ -132,11 +127,9 @@ namespace
         addOptional ("transcriber", cfg.transcriber);
 
         if (cfg.tempo.has_value())
-            top.createNewChildElement ("tempo")
-               ->addTextElement (juce::String ((int) std::lround (*cfg.tempo)));
+            top.createNewChildElement ("tempo")->addTextElement (juce::String ((int) std::lround (*cfg.tempo)));
         if (cfg.transpose != 0)
-            top.createNewChildElement ("transpose")
-               ->addTextElement (juce::String (cfg.transpose));
+            top.createNewChildElement ("transpose")->addTextElement (juce::String (cfg.transpose));
 
         auto* instrumentsElem = top.createNewChildElement ("instruments");
         for (const auto& inst : cfg.instruments)
@@ -148,18 +141,18 @@ namespace
                 iElem->setAttribute ("label", juce::String (*inst.label));
 
             auto* sources = iElem->createNewChildElement ("sources");
-            for (int s : inst.sources)
-                sources->createNewChildElement ("source")->addTextElement (juce::String (s));
+            for (const auto& src : inst.sources)
+            {
+                auto* sElem = sources->createNewChildElement ("source");
+                sElem->setAttribute ("midiTrack", src.midiTrackIndex);
+                if (src.transposeSemitones != 0)
+                    sElem->setAttribute ("transposeSemitones", src.transposeSemitones);
+                if (src.volumePercent != 0)
+                    sElem->setAttribute ("volumePercent", src.volumePercent);
+            }
 
-            if (inst.transposeSemitones != 0)
-                iElem->createNewChildElement ("transposeSemitones")
-                     ->addTextElement (juce::String (inst.transposeSemitones));
-            if (inst.volumePercent != 0)
-                iElem->createNewChildElement ("volumePercent")
-                     ->addTextElement (juce::String (inst.volumePercent));
             if (inst.drumMap.has_value())
-                iElem->createNewChildElement ("drumMap")
-                     ->addTextElement (juce::String (*inst.drumMap));
+                iElem->createNewChildElement ("drumMap")->addTextElement (juce::String (*inst.drumMap));
         }
 
         out = top.toString().toStdString();
@@ -189,7 +182,7 @@ std::string writeConfigToString (ConfigFormat format, const Config& cfg, std::st
     {
         case ConfigFormat::Json: return writeJson (cfg, out);
         case ConfigFormat::Toml: return writeToml (cfg, out);
-        case ConfigFormat::Xml:  return writeXml (cfg, out);
+        case ConfigFormat::Xml:  return writeXml  (cfg, out);
         case ConfigFormat::Auto: return "internal error: Auto not resolved";
     }
     return "internal error: unknown format";

@@ -9,15 +9,24 @@
 namespace lotro
 {
 
+// A single MIDI track feeding an instrument, with its own per-source
+// transpose and volume adjustment. Multiple sources can feed one instrument
+// (the assembler merges their notes); the same midiTrackIndex can legally
+// appear in multiple instruments' sources.
+struct ConfigSource
+{
+    int midiTrackIndex      = -1;   // required; 0-based index into raw Song.tracks
+    int transposeSemitones  = 0;    // additive with Config.transpose
+    int volumePercent       = 0;    // 0 = no change, +N louder, -N quieter; > -100
+};
+
 struct ConfigInstrument
 {
     int                                   x = 0;
-    std::string                           name;               // LOTRO enum identifier, e.g. "LuteOfAges"
-    std::optional<std::string>            label;              // T: header suffix; fallback in assembler
-    std::vector<int>                      sources;            // MIDI track indices (0-based)
-    int                                   transposeSemitones = 0;
-    int                                   volumePercent      = 0;     // 0 = no change; +10 = +10% louder; -20 = -20% quieter
-    std::optional<std::string>            drumMap;            // path to drum-map JSON; only valid when name == "Drums"
+    std::string                           name;                    // LOTRO enum identifier, e.g. "LuteOfAges"
+    std::optional<std::string>            label;                   // T: header suffix; fallback in assembler
+    std::vector<ConfigSource>             sources;                 // list of source tracks feeding this instrument
+    std::optional<std::string>            drumMap;                 // path to drum-map JSON; only valid when name == "Drums"
 };
 
 struct Config
