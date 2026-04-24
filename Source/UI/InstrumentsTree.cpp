@@ -250,10 +250,13 @@ public:
 
         juce::PopupMenu m;
         m.addItem (1, "Add Instrument");
+        m.addItem (2, "Clear All Instruments",
+                   /*isEnabled*/ ! owner.config.instruments.empty());
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (owner),
             [this] (int result)
             {
                 if (result == 1) addInstrument();
+                else if (result == 2) clearAllInstruments();
             });
     }
 
@@ -268,6 +271,27 @@ public:
         owner.config.instruments.push_back (fresh);
         if (owner.notifyMutation) owner.notifyMutation();
         owner.rebuild();
+    }
+
+    void clearAllInstruments()
+    {
+        if (owner.config.instruments.empty()) return;
+
+        juce::AlertWindow::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType     (juce::MessageBoxIconType::WarningIcon)
+                .withTitle        ("Clear all instruments?")
+                .withMessage      ("This will remove every instrument "
+                                   "(and its sources) from the song.")
+                .withButton       ("Clear")
+                .withButton       ("Cancel"),
+            [this] (int result)
+            {
+                if (result != 1) return;  // button index 1 is "Clear"
+                owner.config.instruments.clear();
+                if (owner.notifyMutation) owner.notifyMutation();
+                owner.rebuild();
+            });
     }
 
 private:

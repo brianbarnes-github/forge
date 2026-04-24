@@ -137,7 +137,7 @@ just selects the node (which swaps the property page).
 
 | Node        | Right-click menu                                           |
 |-------------|------------------------------------------------------------|
-| Song        | `Add Instrument`                                           |
+| Song        | `Add Instrument`; `Clear All Instruments` (disabled when empty; confirmation prompt before wipe) |
 | Instrument  | `Add Source ▸` (submenu of unused MIDI tracks); `Delete Instrument` |
 | Source      | `Delete Source`                                            |
 
