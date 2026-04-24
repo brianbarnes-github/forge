@@ -99,10 +99,17 @@ TEST_CASE ("config: source index out of range fails", "[config][validate]")
     CHECK (err.find ("source") != std::string::npos);
 }
 
-TEST_CASE ("config: non-positive volumePercent fails", "[config][validate]")
+TEST_CASE ("config: volumePercent 0 (no change) passes", "[config][validate]")
 {
     auto config = minimalValid();
     config.instruments[0].volumePercent = 0;
+    CHECK (lotro::validateConfig (config, 1).empty());
+}
+
+TEST_CASE ("config: volumePercent <= -100 fails (would silence the note)", "[config][validate]")
+{
+    auto config = minimalValid();
+    config.instruments[0].volumePercent = -100;
     const auto err = lotro::validateConfig (config, 1);
     CHECK_FALSE (err.empty());
     CHECK (err.find ("volumePercent") != std::string::npos);

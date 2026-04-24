@@ -100,7 +100,7 @@ When you say…       …I'll know you mean
 | name                     | dropdown      | `ConfigInstrument::name`        |
 | label                    | text field    | `ConfigInstrument::label`       |
 | transpose semitones      | numeric       | `ConfigInstrument::transposeSemitones` |
-| volume %                 | numeric       | `ConfigInstrument::volumePercent` |
+| volume %                 | numeric       | `ConfigInstrument::volumePercent` — adjustment in percent; `0` = no change, `+10` = +10 % louder, `-20` = -20 % quieter |
 | drum-map                 | text field    | `ConfigInstrument::drumMap` (only enabled when name is `Drums`) |
 | sources                  | checkbox list | `ConfigInstrument::sources` (one checkbox per loaded MIDI track) |
 

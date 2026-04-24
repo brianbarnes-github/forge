@@ -43,7 +43,7 @@ namespace
 
             if (inst.transposeSemitones != 0)
                 obj->setProperty ("transposeSemitones", inst.transposeSemitones);
-            if (inst.volumePercent != 100)
+            if (inst.volumePercent != 0)
                 obj->setProperty ("volumePercent", inst.volumePercent);
             if (inst.drumMap.has_value())
                 obj->setProperty ("drumMap", juce::String (*inst.drumMap));
@@ -106,7 +106,7 @@ namespace
 
             if (inst.transposeSemitones != 0)
                 s += "transposeSemitones = " + std::to_string (inst.transposeSemitones) + "\n";
-            if (inst.volumePercent != 100)
+            if (inst.volumePercent != 0)
                 s += "volumePercent = " + std::to_string (inst.volumePercent) + "\n";
             if (inst.drumMap.has_value())
                 s += "drumMap = " + escapeToml (*inst.drumMap) + "\n";
@@ -154,7 +154,7 @@ namespace
             if (inst.transposeSemitones != 0)
                 iElem->createNewChildElement ("transposeSemitones")
                      ->addTextElement (juce::String (inst.transposeSemitones));
-            if (inst.volumePercent != 100)
+            if (inst.volumePercent != 0)
                 iElem->createNewChildElement ("volumePercent")
                      ->addTextElement (juce::String (inst.volumePercent));
             if (inst.drumMap.has_value())

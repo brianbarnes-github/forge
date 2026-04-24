@@ -99,14 +99,14 @@ data model.
       "label":              "Lead",
       "sources":            [0, 2],
       "transposeSemitones": -12,
-      "volumePercent":      110
+      "volumePercent":      10
     },
     {
       "x":                  2,
       "name":               "Theorbo",
       "label":              "Bass",
       "sources":            [3],
-      "volumePercent":      80
+      "volumePercent":      -20
     },
     {
       "x":                  3,
@@ -139,7 +139,7 @@ data model.
 | `label` | string | no | first source's MIDI track name, else `name` | Human-readable display name for the ABC `T:` header (suffix after the `-` separator). |
 | `sources` | array of integers ≥ 0 | yes | — | MIDI track indices (0-based) whose notes compose this instrument. Must be non-empty. Indices must reference existing tracks in the MIDI file. |
 | `transposeSemitones` | integer | no | `0` | Per-instrument semitone shift. Applied to every note from every source **before** any constraint pass. Additive with the global `transpose`. |
-| `volumePercent` | integer | no | `100` | Per-instrument velocity scale. `110` = +10 %, `80` = -20 %. Applied to every note from every source as `velocity = clamp(round(original × percent / 100), 1, 127)`. Clamp hits emit a `Diagnostic`. |
+| `volumePercent` | integer | no | `0` | Per-instrument velocity *adjustment* in percent. `0` = no change, `+10` = +10 % louder, `-20` = -20 % quieter. Applied to every note from every source as `velocity = clamp(round(original × (1 + percent / 100)), 1, 127)`. Must be strictly greater than `-100` (at or below that value the math produces silence or worse). Clamp hits (ceiling or floor) emit a `Diagnostic`. |
 | `drumMap` | string (path) | only allowed on `name: "Drums"` | — | Path to a drum-map JSON file, merged onto the built-in drum defaults for this instrument. Error if supplied on a non-Drums instrument. Relative paths resolved against the config file's directory. |
 
 ## Merging semantics
@@ -231,7 +231,7 @@ cases:
   `parseName`'s existing error message that lists valid names).
 - `drumMap` supplied on a non-Drums instrument.
 - `drumMap` file not found / unreadable / malformed.
-- `volumePercent` ≤ 0 (rejected — no silent-or-inverted notes).
+- `volumePercent` ≤ -100 (rejected — that would silence or invert the velocity).
 - Unknown top-level or instrument field (strict schema — typos fail
   loud).
 

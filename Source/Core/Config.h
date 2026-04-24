@@ -16,7 +16,7 @@ struct ConfigInstrument
     std::optional<std::string>            label;              // T: header suffix; fallback in assembler
     std::vector<int>                      sources;            // MIDI track indices (0-based)
     int                                   transposeSemitones = 0;
-    int                                   volumePercent      = 100;
+    int                                   volumePercent      = 0;     // 0 = no change; +10 = +10% louder; -20 = -20% quieter
     std::optional<std::string>            drumMap;            // path to drum-map JSON; only valid when name == "Drums"
 };
 

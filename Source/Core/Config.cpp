@@ -48,8 +48,11 @@ std::string validateConfig (const Config& config, int midiTrackCount)
                      + " exceeds MIDI track count (" + std::to_string (midiTrackCount) + ")";
         }
 
-        if (inst.volumePercent <= 0)
-            return where + "'volumePercent' must be positive (got "
+        // volumePercent is an adjustment: 0 = no change, +10 = +10%, -20 = -20%.
+        // <= -100 would mean silence or worse (negative volume), which makes
+        // no musical sense and almost certainly indicates a config mistake.
+        if (inst.volumePercent <= -100)
+            return where + "'volumePercent' must be greater than -100 (got "
                  + std::to_string (inst.volumePercent) + ")";
 
         if (inst.drumMap.has_value() && parsed != LotroInstrument::Drums)

@@ -152,8 +152,9 @@ TEST_CASE ("assembly: global transpose adds to per-instrument transpose", "[asse
     CHECK (assembled.tracks[0].notes[0].pitch == 48);
 }
 
-TEST_CASE ("assembly: volumePercent scales velocity multiplicatively", "[assembly]")
+TEST_CASE ("assembly: volumePercent -20 scales velocity down 20%", "[assembly]")
 {
+    // Source velocity 100. volumePercent -20 -> scale 0.8 -> 80.
     const auto raw = threeTrackRaw();
 
     lotro::Config cfg;
@@ -162,7 +163,7 @@ TEST_CASE ("assembly: volumePercent scales velocity multiplicatively", "[assembl
     inst.x             = 1;
     inst.name          = "LuteOfAges";
     inst.sources       = { 0 };
-    inst.volumePercent = 80;
+    inst.volumePercent = -20;
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;
@@ -171,8 +172,28 @@ TEST_CASE ("assembly: volumePercent scales velocity multiplicatively", "[assembl
     CHECK (assembled.tracks[0].notes[0].velocity == 80);
 }
 
-TEST_CASE ("assembly: volumePercent 200 on velocity 100 clamps to 127 and emits Diagnostic", "[assembly]")
+TEST_CASE ("assembly: volumePercent 0 leaves velocity unchanged", "[assembly]")
 {
+    // Struct default is 0 — no scaling applied, velocity passes through.
+    const auto raw = threeTrackRaw();
+
+    lotro::Config cfg;
+    cfg.input = "x.mid";
+    lotro::ConfigInstrument inst;
+    inst.x       = 1;
+    inst.name    = "LuteOfAges";
+    inst.sources = { 0 };
+    cfg.instruments.push_back (inst);
+
+    lotro::Diagnostics diag;
+    const auto assembled = lotro::assembleInstruments (raw, cfg, diag);
+
+    CHECK (assembled.tracks[0].notes[0].velocity == 100);
+}
+
+TEST_CASE ("assembly: volumePercent 100 on velocity 100 clamps to 127 and emits Diagnostic", "[assembly]")
+{
+    // Source velocity 100. volumePercent +100 -> scale 2.0 -> 200 -> clamps to 127.
     const auto raw = threeTrackRaw();
 
     lotro::Config cfg;
@@ -181,7 +202,7 @@ TEST_CASE ("assembly: volumePercent 200 on velocity 100 clamps to 127 and emits 
     inst.x             = 1;
     inst.name          = "LuteOfAges";
     inst.sources       = { 0 };
-    inst.volumePercent = 200;
+    inst.volumePercent = 100;
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;

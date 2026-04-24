@@ -139,7 +139,7 @@ void InstrumentDetailForm::pushFromControlsToConfig()
     }
     {
         const auto v = volumeField.getText();
-        inst.volumePercent = v.isEmpty() ? 100 : v.getIntValue();
+        inst.volumePercent = v.isEmpty() ? 0 : v.getIntValue();
     }
     {
         const auto s = drumMapField.getText().toStdString();

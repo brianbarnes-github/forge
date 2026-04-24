@@ -115,7 +115,8 @@ TEST_CASE ("config-pipeline: volume scale down lands in the quieter dynamic buck
     inst.x             = 1;
     inst.name          = "LuteOfAges";
     inst.sources       = { 0 };
-    inst.volumePercent = 30;
+    // -70%: velocity 100 * 0.3 = 30 -> pp bucket.
+    inst.volumePercent = -70;
     cfg.instruments.push_back (inst);
 
     lotro::Diagnostics diag;

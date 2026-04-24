@@ -90,7 +90,9 @@ Song assembleInstruments (const Song&         raw,
         }
 
         const int totalTranspose = inst.transposeSemitones + config.transpose;
-        const double volumeScale = (double) inst.volumePercent / 100.0;
+        // volumePercent is an adjustment: 0 = no change, +N = +N% louder,
+        // -N = -N% quieter. The scale multiplier is therefore (1 + percent/100).
+        const double volumeScale = 1.0 + ((double) inst.volumePercent / 100.0);
 
         for (int src : inst.sources)
         {
