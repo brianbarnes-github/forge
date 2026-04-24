@@ -8,7 +8,11 @@ InstrumentDetailForm::InstrumentDetailForm (Config& cfgRef, const Song& rawRef,
                                             std::function<void()> onMutated)
     : config (cfgRef), raw (rawRef), notifyMutation (std::move (onMutated))
 {
-    auto setUpLabel = [this] (juce::Label& l) { addAndMakeVisible (l); };
+    auto setUpLabel = [this] (juce::Label& l)
+    {
+        addAndMakeVisible (l);
+        l.setColour (juce::Label::textColourId, juce::Colours::darkgrey);
+    };
     auto setUpField = [this] (juce::TextEditor& f, bool numeric)
     {
         addAndMakeVisible (f);

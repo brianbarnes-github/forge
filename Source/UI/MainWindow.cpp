@@ -22,6 +22,11 @@ public:
         addAndMakeVisible (editor);
         addAndMakeVisible (diagnostics);
         splitter.setComponents (&editor, &diagnostics);
+        // Splitter sits ON TOP of editor and diagnostics in z-order. Without
+        // this, the splitter's full bounds intercept every mouse click and
+        // editor/diagnostics receive nothing. Children (the drag bar) still
+        // get clicks because the second arg is true.
+        splitter.setInterceptsMouseClicks (false, true);
         addAndMakeVisible (splitter);
     }
 
@@ -90,19 +95,43 @@ MainWindow::MainWindow()
       body (std::make_unique<Body>()),
       menuBar (std::make_unique<juce::MenuBarComponent> (this))
 {
-    setUsingNativeTitleBar (true);
+    // JUCE's own title bar (false) rather than the native X11/WSLg one.
+    // Works around a WSLg quirk where the WM re-positions the window on
+    // focus events, causing visible drift when the user first clicks on it.
+    setUsingNativeTitleBar (false);
     setResizable (true, true);
-    centreWithSize (1000, 700);
 
-    auto host = std::make_unique<juce::Component>();
-    host->addAndMakeVisible (*menuBar);
-    host->addAndMakeVisible (*body);
-    auto* hostRaw = host.release();
-    setContentOwned (hostRaw, false);
-    hostRaw->setSize (1000, 700);
-    menuBar->setBounds (0, 0, hostRaw->getWidth(), 24);
-    body->setBounds (0, 24, hostRaw->getWidth(), hostRaw->getHeight() - 24);
+    // Host component: JUCE calls its resized() whenever the window's content
+    // area changes (WM resize, initial mapping, drag-resize). It lays the
+    // menu bar and body out to fill. With setContentOwned(..., true), JUCE
+    // keeps host->getBounds() in sync with the content area, so there's no
+    // manual coupling between the window's size and the children's layout.
+    class Host : public juce::Component
+    {
+    public:
+        Host (juce::MenuBarComponent& menuIn, juce::Component& bodyIn)
+            : menu (menuIn), bodyRef (bodyIn)
+        {
+            addAndMakeVisible (menu);
+            addAndMakeVisible (bodyRef);
+        }
 
+        void resized() override
+        {
+            menu.setBounds (0, 0, getWidth(), 24);
+            bodyRef.setBounds (0, 24, getWidth(), getHeight() - 24);
+        }
+
+    private:
+        juce::MenuBarComponent& menu;
+        juce::Component&        bodyRef;
+    };
+
+    auto* host = new Host (*menuBar, *body);
+    host->setSize (1000, 700);
+    setContentOwned (host, /*useBoundsForComponent=*/true);
+
+    centreWithSize (getWidth(), getHeight());
     setVisible (true);
 
     body->getEditor().onRunRequested = [this] { runConversion(); };
