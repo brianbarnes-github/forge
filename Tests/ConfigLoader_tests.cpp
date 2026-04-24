@@ -152,3 +152,20 @@ TEST_CASE ("config-loader: JSON old instrument-level fields drop with warning", 
             ++warnings;
     CHECK (warnings == 2);
 }
+
+TEST_CASE ("config-loader: JSON source object missing midiTrack returns error", "[config-loader][json]")
+{
+    const std::string text = R"({
+        "input": "song.mid",
+        "instruments": [
+            { "x": 1, "name": "LuteOfAges",
+              "sources": [ { "transposeSemitones": -12 } ] }
+        ]
+    })";
+
+    lotro::Config config;
+    lotro::Diagnostics mig;
+    const auto err = lotro::loadConfigFromString (text, lotro::ConfigFormat::Json, config, mig);
+    CHECK_FALSE (err.empty());
+    CHECK (err.find ("midiTrack") != std::string::npos);
+}

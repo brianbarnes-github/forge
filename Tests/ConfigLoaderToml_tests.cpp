@@ -123,3 +123,23 @@ volumePercent = 80
             ++warnings;
     CHECK (warnings == 2);
 }
+
+TEST_CASE ("config-loader: TOML source table missing midiTrack returns error", "[config-loader][toml]")
+{
+    const std::string text = R"(
+input = "song.mid"
+
+[[instruments]]
+x = 1
+name = "LuteOfAges"
+
+[[instruments.sources]]
+transposeSemitones = -12
+)";
+
+    lotro::Config config;
+    lotro::Diagnostics mig;
+    const auto err = lotro::loadConfigFromString (text, lotro::ConfigFormat::Toml, config, mig);
+    CHECK_FALSE (err.empty());
+    CHECK (err.find ("midiTrack") != std::string::npos);
+}

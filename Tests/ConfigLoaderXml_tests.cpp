@@ -139,3 +139,22 @@ TEST_CASE ("config-loader: XML old instrument-level fields drop with warning", "
             ++warnings;
     CHECK (warnings == 2);
 }
+
+TEST_CASE ("config-loader: XML empty source element returns error", "[config-loader][xml]")
+{
+    const std::string text = R"(<?xml version="1.0"?>
+<config>
+  <input>song.mid</input>
+  <instruments>
+    <instrument x="1" name="LuteOfAges">
+      <sources><source /></sources>
+    </instrument>
+  </instruments>
+</config>)";
+
+    lotro::Config config;
+    lotro::Diagnostics mig;
+    const auto err = lotro::loadConfigFromString (text, lotro::ConfigFormat::Xml, config, mig);
+    CHECK_FALSE (err.empty());
+    CHECK (err.find ("midiTrack") != std::string::npos);
+}

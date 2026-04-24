@@ -100,6 +100,10 @@ namespace
                      + "].volumePercent must be an integer";
             out.volumePercent = (int) v;
         }
+        if (out.midiTrackIndex < 0)
+            return "config JSON: instruments[" + std::to_string (instrumentIdx)
+                 + "].sources[" + std::to_string (sourceIdx)
+                 + "] object must include 'midiTrack'";
         return {};
     }
 
@@ -298,6 +302,12 @@ namespace
                                  + "] text content is not an integer (got '" + textContent + "')";
                         }
                     }
+                    else
+                    {
+                        return "config XML: instruments[" + std::to_string (instIdx)
+                             + "].sources[" + std::to_string (srcIdx)
+                             + "] must have 'midiTrack' attribute or integer text content";
+                    }
                     if (s->hasAttribute ("transposeSemitones"))
                         cs.transposeSemitones = s->getIntAttribute ("transposeSemitones");
                     if (s->hasAttribute ("volumePercent"))
@@ -375,6 +385,10 @@ namespace
                                 cs.transposeSemitones = (int) *v;
                             if (auto v = (*srcTbl)["volumePercent"].value<int64_t>())
                                 cs.volumePercent = (int) *v;
+                            if (cs.midiTrackIndex < 0)
+                                return "config TOML: instruments[" + std::to_string (instIdx)
+                                     + "].sources[" + std::to_string (srcIdx)
+                                     + "] table must include 'midiTrack'";
                         }
                         else
                         {
