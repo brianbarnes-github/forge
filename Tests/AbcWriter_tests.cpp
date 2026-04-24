@@ -50,6 +50,34 @@ TEST_CASE ("abc pitch tokens: sharps get caret prefix", "[abc]")
     CHECK (lotro::abcPitchToken (73) == "^c");
 }
 
+TEST_CASE ("abc pitch tokens: per-instrument shift keeps letters in [C, .. c']", "[abc]")
+{
+    // LOTRO ABC letters are always in the 3-octave range C,..c' for every
+    // instrument; the sounding pitch is shifted per-instrument by LOTRO.
+    // So each instrument's own midiLow/midiHigh must emit "C," / "c'".
+    using lotro::LotroInstrument;
+
+    // Theorbo: range 24..60
+    CHECK (lotro::abcPitchToken (24, LotroInstrument::Theorbo)    == "C,");
+    CHECK (lotro::abcPitchToken (60, LotroInstrument::Theorbo)    == "c'");
+
+    // LuteOfAges / Harp / BasicLute / Bassoon / Cowbell / MoorCowbell: 36..72
+    CHECK (lotro::abcPitchToken (36, LotroInstrument::LuteOfAges) == "C,");
+    CHECK (lotro::abcPitchToken (72, LotroInstrument::LuteOfAges) == "c'");
+    CHECK (lotro::abcPitchToken (36, LotroInstrument::Harp)       == "C,");
+    CHECK (lotro::abcPitchToken (72, LotroInstrument::Bassoon)    == "c'");
+
+    // Clarinet / Horn / Pibgorn: 48..84 (identity shift — matches standard ABC)
+    CHECK (lotro::abcPitchToken (48, LotroInstrument::Clarinet)   == "C,");
+    CHECK (lotro::abcPitchToken (84, LotroInstrument::Clarinet)   == "c'");
+
+    // Flute and the Fiddle family: 60..96
+    CHECK (lotro::abcPitchToken (60, LotroInstrument::Flute)      == "C,");
+    CHECK (lotro::abcPitchToken (96, LotroInstrument::Flute)      == "c'");
+    CHECK (lotro::abcPitchToken (60, LotroInstrument::Fiddle)     == "C,");
+    CHECK (lotro::abcPitchToken (96, LotroInstrument::Fiddle)     == "c'");
+}
+
 TEST_CASE ("abc duration tokens at L:1/8 (PPQ 480)", "[abc]")
 {
     const int ppq = 480;
@@ -61,7 +89,7 @@ TEST_CASE ("abc duration tokens at L:1/8 (PPQ 480)", "[abc]")
     CHECK (lotro::abcDurationToken (1920, ppq) == "8");      // whole
 }
 
-TEST_CASE ("abc writer: single C quarter emits C2 and correct header", "[abc]")
+TEST_CASE ("abc writer: single C quarter emits c2 on LuteOfAges and correct header", "[abc]")
 {
     auto song = baseSong();
     lotro::Track t;
@@ -78,7 +106,8 @@ TEST_CASE ("abc writer: single C quarter emits C2 and correct header", "[abc]")
     CHECK (contains (abc, "Q:120"));
     CHECK (contains (abc, "M:4/4"));
     CHECK (contains (abc, "K:C"));
-    CHECK (contains (abc, "C2"));
+    // MIDI 60 on LuteOfAges (midiLow=36) shifts to 72 → lowercase "c".
+    CHECK (contains (abc, "c2"));
 }
 
 TEST_CASE ("abc writer: simultaneous notes become a chord", "[abc]")
@@ -93,7 +122,8 @@ TEST_CASE ("abc writer: simultaneous notes become a chord", "[abc]")
 
     const auto abc = lotro::writeAbc (song);
 
-    CHECK (contains (abc, "[C2E2G2]"));
+    // LuteOfAges shift: 60→72=c, 64→76=e, 67→79=g.
+    CHECK (contains (abc, "[c2e2g2]"));
 }
 
 TEST_CASE ("abc writer: drum track emits mapped ABC note", "[abc]")

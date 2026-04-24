@@ -73,8 +73,9 @@ TEST_CASE ("config-pipeline: two MIDI sources merge into one instrument; chord f
     runPipeline (song, diag);
     const auto abc = lotro::writeAbc (song);
 
-    CHECK (contains (abc, "[C"));
-    CHECK (contains (abc, "E"));
+    // LuteOfAges shift (midiLow=36): MIDI 60→72→"c", MIDI 64→76→"e".
+    CHECK (contains (abc, "[c"));
+    CHECK (contains (abc, "e"));
     CHECK (contains (abc, "X:1"));
 }
 

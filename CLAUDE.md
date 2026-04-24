@@ -148,6 +148,20 @@ Only `MidiImporter.cpp` touches `juce::MidiFile`. Every constraint takes a
 `Track&` and mutates it in place. All Core public headers are `juce::`-free
 (verified: `grep juce Source/Core/*.h Source/Core/**/*.h` returns nothing).
 
+### Per-instrument pitch letters
+
+LOTRO ABC letters are strictly `C, .. c'` (3 octaves) for every instrument.
+LOTRO applies a per-instrument pitch shift on playback so the same letter
+sounds at a different MIDI pitch depending on the instrument: `C,` is MIDI
+24 on Theorbo, 36 on Lute, 48 on Clarinet, 60 on Flute. The
+`midiLow..midiHigh` table in `LotroInstrument.cpp` records those sounding
+ranges. `AbcWriter::emitNotePart` shifts the absolute MIDI pitch by
+`(48 - midiLow)` before converting to a letter, so the written text
+always lands in `[C,..c']` — no `,,` or `''` notation, whatever the
+instrument. `abcPitchToken(int)` keeps standard ABC semantics (Clarinet
+is the identity shift); `abcPitchToken(int, LotroInstrument)` lets
+callers get the per-instrument letter.
+
 ### Emission model — the thing worth understanding
 
 `AbcWriter` does **not** use tied notes to express polyphony. Instead it
@@ -297,7 +311,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **136/136**.
+- Test count: **134/134**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
