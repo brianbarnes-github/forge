@@ -7,9 +7,13 @@
 # Triggers: push to main, pull requests targeting main, or a manual
 # "Run workflow" button on the Actions tab.
 #
-# Outputs: a `forge-windows` artifact attached to the workflow run,
-# downloadable as a zip from the run page. Contains the two .exes plus
-# a small set of docs and the sample drum-map JSON.
+# Outputs:
+#   - A `forge-windows` artifact attached to every workflow run,
+#     downloadable from the run page (login required).
+#   - On push-to-main only, a rolling `latest` pre-release is updated
+#     with `forge-windows.zip`, giving a stable, no-login download URL:
+#         https://github.com/<owner>/<repo>/releases/download/latest/forge-windows.zip
+# The zip contains the two .exes plus the sample drum-map JSON and docs.
 
 name: Windows Build
 
@@ -23,6 +27,11 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
+    # Needed by the "Publish to latest release" step. Has no effect on PR
+    # runs because the release step is gated on push-to-main.
+    permissions:
+      contents: write
 
     steps:
       # 1. Pull the source. `submodules: recursive` clones JUCE and Catch2.
@@ -87,3 +96,29 @@ jobs:
           name: forge-windows
           path: artifact-staging/
           if-no-files-found: error
+
+      # 7. Zip the staged kit for the release asset.
+      - name: Zip tester kit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: Compress-Archive -Path artifact-staging/* -DestinationPath forge-windows.zip
+
+      # 8. Publish (or update) the rolling "latest" pre-release. This step
+      #    only runs on push-to-main; PR runs and manual dispatches skip it.
+      #    The release tag is moved to the new commit on each main push,
+      #    so the URL  …/releases/download/latest/forge-windows.zip  is
+      #    stable and always points at the freshest build.
+      - name: Publish to latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          prerelease: true
+          files: forge-windows.zip
+          body: |
+            Rolling pre-release built from `main` at commit ${{ github.sha }}.
+
+            **Download:** [forge-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/forge-windows.zip)
+
+            Unzip and run `forge_ui.exe` (GUI) or `forge.exe` (CLI). See `UI_GUIDE.md` for the GUI walkthrough.
