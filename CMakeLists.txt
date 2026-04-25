@@ -11,7 +11,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX)
 endif()
 
-add_compile_options(-Wall -Wextra -Wpedantic)
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
 add_subdirectory(JUCE)
 
