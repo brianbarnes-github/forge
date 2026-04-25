@@ -334,12 +334,5 @@ approval.
 
 ## Licensing guardrails
 
-- **Maestro** (github.com/NikolaiVChr/maestro, github.com/digero/maestro)
-  is AGPL-3.0. Do not paste its source into this repo. Note that the
-  z-pulse / cluster-at-boundary encoding originated in Vydor's 2011
-  work — Maestro derived from it, not the reverse — so don't credit
-  Maestro as a source of inspiration. Maestro is only relevant to this
-  repo as a downstream compatibility target (does it accept our output)
-  and as an AGPL guardrail.
 - JUCE's license tier depends on distribution; re-check before any
   public release.
