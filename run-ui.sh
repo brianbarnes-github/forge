@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch converter_ui. Run from the repo root.
+# Launch forge_ui. Run from the repo root.
 # Builds incrementally if anything is out of date.
 
 set -e
@@ -10,6 +10,6 @@ if [[ ! -d build ]]; then
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 fi
 
-cmake --build build --target converter_ui
+cmake --build build --target forge_ui
 
-exec build/converter_ui_artefacts/Debug/converter_ui "$@"
+exec build/forge_ui_artefacts/Debug/forge_ui "$@"

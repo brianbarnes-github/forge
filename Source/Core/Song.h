@@ -29,7 +29,7 @@ struct Song
     std::vector<TempoChange> tempoMap;
     std::vector<MeterChange> meterMap;
     std::string              title;
-    std::string              transcriber = "LotroAbcConverter v0.1";
+    std::string              transcriber = "Forge v0.1.0";
 
     // Maps GM drum pitches to LOTRO ABC drum-slot letters. Defaults to the
     // spec §2.6 set; users can load a drum_map.json to override per-song.
