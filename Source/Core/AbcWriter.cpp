@@ -4,8 +4,10 @@
 // ---------------------------------------------------
 // Standard ABC is monophonic-with-chords: each token advances a single shared
 // playback clock. LOTRO doesn't honor `V:` voices, so representing polyphony
-// within one part requires encoding overlap some other way. The technique
-// used here:
+// within one part requires encoding overlap some other way. This writer uses
+// Vydor's 2011 z-pulse encoding (the `rideintochetwood.abc` reference output
+// in the repo root is from that period; `BarAlignment_tests.cpp` pins the
+// invariant against it):
 //
 //   * Walk the MIDI notes by start-tick cluster (all notes starting at the
 //     same tick become one emission).
@@ -18,9 +20,7 @@
 //     element. With the z-pulse as the shortest inner, the stream advances
 //     by exactly the gap to the next cluster, while the long note keeps
 //     ringing ambiently. This is the only place bare rests appear inside
-//     `[]` brackets — non-standard ABC, but LOTRO accepts it. Compatibility
-//     with the 2011-era reference output `rideintochetwood.abc` pins this
-//     invariant in `BarAlignment_tests.cpp`.
+//     `[]` brackets — non-standard ABC, but LOTRO accepts it.
 //
 // Bar alignment:
 // --------------

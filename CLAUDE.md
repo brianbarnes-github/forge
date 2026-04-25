@@ -304,10 +304,11 @@ These are intentional and verified against test fixtures:
   defaults. Edit to customise.
 - `midi/*.mid` — test fixtures. `Barnes Brothers Band - Pull The Wires.mid`
   is the end-to-end reference used by `EndToEnd_tests.cpp`.
-- `correct right.abc`, `rideintochetwood.abc` — Brian's 2011-era
-  reference outputs, kept as compatibility/regression fixtures for the
-  z-pulse encoding. They are NOT Maestro outputs; Maestro derived
-  from this work later, not the other way around.
+- `correct right.abc`, `rideintochetwood.abc` — Vydor's 2011-era
+  reference outputs, kept as compatibility/regression fixtures for
+  the z-pulse encoding. ("Vydor" is Brian's LOTRO handle.) They are
+  NOT Maestro outputs; Maestro derived from this work later, not the
+  other way around.
 
 ## Git
 
@@ -335,7 +336,7 @@ approval.
 
 - **Maestro** (github.com/NikolaiVChr/maestro, github.com/digero/maestro)
   is AGPL-3.0. Do not paste its source into this repo. Note that the
-  z-pulse / cluster-at-boundary encoding originated in Brian's earlier
+  z-pulse / cluster-at-boundary encoding originated in Vydor's 2011
   work — Maestro derived from it, not the reverse — so don't credit
   Maestro as a source of inspiration. Maestro is only relevant to this
   repo as a downstream compatibility target (does it accept our output)
