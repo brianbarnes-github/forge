@@ -114,7 +114,8 @@ TEST_CASE ("abc-writer: per-track drumMap overrides song.drumMap", "[abc-writer]
 
     const auto abc = lotro::writeAbc (song);
     // Per-track map maps pitch 38 → "Z"; song-level default would give "F".
-    // Verify the per-track override wins.
-    CHECK (abc.find ("Z") != std::string::npos);
-    CHECK (abc.find ("F") == std::string::npos);
+    // Verify the per-track override wins. Look for tokens inside chord
+    // brackets so we don't false-match letters in the banner / title.
+    CHECK (abc.find ("[Z") != std::string::npos);
+    CHECK (abc.find ("[F") == std::string::npos);
 }

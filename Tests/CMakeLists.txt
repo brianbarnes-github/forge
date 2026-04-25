@@ -1,6 +1,6 @@
 add_subdirectory(Catch2)
 
-add_executable(converter_tests
+add_executable(forge_tests
     smoke_test.cpp
     Config_tests.cpp
     ConfigLoader_tests.cpp
@@ -26,9 +26,9 @@ add_executable(converter_tests
     InstrumentAssembly_tests.cpp
     Provenance_tests.cpp)
 
-target_link_libraries(converter_tests PRIVATE
+target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain
-    converter_core)
+    forge_core)
 
 include(${CMAKE_SOURCE_DIR}/Tests/Catch2/extras/Catch.cmake)
-catch_discover_tests(converter_tests)
+catch_discover_tests(forge_tests)

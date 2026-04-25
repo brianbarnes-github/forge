@@ -1,12 +1,12 @@
-# `converter_ui` — UI Guide
+# `forge_ui` — UI Guide
 
-A reference for the GUI's components and their relationships, so we can talk about specific parts unambiguously when reporting bugs or proposing changes.
+A reference for the Forge GUI's components and their relationships, so we can talk about specific parts unambiguously when reporting bugs or proposing changes.
 
 ## Layout overview
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Title bar (JUCE-drawn; "LOTRO ABC Converter UI")                    │
+│ Title bar (JUCE-drawn; "Forge")                                     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ Menu bar              [File ▾]                                       │  ← MENU BAR (24 px)
 ├─────────────────────────────────────┬────────────────────────────────┤

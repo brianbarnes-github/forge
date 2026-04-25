@@ -4,10 +4,9 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## Status: v0.1 CLI complete, editor-ready Core library
 
-This repo is a **CLI MIDI → LOTRO ABC converter** whose Core layer is
-designed to also back a future **MIDI editor + converter GUI**. The CLI
-(`converter`) is a thin wrapper around a static library (`converter_core`)
-that is JUCE-free at its public surface.
+This repo (**Forge**) is a MIDI → LOTRO ABC converter shipped as a CLI
+(`forge`) and a JUCE GUI (`forge_ui`), both thin wrappers around a
+static library (`forge_core`) that is JUCE-free at its public surface.
 
 The original spec is `lotro-abc-converter-spec.md` (560 lines). Some of
 its design decisions have been revised in practice; see "Deltas from spec"
@@ -38,7 +37,7 @@ this principle rules out tempting improvements.
 - JUCE (submodule at `./JUCE`) — modules linked: `juce_audio_basics`,
   `juce_audio_formats`, `juce_core`. Console app via `juce_add_console_app`
   — no GUI modules.
-- The `converter_ui` GUI binary additionally links `juce_gui_basics`
+- The `forge_ui` GUI binary additionally links `juce_gui_basics`
   and `juce_gui_extra`. Linux/WSL build needs system packages
   `libfreetype-dev`, `libfontconfig-dev`, `libx11-dev`, `libxrandr-dev`,
   `libxinerama-dev`, `libxcursor-dev`, `libasound2-dev`. The CLI build
@@ -58,12 +57,18 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Converter binary: `build/converter_artefacts/Debug/converter`.
+CLI binary: `build/forge_artefacts/Debug/forge`.
 
-UI binary: `build/converter_ui_artefacts/Debug/converter_ui`.
+UI binary: `build/forge_ui_artefacts/Debug/forge_ui`.
+
+Convenience: `./run-ui.sh` builds incrementally and launches the GUI.
 
 Run a single Catch2 test: `ctest --test-dir build -R <name> --output-on-failure`,
-or invoke `build/Tests/converter_tests` directly with `"[tag]"` / `"test name"`.
+or invoke `build/Tests/forge_tests` directly with `"[tag]"` / `"test name"`.
+
+Windows build: pushed to `main` and built on a GitHub Actions Windows
+runner via `.github/workflows/windows-build.yml`. The .exe artifacts
+attach to each workflow run.
 
 First-time clone only: `git submodule update --init --recursive`.
 
@@ -72,12 +77,12 @@ First-time clone only: `git submodule update --init --recursive`.
 ### Build targets (CMakeLists.txt)
 
 ```
-converter_core   (static library)  ─────────────► converter_tests (Catch2 exe)
+forge_core   (static library)  ─────────────► forge_tests (Catch2 exe)
        ▲                                          ▲
        │ depends on                               │
        ├──────────────────────────────────────────┤
        │                                          │
-converter (CLI exe)                       converter_ui (JUCE GUI exe)
+forge (CLI exe)                           forge_ui (JUCE GUI exe)
 ```
 
 The Core library compiles once and is linked by both the CLI and the
@@ -110,7 +115,7 @@ Source/
 ├── Cli/
 │   ├── CliOptions.{h,cpp}       hand-rolled arg parser (juce::String internally)
 │   └── DrumMapLoader.{h,cpp}    JSON parser for --drum-map (uses juce::JSON)
-├── UI/                          JUCE GUI app — converter_ui binary.
+├── UI/                          JUCE GUI app — forge_ui binary.
 │   ├── UiMain.cpp               JUCE app entry point
 │   ├── MainWindow.{h,cpp}       Window, menus, splitter, drag-drop
 │   ├── EditorPane.{h,cpp}       Left pane: tree + property page host + Run
@@ -210,7 +215,7 @@ them as clickable list items and use the source IDs to jump-to-source.
 ## CLI shape
 
 ```
-converter [OPTIONS] INPUT.mid [OUTPUT.abc]
+forge [OPTIONS] INPUT.mid [OUTPUT.abc]
   --config PATH         Load a config file (JSON/TOML/XML)
   --config-format FMT   Override format detection (json|toml|xml)
   --instrument N=NAME   Assign instrument to track N (config-less mode only)

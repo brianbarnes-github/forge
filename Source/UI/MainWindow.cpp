@@ -89,7 +89,7 @@ private:
 };
 
 MainWindow::MainWindow()
-    : juce::DocumentWindow ("LOTRO ABC Converter UI",
+    : juce::DocumentWindow ("Forge",
                             juce::Colours::lightgrey,
                             juce::DocumentWindow::allButtons),
       body (std::make_unique<Body>()),

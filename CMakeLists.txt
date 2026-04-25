@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(LotroAbcConverter
+project(Forge
     VERSION 0.1.0
     LANGUAGES C CXX)
 
@@ -16,13 +16,12 @@ add_compile_options(-Wall -Wextra -Wpedantic)
 add_subdirectory(JUCE)
 
 # ---------------------------------------------------------------------------
-# converter_core — platform-agnostic conversion library
+# forge_core — platform-agnostic conversion library
 # ---------------------------------------------------------------------------
 # The single compilation unit for everything under Source/Core. Consumed by
-# both the CLI executable (below) and the test binary (Tests/CMakeLists.txt).
-# A future GUI target will link this same library — keep it free of CLI- or
-# UI-specific code.
-add_library(converter_core STATIC
+# both the CLI executable (below), the GUI app (further below), and the
+# test binary (Tests/CMakeLists.txt). Stays JUCE-free at its public surface.
+add_library(forge_core STATIC
     Source/Core/Config.cpp
     Source/Core/ConfigLoader.cpp
     Source/Core/ConfigWriter.cpp
@@ -40,16 +39,16 @@ add_library(converter_core STATIC
     Source/Core/Constraints/DynamicMapper.cpp
     Source/Core/AbcWriter.cpp)
 
-target_include_directories(converter_core PUBLIC
+target_include_directories(forge_core PUBLIC
     Source
     Source/ThirdParty/tomlplusplus)
 
-target_compile_definitions(converter_core PUBLIC
+target_compile_definitions(forge_core PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_STANDALONE_APPLICATION=1)
 
-target_link_libraries(converter_core PUBLIC
+target_link_libraries(forge_core PUBLIC
     juce::juce_audio_basics
     juce::juce_audio_formats
     juce::juce_core
@@ -57,38 +56,38 @@ target_link_libraries(converter_core PUBLIC
     juce::juce_recommended_warning_flags)
 
 # ---------------------------------------------------------------------------
-# converter — CLI entry point
+# forge — CLI entry point
 # ---------------------------------------------------------------------------
-juce_add_console_app(converter
-    PRODUCT_NAME "LotroAbcConverter"
-    COMPANY_NAME "LotroAbcConverter"
+juce_add_console_app(forge
+    PRODUCT_NAME "forge"
+    COMPANY_NAME "Forge"
     VERSION ${PROJECT_VERSION})
 
-juce_generate_juce_header(converter)
+juce_generate_juce_header(forge)
 
-target_sources(converter PRIVATE
+target_sources(forge PRIVATE
     Source/Main.cpp
     Source/Cli/CliOptions.cpp)
 
-target_compile_definitions(converter PRIVATE
-    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter,JUCE_PRODUCT_NAME>"
-    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:converter,JUCE_VERSION>")
+target_compile_definitions(forge PRIVATE
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:forge,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:forge,JUCE_VERSION>")
 
-target_link_libraries(converter PRIVATE
-    converter_core
+target_link_libraries(forge PRIVATE
+    forge_core
     juce::juce_recommended_lto_flags)
 
 # ---------------------------------------------------------------------------
-# converter_ui — JUCE GUI editor for converter config files
+# forge_ui — JUCE GUI editor for forge config files
 # ---------------------------------------------------------------------------
-juce_add_gui_app(converter_ui
-    PRODUCT_NAME "converter_ui"
-    COMPANY_NAME "LotroAbcConverter"
+juce_add_gui_app(forge_ui
+    PRODUCT_NAME "forge_ui"
+    COMPANY_NAME "Forge"
     VERSION ${PROJECT_VERSION})
 
-juce_generate_juce_header(converter_ui)
+juce_generate_juce_header(forge_ui)
 
-target_sources(converter_ui PRIVATE
+target_sources(forge_ui PRIVATE
     Source/UI/UiMain.cpp
     Source/UI/MainWindow.cpp
     Source/UI/EditorPane.cpp
@@ -101,15 +100,15 @@ target_sources(converter_ui PRIVATE
     Source/UI/PropertyPageHost.cpp
     Source/UI/InstrumentsTree.cpp)
 
-target_compile_definitions(converter_ui PRIVATE
-    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:converter_ui,JUCE_PRODUCT_NAME>"
-    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:converter_ui,JUCE_VERSION>"
+target_compile_definitions(forge_ui PRIVATE
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:forge_ui,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:forge_ui,JUCE_VERSION>"
     JUCE_USE_DARK_SPLASH_SCREEN=1
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_REPORT_APP_USAGE=0)
 
-target_link_libraries(converter_ui PRIVATE
-    converter_core
+target_link_libraries(forge_ui PRIVATE
+    forge_core
     juce::juce_gui_basics
     juce::juce_gui_extra
     juce::juce_recommended_lto_flags)
