@@ -181,8 +181,8 @@ design comment at the top of `AbcWriter.cpp`):
   subsequent tokens play on top.
 - When a voice extends past the next cluster's start, we add a `z` rest
   **inside the chord brackets** as the pulse. Non-standard ABC but LOTRO
-  and Maestro both accept it (verified against 2011-era reference output
-  `rideintochetwood.abc`).
+  accepts it. The 2011-era reference output `rideintochetwood.abc`
+  pins this invariant via `BarAlignment_tests.cpp`.
 - The z-pulse is **capped at the remaining bar space**, so each
   `% bar N` comment covers exactly one bar of tokens. Held notes keep
   their full MIDI ring duration via the inner-per-note-duration
@@ -304,9 +304,10 @@ These are intentional and verified against test fixtures:
   defaults. Edit to customise.
 - `midi/*.mid` — test fixtures. `Barnes Brothers Band - Pull The Wires.mid`
   is the end-to-end reference used by `EndToEnd_tests.cpp`.
-- `correct right.abc`, `rideintochetwood.abc` — reference outputs from
-  other LOTRO converters (Maestro / 2011-era) kept as comparison
-  targets. `rideintochetwood.abc` is the origin of the z-pulse trick.
+- `correct right.abc`, `rideintochetwood.abc` — Brian's 2011-era
+  reference outputs, kept as compatibility/regression fixtures for the
+  z-pulse encoding. They are NOT Maestro outputs; Maestro derived
+  from this work later, not the other way around.
 
 ## Git
 
@@ -333,7 +334,11 @@ approval.
 ## Licensing guardrails
 
 - **Maestro** (github.com/NikolaiVChr/maestro, github.com/digero/maestro)
-  is AGPL-3.0. Treat it as a spec reference for algorithms and data
-  tables. Do not paste its source.
+  is AGPL-3.0. Do not paste its source into this repo. Note that the
+  z-pulse / cluster-at-boundary encoding originated in Brian's earlier
+  work — Maestro derived from it, not the reverse — so don't credit
+  Maestro as a source of inspiration. Maestro is only relevant to this
+  repo as a downstream compatibility target (does it accept our output)
+  and as an AGPL guardrail.
 - JUCE's license tier depends on distribution; re-check before any
   public release.
