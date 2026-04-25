@@ -1,0 +1,89 @@
+# Windows build for the Forge CLI + GUI.
+#
+# Builds on a fresh Windows runner using MSVC (Visual Studio 2022, the
+# pre-installed compiler). The local Linux/WSL workflow stays MSVC-free;
+# MSVC contamination is contained to this CI runner.
+#
+# Triggers: push to main, pull requests targeting main, or a manual
+# "Run workflow" button on the Actions tab.
+#
+# Outputs: a `forge-windows` artifact attached to the workflow run,
+# downloadable as a zip from the run page. Contains the two .exes plus
+# a small set of docs and the sample drum-map JSON.
+
+name: Windows Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # 1. Pull the source. `submodules: recursive` clones JUCE and Catch2.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # 2. Configure CMake with the Visual Studio 2022 generator (multi-config).
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      # 3. Build the Release configuration in parallel across CPU cores.
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # 4. Run the test suite. -C selects the Release configuration in
+      #    the multi-config build tree.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
+      # 5. Stage everything a tester needs into one folder.
+      - name: Stage tester kit
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact-staging | Out-Null
+          Copy-Item build/forge_artefacts/Release/forge.exe       artifact-staging/
+          Copy-Item build/forge_ui_artefacts/Release/forge_ui.exe artifact-staging/
+          Copy-Item drum_map.json                                  artifact-staging/
+          Copy-Item docs/UI_GUIDE.md                               artifact-staging/
+          Copy-Item docs/ARCHITECTURE.md                           artifact-staging/ -ErrorAction SilentlyContinue
+          # Drop a small README explaining what's in the zip.
+          @"
+          Forge — LOTRO ABC tester build
+          ===============================
+
+          Files in this folder:
+            forge_ui.exe       — the GUI; double-click to launch
+            forge.exe          — the command-line tool
+            drum_map.json      — sample / default drum mapping (editable)
+            UI_GUIDE.md        — reference for GUI components and field names
+            ARCHITECTURE.md    — deep technical doc (optional reading)
+
+          Quick start (GUI):
+            1. Double-click forge_ui.exe
+            2. File → Open MIDI…  (or drag a .mid onto the window)
+            3. Click each instrument in the tree, pick the LOTRO instrument
+            4. Click Run Converter
+            5. File → Save ABC As…
+
+          Quick start (CLI):
+            forge.exe yoursong.mid yoursong.abc
+            forge.exe --help    (full options)
+
+          Built from commit ${env:GITHUB_SHA} on ${env:GITHUB_REF_NAME}.
+          "@ | Set-Content -Path artifact-staging/README.txt
+
+      # 6. Upload as an artifact attached to this workflow run.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-windows
+          path: artifact-staging/
+          if-no-files-found: error
