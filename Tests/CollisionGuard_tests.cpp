@@ -18,7 +18,7 @@ namespace
     }
 }
 
-TEST_CASE ("collision: two overlapping notes at the same pitch — first is trimmed", "[collision]")
+TEST_CASE ("collision: two overlapping notes at the same pitch - first is trimmed", "[collision]")
 {
     lotro::Track track;
     track.notes.push_back (make (60,   0, 480));

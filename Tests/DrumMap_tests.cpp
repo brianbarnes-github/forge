@@ -4,7 +4,7 @@
 
 using lotro::mapDrumPitch;
 
-TEST_CASE ("drum map: spec §2.6 entries map to expected ABC notes", "[drummap]")
+TEST_CASE ("drum map: spec section 2.6 entries map to expected ABC notes", "[drummap]")
 {
     const struct { int gm; const char* abc; } expected[] = {
         { 35, "C"  }, { 36, "D"  }, { 37, "E"  }, { 38, "F"  },

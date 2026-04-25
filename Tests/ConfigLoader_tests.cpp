@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -108,7 +109,8 @@ TEST_CASE ("config-loader: JSON missing 'instruments' produces empty array", "[c
 
 TEST_CASE ("config-loader: auto format detection picks JSON from .json extension", "[config-loader][json]")
 {
-    const auto tmpPath = std::string ("/tmp/lotro-config-loader-test.json");
+    const auto tmpPath = (std::filesystem::temp_directory_path()
+                          / "lotro-config-loader-test.json").string();
     {
         std::ofstream out (tmpPath);
         out << R"({

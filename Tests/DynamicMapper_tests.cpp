@@ -88,7 +88,7 @@ TEST_CASE ("dynamics: multiple notes at the same tick pick the loudest bucket", 
     CHECK (track.dynamicChanges.front().marking == (int) lotro::DynamicMarking::fff);
 }
 
-TEST_CASE ("dynamics: bucket boundary table matches spec §2.7", "[dynamics]")
+TEST_CASE ("dynamics: bucket boundary table matches spec section 2.7", "[dynamics]")
 {
     using lotro::bucketForVelocity;
     using M = lotro::DynamicMarking;
