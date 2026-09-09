@@ -24,11 +24,14 @@ add_executable(forge_tests
     EndToEnd_tests.cpp
     EndToEndConfig_tests.cpp
     InstrumentAssembly_tests.cpp
-    Provenance_tests.cpp)
+    Provenance_tests.cpp
+    SongDocument_tests.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp)
 
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain
-    forge_core)
+    forge_core
+    juce::juce_data_structures)
 
 include(${CMAKE_SOURCE_DIR}/Tests/Catch2/extras/Catch.cmake)
 catch_discover_tests(forge_tests)

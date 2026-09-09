@@ -94,6 +94,7 @@ juce_generate_juce_header(forge_ui)
 target_sources(forge_ui PRIVATE
     Source/UI/UiMain.cpp
     Source/UI/MainWindow.cpp
+    Source/UI/SongDocument.cpp
     Source/UI/EditorPane.cpp
     Source/UI/DiagnosticsPane.cpp
     Source/UI/DiagnosticListView.cpp
@@ -113,6 +114,7 @@ target_compile_definitions(forge_ui PRIVATE
 
 target_link_libraries(forge_ui PRIVATE
     forge_core
+    juce::juce_data_structures
     juce::juce_gui_basics
     juce::juce_gui_extra
     juce::juce_recommended_lto_flags)
