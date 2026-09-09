@@ -558,7 +558,7 @@ write output file; print diagnostics if -v; return 0 / 1 (MIDI I/O) / 2 (config)
 
 ## 9. GUI (`forge_ui`)
 
-Everything under `Source/UI/`. Uses JUCE modules `juce_gui_basics` and `juce_gui_extra` on top of the Core library — the Core stays JUCE-free at its public surface.
+Everything under `Source/UI/`. Uses JUCE modules `juce_gui_basics`, `juce_gui_extra`, and `juce_data_structures` (the last for Songsmith's `ValueTree`-based `SongDocument`) on top of the Core library — the Core stays JUCE-free at its public surface.
 
 ### 9.1 App entry — `UiMain.cpp`
 
@@ -607,7 +607,17 @@ Each is a `juce::Component` + `juce::TextEditor::Listener` that pushes every key
 - **`InstrumentPropertyPage`** (`Source/UI/InstrumentPropertyPage.{h,cpp}`). X: index (numeric), Name (dropdown populated from `allInstrumentNames()`), Label (text), Drum map (text + Browse button; enabled only when Name == Drums).
 - **`SourcePropertyPage`** (`Source/UI/SourcePropertyPage.{h,cpp}`). MIDI track (read-only — shows index + name + channel + note count), Transpose semitones (numeric), Volume % (numeric).
 
-### 9.7 `DiagnosticsPane` — `Source/UI/DiagnosticsPane.{h,cpp}`
+### 9.7 `SongDocument` — `Source/UI/SongDocument.{h,cpp}`
+
+Songsmith's editable-document data model — a `juce::ValueTree` rooted at a `SONG` node plus the single owned `juce::UndoManager` for the document. Schema: `SONG` (title/transcriber/tempoBpm/globalTranspose/inputMidiPath) → `SOURCE_MIDI` (ticksPerQuarter) → `MIDI_TRACK[]` (trackId/name/colorArgb/sourceMidiChannel/importBatch) → `NOTE[]` (pitch/startTick/durationTicks/velocity/isDrum/sourceTrackIndex/sourceEventIndex, named identically to `lotro::Note`'s fields); and `SONG` → `PARTS` → `PART[]` (partId/x/instrumentName/label/drumMapPath) → `ASSIGNMENT[]` (trackId reference/transposeSemitones/volumePercent/rangePolicy).
+
+`trackId`/`partId` are synthetic, monotonically-increasing `int64`s minted from two independent counters stored as hidden properties on the root `SONG` node — never array indices, never reused (counter increments bypass the `UndoManager` on purpose, so undoing a mint can't roll the counter back into a reissuable state). `PART.x`, by contrast, is a positional ABC `X:`-index minted as `getNumParts() + 1` at add-time (mirrors `synthesiseConfig`'s `i + 1` convention and `Track::x`'s own semantics) — expected to be renumbered across removals, unlike the stable synthetic ids.
+
+`title`/`transcriber`/`tempoBpm` are left **unset** on a freshly-constructed document rather than defaulted, mirroring `Config.title`/`Config.transcriber`/`Config.tempo`'s `std::optional` semantics — this is what lets the Phase 2 translation layer (not yet built) tell "no override, fall back to the imported MIDI's own value" apart from "explicitly set".
+
+Every mutation helper (`addTrack`/`removeTrack`/`addPart`/`removePart`/`addAssignment`/`removeAssignment`/`setProperty`) opens one `UndoManager` transaction per call, so one call is one undo step. The one exception is the static `appendChildBulk`, which passes a `nullptr` `UndoManager` — reserved for a future bulk MIDI-import path where per-note undo isn't a meaningful user gesture.
+
+### 9.8 `DiagnosticsPane` — `Source/UI/DiagnosticsPane.{h,cpp}`
 
 Right half of the main splitter. Inner `Body` class owns the horizontal splitter between the list (top ~50%) and the preview (bottom).
 

@@ -37,11 +37,15 @@ this principle rules out tempting improvements.
 - JUCE (submodule at `./JUCE`) — modules linked: `juce_audio_basics`,
   `juce_audio_formats`, `juce_core`. Console app via `juce_add_console_app`
   — no GUI modules.
-- The `forge_ui` GUI binary additionally links `juce_gui_basics`
-  and `juce_gui_extra`. Linux/WSL build needs system packages
+- The `forge_ui` GUI binary additionally links `juce_gui_basics`,
+  `juce_gui_extra`, and `juce_data_structures` (the last for Songsmith's
+  `ValueTree`-based `SongDocument`). Linux/WSL build needs system packages
   `libfreetype-dev`, `libfontconfig-dev`, `libx11-dev`, `libxrandr-dev`,
   `libxinerama-dev`, `libxcursor-dev`, `libasound2-dev`. The CLI build
   does not need these.
+- `forge_tests` also links `juce_data_structures` (its first JUCE module
+  beyond what `forge_core` already brings in) to compile `SongDocument.cpp`
+  directly into the test binary for `SongDocument_tests.cpp`.
 - Catch2 (submodule at `./Tests/Catch2`, tracking `devel`).
 - `cmake/mingw-w64-toolchain.cmake` exists but is unused; kept for
   reference. Revisit with `llvm-mingw` + clang if we ever retry Windows
@@ -118,6 +122,10 @@ Source/
 ├── UI/                          JUCE GUI app — forge_ui binary.
 │   ├── UiMain.cpp               JUCE app entry point
 │   ├── MainWindow.{h,cpp}       Window, menus, splitter, drag-drop
+│   ├── SongDocument.{h,cpp}     Songsmith's ValueTree document (SONG/
+│   │                            SOURCE_MIDI/MIDI_TRACK/NOTE/PARTS/PART/
+│   │                            ASSIGNMENT schema), owned UndoManager,
+│   │                            synthetic trackId/partId minting
 │   ├── EditorPane.{h,cpp}       Left pane: tree + property page host + Run
 │   ├── InstrumentsTree.{h,cpp}  Three-level treeview (Song/Instrument/Source)
 │   ├── PropertyPageHost.{h,cpp} Swaps the visible property page on selection
@@ -318,7 +326,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **134/134**.
+- Test count: **148/148**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the

@@ -14,9 +14,14 @@ TEST_CASE ("SongDocument: constructs an empty SONG tree with sane default proper
     auto tree = doc.getTree();
 
     CHECK (tree.hasType (SongIDs::SONG));
-    CHECK (tree.getProperty (SongIDs::title).toString() == "");
-    CHECK (tree.getProperty (SongIDs::transcriber).toString() == "");
-    CHECK ((int) tree.getProperty (SongIDs::tempoBpm) == 120);
+
+    // title/transcriber/tempoBpm mirror forge_core::Config's std::optional
+    // override fields — they must stay ABSENT (not defaulted) so Phase 2
+    // can tell "no override" from "explicitly set to empty/some value".
+    CHECK (! tree.hasProperty (SongIDs::title));
+    CHECK (! tree.hasProperty (SongIDs::transcriber));
+    CHECK (! tree.hasProperty (SongIDs::tempoBpm));
+
     CHECK ((int) tree.getProperty (SongIDs::globalTranspose) == 0);
     CHECK (tree.getProperty (SongIDs::inputMidiPath).toString() == "");
 
@@ -98,6 +103,48 @@ TEST_CASE ("SongDocument: partId is minted from a counter independent of trackId
     // baseline (1) regardless of how far the trackId counter has moved.
     CHECK (partIdVal == 1);
     CHECK (trackIdVal == 1);
+}
+
+TEST_CASE ("SongDocument: addPart mints x as a 1-based positional index, matching synthesiseConfig's convention", "[songdocument]")
+{
+    // Config.cpp's validateConfig requires x >= 1 and unique per part; a
+    // hardcoded x == 0 (the pre-fix behaviour) fails validation on the very
+    // first part a document produces.
+    SongDocument doc;
+
+    auto p1 = doc.addPart ("LuteOfAges", "Lead");
+    auto p2 = doc.addPart ("Drums", "Percussion");
+
+    CHECK ((int) p1.getProperty (SongIDs::x) == 1);
+    CHECK ((int) p2.getProperty (SongIDs::x) == 2);
+}
+
+TEST_CASE ("SongDocument: title/transcriber/tempoBpm stay absent until explicitly set, so Phase 2 can distinguish \"no override\" from \"cleared\"", "[songdocument]")
+{
+    SongDocument doc;
+    REQUIRE (! doc.getTree().hasProperty (SongIDs::title));
+    REQUIRE (! doc.getTree().hasProperty (SongIDs::tempoBpm));
+
+    doc.setProperty (doc.getTree(), SongIDs::tempoBpm, 93.75);
+    CHECK (doc.getTree().hasProperty (SongIDs::tempoBpm));
+    CHECK ((double) doc.getTree().getProperty (SongIDs::tempoBpm) == 93.75);
+}
+
+TEST_CASE ("SongDocument: undoing a mint does not roll back the id counter, so the next mint cannot reissue a colliding id", "[songdocument]")
+{
+    // Regression test for the nullptr-UndoManager id-counter invariant.
+    // Flipping mintTrackId()/mintPartId()'s nullptr to &undoManager makes
+    // this fail: undo() would roll the counter back, and the next
+    // addTrack() would re-mint idA, colliding with the (still-undone-but-
+    // referenceable) first track's id.
+    SongDocument doc;
+
+    auto idA = (juce::int64) doc.addTrack ("A", 0, 0, 0).getProperty (SongIDs::trackId);
+    doc.undo();
+    REQUIRE (doc.getNumTracks() == 0);
+
+    auto idB = (juce::int64) doc.addTrack ("B", 0, 0, 0).getProperty (SongIDs::trackId);
+    CHECK (idB != idA);
 }
 
 TEST_CASE ("SongDocument: findPartById locates the correct part", "[songdocument]")

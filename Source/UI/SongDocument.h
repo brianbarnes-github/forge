@@ -73,6 +73,20 @@ namespace SongIDs
  * undoing an addTrack/addPart must not decrement the counter, so an id is
  * never re-minted even if the action that minted it is later undone and a
  * different action is redone in its place.
+ *
+ * title/transcriber/tempoBpm are deliberately left ABSENT on a freshly
+ * constructed SONG node (no default value written), because they mirror
+ * forge_core::Config's std::optional<std::string>/std::optional<double>
+ * override fields (Config.title/Config.transcriber/Config.tempo) — the
+ * bridge that copies these into Config (Phase 2) must be able to tell "no
+ * override, fall back to the imported MIDI's own value" apart from "user
+ * explicitly set it to empty/some value". Query these with
+ * juce::ValueTree::hasProperty() before reading, not just getProperty()'s
+ * fallback. PART.x is NOT synthetic like partId — it is minted positionally
+ * (getNumParts() + 1 at add-time, mirroring synthesiseConfig's i+1
+ * convention in Source/Core/Pipeline.cpp) and is expected to be
+ * renumbered/non-stable across removals, matching forge_core::Track::x's
+ * own "ABC X: index" semantics.
  */
 class SongDocument
 {

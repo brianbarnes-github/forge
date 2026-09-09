@@ -54,9 +54,8 @@ namespace SongIDs
 SongDocument::SongDocument()
 {
     tree = juce::ValueTree (SongIDs::SONG);
-    tree.setProperty (SongIDs::title, juce::String(), nullptr);
-    tree.setProperty (SongIDs::transcriber, juce::String(), nullptr);
-    tree.setProperty (SongIDs::tempoBpm, 120, nullptr);
+    // title/transcriber/tempoBpm are deliberately left unset here — see the
+    // schema comment on the class above.
     tree.setProperty (SongIDs::globalTranspose, 0, nullptr);
     tree.setProperty (SongIDs::inputMidiPath, juce::String(), nullptr);
     tree.setProperty (SongIDs::nextTrackId, (juce::int64) 1, nullptr);
@@ -185,7 +184,7 @@ juce::ValueTree SongDocument::addPart (const juce::String& instrumentName, const
 
     juce::ValueTree part (SongIDs::PART);
     part.setProperty (SongIDs::partId, mintPartId(), &undoManager);
-    part.setProperty (SongIDs::x, 0, &undoManager);
+    part.setProperty (SongIDs::x, getNumParts() + 1, &undoManager);
     part.setProperty (SongIDs::instrumentName, instrumentName, &undoManager);
     part.setProperty (SongIDs::label, label, &undoManager);
     part.setProperty (SongIDs::drumMapPath, juce::String(), &undoManager);
