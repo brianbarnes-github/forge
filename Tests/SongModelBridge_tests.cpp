@@ -28,7 +28,10 @@ namespace
     Song threeTrackImportedSong()
     {
         Song s;
-        s.ticksPerQuarter = 480;
+        // Deliberately NOT 480 (SongDocument's constructor default) — a
+        // fixture matching the default would let a bridge that drops
+        // ticksPerQuarter entirely pass by coincidence.
+        s.ticksPerQuarter = 960;
         s.tempoMap = { { 0, 120.0 }, { 1920, 140.0 } };
         s.meterMap = { { 0, 4, 4 }, { 1920, 3, 4 } };
 
@@ -262,6 +265,12 @@ TEST_CASE ("SongModelBridge: rawSong.title derives from inputMidiPath's filename
     }
 }
 
+// This test pins *append ordering* only — that a second import's tracks and
+// tempo/meter entries are added alongside the first's rather than replacing
+// them, and that positional indices continue rather than restart. It is NOT
+// a claim that concatenating two files' tempo/meter timelines end-to-end is
+// semantically meaningful (it generally isn't — reconciling two files' time
+// bases is an open Phase 3 decision).
 TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks/tempoMap/meterMap instead of the second clearing the first", "[songmodelbridge]")
 {
     const auto firstImport  = threeTrackImportedSong();
@@ -303,6 +312,12 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks/temp
     CHECK (built.rawSong.tempoMap[2].bpm == 200.0);
     REQUIRE (built.rawSong.meterMap.size() == 3);
     CHECK (built.rawSong.meterMap[2].numerator == 7);
+
+    // ticksPerQuarter: only the first import sets the document's time base
+    // (960, from threeTrackImportedSong()) — the second import's differing
+    // value (480, from twoTrackImportedSongSecondBatch()) is silently NOT
+    // applied, proving "first import wins" rather than "last write wins".
+    CHECK (built.rawSong.ticksPerQuarter == 960);
 
     auto secondBatchTrack = doc.getTrack (3);
     auto secondBatchTrackId = (juce::int64) secondBatchTrack.getProperty (SongIDs::trackId);

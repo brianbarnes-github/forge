@@ -8,6 +8,16 @@ namespace lotro
 
 void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch)
 {
+    // Only the first import sets the document's time base. A second import
+    // with a different ticksPerQuarter would need every incoming note tick
+    // rescaled into the document's already-established tick space to stay
+    // meaningful — nobody owns that rescaling yet (open Phase 3 decision,
+    // see the plan's deferred "multi-import time-base reconciliation" item)
+    // — so a later import silently keeps the first import's PPQ rather than
+    // clobbering or averaging it.
+    if (doc.getNumTracks() == 0)
+        doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, imported.ticksPerQuarter, nullptr);
+
     for (const auto& track : imported.tracks)
     {
         auto trackTree = doc.addTrackBulk (track.name, 0, track.sourceMidiChannel, importBatch);
@@ -102,6 +112,13 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
     config.input  = doc.getTree().getProperty (SongIDs::inputMidiPath).toString().toStdString();
     config.output = std::nullopt;
 
+    // SONG's title/transcriber/tempoBpm are override fields that are
+    // deliberately ABSENT (not defaulted) on a fresh document, so "no
+    // override" must be distinguished from "explicitly set" via hasProperty
+    // — a defaulted std::optional("") here would silently suppress the
+    // imported MIDI's own title/tempo. PART's label/drumMapPath, in
+    // contrast, are always present (addPart seeds them to "") and use plain
+    // string-emptiness to mean "unset", so they map "" -> nullopt instead.
     auto songTree = doc.getTree();
     config.title = songTree.hasProperty (SongIDs::title)
                        ? std::optional (songTree.getProperty (SongIDs::title).toString().toStdString())
