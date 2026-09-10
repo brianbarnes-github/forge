@@ -95,6 +95,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/UiMain.cpp
     Source/UI/MainWindow.cpp
     Source/UI/SongDocument.cpp
+    Source/UI/SongModelBridge.cpp
     Source/UI/EditorPane.cpp
     Source/UI/DiagnosticsPane.cpp
     Source/UI/DiagnosticListView.cpp

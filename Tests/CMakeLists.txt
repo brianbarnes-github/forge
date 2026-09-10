@@ -26,7 +26,9 @@ add_executable(forge_tests
     InstrumentAssembly_tests.cpp
     Provenance_tests.cpp
     SongDocument_tests.cpp
-    ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp)
+    SongModelBridge_tests.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp)
 
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain
