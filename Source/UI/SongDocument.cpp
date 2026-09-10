@@ -12,6 +12,10 @@ namespace SongIDs
     const juce::Identifier PARTS ("PARTS");
     const juce::Identifier PART ("PART");
     const juce::Identifier ASSIGNMENT ("ASSIGNMENT");
+    const juce::Identifier TEMPO_MAP ("TEMPO_MAP");
+    const juce::Identifier TEMPO_CHANGE ("TEMPO_CHANGE");
+    const juce::Identifier METER_MAP ("METER_MAP");
+    const juce::Identifier METER_CHANGE ("METER_CHANGE");
 
     const juce::Identifier title ("title");
     const juce::Identifier transcriber ("transcriber");
@@ -45,6 +49,11 @@ namespace SongIDs
     const juce::Identifier volumePercent ("volumePercent");
     const juce::Identifier rangePolicy ("rangePolicy");
 
+    const juce::Identifier tick ("tick");
+    const juce::Identifier bpm ("bpm");
+    const juce::Identifier numerator ("numerator");
+    const juce::Identifier denominator ("denominator");
+
     // Internal bookkeeping — not part of the documented schema, never read
     // by SongModelBridge or later phases.
     static const juce::Identifier nextTrackId ("nextTrackId");
@@ -67,6 +76,12 @@ SongDocument::SongDocument()
 
     juce::ValueTree parts (SongIDs::PARTS);
     tree.addChild (parts, -1, nullptr);
+
+    juce::ValueTree tempoMap (SongIDs::TEMPO_MAP);
+    tree.addChild (tempoMap, -1, nullptr);
+
+    juce::ValueTree meterMap (SongIDs::METER_MAP);
+    tree.addChild (meterMap, -1, nullptr);
 }
 
 void SongDocument::undo() { undoManager.undo(); }
@@ -82,6 +97,16 @@ juce::ValueTree SongDocument::getSourceMidiNode() const
 juce::ValueTree SongDocument::getPartsNode() const
 {
     return tree.getChildWithName (SongIDs::PARTS);
+}
+
+juce::ValueTree SongDocument::getTempoMapNode() const
+{
+    return tree.getChildWithName (SongIDs::TEMPO_MAP);
+}
+
+juce::ValueTree SongDocument::getMeterMapNode() const
+{
+    return tree.getChildWithName (SongIDs::METER_MAP);
 }
 
 int SongDocument::getNumTracks() const
@@ -165,6 +190,20 @@ juce::ValueTree SongDocument::addTrack (const juce::String& trackName, int color
     track.setProperty (SongIDs::importBatch, importBatch, &undoManager);
 
     getSourceMidiNode().addChild (track, -1, &undoManager);
+    return track;
+}
+
+juce::ValueTree SongDocument::addTrackBulk (const juce::String& trackName, int colorArgb,
+                                              int sourceMidiChannel, int importBatch)
+{
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    track.setProperty (SongIDs::trackId, mintTrackId(), nullptr);
+    track.setProperty (SongIDs::name, trackName, nullptr);
+    track.setProperty (SongIDs::colorArgb, colorArgb, nullptr);
+    track.setProperty (SongIDs::sourceMidiChannel, sourceMidiChannel, nullptr);
+    track.setProperty (SongIDs::importBatch, importBatch, nullptr);
+
+    getSourceMidiNode().addChild (track, -1, nullptr);
     return track;
 }
 

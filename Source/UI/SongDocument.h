@@ -20,6 +20,10 @@ namespace SongIDs
     extern const juce::Identifier PARTS;
     extern const juce::Identifier PART;
     extern const juce::Identifier ASSIGNMENT;
+    extern const juce::Identifier TEMPO_MAP;
+    extern const juce::Identifier TEMPO_CHANGE;
+    extern const juce::Identifier METER_MAP;
+    extern const juce::Identifier METER_CHANGE;
 
     // SONG properties
     extern const juce::Identifier title;
@@ -60,6 +64,12 @@ namespace SongIDs
     extern const juce::Identifier transposeSemitones;
     extern const juce::Identifier volumePercent;
     extern const juce::Identifier rangePolicy;
+
+    // TEMPO_CHANGE/METER_CHANGE properties
+    extern const juce::Identifier tick;      // shared by both
+    extern const juce::Identifier bpm;       // TEMPO_CHANGE only
+    extern const juce::Identifier numerator;   // METER_CHANGE only
+    extern const juce::Identifier denominator; // METER_CHANGE only
 }
 
 /**
@@ -104,6 +114,8 @@ public:
     // --- Query helpers ---
     juce::ValueTree getSourceMidiNode() const;
     juce::ValueTree getPartsNode() const;
+    juce::ValueTree getTempoMapNode() const;
+    juce::ValueTree getMeterMapNode() const;
 
     int getNumTracks() const;
     juce::ValueTree getTrack (int index) const;
@@ -120,6 +132,13 @@ public:
     juce::ValueTree addTrack (const juce::String& trackName, int colorArgb,
                                int sourceMidiChannel, int importBatch);
     void removeTrack (juce::int64 trackIdToRemove);
+
+    // Non-undoable track creation — for MIDI import (SongModelBridge). Mints
+    // a trackId the same way addTrack does, but never touches the
+    // UndoManager: bulk import is not a user-undoable "edit" (same rationale
+    // as appendChildBulk).
+    juce::ValueTree addTrackBulk (const juce::String& trackName, int colorArgb,
+                                    int sourceMidiChannel, int importBatch);
 
     juce::ValueTree addPart (const juce::String& instrumentName, const juce::String& label);
     void removePart (juce::int64 partIdToRemove);
