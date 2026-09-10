@@ -55,6 +55,32 @@ namespace
 
         return s;
     }
+
+    // Distinct values from threeTrackImportedSong() throughout (track names,
+    // tempo/meter tick+value pairs) so a bug that clears-instead-of-appends
+    // across multiple appendImportedSong calls is detectable rather than
+    // masked by coincidentally-matching data.
+    Song twoTrackImportedSongSecondBatch()
+    {
+        Song s;
+        s.ticksPerQuarter = 480;
+        s.tempoMap = { { 3840, 200.0 } };
+        s.meterMap = { { 3840, 7, 8 } };
+
+        Track t0;
+        t0.name              = "Second Import Track Zero";
+        t0.sourceMidiChannel = 2;
+        t0.notes.push_back (makeNote (70, 0, 240, 70, false, 0, 0));
+        s.tracks.push_back (t0);
+
+        Track t1;
+        t1.name              = "Second Import Track One";
+        t1.sourceMidiChannel = 3;
+        t1.notes.push_back (makeNote (72, 0, 240, 70, false, 1, 0));
+        s.tracks.push_back (t1);
+
+        return s;
+    }
 }
 
 TEST_CASE ("SongModelBridge: appendImportedSong then buildConfigAndRawSong round-trips tracks/notes/tempoMap/meterMap byte-for-byte", "[songmodelbridge]")
@@ -234,4 +260,58 @@ TEST_CASE ("SongModelBridge: rawSong.title derives from inputMidiPath's filename
         auto built = buildConfigAndRawSong (doc);
         CHECK (built.rawSong.title == "");
     }
+}
+
+TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks/tempoMap/meterMap instead of the second clearing the first", "[songmodelbridge]")
+{
+    const auto firstImport  = threeTrackImportedSong();
+    const auto secondImport = twoTrackImportedSongSecondBatch();
+
+    SongDocument doc;
+    appendImportedSong (doc, firstImport, 1);
+    appendImportedSong (doc, secondImport, 2);
+
+    // Tracks: both imports' tracks present, second import continues after
+    // the first rather than replacing it.
+    REQUIRE (doc.getNumTracks() == (int) (firstImport.tracks.size() + secondImport.tracks.size()));
+    CHECK (doc.getTrack (0).getProperty (SongIDs::name).toString() == "Track Zero");
+    CHECK (doc.getTrack (2).getProperty (SongIDs::name).toString() == "Drum Track");
+    CHECK (doc.getTrack (3).getProperty (SongIDs::name).toString() == "Second Import Track Zero");
+    CHECK (doc.getTrack (4).getProperty (SongIDs::name).toString() == "Second Import Track One");
+
+    // TEMPO_MAP/METER_MAP: both imports' entries present, not just the
+    // second's — a clear-then-append bug would leave only 1 child each.
+    auto tempoMapNode = doc.getTempoMapNode();
+    auto meterMapNode = doc.getMeterMapNode();
+    REQUIRE (tempoMapNode.getNumChildren() == (int) (firstImport.tempoMap.size() + secondImport.tempoMap.size()));
+    REQUIRE (meterMapNode.getNumChildren() == (int) (firstImport.meterMap.size() + secondImport.meterMap.size()));
+
+    CHECK ((int) tempoMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((double) tempoMapNode.getChild (0).getProperty (SongIDs::bpm) == 120.0);
+    CHECK ((int) tempoMapNode.getChild (2).getProperty (SongIDs::tick) == 3840);
+    CHECK ((double) tempoMapNode.getChild (2).getProperty (SongIDs::bpm) == 200.0);
+
+    CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((int) meterMapNode.getChild (2).getProperty (SongIDs::numerator) == 7);
+    CHECK ((int) meterMapNode.getChild (2).getProperty (SongIDs::denominator) == 8);
+
+    // buildConfigAndRawSong sees both imports' tempoMap/meterMap entries,
+    // and the second import's tracks are positioned after the first's
+    // (index 3, 4) rather than restarting at 0.
+    auto built = buildConfigAndRawSong (doc);
+    REQUIRE (built.rawSong.tempoMap.size() == 3);
+    CHECK (built.rawSong.tempoMap[2].bpm == 200.0);
+    REQUIRE (built.rawSong.meterMap.size() == 3);
+    CHECK (built.rawSong.meterMap[2].numerator == 7);
+
+    auto secondBatchTrack = doc.getTrack (3);
+    auto secondBatchTrackId = (juce::int64) secondBatchTrack.getProperty (SongIDs::trackId);
+
+    auto part = doc.addPart ("LuteOfAges", "Lead");
+    doc.addAssignment (part, secondBatchTrackId, 0, 100, "octaveShift");
+
+    auto builtWithAssignment = buildConfigAndRawSong (doc);
+    REQUIRE (builtWithAssignment.config.instruments.size() == 1);
+    REQUIRE (builtWithAssignment.config.instruments[0].sources.size() == 1);
+    CHECK (builtWithAssignment.config.instruments[0].sources[0].midiTrackIndex == 3);
 }
