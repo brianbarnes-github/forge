@@ -45,7 +45,8 @@ this principle rules out tempting improvements.
   does not need these.
 - `forge_tests` also links `juce_data_structures` (its first JUCE module
   beyond what `forge_core` already brings in) to compile `SongDocument.cpp`
-  directly into the test binary for `SongDocument_tests.cpp`.
+  and `SongModelBridge.cpp` directly into the test binary for
+  `SongDocument_tests.cpp`/`SongModelBridge_tests.cpp`.
 - Catch2 (submodule at `./Tests/Catch2`, tracking `devel`).
 - `cmake/mingw-w64-toolchain.cmake` exists but is unused; kept for
   reference. Revisit with `llvm-mingw` + clang if we ever retry Windows
@@ -124,8 +125,12 @@ Source/
 │   ├── MainWindow.{h,cpp}       Window, menus, splitter, drag-drop
 │   ├── SongDocument.{h,cpp}     Songsmith's ValueTree document (SONG/
 │   │                            SOURCE_MIDI/MIDI_TRACK/NOTE/PARTS/PART/
-│   │                            ASSIGNMENT schema), owned UndoManager,
-│   │                            synthetic trackId/partId minting
+│   │                            ASSIGNMENT/TEMPO_MAP/TEMPO_CHANGE/
+│   │                            METER_MAP/METER_CHANGE schema), owned
+│   │                            UndoManager, synthetic trackId/partId minting
+│   ├── SongModelBridge.{h,cpp}  ValueTree <-> forge_core Config/Song
+│   │                            translation layer (import: appendImportedSong;
+│   │                            export: buildConfigAndRawSong)
 │   ├── EditorPane.{h,cpp}       Left pane: tree + property page host + Run
 │   ├── InstrumentsTree.{h,cpp}  Three-level treeview (Song/Instrument/Source)
 │   ├── PropertyPageHost.{h,cpp} Swaps the visible property page on selection
@@ -326,7 +331,7 @@ approval.
 
 ## Testing notes
 
-- Test count: **148/148**.
+- Test count: **157/157**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
