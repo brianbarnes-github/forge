@@ -154,7 +154,7 @@ public:
     void setProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,
                        const juce::var& newValue, bool newTransaction = true);
 
-    // Non-undoable bulk append — for future MIDI-import use (Phase 3).
+    // Non-undoable bulk append — used by SongModelBridge's MIDI-import path.
     // Bulk import is not a user-undoable "edit" per the Songsmith plan.
     static void appendChildBulk (juce::ValueTree parent, juce::ValueTree child);
 

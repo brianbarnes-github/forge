@@ -268,3 +268,13 @@ TEST_CASE ("SongDocument: appendChildBulk bypasses undo entirely, for future non
     CHECK (! doc.canUndo());
     CHECK (doc.findTrackById (42).getProperty (SongIDs::name).toString() == "Imported");
 }
+
+TEST_CASE ("SongDocument: addTrackBulk bypasses undo entirely, for non-undoable MIDI import", "[songdocument]")
+{
+    SongDocument doc;
+
+    doc.addTrackBulk ("Imported", 0, 0, 1);
+
+    REQUIRE (doc.getNumTracks() == 1);
+    CHECK (! doc.canUndo());
+}
