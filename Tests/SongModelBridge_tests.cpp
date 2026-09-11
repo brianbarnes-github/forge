@@ -986,7 +986,7 @@ TEST_CASE ("SongModelBridge: synthesiseDefaultParts adds one Part+Assignment per
     CHECK (melodicAssignment.getProperty (SongIDs::rangePolicy).toString() == "octaveShift");
 }
 
-TEST_CASE ("SongModelBridge: synthesiseDefaultParts is exactly one undo transaction — one undo() removes every part it added", "[songmodelbridge]")
+TEST_CASE ("SongModelBridge: synthesiseDefaultParts is exactly one undo transaction - one undo() removes every part it added", "[songmodelbridge]")
 {
     SongDocument doc;
     doc.addTrackBulk ("A", 0, 0, 1);
