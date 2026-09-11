@@ -117,21 +117,23 @@ File
   Open MIDI…              Ctrl+O      ← FileChooser, .mid/.midi
   Open Config…            Ctrl+Shift+O ← FileChooser, .json/.toml/.xml
   ─────────
-  Save Config As…
-    JSON (.json)                       ← writeConfigToFile (JSON)
-    TOML (.toml)                       ← writeConfigToFile (TOML)
-    XML  (.xml)                        ← writeConfigToFile (XML)
-  Save ABC As…                         ← writes the last Run's ABC output
-                                         (greyed until Run Converter has
-                                         produced something)
+  Save Config As…                      ← classic mode only (disabled and,
+    JSON (.json)                          if somehow reached, early-returns
+    TOML (.toml)                          in Songsmith mode — it would
+    XML  (.xml)                           otherwise write the invisible
+                                           classic Config over the file)
+  Save ABC As…                         ← classic mode only; writes the last
+                                         Run's ABC output (also greyed until
+                                         Run Converter has produced something)
   ─────────
   Quit                                  ← systemRequestedQuit
 ```
 
 (This is the classic editor's menu content; Phase 4 added an Edit/Song/View
-menu set that's global across both modes — see "Songsmith (preview)" below.
-In the classic tree, Add/Delete actions still live on the tree's right-click
-context menus, not on Edit.)
+menu set that's global across both modes — see "Songsmith view (default)"
+below. In the classic tree, Add/Delete actions still live on the tree's
+right-click context menus, not on Edit. Save Config As and Save ABC As are
+each enabled in only one mode — see that section.)
 
 ## Context menus
 
@@ -151,13 +153,13 @@ The whole Main window is a drag-drop target. Drop:
 - `.mid` or `.midi` → same as **File → Open MIDI…**
 - `.json`, `.toml`, or `.xml` → same as **File → Open Config…**
 
-## Songsmith (preview)
+## Songsmith view (default)
 
 `View → Classic editor` (unchecked by default) toggles `MainWindow::Body`
 between this view and the classic Editor/Diagnostics split described above.
 **Songsmith is the default on launch** — checking "Classic editor" switches
-back to the layout above; the classic layout stays fully functional (it is
-only removed at the end of Phase 6).
+to the layout above; the classic layout stays fully functional (it is only
+removed at the end of Phase 6).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -169,21 +171,30 @@ only removed at the end of Phase 6).
 │ PARTS · DROP TRACKS TO ASSIGN                                        │  ← PartStripComponent
 │  [x:1 Lute "Lead"] [x:2 Drums ""] [+ Add]                            │     header + slots
 ├──────────────────────────────────────────────────────────────────────┤
-│  DiagnosticsPane (this view's own instance — import diagnostics land  │
-│  here, not in the classic pane)                                      │
+│  DiagnosticListView (import diagnostics only — no ABC preview here    │
+│  until Phase 6 brings one back as a toggleable panel)                │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Track row** (`TrackListComponent`/`TrackRowComponent`) — index, name,
   colour swatch, and a `"<n> notes · <lo>–<hi>"` (or `"· ch 10"` for drums)
   second line. Click selects; drag onto a part slot to assign (the drag
-  payload is the track's synthetic id, not its row index).
+  payload is the track's synthetic id, not its row index). An empty
+  document shows a muted placeholder ("No MIDI loaded — File → Open MIDI…
+  or drop a .mid here") instead of a blank panel.
 - **Part slot** (`PartStripComponent`/`PartSlotComponent`) — `x:` index,
   instrument badge, label, and its assigned tracks as chips
   (`AssignmentChipComponent`: swatch, `Tk<n>`, transpose, `×` to unassign).
   Drop a track here to assign it (dropping an already-assigned track is a
   no-op — dedup is the document's job). Right-click for Instrument /
-  Rename… / Remove part. "+ Add" appends a new, auto-selected slot.
+  Rename… / Remove part. "+ Add" appends a new, auto-selected slot. Slots
+  have a 140px minimum width with a 1px gutter between them; once they no
+  longer fit the available width the strip scrolls horizontally instead of
+  squeezing. An empty document shows a muted placeholder ("No parts — +
+  Add, or Song → Default parts from tracks").
+- **Diagnostics** (`DiagnosticListView`) — the bare list only, not the full
+  classic `DiagnosticsPane`: Songsmith has nothing to export until Phase 6,
+  so there is no ABC-preview half to show here.
 
 New menus (global, but only meaningful with a `SongDocument`, i.e. in
 Songsmith mode):
@@ -192,7 +203,8 @@ Songsmith mode):
 Edit
   Undo                                  ← songDocument.undo()
   Redo                                  ← songDocument.redo()
-                                          (enabled per canUndo()/canRedo();
+                                          (Songsmith mode only, and then
+                                           enabled per canUndo()/canRedo();
                                            no keyboard shortcuts yet)
 
 Song
