@@ -50,8 +50,15 @@ void PianoRollComponent::paint (juce::Graphics& g)
 void PianoRollComponent::resized()
 {
     viewport.setBounds (getLocalBounds());
-    gutter.setBounds (getLocalBounds().withWidth (geometry.getKeyboardGutterWidth()));
     rebuildContentSize();
+
+    // Trim the gutter above the viewport's horizontal scrollbar (when shown)
+    // so the scrollbar's thumb isn't painted over by the gutter's opaque
+    // fill in that bottom-left corner (M1).
+    auto gutterBounds = getLocalBounds().withWidth (geometry.getKeyboardGutterWidth());
+    if (viewport.getHorizontalScrollBar().isVisible())
+        gutterBounds = gutterBounds.withTrimmedBottom (viewport.getScrollBarThickness());
+    gutter.setBounds (gutterBounds);
 }
 
 void PianoRollComponent::rebuildContentSize()
@@ -116,7 +123,7 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
     for (int row = firstRow; row <= lastRow; ++row)
     {
         const int pitch = topPitch - row;
-        g.setColour (juce::Colour ((pitch % 2 == 0) ? rowBandLight : rowBandDark));
+        g.setColour (juce::Colour (PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
         g.fillRect (clip.getX(), row * rowHeight, clip.getWidth(), rowHeight);
     }
 }

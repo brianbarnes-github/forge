@@ -8,8 +8,8 @@ namespace lotro
 
 int PianoRollGeometry::xForTick (int tick) const noexcept
 {
-    const double ticksFromStart = (double) tick - visibleTickRange.getStart();
-    const double quarters = ticksFromStart / (double) ticksPerQuarter;
+    const double ticksFromOrigin = (double) tick - contentOriginTick;
+    const double quarters = ticksFromOrigin / (double) ticksPerQuarter;
     const double pixels = quarters * pixelsPerQuarterNote;
     return keyboardGutterWidth + (int) std::lround (pixels);
 }
@@ -18,8 +18,8 @@ int PianoRollGeometry::tickForX (int x) const noexcept
 {
     const double pixels = (double) (x - keyboardGutterWidth);
     const double quarters = pixels / pixelsPerQuarterNote;
-    const double ticksFromStart = quarters * (double) ticksPerQuarter;
-    return (int) std::lround (visibleTickRange.getStart() + ticksFromStart);
+    const double ticksFromOrigin = quarters * (double) ticksPerQuarter;
+    return (int) std::lround (contentOriginTick + ticksFromOrigin);
 }
 
 int PianoRollGeometry::yForPitch (int pitch) const noexcept
@@ -30,6 +30,12 @@ int PianoRollGeometry::yForPitch (int pitch) const noexcept
 int PianoRollGeometry::pitchForY (int y) const noexcept
 {
     return topPitch - (int) std::floor ((double) y / (double) rowHeight);
+}
+
+bool PianoRollGeometry::isBlackKey (int pitch) noexcept
+{
+    const int pitchClass = ((pitch % 12) + 12) % 12;
+    return pitchClass == 1 || pitchClass == 3 || pitchClass == 6 || pitchClass == 8 || pitchClass == 10;
 }
 
 PianoRollNoteBounds PianoRollGeometry::noteBounds (const PianoRollNote& note) const noexcept
@@ -63,8 +69,7 @@ PianoRollGeometry PianoRollGeometry::fitToContent (juce::Range<int> tickRange,
     const int availableWidth = std::max (1, viewportWidth - geometry.keyboardGutterWidth);
     const double quarterSpan = std::max (0.0001, (double) tickSpan / (double) ticksPerQuarter);
     geometry.pixelsPerQuarterNote = std::max (1.0, (double) availableWidth / quarterSpan);
-    geometry.visibleTickRange = { (double) tickRange.getStart(),
-                                  (double) tickRange.getStart() + (double) tickSpan };
+    geometry.contentOriginTick = (double) tickRange.getStart();
 
     // Vertical: row height stays the fixed default (only horizontal zoom is
     // interactively adjustable — see PianoRollComponent's ctrl+wheel zoom in
