@@ -9,7 +9,6 @@
 
 #include "Core/AbcWriter.h"
 #include "Core/InstrumentAssembly.h"
-#include "Core/LotroInstrument.h"
 #include "Core/MidiImporter.h"
 #include "Core/Pipeline.h"
 
@@ -171,26 +170,7 @@ TEST_CASE ("SongsmithRoundTrip: import->assemble->pipeline->ABC matches the CLI'
         REQUIRE (importMidiFile (doc, file, 1, diagB));
         const size_t importDiagCountB = diagB.size();
 
-        // PHASE 4 WILL REPLACE THIS: this default one-Part-per-track policy
-        // has no production implementation yet (importMidiFile has no
-        // caller outside this test file). When Phase 4 lands a real
-        // synthesiseDefaultParts(SongDocument&) alongside appendImportedSong/
-        // buildConfigAndRawSong, this inline loop must be deleted and this
-        // test must call that function instead, or this parity test keeps
-        // validating a test-local copy while the shipping path drifts.
-        for (int i = 0; i < doc.getNumTracks(); ++i)
-        {
-            auto trackTree = doc.getTrack (i);
-            const auto trackId = (juce::int64) trackTree.getProperty (SongIDs::trackId);
-            const int  channel = (int) trackTree.getProperty (SongIDs::sourceMidiChannel);
-
-            const std::string instrumentName = (channel == 10)
-                ? std::string (displayName (LotroInstrument::Drums))
-                : std::string (displayName (LotroInstrument::LuteOfAges));
-
-            auto part = doc.addPart (juce::String (instrumentName), "");
-            doc.addAssignment (part, trackId, 0, 0, "octaveShift");
-        }
+        synthesiseDefaultParts (doc);
 
         auto built = buildConfigAndRawSong (doc);
         auto assembledB = assembleInstruments (built.rawSong, built.config, diagB);

@@ -278,3 +278,94 @@ TEST_CASE ("SongDocument: addTrackBulk bypasses undo entirely, for non-undoable 
     REQUIRE (doc.getNumTracks() == 1);
     CHECK (! doc.canUndo());
 }
+
+TEST_CASE ("SongDocument: addPart/addAssignment's newTransaction=false batches into the caller's already-open transaction", "[songdocument]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", 0, 0, 0);
+    auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    doc.getUndoManager().beginNewTransaction();
+    auto part = doc.addPart ("LuteOfAges", "Lead", false);
+    doc.addAssignment (part, trackId, 0, 0, "octaveShift", false);
+
+    REQUIRE (doc.getNumParts() == 1);
+    REQUIRE (SongDocument::getNumAssignments (doc.getPart (0)) == 1);
+
+    // Both the addTrack (its own transaction) and the addPart+addAssignment
+    // pair (one shared transaction, since both passed newTransaction=false)
+    // must be exactly two undo steps, not three — a bug that let
+    // newTransaction=false still call beginNewTransaction() would split the
+    // part and its assignment into two separate undo steps instead of one.
+    doc.undo();
+    CHECK (doc.getNumParts() == 0);
+    CHECK (doc.getNumTracks() == 1);
+
+    doc.undo();
+    CHECK (doc.getNumTracks() == 0);
+    CHECK (! doc.canUndo());
+}
+
+TEST_CASE ("SongDocument: findAssignment locates the assignment referencing a given trackId on a part, or an invalid tree if none", "[songdocument]")
+{
+    SongDocument doc;
+    auto trackA = doc.addTrack ("A", 0, 0, 0);
+    auto trackB = doc.addTrack ("B", 0, 1, 0);
+    auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
+    auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
+
+    auto part = doc.addPart ("LuteOfAges", "Lead");
+    doc.addAssignment (part, idA, 0, 100, "octaveShift");
+
+    auto found = SongDocument::findAssignment (part, idA);
+    REQUIRE (found.isValid());
+    CHECK ((int) found.getProperty (SongIDs::volumePercent) == 100);
+
+    CHECK (! SongDocument::findAssignment (part, idB).isValid());
+}
+
+TEST_CASE ("SongDocument: assignTrackToPart succeeds once, undoably, and rejects a missing part, a missing track, and a duplicate source", "[songdocument]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", 0, 0, 0);
+    auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    auto part = doc.addPart ("LuteOfAges", "Lead");
+    auto partId = (juce::int64) part.getProperty (SongIDs::partId);
+
+    // Outcome 1: missing part id -> false, no mutation, canUndo() unchanged.
+    const bool canUndoBefore1 = doc.canUndo();
+    CHECK_FALSE (doc.assignTrackToPart (999, trackId));
+    CHECK (SongDocument::getNumAssignments (part) == 0);
+    CHECK (doc.canUndo() == canUndoBefore1);
+
+    // Outcome 2: missing track id -> false, no mutation.
+    const bool canUndoBefore2 = doc.canUndo();
+    CHECK_FALSE (doc.assignTrackToPart (partId, 999));
+    CHECK (SongDocument::getNumAssignments (part) == 0);
+    CHECK (doc.canUndo() == canUndoBefore2);
+
+    // Outcome 3: success -> true, one undoable assignment created.
+    CHECK (doc.assignTrackToPart (partId, trackId));
+    REQUIRE (SongDocument::getNumAssignments (part) == 1);
+    auto assignment = SongDocument::getAssignment (part, 0);
+    CHECK ((juce::int64) assignment.getProperty (SongIDs::trackId) == trackId);
+    CHECK ((int) assignment.getProperty (SongIDs::transposeSemitones) == 0);
+    CHECK ((int) assignment.getProperty (SongIDs::volumePercent) == 0);
+    CHECK (assignment.getProperty (SongIDs::rangePolicy).toString() == "octaveShift");
+    REQUIRE (doc.canUndo());
+
+    // Outcome 4: duplicate source (same trackId already assigned to this
+    // part) -> false, no second assignment added, canUndo() unchanged (still
+    // true from outcome 3, but no NEW undo step was pushed).
+    doc.undo();
+    doc.redo();
+    REQUIRE (SongDocument::getNumAssignments (part) == 1);
+    const bool canUndoBefore4 = doc.canUndo();
+    CHECK_FALSE (doc.assignTrackToPart (partId, trackId));
+    CHECK (SongDocument::getNumAssignments (part) == 1);
+    CHECK (doc.canUndo() == canUndoBefore4);
+
+    // The one successful assignment is undoable back to zero.
+    doc.undo();
+    CHECK (SongDocument::getNumAssignments (part) == 0);
+}
