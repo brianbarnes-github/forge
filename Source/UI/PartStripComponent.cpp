@@ -14,7 +14,8 @@ void PartStripComponent::Row::paint (juce::Graphics& g)
     g.fillAll (juce::Colour (SongsmithColours::border));
 }
 
-PartStripComponent::PartStripComponent (SongDocument& document) : doc (document)
+PartStripComponent::PartStripComponent (SongDocument& document)
+    : doc (document), partsNode (document.getPartsNode())
 {
     header.setText (juce::String::fromUTF8 ("PARTS \xc2\xb7 DROP TRACKS TO ASSIGN"),
                      juce::dontSendNotification);
@@ -30,7 +31,7 @@ PartStripComponent::PartStripComponent (SongDocument& document) : doc (document)
     viewport.setScrollBarsShown (false, true); // horizontal only (I3)
     addAndMakeVisible (viewport);
 
-    doc.getPartsNode().addListener (this);
+    partsNode.addListener (this);
     rebuild();
 }
 
@@ -39,7 +40,7 @@ PartStripComponent::~PartStripComponent()
     // Cancel before removing the listener so a rebuild can't fire against a
     // component that is mid-destruction.
     cancelPendingUpdate();
-    doc.getPartsNode().removeListener (this);
+    partsNode.removeListener (this);
 }
 
 void PartStripComponent::rebuild()

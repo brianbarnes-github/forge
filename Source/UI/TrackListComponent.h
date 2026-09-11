@@ -71,6 +71,17 @@ private:
     void handleAsyncUpdate() override { rebuild(); }
 
     SongDocument&   doc;
+    // ValueTree::addListener() stores the listener on THIS HANDLE OBJECT
+    // (ValueTree::listeners is a per-handle member, not on the shared tree
+    // data), and only keeps the SharedObject aware of the registration via a
+    // raw back-pointer to this handle. Calling doc.getSourceMidiNode()
+    // fresh at addListener()-time and letting that temporary expire at the
+    // end of the statement silently drops the registration immediately —
+    // this member exists so the listener stays registered for the
+    // component's whole lifetime. Must be used for both addListener() and
+    // removeListener(); plain reads (getNumTracks(), getTrack(i), etc.) are
+    // unaffected and can keep using doc.getSourceMidiNode() freshly.
+    juce::ValueTree sourceMidiNode;
     juce::Viewport  viewport;
     ListContent     content;
     juce::int64     selectedTrackId = -1;

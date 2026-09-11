@@ -64,6 +64,12 @@ private:
     };
 
     SongDocument&    doc;
+    // See TrackListComponent.h's identical member for why this must be a
+    // persistent handle rather than a fresh doc.getPartsNode() temporary at
+    // addListener()/removeListener() time: ValueTree::addListener() stores
+    // the listener on THIS HANDLE OBJECT, not the shared tree data, so a
+    // temporary's registration is dropped the instant the temporary expires.
+    juce::ValueTree  partsNode;
     juce::Label      header;
     juce::TextButton addButton { "+ Add" };
     juce::Viewport   viewport;

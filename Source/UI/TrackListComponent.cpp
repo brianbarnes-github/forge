@@ -14,13 +14,14 @@ void TrackListComponent::ListContent::resized()
     }
 }
 
-TrackListComponent::TrackListComponent (SongDocument& document) : doc (document)
+TrackListComponent::TrackListComponent (SongDocument& document)
+    : doc (document), sourceMidiNode (document.getSourceMidiNode())
 {
     viewport.setViewedComponent (&content, false);
     viewport.setScrollBarsShown (true, false);
     addAndMakeVisible (viewport);
 
-    doc.getSourceMidiNode().addListener (this);
+    sourceMidiNode.addListener (this);
     rebuild();
 }
 
@@ -29,7 +30,7 @@ TrackListComponent::~TrackListComponent()
     // Cancel before removing the listener so a rebuild can't fire against a
     // component that is mid-destruction.
     cancelPendingUpdate();
-    doc.getSourceMidiNode().removeListener (this);
+    sourceMidiNode.removeListener (this);
 }
 
 void TrackListComponent::rebuild()
