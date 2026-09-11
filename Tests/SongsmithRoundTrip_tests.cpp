@@ -407,6 +407,37 @@ TEST_CASE ("SongsmithRoundTrip: importMidiFile on an unopenable path fails clean
     CHECK (doc.getTree().getProperty (SongIDs::inputMidiPath).toString().isEmpty());
 }
 
+TEST_CASE ("SongsmithRoundTrip: importMidiFile on a file that opens but doesn't parse reports a Diagnostic instead of throwing", "[songsmith-roundtrip]")
+{
+    // importMidi throws lotro::MidiImportError for content that opens fine
+    // (passes the ifstream check) but doesn't parse as MIDI (empty buffer,
+    // malformed data, unsupported SMPTE time format) — see
+    // Tests/MidiImporter_tests.cpp's "rejects malformed input". importMidiFile
+    // must catch that and report a Diagnostic rather than letting the
+    // exception escape into the caller (e.g. the Songsmith UI).
+    auto tempFile = juce::File::createTempFile ("forge-phase3-malformed");
+    REQUIRE (tempFile.replaceWithText ("not a midi file, just plain garbage text"));
+
+    struct DeleteOnScopeExit
+    {
+        juce::File file;
+        ~DeleteOnScopeExit() { file.deleteFile(); }
+    } cleanup { tempFile };
+
+    SongDocument doc;
+    Diagnostics diag;
+
+    const bool ok = importMidiFile (doc, tempFile, 1, diag);
+
+    CHECK_FALSE (ok);
+    REQUIRE (diag.size() == 1);
+    CHECK (diag[0].severity == Severity::Error);
+    CHECK (diag[0].source == "SongModelBridge");
+    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getTree().getProperty (SongIDs::inputMidiPath).toString().isEmpty());
+    CHECK_FALSE (doc.canUndo());
+}
+
 TEST_CASE ("SongsmithRoundTrip: inputMidiPath and derived title come from the first import, not later ones", "[songsmith-roundtrip]")
 {
     const auto firstFile  = midiFixture ("Barnes Brothers Band - Pull The Wires.mid");
