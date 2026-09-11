@@ -26,7 +26,12 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # Pinned rather than windows-latest: the floating label recently
+    # stopped resolving to a runner where CMake's "Visual Studio 17 2022"
+    # generator can find an installed VS2022 instance ("could not find
+    # any instance of Visual Studio"). windows-2022 is GitHub's stable,
+    # documented image that has it.
+    runs-on: windows-2022
 
     # Needed by the "Publish to latest release" step. Has no effect on PR
     # runs because the release step is gated on push-to-main.
