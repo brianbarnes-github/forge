@@ -44,7 +44,7 @@ When you say…       …I'll know you mean
 | **Main window**                 | `MainWindow` (`Source/UI/MainWindow.{h,cpp}`)  |
 | **Menu bar**                    | `juce::MenuBarComponent` inside `MainWindow`   |
 | **Body**                        | `MainWindow::Body` (inner class, holds the two panes + outer splitter) |
-| **Outer splitter**              | `MainWindow::Body::Splitter` — vertical bar between Editor and Diagnostics panes |
+| **Outer splitter**              | `lotro::SplitterComponent` (`Orientation::leftRight`) — vertical bar between Editor and Diagnostics panes (generalized in Phase 5 from a `MainWindow`-private class; see "Songsmith view" below for its other use) |
 | **Editor pane**                 | `EditorPane` (`Source/UI/EditorPane.{h,cpp}`)  |
 | **Diagnostics pane**            | `DiagnosticsPane` (`Source/UI/DiagnosticsPane.{h,cpp}`) |
 | **Inner splitter**              | `DiagnosticsPane::Body::HSplitterBar` — horizontal bar between Diagnostic List and ABC Preview |
@@ -163,14 +163,15 @@ removed at the end of Phase 6).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ ▲ MIDI SOURCE · drag tracks down to assign                          │  ← header
+│ ▲ MIDI SOURCE · drag tracks down to assign                          │  ← header (UpperRegion)
 ├──────────────────────┬─────────────────────────────────────────────┤
-│  TrackListComponent   │  "Source piano roll — Phase 5" (placeholder) │  ← 40% of height
-│  (220px, scrollable)  │                                             │
-├──────────────────────┴─────────────────────────────────────────────┤
+│  TrackListComponent   │  PianoRollComponent (source role)            │
+│  (220px, scrollable)  │  keyboard gutter · gridlines · notes ·       │
+│                       │  scroll · ctrl+wheel zoom                    │
+├══════════════════════ SplitterComponent (drag to resize) ═══════════┤
 │ PARTS · DROP TRACKS TO ASSIGN                                        │  ← PartStripComponent
 │  [x:1 Lute "Lead"] [x:2 Drums ""] [+ Add]                            │     header + slots
-├──────────────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────────────┤     (LowerRegion)
 │  DiagnosticListView (import diagnostics only — no ABC preview here    │
 │  until Phase 6 brings one back as a toggleable panel)                │
 └──────────────────────────────────────────────────────────────────────┘
@@ -182,6 +183,17 @@ removed at the end of Phase 6).
   payload is the track's synthetic id, not its row index). An empty
   document shows a muted placeholder ("No MIDI loaded — File → Open MIDI…
   or drop a .mid here") instead of a blank panel.
+- **Source piano roll** (`PianoRollComponent`, source role — Phase 5) —
+  shows the selected track's notes only (one track at a time), scrollable
+  in both axes via an internal `juce::Viewport`. A pinned keyboard gutter
+  on the left (C-note labels only) stays put while notes scroll
+  underneath it; row shading follows the real piano black/white-key
+  pattern, not plain semitone alternation. Vertical gridlines mark bar
+  boundaries from the document's meter. Ctrl/Cmd+scroll-wheel zooms
+  horizontally; a plain scroll wheel scrolls as usual. View-only — no
+  note creation/move/resize/delete yet (Phase 7). Selecting a different
+  track, or any change to `SOURCE_MIDI` (e.g. a second MIDI import),
+  re-fits the view to the newly-current track.
 - **Part slot** (`PartStripComponent`/`PartSlotComponent`) — `x:` index,
   instrument badge, label, and its assigned tracks as chips
   (`AssignmentChipComponent`: swatch, `Tk<n>`, transpose, `×` to unassign).
