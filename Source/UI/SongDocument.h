@@ -140,13 +140,33 @@ public:
     juce::ValueTree addTrackBulk (const juce::String& trackName, int colorArgb,
                                     int sourceMidiChannel, int importBatch);
 
-    juce::ValueTree addPart (const juce::String& instrumentName, const juce::String& label);
+    // newTransaction=true (default) begins a fresh undo transaction; pass
+    // false to batch this call into the caller's already-open transaction
+    // (mirrors setProperty's parameter of the same name/meaning).
+    juce::ValueTree addPart (const juce::String& instrumentName, const juce::String& label,
+                              bool newTransaction = true);
     void removePart (juce::int64 partIdToRemove);
 
     juce::ValueTree addAssignment (juce::ValueTree part, juce::int64 refTrackId,
                                     int transposeSemitones, int volumePercent,
-                                    const juce::String& rangePolicy);
+                                    const juce::String& rangePolicy,
+                                    bool newTransaction = true);
     void removeAssignment (juce::ValueTree part, juce::ValueTree assignment);
+
+    // Locates the ASSIGNMENT on `part` referencing `trackIdToFind`, or an
+    // invalid ValueTree if none exists. Used to detect duplicate sources
+    // before creating a second ASSIGNMENT for the same track on one part
+    // (forge_core's validateConfig rejects a part with two sources naming
+    // the same MIDI track index, so the UI must never be able to create one).
+    static juce::ValueTree findAssignment (const juce::ValueTree& part, juce::int64 trackIdToFind);
+
+    // Dedup'd, undoable drag-and-drop entry point: creates one ASSIGNMENT
+    // (transpose 0, volume 0, "octaveShift") linking `trackId` to `partId`
+    // and returns true, unless the part doesn't exist, the track doesn't
+    // exist, or `trackId` is already assigned to that part — in any of
+    // those cases nothing is mutated (no undo transaction opened) and this
+    // returns false.
+    bool assignTrackToPart (juce::int64 partId, juce::int64 trackId);
 
     // Generic undoable property setter. newTransaction=true (default) begins
     // a fresh undo transaction; pass false to batch multiple property

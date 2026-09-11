@@ -1,11 +1,13 @@
 #include "SongModelBridge.h"
 
+#include "Core/LotroInstrument.h"
 #include "Core/MidiImporter.h"
 
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <map>
+#include <set>
 
 namespace lotro
 {
@@ -24,7 +26,7 @@ namespace
 }
 
 void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
-                         Diagnostics* diagnostics)
+                         Diagnostics& diagnostics)
 {
     // R1: only the first import sets the document's time base and
     // TEMPO_MAP/METER_MAP. A later import describes a different timeline,
@@ -102,7 +104,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
     // least one note — a trackless later import (zero notes) sets
     // needsRescale via the PPQ mismatch alone but rescales nothing, and
     // claiming a rescale happened would be misleading.
-    if (needsRescale && rescaledNoteCount > 0 && diagnostics != nullptr)
+    if (needsRescale && rescaledNoteCount > 0)
     {
         Diagnostic d;
         d.source   = "SongModelBridge";
@@ -120,7 +122,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
             d.message += " (" + std::to_string (roundedValueCount) + " value(s) rounded)";
         else if (zeroLengthNoteCount > 0)
             d.message += " (" + std::to_string (zeroLengthNoteCount) + " note(s) reduced to zero length and will be dropped)";
-        diagnostics->push_back (std::move (d));
+        diagnostics.push_back (std::move (d));
     }
 
     if (isFirstImport)
@@ -144,7 +146,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
             SongDocument::appendChildBulk (meterMapNode, changeTree);
         }
     }
-    else if (diagnostics != nullptr)
+    else
     {
         auto tempoMapNode = doc.getTempoMapNode();
         bool timelineDiffers = tempoMapNode.getNumChildren() != (int) imported.tempoMap.size();
@@ -185,7 +187,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
             d.severity = Severity::Warning;
             d.message  = "Later MIDI import's tempo/meter timeline differs from the document's; "
                          "the document's timeline was kept and the incoming file's was ignored";
-            diagnostics->push_back (std::move (d));
+            diagnostics.push_back (std::move (d));
         }
     }
 }
@@ -221,7 +223,7 @@ bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBa
         return false;
     }
 
-    appendImportedSong (doc, imported, importBatch, &diagnostics);
+    appendImportedSong (doc, imported, importBatch, diagnostics);
 
     // R3: first import's filename wins for SONG.inputMidiPath (and thus the
     // bridge-derived rawSong.title) — only set it when currently empty.
@@ -229,6 +231,35 @@ bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBa
         doc.getTree().setProperty (SongIDs::inputMidiPath, midiFile.getFullPathName(), nullptr);
 
     return true;
+}
+
+void synthesiseDefaultParts (SongDocument& doc)
+{
+    std::set<juce::int64> assignedTrackIds;
+    auto partsNode = doc.getPartsNode();
+    for (auto partTree : partsNode)
+        for (int a = 0; a < SongDocument::getNumAssignments (partTree); ++a)
+            assignedTrackIds.insert ((juce::int64) SongDocument::getAssignment (partTree, a).getProperty (SongIDs::trackId));
+
+    // One undo transaction for the whole call, regardless of how many
+    // parts/assignments end up being added below.
+    doc.getUndoManager().beginNewTransaction();
+
+    for (int i = 0; i < doc.getNumTracks(); ++i)
+    {
+        auto trackTree = doc.getTrack (i);
+        const auto trackId = (juce::int64) trackTree.getProperty (SongIDs::trackId);
+        if (assignedTrackIds.count (trackId) != 0)
+            continue;
+
+        const int channel = (int) trackTree.getProperty (SongIDs::sourceMidiChannel);
+        const std::string instrumentName = (channel == 10)
+            ? std::string (displayName (LotroInstrument::Drums))
+            : std::string (displayName (LotroInstrument::LuteOfAges));
+
+        auto part = doc.addPart (juce::String (instrumentName), juce::String(), false);
+        doc.addAssignment (part, trackId, 0, 0, "octaveShift", false);
+    }
 }
 
 BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,

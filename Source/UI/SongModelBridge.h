@@ -42,10 +42,8 @@ namespace lotro
 //     note was zeroed; Severity::Warning otherwise, naming the
 //     rounded-value count and, if any, the zeroed-note count. Same-PPQ
 //     imports are not rescaled and emit no rescale Diagnostic.
-// `diagnostics`, when non-null, receives the above; pass nullptr to
-// silently skip diagnostic collection (existing behavior).
 void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
-                         Diagnostics* diagnostics = nullptr);
+                         Diagnostics& diagnostics);
 
 // Opens `midiFile`, runs forge_core's importMidi (sourceName = the
 // file's stem, matching the CLI's ad-hoc path in Source/Main.cpp), and
@@ -58,6 +56,19 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 // leaves the document unchanged, and returns false.
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
                      Diagnostics& diagnostics);
+
+// A-R1: default-part synthesis. For every MIDI_TRACK not yet referenced by
+// any ASSIGNMENT on any PART, adds one PART (instrumentName =
+// displayName(LotroInstrument::Drums) when the track's sourceMidiChannel ==
+// 10, else displayName(LotroInstrument::LuteOfAges); empty label) with one
+// ASSIGNMENT (that track, transpose 0, volume 0, "octaveShift"). Tracks
+// already referenced anywhere are left alone, so this is safe to call on a
+// partially-arranged document (e.g. after the user has manually assigned
+// some tracks). This is a user-initiated action, so it IS undoable — the
+// whole call is exactly ONE undo transaction (one doc.undo() removes every
+// part/assignment it added), via SongDocument::addPart/addAssignment's
+// newTransaction=false parameter.
+void synthesiseDefaultParts (SongDocument& doc);
 
 // Export path (also used later for scoped live preview). Builds a
 // forge_core Config from Song-level metadata + the given parts (empty =

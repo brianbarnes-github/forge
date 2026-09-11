@@ -217,9 +217,11 @@ void SongDocument::removeTrack (juce::int64 trackIdToRemove)
     getSourceMidiNode().removeChild (track, &undoManager);
 }
 
-juce::ValueTree SongDocument::addPart (const juce::String& instrumentName, const juce::String& label)
+juce::ValueTree SongDocument::addPart (const juce::String& instrumentName, const juce::String& label,
+                                        bool newTransaction)
 {
-    undoManager.beginNewTransaction();
+    if (newTransaction)
+        undoManager.beginNewTransaction();
 
     juce::ValueTree part (SongIDs::PART);
     part.setProperty (SongIDs::partId, mintPartId(), &undoManager);
@@ -244,11 +246,13 @@ void SongDocument::removePart (juce::int64 partIdToRemove)
 
 juce::ValueTree SongDocument::addAssignment (juce::ValueTree part, juce::int64 refTrackId,
                                               int transposeSemitones, int volumePercent,
-                                              const juce::String& rangePolicy)
+                                              const juce::String& rangePolicy,
+                                              bool newTransaction)
 {
     jassert (part.hasType (SongIDs::PART));
 
-    undoManager.beginNewTransaction();
+    if (newTransaction)
+        undoManager.beginNewTransaction();
 
     juce::ValueTree assignment (SongIDs::ASSIGNMENT);
     assignment.setProperty (SongIDs::trackId, refTrackId, &undoManager);
@@ -264,6 +268,33 @@ void SongDocument::removeAssignment (juce::ValueTree part, juce::ValueTree assig
 {
     undoManager.beginNewTransaction();
     part.removeChild (assignment, &undoManager);
+}
+
+juce::ValueTree SongDocument::findAssignment (const juce::ValueTree& part, juce::int64 trackIdToFind)
+{
+    for (int i = 0; i < part.getNumChildren(); ++i)
+    {
+        auto child = part.getChild (i);
+        if ((juce::int64) child.getProperty (SongIDs::trackId) == trackIdToFind)
+            return child;
+    }
+    return {};
+}
+
+bool SongDocument::assignTrackToPart (juce::int64 partId, juce::int64 trackId)
+{
+    auto part = findPartById (partId);
+    if (! part.isValid())
+        return false;
+
+    if (! findTrackById (trackId).isValid())
+        return false;
+
+    if (findAssignment (part, trackId).isValid())
+        return false;
+
+    addAssignment (part, trackId, 0, 0, "octaveShift");
+    return true;
 }
 
 void SongDocument::setProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,

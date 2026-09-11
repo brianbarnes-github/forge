@@ -5,6 +5,8 @@
 
 #include "UI/SongModelBridge.h"
 
+#include "Core/LotroInstrument.h"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
@@ -93,7 +95,8 @@ TEST_CASE ("SongModelBridge: appendImportedSong then buildConfigAndRawSong round
     const auto imported = threeTrackImportedSong();
 
     SongDocument doc;
-    appendImportedSong (doc, imported, 1);
+    Diagnostics diagnostics;
+    appendImportedSong (doc, imported, 1, diagnostics);
 
     auto built = buildConfigAndRawSong (doc);
 
@@ -282,8 +285,9 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks but 
     const auto secondImport = twoTrackImportedSongSecondBatch();
 
     SongDocument doc;
-    appendImportedSong (doc, firstImport, 1);
-    appendImportedSong (doc, secondImport, 2);
+    Diagnostics diagnostics;
+    appendImportedSong (doc, firstImport, 1, diagnostics);
+    appendImportedSong (doc, secondImport, 2, diagnostics);
 
     // Tracks: both imports' tracks present, second import continues after
     // the first rather than replacing it.
@@ -349,10 +353,10 @@ TEST_CASE ("SongModelBridge: a later import's differing tempo/meter timeline emi
 
     SongDocument doc;
     Diagnostics diagnostics;
-    appendImportedSong (doc, firstImport, 1, &diagnostics);
+    appendImportedSong (doc, firstImport, 1, diagnostics);
     REQUIRE (diagnostics.empty());
 
-    appendImportedSong (doc, secondImport, 2, &diagnostics);
+    appendImportedSong (doc, secondImport, 2, diagnostics);
 
     int infoCount = 0, warningCount = 0;
     for (const auto& d : diagnostics)
@@ -412,11 +416,11 @@ TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the corre
 
     SongDocument doc;
     Diagnostics diag1;
-    appendImportedSong (doc, first, 1, &diag1);
+    appendImportedSong (doc, first, 1, diag1);
     REQUIRE (diag1.empty());
 
     Diagnostics diag2;
-    appendImportedSong (doc, second, 2, &diag2);
+    appendImportedSong (doc, second, 2, diag2);
 
     REQUIRE (diag2.size() == 1);
     CHECK (diag2[0].source == "SongModelBridge");
@@ -469,11 +473,11 @@ TEST_CASE ("SongModelBridge: a rescale that zeroes a note's duration names the d
 
     SongDocument doc;
     Diagnostics diag1;
-    appendImportedSong (doc, first, 1, &diag1);
+    appendImportedSong (doc, first, 1, diag1);
     REQUIRE (diag1.empty());
 
     Diagnostics diag2;
-    appendImportedSong (doc, second, 2, &diag2);
+    appendImportedSong (doc, second, 2, diag2);
 
     REQUIRE (diag2.size() == 1);
     CHECK (diag2[0].source == "SongModelBridge");
@@ -510,10 +514,10 @@ TEST_CASE ("SongModelBridge: a trackless later import at a different PPQ emits n
 
     SongDocument doc;
     Diagnostics diagnostics;
-    appendImportedSong (doc, first, 1, &diagnostics);
+    appendImportedSong (doc, first, 1, diagnostics);
     REQUIRE (diagnostics.empty());
 
-    appendImportedSong (doc, tracklessSecond, 2, &diagnostics);
+    appendImportedSong (doc, tracklessSecond, 2, diagnostics);
 
     CHECK (diagnostics.empty());
 }
@@ -539,11 +543,11 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
 
     SongDocument doc;
     Diagnostics diagnostics;
-    appendImportedSong (doc, zeroTrackFirst, 1, &diagnostics);
+    appendImportedSong (doc, zeroTrackFirst, 1, diagnostics);
     REQUIRE (diagnostics.empty());
     REQUIRE (doc.getNumTracks() == 0);
 
-    appendImportedSong (doc, second, 2, &diagnostics);
+    appendImportedSong (doc, second, 2, diagnostics);
 
     // Document PPQ stays at the first import's value (960), not the second's
     // (480) — proving the second import was NOT (incorrectly) treated as
@@ -584,4 +588,100 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
             && d.message.find ("timeline") != std::string::npos)
             ++timelineWarnings;
     CHECK (timelineWarnings == 1);
+}
+
+// A-R1: default-part synthesis becomes production code, replacing the
+// inline per-test loop that used to live in SongsmithRoundTrip_tests.cpp.
+TEST_CASE ("SongModelBridge: synthesiseDefaultParts adds one Part+Assignment per unassigned track, skipping already-assigned tracks", "[songmodelbridge]")
+{
+    SongDocument doc;
+    auto melodic = doc.addTrackBulk ("Melodic", 0, 0, 1);
+    auto drum    = doc.addTrackBulk ("Drum", 0, 10, 1);
+    auto already = doc.addTrackBulk ("Already Arranged", 0, 3, 1);
+
+    auto melodicId = (juce::int64) melodic.getProperty (SongIDs::trackId);
+    auto drumId    = (juce::int64) drum.getProperty (SongIDs::trackId);
+    auto alreadyId = (juce::int64) already.getProperty (SongIDs::trackId);
+
+    // Pre-existing arrangement on `already` — must be left untouched, and
+    // its track must be skipped by synthesis (not double-assigned).
+    auto existingPart = doc.addPart ("Harp", "Pre-arranged");
+    doc.addAssignment (existingPart, alreadyId, 5, 90, "octaveShift");
+
+    synthesiseDefaultParts (doc);
+
+    // Exactly two new parts synthesized (melodic, drum) plus the
+    // pre-existing one = 3 total.
+    REQUIRE (doc.getNumParts() == 3);
+
+    // The pre-existing part/assignment is untouched.
+    CHECK (doc.getPart (0).getProperty (SongIDs::instrumentName).toString() == "Harp");
+    CHECK (SongDocument::getNumAssignments (doc.getPart (0)) == 1);
+    CHECK ((int) SongDocument::getAssignment (doc.getPart (0), 0).getProperty (SongIDs::transposeSemitones) == 5);
+
+    // A synthesized part exists for the melodic track, using LuteOfAges
+    // (non-drum, sourceMidiChannel != 10).
+    auto melodicPart = juce::ValueTree();
+    auto drumPart = juce::ValueTree();
+    for (int i = 0; i < doc.getNumParts(); ++i)
+    {
+        auto p = doc.getPart (i);
+        if (SongDocument::getNumAssignments (p) != 1) continue;
+        auto assignedTrackId = (juce::int64) SongDocument::getAssignment (p, 0).getProperty (SongIDs::trackId);
+        if (assignedTrackId == melodicId) melodicPart = p;
+        if (assignedTrackId == drumId)    drumPart = p;
+    }
+
+    REQUIRE (melodicPart.isValid());
+    REQUIRE (drumPart.isValid());
+    CHECK (melodicPart.getProperty (SongIDs::instrumentName).toString()
+           == juce::String (std::string (displayName (LotroInstrument::LuteOfAges))));
+    CHECK (drumPart.getProperty (SongIDs::instrumentName).toString()
+           == juce::String (std::string (displayName (LotroInstrument::Drums))));
+    CHECK (melodicPart.getProperty (SongIDs::label).toString() == "");
+
+    auto melodicAssignment = SongDocument::getAssignment (melodicPart, 0);
+    CHECK ((int) melodicAssignment.getProperty (SongIDs::transposeSemitones) == 0);
+    CHECK ((int) melodicAssignment.getProperty (SongIDs::volumePercent) == 0);
+    CHECK (melodicAssignment.getProperty (SongIDs::rangePolicy).toString() == "octaveShift");
+}
+
+TEST_CASE ("SongModelBridge: synthesiseDefaultParts is exactly one undo transaction — one undo() removes every part it added", "[songmodelbridge]")
+{
+    SongDocument doc;
+    doc.addTrackBulk ("A", 0, 0, 1);
+    doc.addTrackBulk ("B", 0, 10, 1);
+    doc.addTrackBulk ("C", 0, 1, 1);
+
+    REQUIRE_FALSE (doc.canUndo());
+
+    synthesiseDefaultParts (doc);
+
+    REQUIRE (doc.getNumParts() == 3);
+    REQUIRE (doc.canUndo());
+
+    doc.undo();
+
+    CHECK (doc.getNumParts() == 0);
+    // Tracks (added via addTrackBulk, non-undoable) are unaffected.
+    CHECK (doc.getNumTracks() == 3);
+    // The single undo() fully reverted the synthesis — nothing left to undo
+    // from it (an earlier state, if any, could still be undoable; here
+    // there is none).
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("SongModelBridge: synthesiseDefaultParts on a document with nothing left to arrange adds no additional part", "[songmodelbridge]")
+{
+    SongDocument doc;
+    auto track = doc.addTrackBulk ("A", 0, 0, 1);
+    auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    auto part = doc.addPart ("LuteOfAges", "Lead", false);
+    doc.addAssignment (part, trackId, 0, 0, "octaveShift", false);
+
+    REQUIRE (doc.getNumParts() == 1);
+
+    synthesiseDefaultParts (doc);
+
+    CHECK (doc.getNumParts() == 1);
 }
