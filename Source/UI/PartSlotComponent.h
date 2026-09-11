@@ -26,7 +26,6 @@ public:
     PartSlotComponent (SongDocument& document, juce::ValueTree partNode);
 
     void setSelected (bool shouldBeSelected);
-    bool isSelected() const noexcept { return selected; }
     juce::int64 getPartId() const;
 
     void paint (juce::Graphics& g) override;

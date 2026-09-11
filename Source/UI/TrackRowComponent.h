@@ -23,7 +23,6 @@ public:
     TrackRowComponent (juce::ValueTree trackNode, int displayIndex);
 
     void setSelected (bool shouldBeSelected);
-    bool isSelected() const noexcept { return selected; }
 
     juce::int64 getTrackId() const;
 

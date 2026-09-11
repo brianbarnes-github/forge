@@ -6,6 +6,14 @@
 namespace lotro
 {
 
+void PartStripComponent::Row::paint (juce::Graphics& g)
+{
+    // Border-coloured background: slots are laid out with a 1px gap between
+    // adjacent slots (see resized() below), so this shows through as the
+    // mockup's gutter (M3) rather than the slots reading as one flat panel.
+    g.fillAll (juce::Colour (SongsmithColours::border));
+}
+
 PartStripComponent::PartStripComponent (SongDocument& document) : doc (document)
 {
     header.setText (juce::String::fromUTF8 ("PARTS \xc2\xb7 DROP TRACKS TO ASSIGN"),
@@ -17,6 +25,10 @@ PartStripComponent::PartStripComponent (SongDocument& document) : doc (document)
 
     addAndMakeVisible (addButton);
     addButton.onClick = [this] { addPartClicked(); };
+
+    viewport.setViewedComponent (&row, false);
+    viewport.setScrollBarsShown (false, true); // horizontal only (I3)
+    addAndMakeVisible (viewport);
 
     doc.getPartsNode().addListener (this);
     rebuild();
@@ -32,24 +44,25 @@ PartStripComponent::~PartStripComponent()
 
 void PartStripComponent::rebuild()
 {
-    slots.clear();
+    row.slots.clear();
 
     for (int i = 0; i < doc.getNumParts(); ++i)
     {
         auto partNode = doc.getPart (i);
-        auto* slot = slots.add (new PartSlotComponent (doc, partNode));
+        auto* slot = row.slots.add (new PartSlotComponent (doc, partNode));
         slot->setSelected ((juce::int64) partNode.getProperty (SongIDs::partId) == selectedPartId);
         slot->onPartSelected = [this] (juce::int64 partId) { selectPart (partId); };
-        addAndMakeVisible (slot);
+        row.addAndMakeVisible (slot);
     }
 
     resized();
+    repaint(); // M4: empty-state message visibility may have changed.
 }
 
 void PartStripComponent::selectPart (juce::int64 partId)
 {
     selectedPartId = partId;
-    for (auto* slot : slots)
+    for (auto* slot : row.slots)
         slot->setSelected (slot->getPartId() == partId);
 
     if (onPartSelected)
@@ -62,6 +75,21 @@ void PartStripComponent::addPartClicked()
     selectPart ((juce::int64) newPart.getProperty (SongIDs::partId));
 }
 
+void PartStripComponent::paint (juce::Graphics& g)
+{
+    // M4: first-launch/empty-document affordance — the strip would otherwise
+    // just be a header bar over a blank row.
+    if (doc.getNumParts() != 0)
+        return;
+
+    g.setColour (juce::Colour (SongsmithColours::textMuted));
+    g.setFont (juce::Font (juce::FontOptions (11.0f)));
+    auto area = getLocalBounds().withTrimmedTop (headerHeight).reduced (12);
+    g.drawFittedText (juce::String::fromUTF8 (
+                           "No parts \xe2\x80\x94 + Add, or Song \xe2\x86\x92 Default parts from tracks"),
+                       area, juce::Justification::centred, 2);
+}
+
 void PartStripComponent::resized()
 {
     auto area = getLocalBounds();
@@ -71,15 +99,34 @@ void PartStripComponent::resized()
     addButton.setColour (juce::TextButton::textColourOffId, juce::Colour (SongsmithColours::textMuted));
     addButton.setBounds (area.removeFromRight (addButtonWidth));
 
-    const int n = slots.size();
-    if (n == 0)
-        return;
+    viewport.setBounds (area);
 
-    const int slotWidth = area.getWidth() / n;
+    const int n = row.slots.size();
+    if (n == 0)
+    {
+        row.setSize (area.getWidth(), area.getHeight());
+        return;
+    }
+
+    // I3: below minSlotWidth per slot, switch from equal division to a
+    // fixed minSlotWidth per slot and let the viewport scroll horizontally
+    // instead of squeezing every slot unreadably thin.
+    const bool overflow = n * minSlotWidth > area.getWidth();
+    const int  rowWidth = overflow ? n * minSlotWidth : area.getWidth();
+    const int  slotWidth = overflow ? minSlotWidth : (area.getWidth() / n);
+
+    row.setSize (rowWidth, area.getHeight());
+
+    int x = 0;
     for (int i = 0; i < n; ++i)
     {
-        auto slotArea = (i == n - 1) ? area : area.removeFromLeft (slotWidth);
-        slots[i]->setBounds (slotArea);
+        const bool isLast = (i == n - 1);
+        // M3: a 1px gutter after every slot but the last (exposes Row's
+        // border-coloured background). In equal-division mode the last slot
+        // also absorbs the width lost to integer division, same as before.
+        const int w = isLast ? (rowWidth - x) : (slotWidth - 1);
+        row.slots[i]->setBounds (x, 0, w, area.getHeight());
+        x += w + (isLast ? 0 : 1);
     }
 }
 

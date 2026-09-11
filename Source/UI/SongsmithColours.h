@@ -16,7 +16,6 @@ namespace lotro::SongsmithColours
     constexpr juce::uint32 text         = 0xFFD0D0D0;
     constexpr juce::uint32 textMuted    = 0xFF888888;
     constexpr juce::uint32 accentAmber  = 0xFFE0B080;
-    constexpr juce::uint32 warningRed   = 0xFFC06060;
 
     // 8-entry MIDI-track swatch cycle. The first four match the Songsmith UI
     // Guide mockup's track rows; the remaining four extend the cycle for

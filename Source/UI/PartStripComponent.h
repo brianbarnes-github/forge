@@ -11,6 +11,13 @@
 // region of SongsmithMainComponent), rebuilt from PARTS whenever anything in
 // that subtree changes (part add/remove, and — since chips live under
 // parts — ASSIGNMENT add/remove or any PART/ASSIGNMENT property change).
+//
+// Overflow handling (Phase 4 whole-branch review finding I3): slots have a
+// minimum width (minSlotWidth) below which the instrument badge/chips no
+// longer fit. When n * minSlotWidth fits the available width, slots share it
+// equally (as before); once it doesn't, every slot is pinned to
+// minSlotWidth and the row is placed inside a horizontal-only juce::Viewport
+// so the strip scrolls instead of squeezing.
 namespace lotro
 {
 
@@ -22,6 +29,7 @@ public:
     explicit PartStripComponent (SongDocument& document);
     ~PartStripComponent() override;
 
+    void paint (juce::Graphics& g) override;
     void resized() override;
 
     // Fired whenever a slot is selected (by click, or automatically after
@@ -45,14 +53,26 @@ private:
     void valueTreeParentChanged (juce::ValueTree&) override {}
     void handleAsyncUpdate() override { rebuild(); }
 
+    // The scrollable row of slots (M3: painted in SongsmithColours::border so
+    // a 1px gap left between adjacent slots reads as a gutter, matching the
+    // mockup).
+    class Row : public juce::Component
+    {
+    public:
+        void paint (juce::Graphics& g) override;
+        juce::OwnedArray<PartSlotComponent> slots;
+    };
+
     SongDocument&    doc;
     juce::Label      header;
     juce::TextButton addButton { "+ Add" };
-    juce::OwnedArray<PartSlotComponent> slots;
+    juce::Viewport   viewport;
+    Row              row;
     juce::int64      selectedPartId = -1;
 
     static constexpr int headerHeight = 20;
     static constexpr int addButtonWidth = 60;
+    static constexpr int minSlotWidth = 140;
 };
 
 } // namespace lotro
