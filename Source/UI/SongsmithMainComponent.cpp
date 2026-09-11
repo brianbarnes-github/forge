@@ -1,32 +1,67 @@
 #include "SongsmithMainComponent.h"
 #include "SongsmithColours.h"
 
-#include <cmath>
-
 namespace lotro
 {
 
+SongsmithMainComponent::UpperRegion::UpperRegion (juce::Label& headerIn, TrackListComponent& trackListIn,
+                                                   PianoRollComponent& rollIn)
+    : header (headerIn), trackList (trackListIn), roll (rollIn)
+{
+    addAndMakeVisible (header);
+    addAndMakeVisible (trackList);
+    addAndMakeVisible (roll);
+}
+
+void SongsmithMainComponent::UpperRegion::resized()
+{
+    auto area = getLocalBounds();
+    header.setBounds (area.removeFromTop (sourceHeaderHeight));
+    trackList.setBounds (area.removeFromLeft (trackListWidth));
+    roll.setBounds (area);
+}
+
+SongsmithMainComponent::LowerRegion::LowerRegion (PartStripComponent& partStripIn,
+                                                   DiagnosticListView& diagnosticsIn)
+    : partStrip (partStripIn), diagnostics (diagnosticsIn)
+{
+    addAndMakeVisible (partStrip);
+    addAndMakeVisible (diagnostics);
+}
+
+void SongsmithMainComponent::LowerRegion::resized()
+{
+    auto area = getLocalBounds();
+    partStrip.setBounds (area.removeFromTop (partStripHeight));
+    diagnostics.setBounds (area);
+}
+
 SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
-    : trackList (document), partStrip (document)
+    : doc (document),
+      trackList (document),
+      partStrip (document),
+      upperRegion (sourceHeader, trackList, sourceRoll),
+      lowerRegion (partStrip, diagnostics),
+      splitter (SplitterComponent::Orientation::topBottom)
 {
     sourceHeader.setText (
         juce::String::fromUTF8 ("\xe2\x96\xb2 MIDI SOURCE \xc2\xb7 drag tracks down to assign"),
         juce::dontSendNotification);
     sourceHeader.setColour (juce::Label::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
     sourceHeader.setColour (juce::Label::textColourId, juce::Colour (0xFF7FA8D0)); // mockup's blue label
-    addAndMakeVisible (sourceHeader);
 
-    addAndMakeVisible (trackList);
+    trackList.onTrackSelected = [this] (juce::int64 trackId) { trackSelected (trackId); };
 
-    sourcePlaceholder.setText (juce::String::fromUTF8 ("Source piano roll \xe2\x80\x94 Phase 5"),
-                                juce::dontSendNotification);
-    sourcePlaceholder.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
-    sourcePlaceholder.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (sourcePlaceholder);
+    addAndMakeVisible (upperRegion);
+    addAndMakeVisible (lowerRegion);
 
-    addAndMakeVisible (partStrip);
-
-    addAndMakeVisible (diagnostics);
+    // Splitter sits ON TOP of upperRegion/lowerRegion in z-order (same trick
+    // as MainWindow::Body's splitter) — its own hit area is transparent to
+    // clicks so upperRegion/lowerRegion get them, but its drag bar still
+    // gets its own via the second `true`.
+    splitter.setComponents (&upperRegion, &lowerRegion);
+    splitter.setInterceptsMouseClicks (false, true);
+    addAndMakeVisible (splitter);
 }
 
 void SongsmithMainComponent::paint (juce::Graphics& g)
@@ -36,23 +71,22 @@ void SongsmithMainComponent::paint (juce::Graphics& g)
 
 void SongsmithMainComponent::resized()
 {
-    auto area = getLocalBounds();
+    splitter.setBounds (getLocalBounds());
+}
 
-    sourceHeader.setBounds (area.removeFromTop (sourceHeaderHeight));
+void SongsmithMainComponent::trackSelected (juce::int64 trackId)
+{
+    auto trackNode = doc.findTrackById (trackId);
+    if (! trackNode.isValid())
+    {
+        currentNoteSource.reset();
+        sourceRoll.setNoteSource (nullptr, 480, {});
+        return;
+    }
 
-    // Fixed proportions for now (40% source region / fixed-height part strip
-    // / remainder diagnostics) rather than a user-resizable splitter.
-    // MainWindow::Body's Splitter class is horizontal-only today; Phase 5's
-    // piano roll is what will actually need a resizable top/bottom split,
-    // so generalising Splitter is deferred to that phase.
-    const int sourceHeight = (int) std::lround (area.getHeight() * 0.40);
-    auto sourceArea = area.removeFromTop (sourceHeight);
-    trackList.setBounds (sourceArea.removeFromLeft (trackListWidth));
-    sourcePlaceholder.setBounds (sourceArea);
-
-    partStrip.setBounds (area.removeFromTop (partStripHeight));
-
-    diagnostics.setBounds (area);
+    currentNoteSource = std::make_unique<SourceTrackNoteSource> (trackNode);
+    const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
+    sourceRoll.setNoteSource (currentNoteSource.get(), ticksPerQuarter, doc.getMeterMapNode());
 }
 
 } // namespace lotro
