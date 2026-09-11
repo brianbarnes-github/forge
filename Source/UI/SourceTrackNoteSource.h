@@ -24,6 +24,13 @@ public:
     juce::Range<int> getPitchRange() const override;
 
 private:
+    // False once `track` has been removed from the document (e.g. via
+    // SongDocument::removeTrack): the ValueTree object itself stays valid
+    // (refcounted, and possibly still referenced by undo history) but is no
+    // longer reachable from the document, so its notes are stale and must
+    // not be reported.
+    bool isTrackLive() const;
+
     juce::ValueTree track;
 };
 

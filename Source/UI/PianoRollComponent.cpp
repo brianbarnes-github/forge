@@ -23,6 +23,7 @@ PianoRollComponent::PianoRollComponent (Role roleIn) : role (roleIn)
     viewport.setViewedComponent (&canvas, false);
     viewport.setScrollBarsShown (true, true);
     addAndMakeVisible (viewport);
+    addAndMakeVisible (gutter); // added after viewport so it paints on top, pinned over the left edge
 }
 
 void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPerQuarterIn,
@@ -49,6 +50,7 @@ void PianoRollComponent::paint (juce::Graphics& g)
 void PianoRollComponent::resized()
 {
     viewport.setBounds (getLocalBounds());
+    gutter.setBounds (getLocalBounds().withWidth (geometry.getKeyboardGutterWidth()));
     rebuildContentSize();
 }
 
@@ -98,7 +100,6 @@ void PianoRollComponent::paintCanvas (juce::Graphics& g, juce::Rectangle<int> cl
 
     drawRowBands (g, clip);
     drawGridlines (g, clip);
-    drawKeyboardGutter (g, clip);
     drawNotes (g, clip);
 }
 
@@ -153,26 +154,28 @@ void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> 
     }
 }
 
-void PianoRollComponent::drawKeyboardGutter (juce::Graphics& g, juce::Rectangle<int> clip) const
+void PianoRollComponent::paintGutter (juce::Graphics& g) const
 {
     const int gutterWidth = geometry.getKeyboardGutterWidth();
-    const int gutterRight = juce::jmin (clip.getRight(), gutterWidth);
-    if (gutterRight <= clip.getX())
-        return; // scrolled past the gutter — nothing to draw in this clip
+    const int gutterHeight = gutter.getHeight();
 
-    juce::Rectangle<int> gutterRect (clip.getX(), clip.getY(), gutterRight - clip.getX(), clip.getHeight());
     g.setColour (juce::Colour (gutterFill));
-    g.fillRect (gutterRect);
+    g.fillRect (0, 0, gutterWidth, gutterHeight);
     g.setColour (juce::Colour (SongsmithColours::border));
-    g.drawVerticalLine (gutterWidth - 1, (float) clip.getY(), (float) clip.getBottom());
+    g.drawVerticalLine (gutterWidth - 1, 0.0f, (float) gutterHeight);
 
     const int rowHeight = geometry.getRowHeight();
     if (rowHeight <= 0)
         return;
 
+    // The gutter isn't inside the Viewport's scrollable content, so its rows
+    // have to be placed manually at the canvas's current vertical scroll
+    // offset — this is what keeps its key labels in sync with the note rows
+    // scrolling underneath, per the class comment on `visibleAreaChanged`.
+    const int scrollY = viewport.getViewPositionY();
     const int topPitch = geometry.getTopPitch();
-    const int firstRow = clip.getY() / rowHeight;
-    const int lastRow = clip.getBottom() / rowHeight;
+    const int firstRow = scrollY / rowHeight;
+    const int lastRow = (scrollY + gutterHeight) / rowHeight;
 
     g.setFont (juce::Font (juce::FontOptions (9.0f)));
     g.setColour (juce::Colour (SongsmithColours::textMuted));
@@ -184,8 +187,8 @@ void PianoRollComponent::drawKeyboardGutter (juce::Graphics& g, juce::Rectangle<
             continue; // only label C notes, per the mockup
 
         const int octave = pitch / 12 - 1; // MIDI convention: pitch 60 == C4
-        const int y = geometry.yForPitch (pitch);
-        g.drawFittedText ("C" + juce::String (octave), clip.getX(), y, gutterWidth - 4, rowHeight,
+        const int y = geometry.yForPitch (pitch) - scrollY;
+        g.drawFittedText ("C" + juce::String (octave), 0, y, gutterWidth - 4, rowHeight,
                            juce::Justification::centredRight, 1);
     }
 }

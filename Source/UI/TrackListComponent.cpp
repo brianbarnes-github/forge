@@ -44,6 +44,18 @@ void TrackListComponent::rebuild()
         content.addAndMakeVisible (row);
     }
 
+    // M5: the previously-selected track may have just disappeared (e.g. all
+    // tracks removed, or SongDocument::removeTrack on this one specifically)
+    // — clear the stale selection and notify via the same callback used for
+    // a real click, so listeners (SongsmithMainComponent) can drop it too
+    // instead of keeping the now-orphaned track's notes on screen.
+    if (selectedTrackId != -1 && ! doc.findTrackById (selectedTrackId).isValid())
+    {
+        selectedTrackId = -1;
+        if (onTrackSelected)
+            onTrackSelected (selectedTrackId);
+    }
+
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
     repaint(); // M4: empty-state message visibility may have changed.

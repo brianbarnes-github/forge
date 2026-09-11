@@ -12,9 +12,14 @@ SourceTrackNoteSource::SourceTrackNoteSource (juce::ValueTree trackNode)
     jassert (track.hasType (SongIDs::MIDI_TRACK));
 }
 
+bool SourceTrackNoteSource::isTrackLive() const
+{
+    return track.isValid() && track.getParent().isValid();
+}
+
 int SourceTrackNoteSource::getNumNotes() const
 {
-    return track.getNumChildren();
+    return isTrackLive() ? track.getNumChildren() : 0;
 }
 
 PianoRollNote SourceTrackNoteSource::getNote (int index) const
