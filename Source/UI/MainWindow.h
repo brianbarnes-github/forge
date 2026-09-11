@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Core/ConfigLoader.h"
+#include "SongDocument.h"
 
 #include <memory>
 
@@ -40,10 +41,19 @@ private:
         FileSaveAsToml,
         FileSaveAsXml,
         FileSaveAbc,
-        FileQuit
+        FileQuit,
+        EditUndo,
+        EditRedo,
+        SongDefaultParts,
+        ViewClassicEditorToggle
     };
 
     class Body;
+    // Declared before `body` so it's constructed first (member init order
+    // follows declaration order) — Body's SongsmithMainComponent needs a
+    // reference to it at construction time.
+    SongDocument                             songDocument;
+    int                                      nextImportBatch = 1;
     std::unique_ptr<Body>                   body;
     std::unique_ptr<juce::MenuBarComponent> menuBar;
     std::unique_ptr<juce::FileChooser>      fileChooser;
@@ -55,6 +65,7 @@ private:
     void runConversion();
     void saveConfigAs (ConfigFormat format);
     void saveAbcAs();
+    void toggleClassicEditorMode();
 
     std::string lastAbc;   // populated by runConversion(); consumed by saveAbcAs()
 };

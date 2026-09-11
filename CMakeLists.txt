@@ -96,6 +96,12 @@ target_sources(forge_ui PRIVATE
     Source/UI/MainWindow.cpp
     Source/UI/SongDocument.cpp
     Source/UI/SongModelBridge.cpp
+    Source/UI/TrackRowComponent.cpp
+    Source/UI/TrackListComponent.cpp
+    Source/UI/AssignmentChipComponent.cpp
+    Source/UI/PartSlotComponent.cpp
+    Source/UI/PartStripComponent.cpp
+    Source/UI/SongsmithMainComponent.cpp
     Source/UI/EditorPane.cpp
     Source/UI/DiagnosticsPane.cpp
     Source/UI/DiagnosticListView.cpp
