@@ -95,7 +95,7 @@ void TrackRowComponent::paint (juce::Graphics& g)
     // First line: index, name, swatch square.
     auto indexArea = firstLine.removeFromLeft (16);
     g.setColour (juce::Colour (textMuted));
-    g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain));
+    g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain)));
     g.drawText (juce::String (index), indexArea, juce::Justification::centredLeft);
 
     auto swatchArea = firstLine.removeFromRight (10).withSizeKeepingCentre (10, 10);
@@ -103,13 +103,13 @@ void TrackRowComponent::paint (juce::Graphics& g)
     g.fillRect (swatchArea);
 
     g.setColour (juce::Colour (text));
-    g.setFont (juce::Font (11.0f));
+    g.setFont (juce::Font (juce::FontOptions (11.0f)));
     g.drawText (track.getProperty (SongIDs::name).toString(), firstLine.withTrimmedRight (4),
                 juce::Justification::centredLeft);
 
     // Second line: note count / range.
     g.setColour (juce::Colour (textMuted));
-    g.setFont (juce::Font (9.0f));
+    g.setFont (juce::Font (juce::FontOptions (9.0f)));
     g.drawText (buildSecondLine(), secondLine, juce::Justification::centredLeft);
 }
 

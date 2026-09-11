@@ -1,8 +1,6 @@
 #include "AssignmentChipComponent.h"
 #include "SongsmithColours.h"
 
-#include <cmath>
-
 namespace lotro
 {
 
@@ -59,12 +57,12 @@ int AssignmentChipComponent::getPreferredWidth() const
     const auto label = buildLabel();
     const auto transpose = transposeLabel ((int) assignment.getProperty (SongIDs::transposeSemitones));
 
-    juce::Font labelFont (10.0f);
-    juce::Font monoFont (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain);
+    juce::Font labelFont (juce::FontOptions (10.0f));
+    juce::Font monoFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain));
 
     // swatch (10) + gap + label + gap + transpose + gap + remove button (14)
-    return 10 + 4 + (int) std::ceil (labelFont.getStringWidthFloat (label)) + 4
-              + (int) std::ceil (monoFont.getStringWidthFloat (transpose)) + 4
+    return 10 + 4 + juce::GlyphArrangement::getStringWidthInt (labelFont, label) + 4
+              + juce::GlyphArrangement::getStringWidthInt (monoFont, transpose) + 4
               + 14 + 10; // trailing padding
 }
 
@@ -98,12 +96,12 @@ void AssignmentChipComponent::paint (juce::Graphics& g)
 
     auto transposeArea = area.removeFromRight (28);
     g.setColour (juce::Colour (SongsmithColours::textMuted));
-    g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain));
+    g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain)));
     g.drawText (transposeLabel ((int) assignment.getProperty (SongIDs::transposeSemitones)),
                 transposeArea, juce::Justification::centredLeft);
 
     g.setColour (juce::Colour (SongsmithColours::text));
-    g.setFont (juce::Font (10.0f));
+    g.setFont (juce::Font (juce::FontOptions (10.0f)));
     g.drawText (buildLabel(), area, juce::Justification::centredLeft);
 }
 

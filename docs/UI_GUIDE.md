@@ -208,9 +208,11 @@ View
 In Songsmith mode, **File → Open MIDI…** and dropping a `.mid`/`.midi` file
 both import into `songDocument` (via `importMidiFile`) and show the result
 in this view's own `DiagnosticsPane`, instead of loading into the classic
-`EditorPane`. Dropping a `.json`/`.toml`/`.xml` config file in Songsmith
-mode shows a "Config files are not supported in Songsmith mode yet" message
-box rather than opening it — Songsmith has no `Config`-editing surface yet.
+`EditorPane`. **File → Open Config…** and dropping a `.json`/`.toml`/`.xml`
+config file both go through the same `openConfigFromPath`, so in Songsmith
+mode either one shows a "Config files are not supported in Songsmith mode
+yet" message box rather than opening it — Songsmith has no `Config`-editing
+surface yet.
 
 Export/Run is not part of Songsmith yet (Phase 6) — there is no Run button
 in this view.

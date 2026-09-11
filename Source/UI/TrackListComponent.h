@@ -15,7 +15,8 @@ namespace lotro
 {
 
 class TrackListComponent : public juce::Component,
-                            private juce::ValueTree::Listener
+                            private juce::ValueTree::Listener,
+                            private juce::AsyncUpdater
 {
 public:
     explicit TrackListComponent (SongDocument& document);
@@ -40,12 +41,20 @@ private:
 
     // juce::ValueTree::Listener — any of these firing on the SOURCE_MIDI
     // subtree (track add/remove/reorder or a property change on a track)
-    // means the row list is stale.
-    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { rebuild(); }
-    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { rebuild(); }
-    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { rebuild(); }
-    void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { rebuild(); }
+    // means the row list is stale. A real MIDI import appends notes one at a
+    // time (SongModelBridge::importMidiFile), and JUCE bubbles every one of
+    // those child-added notifications up through SOURCE_MIDI, so rebuilding
+    // synchronously here would tear down and reconstruct every row (each
+    // O(notes in that track)) once per note — thousands of rebuilds for a
+    // real file. Coalesce via AsyncUpdater: listeners just request a
+    // rebuild, and handleAsyncUpdate() performs at most one per message-loop
+    // iteration no matter how many notifications land in between.
+    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { triggerAsyncUpdate(); }
+    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { triggerAsyncUpdate(); }
+    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { triggerAsyncUpdate(); }
+    void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { triggerAsyncUpdate(); }
     void valueTreeParentChanged (juce::ValueTree&) override {}
+    void handleAsyncUpdate() override { rebuild(); }
 
     SongDocument&   doc;
     juce::Viewport  viewport;
