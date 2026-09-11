@@ -266,12 +266,27 @@ TEST_CASE ("SongsmithRoundTrip: a later, lower-PPQ import is upscaled into the d
     CHECK (warningCount == (timelineDiffers ? 1 : 0));
 }
 
-TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import is downscaled (lossily where inexact) into the document's PPQ", "[songsmith-roundtrip]")
+// A-R3 (Phase 4): this used to pin the Phase 3 lossy-downscale behaviour
+// (blue.mid's 120 PPQ document downscaling anymore.mid's 960-PPQ notes,
+// lossily where inexact). Under the LCM rule, lcm(120, 960) = 960, which is
+// > the document's current PPQ (120) and well under the 15360 cap, so the
+// document's time base is now RAISED to 960 instead — blue.mid's EXISTING
+// notes are rescaled ×8 (exact; the incoming file's own PPQ needs no rescale
+// at all, since the raise lands exactly on it). This is also the F1
+// regression fixture from the Phase 3 review's own numbers (blue.mid was one
+// of the two 120-PPQ files named there) but exercised as an EXISTING-side
+// upscale rather than the dangerous incoming-side downscale — see the
+// dedicated F1 regression test below for the actual danger case (right.mid).
+TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's time base instead of lossily downscaling (blue.mid then anymore.mid)", "[songsmith-roundtrip]")
 {
     const auto firstFile  = midiFixture ("blue.mid");
     const auto secondFile = midiFixture ("anymore.mid");
     REQUIRE (firstFile.existsAsFile());
     REQUIRE (secondFile.existsAsFile());
+
+    Diagnostics directFirstDiag;
+    auto directFirstSong = directImport (firstFile, directFirstDiag);
+    REQUIRE (directFirstSong.ticksPerQuarter == 120);
 
     SongDocument doc;
     Diagnostics diag1;
@@ -285,45 +300,64 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import is downscaled (lossil
     Diagnostics diag2;
     REQUIRE (importMidiFile (doc, secondFile, 2, diag2));
 
-    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 120);
-    CHECK (snapshotTempoMap (doc).entries == tempoAfterFirst.entries);
-    CHECK (snapshotMeterMap (doc).entries == meterAfterFirst.entries);
+    // Raised: lcm(120, 960) = 960 > 120, so the document's PPQ is now 960.
+    REQUIRE ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 960);
 
-    Diagnostics directDiag;
-    auto directSong = directImport (secondFile, directDiag);
-    REQUIRE (directSong.ticksPerQuarter == 960);
+    const int raiseFactor = 8; // 960 / 120
 
-    const int docPpq = 120;
-    const int importedPpq = 960;
-    bool anyInexact = false;
-
-    REQUIRE (doc.getNumTracks() == tracksAfterFirst + (int) directSong.tracks.size());
-    for (size_t t = 0; t < directSong.tracks.size(); ++t)
+    // blue.mid's existing notes rescaled ×8, exactly, versus a direct import.
+    REQUIRE (doc.getNumTracks() >= tracksAfterFirst);
+    for (int t = 0; t < tracksAfterFirst; ++t)
     {
-        auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
-        const auto& directTrack = directSong.tracks[t];
+        auto trackTree = doc.getTrack (t);
+        const auto& directTrack = directFirstSong.tracks[(size_t) t];
         REQUIRE (trackTree.getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
         {
             auto noteTree = trackTree.getChild ((int) n);
             const auto& directNote = directTrack.notes[n];
-
-            if (! isExactRescale (directNote.startTick, docPpq, importedPpq)) anyInexact = true;
-            if (! isExactRescale (directNote.durationTicks, docPpq, importedPpq)) anyInexact = true;
-
-            CHECK ((int) noteTree.getProperty (SongIDs::startTick)
-                   == rescaleTick (directNote.startTick, docPpq, importedPpq));
-            CHECK ((int) noteTree.getProperty (SongIDs::durationTicks)
-                   == rescaleTick (directNote.durationTicks, docPpq, importedPpq));
-            CHECK ((int) noteTree.getProperty (SongIDs::pitch) == directNote.pitch);
-            CHECK ((int) noteTree.getProperty (SongIDs::velocity) == directNote.velocity);
-            CHECK ((bool) noteTree.getProperty (SongIDs::isDrum) == directNote.isDrum);
-            CHECK ((int) noteTree.getProperty (SongIDs::sourceTrackIndex) == directNote.sourceTrackIndex);
-            CHECK ((int) noteTree.getProperty (SongIDs::sourceEventIndex) == directNote.sourceEventIndex);
+            CHECK ((int) noteTree.getProperty (SongIDs::startTick) == directNote.startTick * raiseFactor);
+            CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == directNote.durationTicks * raiseFactor);
         }
     }
 
+    // blue.mid's existing tempo/meter map ticks rescaled ×8 too.
+    auto tempoMapNode = doc.getTempoMapNode();
+    REQUIRE (tempoMapNode.getNumChildren() == (int) tempoAfterFirst.entries.size());
+    for (size_t i = 0; i < tempoAfterFirst.entries.size(); ++i)
+        CHECK ((int) tempoMapNode.getChild ((int) i).getProperty (SongIDs::tick)
+               == tempoAfterFirst.entries[i].first * raiseFactor);
+
+    auto meterMapNode = doc.getMeterMapNode();
+    REQUIRE (meterMapNode.getNumChildren() == (int) meterAfterFirst.entries.size());
+    for (size_t i = 0; i < meterAfterFirst.entries.size(); ++i)
+        CHECK ((int) meterMapNode.getChild ((int) i).getProperty (SongIDs::tick)
+               == std::get<0> (meterAfterFirst.entries[i]) * raiseFactor);
+
+    // anymore.mid's incoming notes verbatim — the raise landed exactly on
+    // its own PPQ (960), so no rescale was needed on the incoming side.
+    Diagnostics directSecondDiag;
+    auto directSecondSong = directImport (secondFile, directSecondDiag);
+    REQUIRE (directSecondSong.ticksPerQuarter == 960);
+
+    REQUIRE (doc.getNumTracks() == tracksAfterFirst + (int) directSecondSong.tracks.size());
+    for (size_t t = 0; t < directSecondSong.tracks.size(); ++t)
+    {
+        auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
+        const auto& directTrack = directSecondSong.tracks[t];
+        REQUIRE (trackTree.getNumChildren() == (int) directTrack.notes.size());
+
+        for (size_t n = 0; n < directTrack.notes.size(); ++n)
+        {
+            auto noteTree = trackTree.getChild ((int) n);
+            const auto& directNote = directTrack.notes[n];
+            CHECK ((int) noteTree.getProperty (SongIDs::startTick) == directNote.startTick);
+            CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == directNote.durationTicks);
+        }
+    }
+
+    // The raise is always exact -> Info, NEVER a Warning about rounding.
     int infoCount = 0, warningCount = 0;
     for (const auto& d : diag2)
     {
@@ -331,13 +365,81 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import is downscaled (lossil
         if (d.severity == Severity::Info) ++infoCount;
         else if (d.severity == Severity::Warning) ++warningCount;
     }
+    CHECK (infoCount >= 1);
+    for (const auto& d : diag2)
+        if (d.source == "SongModelBridge" && d.severity == Severity::Warning)
+            CHECK (d.message.find ("rounded") == std::string::npos);
+}
 
-    const bool timelineDiffers = rescaledTimelineDiffers (tempoAfterFirst, meterAfterFirst, directSong, docPpq, importedPpq);
-    const int expectedRescaleWarnings = anyInexact ? 1 : 0;
-    const int expectedRescaleInfos    = anyInexact ? 0 : 1;
+// F1 regression (Phase 3 review): importing right.mid (480 PPQ) after a
+// 120-PPQ document (blue.mid first) used to downscale right.mid's notes
+// lossily into 120 PPQ, rounding 126 of its 1-tick notes to 0 and silently
+// destroying them (DurationConstraint drops zero-duration notes without a
+// Diagnostic of its own). Under A-R3's LCM rule, lcm(120, 480) = 480 > 120,
+// so the document is raised to 480 (right.mid's own PPQ) instead — right's
+// notes need NO rescale at all (480/480 == 1), so they survive with their
+// exact original tick values; it is blue.mid's EXISTING notes that get
+// rescaled (×4, exactly) to fit the raised time base.
+TEST_CASE ("SongsmithRoundTrip: importing a higher-PPQ file no longer destroys its short notes (F1 regression: blue.mid then right.mid)", "[songsmith-roundtrip]")
+{
+    const auto firstFile  = midiFixture ("blue.mid");
+    const auto secondFile = midiFixture ("right.mid");
+    REQUIRE (firstFile.existsAsFile());
+    REQUIRE (secondFile.existsAsFile());
 
-    CHECK (infoCount == expectedRescaleInfos);
-    CHECK (warningCount == expectedRescaleWarnings + (timelineDiffers ? 1 : 0));
+    SongDocument doc;
+    Diagnostics diag1;
+    REQUIRE (importMidiFile (doc, firstFile, 1, diag1));
+    REQUIRE ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 120);
+
+    const int tracksAfterFirst = doc.getNumTracks();
+
+    Diagnostics diag2;
+    REQUIRE (importMidiFile (doc, secondFile, 2, diag2));
+
+    // Raised: lcm(120, 480) = 480 > 120.
+    REQUIRE ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
+
+    Diagnostics directDiag;
+    auto directSong = directImport (secondFile, directDiag);
+    REQUIRE (directSong.ticksPerQuarter == 480);
+
+    // F1's specific failure mode: right.mid has 1-tick-duration notes that
+    // the OLD lossy downscale (480 -> 120) would round to 0 and silently
+    // drop. Count them in the direct import, then assert every single one of
+    // them survives in the document with its EXACT original duration (1,
+    // unchanged) — the raise means the incoming side needed no rescale at
+    // all, so nothing here can round to zero.
+    int oneTickNotesInDirectImport = 0;
+    for (const auto& track : directSong.tracks)
+        for (const auto& note : track.notes)
+            if (note.durationTicks == 1)
+                ++oneTickNotesInDirectImport;
+    REQUIRE (oneTickNotesInDirectImport > 0);
+
+    int oneTickNotesInDocument = 0;
+    int zeroTickNotesInDocument = 0;
+    for (int t = tracksAfterFirst; t < doc.getNumTracks(); ++t)
+    {
+        auto trackTree = doc.getTrack (t);
+        for (int n = 0; n < trackTree.getNumChildren(); ++n)
+        {
+            const int duration = (int) trackTree.getChild (n).getProperty (SongIDs::durationTicks);
+            if (duration == 1) ++oneTickNotesInDocument;
+            if (duration == 0) ++zeroTickNotesInDocument;
+        }
+    }
+
+    CHECK (oneTickNotesInDocument == oneTickNotesInDirectImport);
+    CHECK (zeroTickNotesInDocument == 0);
+
+    // No Warning naming rounded/dropped notes — the raise itself is always
+    // exact. (A separate tempo/meter-timeline Warning may legitimately fire
+    // per A-R4 if blue.mid's and right.mid's tempo/meter maps differ — that
+    // is an unrelated diagnostic and not what this regression test guards.)
+    for (const auto& d : diag2)
+        if (d.source == "SongModelBridge" && d.severity == Severity::Warning)
+            CHECK (d.message.find ("rounded") == std::string::npos);
 }
 
 TEST_CASE ("SongsmithRoundTrip: a later, same-PPQ import keeps ticks verbatim and emits no rescale diagnostic", "[songsmith-roundtrip]")

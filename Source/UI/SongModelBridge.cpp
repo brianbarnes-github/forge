@@ -2,18 +2,26 @@
 
 #include "Core/LotroInstrument.h"
 #include "Core/MidiImporter.h"
+#include "SongsmithColours.h"
 
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <map>
+#include <numeric>
 #include <set>
+#include <sstream>
 
 namespace lotro
 {
 
 namespace
 {
+    // A-R3: LCM raise cap. 16 * 960 — realistic MIDI PPQs (96..1920) always
+    // stay far below this, so the cap is only ever hit by pathological or
+    // synthetic inputs, which fall back to the Phase 3 lossy-downscale path.
+    constexpr long long kLcmCap = 15360;
+
     int rescaleTick (int tick, int docPpq, int importedPpq)
     {
         return (int) std::lround ((double) tick * (double) docPpq / (double) importedPpq);
@@ -22,6 +30,58 @@ namespace
     bool isExactRescale (int tick, int docPpq, int importedPpq)
     {
         return ((long long) tick * (long long) docPpq) % (long long) importedPpq == 0;
+    }
+
+    // A-R3(a)/(b): multiplies every existing NOTE start/duration tick and
+    // every TEMPO_CHANGE/METER_CHANGE tick by `factor`. The caller guarantees
+    // factor == newPpq / docPpq is an exact integer (newPpq is an LCM, hence
+    // a multiple of docPpq), so this never rounds. Returns the number of NOTE
+    // nodes rescaled, for the "Raised document time base..." diagnostic.
+    int rescaleExistingDocumentTicks (SongDocument& doc, int factor)
+    {
+        int noteCount = 0;
+        auto sourceMidiNode = doc.getSourceMidiNode();
+        for (int t = 0; t < sourceMidiNode.getNumChildren(); ++t)
+        {
+            auto trackTree = sourceMidiNode.getChild (t);
+            for (int n = 0; n < trackTree.getNumChildren(); ++n)
+            {
+                auto noteTree = trackTree.getChild (n);
+                const int startTick     = (int) noteTree.getProperty (SongIDs::startTick);
+                const int durationTicks = (int) noteTree.getProperty (SongIDs::durationTicks);
+                noteTree.setProperty (SongIDs::startTick, startTick * factor, nullptr);
+                noteTree.setProperty (SongIDs::durationTicks, durationTicks * factor, nullptr);
+                ++noteCount;
+            }
+        }
+
+        auto tempoMapNode = doc.getTempoMapNode();
+        for (int i = 0; i < tempoMapNode.getNumChildren(); ++i)
+        {
+            auto c = tempoMapNode.getChild (i);
+            c.setProperty (SongIDs::tick, (int) c.getProperty (SongIDs::tick) * factor, nullptr);
+        }
+
+        auto meterMapNode = doc.getMeterMapNode();
+        for (int i = 0; i < meterMapNode.getNumChildren(); ++i)
+        {
+            auto c = meterMapNode.getChild (i);
+            c.setProperty (SongIDs::tick, (int) c.getProperty (SongIDs::tick) * factor, nullptr);
+        }
+
+        return noteCount;
+    }
+
+    // A-R4: minimal, human-friendly BPM formatting ("120" instead of "120.0"
+    // when the value is a whole number; otherwise the natural decimal form).
+    std::string formatBpm (double bpm)
+    {
+        std::ostringstream oss;
+        if (bpm == std::floor (bpm))
+            oss << (long long) bpm;
+        else
+            oss << bpm;
+        return oss.str();
     }
 }
 
@@ -49,8 +109,44 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
     if (isFirstImport)
         doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, imported.ticksPerQuarter, nullptr);
 
-    const int docPpq      = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter);
-    const int importedPpq = imported.ticksPerQuarter;
+    int docPpq             = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter);
+    const int importedPpq  = imported.ticksPerQuarter;
+
+    // A-R3: when a later import's PPQ differs from the document's, prefer
+    // RAISING the document's time base to lcm(docPpq, importedPpq) — an
+    // exact, lossless integer rescale on both the existing document's ticks
+    // and the incoming ticks — over the Phase 3 lossy-downscale-into-docPpq
+    // fallback, as long as the LCM stays under a sane cap.
+    bool raisedDocumentTimeBase     = false;
+    const int raisedFromPpq         = docPpq;
+    int existingNotesRescaledCount  = 0;
+
+    if (! isFirstImport && importedPpq != docPpq)
+    {
+        const long long lcmPpq = std::lcm ((long long) docPpq, (long long) importedPpq);
+        if (lcmPpq <= kLcmCap && (int) lcmPpq > docPpq)
+        {
+            const int newPpq = (int) lcmPpq;
+            const int existingRescaleFactor = newPpq / docPpq;
+
+            existingNotesRescaledCount = rescaleExistingDocumentTicks (doc, existingRescaleFactor);
+
+            doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, newPpq, nullptr);
+            // A-R3(c): recorded undo steps hold pre-rescale tick values and
+            // would corrupt the document if replayed, so the raise wipes the
+            // undo history outright.
+            doc.getUndoManager().clearUndoHistory();
+
+            raisedDocumentTimeBase = true;
+            docPpq = newPpq;
+        }
+        // else: either the LCM is over the cap (falls through to the
+        // Phase 3 lossy fallback below, unchanged) or the LCM already equals
+        // docPpq (importedPpq divides docPpq exactly — the exact-rescale
+        // formula below already handles this losslessly, so no raise, and
+        // per Ruling A-R3 this keeps the Phase 3 diagnostic wording).
+    }
+
     const bool needsRescale = ! isFirstImport && importedPpq != docPpq;
 
     int roundedValueCount    = 0;
@@ -59,7 +155,8 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 
     for (const auto& track : imported.tracks)
     {
-        auto trackTree = doc.addTrackBulk (track.name, 0, track.sourceMidiChannel, importBatch);
+        const auto colorArgb = (int) SongsmithColours::trackColourForIndex (doc.getNumTracks());
+        auto trackTree = doc.addTrackBulk (track.name, colorArgb, track.sourceMidiChannel, importBatch);
 
         for (const auto& note : track.notes)
         {
@@ -100,11 +197,24 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
         }
     }
 
-    // Only emit the rescale diagnostic when a rescale actually touched at
-    // least one note — a trackless later import (zero notes) sets
+    if (raisedDocumentTimeBase)
+    {
+        // A-R3(e): exactly one Info diagnostic for the raise. No Warning is
+        // possible on this path — a raise is always an exact integer
+        // multiply on both sides (lcm's own definition), nothing rounds.
+        Diagnostic d;
+        d.source   = "SongModelBridge";
+        d.severity = Severity::Info;
+        d.message  = "Raised document time base from " + std::to_string (raisedFromPpq)
+                   + " to " + std::to_string (docPpq) + " PPQ ("
+                   + std::to_string (existingNotesRescaledCount) + " existing note(s) rescaled)";
+        diagnostics.push_back (std::move (d));
+    }
+    // Only emit the Phase 3 rescale diagnostic when a rescale actually
+    // touched at least one note — a trackless later import (zero notes) sets
     // needsRescale via the PPQ mismatch alone but rescales nothing, and
     // claiming a rescale happened would be misleading.
-    if (needsRescale && rescaledNoteCount > 0)
+    else if (needsRescale && rescaledNoteCount > 0)
     {
         Diagnostic d;
         d.source   = "SongModelBridge";
@@ -149,9 +259,9 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
     else
     {
         auto tempoMapNode = doc.getTempoMapNode();
-        bool timelineDiffers = tempoMapNode.getNumChildren() != (int) imported.tempoMap.size();
+        bool tempoDiffers = tempoMapNode.getNumChildren() != (int) imported.tempoMap.size();
 
-        for (size_t i = 0; ! timelineDiffers && i < imported.tempoMap.size(); ++i)
+        for (size_t i = 0; ! tempoDiffers && i < imported.tempoMap.size(); ++i)
         {
             const auto rescaledTick = needsRescale
                 ? rescaleTick (imported.tempoMap[i].tick, docPpq, importedPpq)
@@ -159,34 +269,59 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
             auto existing = tempoMapNode.getChild ((int) i);
             if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
                 || (double) existing.getProperty (SongIDs::bpm) != imported.tempoMap[i].bpm)
-                timelineDiffers = true;
+                tempoDiffers = true;
         }
 
-        if (! timelineDiffers)
-        {
-            auto meterMapNode = doc.getMeterMapNode();
-            timelineDiffers = meterMapNode.getNumChildren() != (int) imported.meterMap.size();
+        auto meterMapNode = doc.getMeterMapNode();
+        bool meterDiffers = meterMapNode.getNumChildren() != (int) imported.meterMap.size();
 
-            for (size_t i = 0; ! timelineDiffers && i < imported.meterMap.size(); ++i)
-            {
-                const auto rescaledTick = needsRescale
-                    ? rescaleTick (imported.meterMap[i].tick, docPpq, importedPpq)
-                    : imported.meterMap[i].tick;
-                auto existing = meterMapNode.getChild ((int) i);
-                if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
-                    || (int) existing.getProperty (SongIDs::numerator) != imported.meterMap[i].numerator
-                    || (int) existing.getProperty (SongIDs::denominator) != imported.meterMap[i].denominator)
-                    timelineDiffers = true;
-            }
+        for (size_t i = 0; ! meterDiffers && i < imported.meterMap.size(); ++i)
+        {
+            const auto rescaledTick = needsRescale
+                ? rescaleTick (imported.meterMap[i].tick, docPpq, importedPpq)
+                : imported.meterMap[i].tick;
+            auto existing = meterMapNode.getChild ((int) i);
+            if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
+                || (int) existing.getProperty (SongIDs::numerator) != imported.meterMap[i].numerator
+                || (int) existing.getProperty (SongIDs::denominator) != imported.meterMap[i].denominator)
+                meterDiffers = true;
         }
 
-        if (timelineDiffers)
+        // A-R4: name the actual first tempo/meter values on both sides
+        // rather than the old generic "differs... was ignored" wording, so
+        // the user knows exactly what's inconsistent. Tempo takes
+        // precedence when both differ (the more audible discrepancy);
+        // meter-only gets its own wording per the ruling.
+        if (tempoDiffers)
         {
+            const double fileBpm = imported.tempoMap.empty() ? 0.0 : imported.tempoMap[0].bpm;
+            const double docBpm  = tempoMapNode.getNumChildren() == 0
+                                       ? 0.0 : (double) tempoMapNode.getChild (0).getProperty (SongIDs::bpm);
+
             Diagnostic d;
             d.source   = "SongModelBridge";
             d.severity = Severity::Warning;
-            d.message  = "Later MIDI import's tempo/meter timeline differs from the document's; "
-                         "the document's timeline was kept and the incoming file's was ignored";
+            d.message  = "Imported file's tempo map differs from the document's (file starts at "
+                       + formatBpm (fileBpm) + " BPM, document at " + formatBpm (docBpm)
+                       + " BPM); its tracks will play at the document's tempo";
+            diagnostics.push_back (std::move (d));
+        }
+        else if (meterDiffers)
+        {
+            const int fileNum = imported.meterMap.empty() ? 4 : imported.meterMap[0].numerator;
+            const int fileDen = imported.meterMap.empty() ? 4 : imported.meterMap[0].denominator;
+            const int docNum  = meterMapNode.getNumChildren() == 0
+                                     ? 4 : (int) meterMapNode.getChild (0).getProperty (SongIDs::numerator);
+            const int docDen  = meterMapNode.getNumChildren() == 0
+                                     ? 4 : (int) meterMapNode.getChild (0).getProperty (SongIDs::denominator);
+
+            Diagnostic d;
+            d.source   = "SongModelBridge";
+            d.severity = Severity::Warning;
+            d.message  = "Imported file's meter map differs from the document's (file starts at "
+                       + std::to_string (fileNum) + "/" + std::to_string (fileDen)
+                       + ", document at " + std::to_string (docNum) + "/" + std::to_string (docDen)
+                       + "); its tracks will play at the document's tempo";
             diagnostics.push_back (std::move (d));
         }
     }
