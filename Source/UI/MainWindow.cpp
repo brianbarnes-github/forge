@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 #include "EditorPane.h"
 #include "DiagnosticsPane.h"
+#include "SongModelBridge.h"
+#include "SongsmithMainComponent.h"
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
@@ -17,7 +19,7 @@ namespace lotro
 class MainWindow::Body : public juce::Component
 {
 public:
-    Body()
+    explicit Body (SongDocument& doc) : songsmith (doc)
     {
         addAndMakeVisible (editor);
         addAndMakeVisible (diagnostics);
@@ -27,13 +29,35 @@ public:
         // editor/diagnostics receive nothing. Children (the drag bar) still
         // get clicks because the second arg is true.
         splitter.setInterceptsMouseClicks (false, true);
-        addAndMakeVisible (splitter);
+        // Both the classic splitter and the Songsmith view are children
+        // throughout this Body's lifetime; only one is ever visible
+        // (toggled by setSongsmithMode), so switching modes never needs to
+        // reparent anything. Songsmith is the default on startup (amendment
+        // (a)); the View menu's "Classic editor" item, off by default,
+        // switches back to the splitter.
+        addChildComponent (splitter);
+        splitter.setVisible (false);
+
+        addChildComponent (songsmith);
+        songsmith.setVisible (true);
     }
 
-    void resized() override { splitter.setBounds (getLocalBounds()); }
+    void resized() override
+    {
+        splitter.setBounds (getLocalBounds());
+        songsmith.setBounds (getLocalBounds());
+    }
 
     EditorPane&      getEditor()      { return editor; }
     DiagnosticsPane& getDiagnostics() { return diagnostics; }
+    SongsmithMainComponent& getSongsmith() { return songsmith; }
+
+    void setSongsmithMode (bool enabled)
+    {
+        splitter.setVisible (! enabled);
+        songsmith.setVisible (enabled);
+    }
+    bool isSongsmithMode() const { return songsmith.isVisible(); }
 
 private:
     class Splitter : public juce::Component
@@ -86,13 +110,14 @@ private:
     EditorPane      editor;
     DiagnosticsPane diagnostics;
     Splitter        splitter;
+    SongsmithMainComponent songsmith;
 };
 
 MainWindow::MainWindow()
     : juce::DocumentWindow ("Forge",
                             juce::Colours::lightgrey,
                             juce::DocumentWindow::allButtons),
-      body (std::make_unique<Body>()),
+      body (std::make_unique<Body> (songDocument)),
       menuBar (std::make_unique<juce::MenuBarComponent> (this))
 {
     // JUCE's own title bar (false) rather than the native X11/WSLg one.
@@ -144,12 +169,12 @@ void MainWindow::closeButtonPressed()
     juce::JUCEApplication::getInstance()->systemRequestedQuit();
 }
 
-juce::StringArray MainWindow::getMenuBarNames() { return { "File" }; }
+juce::StringArray MainWindow::getMenuBarNames() { return { "File", "Edit", "Song", "View" }; }
 
 juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::String&)
 {
     juce::PopupMenu m;
-    if (topLevelMenuIndex == 0)
+    if (topLevelMenuIndex == 0) // File
     {
         m.addItem (FileOpenMidi,    "Open MIDI...",    true, false);
         m.addItem (FileOpenConfig,  "Open Config...",  true, false);
@@ -163,6 +188,27 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         m.addItem (FileSaveAbc, "Save ABC As...", ! lastAbc.empty(), false);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
+    }
+    else if (topLevelMenuIndex == 1) // Edit
+    {
+        // No keyboard shortcuts yet (Phase 8). Recomputed fresh every time
+        // the menu opens, so canUndo()/canRedo() don't need an explicit
+        // menuItemsChanged() poke elsewhere.
+        m.addItem (EditUndo, "Undo", songDocument.canUndo(), false);
+        m.addItem (EditRedo, "Redo", songDocument.canRedo(), false);
+    }
+    else if (topLevelMenuIndex == 2) // Song
+    {
+        // Visible in both modes; only meaningful (and enabled) in Songsmith
+        // mode, which is the only mode with a songDocument to act on.
+        m.addItem (SongDefaultParts, "Default parts from tracks", body->isSongsmithMode(), false);
+    }
+    else if (topLevelMenuIndex == 3) // View
+    {
+        // Songsmith is the default view; this item is OFF by default and,
+        // when ticked, switches to the classic EditorPane/DiagnosticsPane
+        // layout (kept fully functional until it is deleted in Phase 6).
+        m.addItem (ViewClassicEditorToggle, "Classic editor", true, ! body->isSongsmithMode());
     }
     return m;
 }
@@ -178,8 +224,21 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FileSaveAsXml:   saveConfigAs (ConfigFormat::Xml);                               return;
         case FileSaveAbc:     saveAbcAs();                                                    return;
         case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
+        case EditUndo:        songDocument.undo();                                            return;
+        case EditRedo:        songDocument.redo();                                            return;
+        case SongDefaultParts:
+            if (body->isSongsmithMode())
+                synthesiseDefaultParts (songDocument);
+            return;
+        case ViewClassicEditorToggle: toggleClassicEditorMode();                              return;
         default:                                                                              return;
     }
+}
+
+void MainWindow::toggleClassicEditorMode()
+{
+    body->setSongsmithMode (! body->isSongsmithMode());
+    menuItemsChanged();
 }
 
 bool MainWindow::isInterestedInFileDrag (const juce::StringArray& files)
@@ -201,7 +260,18 @@ void MainWindow::filesDropped (const juce::StringArray& files, int, int)
         const auto ext = file.getFileExtension().toLowerCase();
         if (ext == ".mid" || ext == ".midi") { openMidiFromPath (file);   return; }
         if (ext == ".json" || ext == ".toml" || ext == ".xml")
-                                              { openConfigFromPath (file); return; }
+        {
+            if (body->isSongsmithMode())
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::InfoIcon,
+                    "Not supported",
+                    "Config files are not supported in Songsmith mode yet");
+                return;
+            }
+            openConfigFromPath (file);
+            return;
+        }
     }
 }
 
@@ -222,6 +292,14 @@ void MainWindow::openMidiViaDialog()
 
 void MainWindow::openMidiFromPath (const juce::File& file)
 {
+    if (body->isSongsmithMode())
+    {
+        Diagnostics diags;
+        importMidiFile (songDocument, file, nextImportBatch++, diags);
+        body->getSongsmith().getDiagnostics().show (std::move (diags), {});
+        return;
+    }
+
     std::ifstream stream (file.getFullPathName().toStdString(), std::ios::binary);
     if (! stream)
     {

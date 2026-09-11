@@ -128,7 +128,10 @@ File
   Quit                                  ← systemRequestedQuit
 ```
 
-(There is no Edit menu — Add / Delete actions live on the tree's right-click context menus.)
+(This is the classic editor's menu content; Phase 4 added an Edit/Song/View
+menu set that's global across both modes — see "Songsmith (preview)" below.
+In the classic tree, Add/Delete actions still live on the tree's right-click
+context menus, not on Edit.)
 
 ## Context menus
 
@@ -147,6 +150,70 @@ The whole Main window is a drag-drop target. Drop:
 
 - `.mid` or `.midi` → same as **File → Open MIDI…**
 - `.json`, `.toml`, or `.xml` → same as **File → Open Config…**
+
+## Songsmith (preview)
+
+`View → Classic editor` (unchecked by default) toggles `MainWindow::Body`
+between this view and the classic Editor/Diagnostics split described above.
+**Songsmith is the default on launch** — checking "Classic editor" switches
+back to the layout above; the classic layout stays fully functional (it is
+only removed at the end of Phase 6).
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ▲ MIDI SOURCE · drag tracks down to assign                          │  ← header
+├──────────────────────┬─────────────────────────────────────────────┤
+│  TrackListComponent   │  "Source piano roll — Phase 5" (placeholder) │  ← 40% of height
+│  (220px, scrollable)  │                                             │
+├──────────────────────┴─────────────────────────────────────────────┤
+│ PARTS · DROP TRACKS TO ASSIGN                                        │  ← PartStripComponent
+│  [x:1 Lute "Lead"] [x:2 Drums ""] [+ Add]                            │     header + slots
+├──────────────────────────────────────────────────────────────────────┤
+│  DiagnosticsPane (this view's own instance — import diagnostics land  │
+│  here, not in the classic pane)                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **Track row** (`TrackListComponent`/`TrackRowComponent`) — index, name,
+  colour swatch, and a `"<n> notes · <lo>–<hi>"` (or `"· ch 10"` for drums)
+  second line. Click selects; drag onto a part slot to assign (the drag
+  payload is the track's synthetic id, not its row index).
+- **Part slot** (`PartStripComponent`/`PartSlotComponent`) — `x:` index,
+  instrument badge, label, and its assigned tracks as chips
+  (`AssignmentChipComponent`: swatch, `Tk<n>`, transpose, `×` to unassign).
+  Drop a track here to assign it (dropping an already-assigned track is a
+  no-op — dedup is the document's job). Right-click for Instrument /
+  Rename… / Remove part. "+ Add" appends a new, auto-selected slot.
+
+New menus (global, but only meaningful with a `SongDocument`, i.e. in
+Songsmith mode):
+
+```
+Edit
+  Undo                                  ← songDocument.undo()
+  Redo                                  ← songDocument.redo()
+                                          (enabled per canUndo()/canRedo();
+                                           no keyboard shortcuts yet)
+
+Song
+  Default parts from tracks            ← synthesiseDefaultParts(songDocument)
+                                          (enabled only in Songsmith mode)
+
+View
+  Classic editor                       ← toggles the classic Editor/
+                                           Diagnostics split back on
+                                          (checkbox; unchecked by default)
+```
+
+In Songsmith mode, **File → Open MIDI…** and dropping a `.mid`/`.midi` file
+both import into `songDocument` (via `importMidiFile`) and show the result
+in this view's own `DiagnosticsPane`, instead of loading into the classic
+`EditorPane`. Dropping a `.json`/`.toml`/`.xml` config file in Songsmith
+mode shows a "Config files are not supported in Songsmith mode yet" message
+box rather than opening it — Songsmith has no `Config`-editing surface yet.
+
+Export/Run is not part of Songsmith yet (Phase 6) — there is no Run button
+in this view.
 
 ## Data flow
 
