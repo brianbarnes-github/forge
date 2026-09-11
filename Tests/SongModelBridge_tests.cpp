@@ -628,6 +628,18 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::startTick) == 120);
     CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::durationTicks) == 60);
 
+    // Provenance on those same rescaled notes is untouched — the raise only
+    // ever multiplies startTick/durationTicks, never pitch/velocity/
+    // sourceTrackIndex/sourceEventIndex.
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::pitch) == 60);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::velocity) == 100);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::sourceTrackIndex) == 0);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::sourceEventIndex) == 0);
+    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::pitch) == 62);
+    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::velocity) == 90);
+    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::sourceTrackIndex) == 0);
+    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::sourceEventIndex) == 1);
+
     // Existing tempo/meter map ticks rescaled ×4 too.
     auto tempoMapNode = doc.getTempoMapNode();
     REQUIRE (tempoMapNode.getNumChildren() == 2);
@@ -658,6 +670,10 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     CHECK (diag2[0].severity == Severity::Info);
     CHECK (diag2[0].message.find ("120") != std::string::npos);
     CHECK (diag2[0].message.find ("480") != std::string::npos);
+    // M5: the diagnostic itself says the undo history was cleared — the
+    // Undo menu going grey is otherwise the user's only signal that
+    // happened.
+    CHECK (diag2[0].message.find ("undo history cleared") != std::string::npos);
 
     // clearUndoHistory() wiped the pre-raise undo step.
     CHECK_FALSE (doc.canUndo());

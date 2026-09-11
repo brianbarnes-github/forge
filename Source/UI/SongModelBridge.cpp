@@ -17,9 +17,13 @@ namespace lotro
 
 namespace
 {
-    // A-R3: LCM raise cap. 16 * 960 — realistic MIDI PPQs (96..1920) always
-    // stay far below this, so the cap is only ever hit by pathological or
-    // synthetic inputs, which fall back to the Phase 3 lossy-downscale path.
+    // A-R3: LCM raise cap. 16 * 960. Guaranteed to stay well clear of this
+    // for the multiples-of-24 PPQ family (96/120/192/240/384/480/960/1920,
+    // the values MIDI files and DAWs actually use) — the worst pairwise LCM
+    // in that family is far below the cap. NOT a guarantee for arbitrary
+    // PPQs in the 96..1920 range: e.g. 1000 against a 960-PPQ document gives
+    // lcm(960, 1000) = 24000, over the cap, so that pair silently takes the
+    // Phase 3 lossy-downscale path below instead.
     constexpr long long kLcmCap = 15360;
 
     int rescaleTick (int tick, int docPpq, int importedPpq)
@@ -77,7 +81,7 @@ namespace
     std::string formatBpm (double bpm)
     {
         std::ostringstream oss;
-        if (bpm == std::floor (bpm))
+        if (std::fabs (bpm - std::floor (bpm)) < 1e-9)
             oss << (long long) bpm;
         else
             oss << bpm;
@@ -207,7 +211,8 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
         d.severity = Severity::Info;
         d.message  = "Raised document time base from " + std::to_string (raisedFromPpq)
                    + " to " + std::to_string (docPpq) + " PPQ ("
-                   + std::to_string (existingNotesRescaledCount) + " existing note(s) rescaled)";
+                   + std::to_string (existingNotesRescaledCount) + " existing note(s) rescaled)"
+                   + "; undo history cleared";
         diagnostics.push_back (std::move (d));
     }
     // Only emit the Phase 3 rescale diagnostic when a rescale actually
@@ -268,7 +273,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
                 : imported.tempoMap[i].tick;
             auto existing = tempoMapNode.getChild ((int) i);
             if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
-                || (double) existing.getProperty (SongIDs::bpm) != imported.tempoMap[i].bpm)
+                || std::fabs ((double) existing.getProperty (SongIDs::bpm) - imported.tempoMap[i].bpm) >= 1e-9)
                 tempoDiffers = true;
         }
 

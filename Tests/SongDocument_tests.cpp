@@ -6,6 +6,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <vector>
+
 using namespace lotro;
 
 TEST_CASE ("SongDocument: constructs an empty SONG tree with sane default properties", "[songdocument]")
@@ -145,6 +148,65 @@ TEST_CASE ("SongDocument: undoing a mint does not roll back the id counter, so t
 
     auto idB = (juce::int64) doc.addTrack ("B", 0, 0, 0).getProperty (SongIDs::trackId);
     CHECK (idB != idA);
+}
+
+TEST_CASE ("SongDocument: addPart mints x as (max existing x) + 1, so an add/remove/add sequence never collides", "[songdocument]")
+{
+    // Regression for I4: getNumParts() + 1 mints a duplicate x once a part
+    // in the middle has been removed (add A/B/C -> x 1/2/3; remove B;
+    // add D -> getNumParts() + 1 == 3, colliding with C). validateConfig
+    // rejects a document with two parts sharing one x, so this must never
+    // happen.
+    SongDocument doc;
+
+    auto a = doc.addPart ("LuteOfAges", "A");
+    auto b = doc.addPart ("LuteOfAges", "B");
+    auto c = doc.addPart ("LuteOfAges", "C");
+    CHECK ((int) a.getProperty (SongIDs::x) == 1);
+    CHECK ((int) b.getProperty (SongIDs::x) == 2);
+    CHECK ((int) c.getProperty (SongIDs::x) == 3);
+
+    doc.removePart ((juce::int64) b.getProperty (SongIDs::partId));
+    REQUIRE (doc.getNumParts() == 2);
+
+    auto d = doc.addPart ("LuteOfAges", "D");
+    CHECK ((int) d.getProperty (SongIDs::x) == 4);
+
+    // All remaining x values are unique.
+    std::vector<int> xs;
+    for (int i = 0; i < doc.getNumParts(); ++i)
+        xs.push_back ((int) doc.getPart (i).getProperty (SongIDs::x));
+    std::sort (xs.begin(), xs.end());
+    CHECK (std::adjacent_find (xs.begin(), xs.end()) == xs.end());
+}
+
+TEST_CASE ("SongDocument: removeTrack cascades to remove every ASSIGNMENT referencing that track, in one undo transaction", "[songdocument]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", 0, 0, 0);
+    auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    auto partOne = doc.addPart ("LuteOfAges", "One");
+    auto partTwo = doc.addPart ("Drums", "Two");
+    doc.addAssignment (partOne, trackId, 0, 0, "octaveShift");
+    doc.addAssignment (partTwo, trackId, 0, 0, "octaveShift");
+
+    REQUIRE (SongDocument::getNumAssignments (partOne) == 1);
+    REQUIRE (SongDocument::getNumAssignments (partTwo) == 1);
+
+    doc.removeTrack (trackId);
+
+    CHECK (! doc.findTrackById (trackId).isValid());
+    CHECK (SongDocument::getNumAssignments (partOne) == 0);
+    CHECK (SongDocument::getNumAssignments (partTwo) == 0);
+
+    // One undo() restores the track AND both assignments — proves the
+    // cascade shares removeTrack's single transaction rather than opening
+    // separate ones.
+    doc.undo();
+    CHECK (doc.findTrackById (trackId).isValid());
+    CHECK (SongDocument::getNumAssignments (partOne) == 1);
+    CHECK (SongDocument::getNumAssignments (partTwo) == 1);
 }
 
 TEST_CASE ("SongDocument: findPartById locates the correct part", "[songdocument]")
