@@ -21,6 +21,7 @@
 #include <cmath>
 #include <fstream>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -38,9 +39,15 @@ namespace
         return projectRoot().getChildFile ("midi").getChildFile (name);
     }
 
-    // Ruling R2's rescale formula, computed independently here (from a
-    // direct import's ground-truth ticks) so the test doesn't just assert
-    // the bridge agrees with itself.
+    // Ruling R2's rescale formula, reused here (not independently derived —
+    // this is the same expression as SongModelBridge.cpp's rescaleTick) so
+    // these real-fixture tests can compare the bridge's note-by-note output
+    // against a direct import's ground-truth ticks. Because it's the same
+    // formula, these tests alone can't catch a wrong rounding mode (e.g.
+    // truncation instead of round-half-away) — that is pinned independently,
+    // with hand-computed values, by the 3:2-ratio test in
+    // Tests/SongModelBridge_tests.cpp ("an inexact rescale emits a Warning
+    // naming the correct rounded-value count").
     int rescaleTick (int tick, int docPpq, int importedPpq)
     {
         return (int) std::lround ((double) tick * (double) docPpq / (double) importedPpq);
@@ -164,6 +171,13 @@ TEST_CASE ("SongsmithRoundTrip: import->assemble->pipeline->ABC matches the CLI'
         REQUIRE (importMidiFile (doc, file, 1, diagB));
         const size_t importDiagCountB = diagB.size();
 
+        // PHASE 4 WILL REPLACE THIS: this default one-Part-per-track policy
+        // has no production implementation yet (importMidiFile has no
+        // caller outside this test file). When Phase 4 lands a real
+        // synthesiseDefaultParts(SongDocument&) alongside appendImportedSong/
+        // buildConfigAndRawSong, this inline loop must be deleted and this
+        // test must call that function instead, or this parity test keeps
+        // validating a test-local copy while the shipping path drifts.
         for (int i = 0; i < doc.getNumTracks(); ++i)
         {
             auto trackTree = doc.getTrack (i);
@@ -359,6 +373,8 @@ TEST_CASE ("SongsmithRoundTrip: a later, same-PPQ import keeps ticks verbatim an
     REQUIRE ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
 
     const int tracksAfterFirst = doc.getNumTracks();
+    const auto tempoAfterFirst = snapshotTempoMap (doc);
+    const auto meterAfterFirst = snapshotMeterMap (doc);
 
     Diagnostics diag2;
     REQUIRE (importMidiFile (doc, secondFile, 2, diag2));
@@ -382,9 +398,21 @@ TEST_CASE ("SongsmithRoundTrip: a later, same-PPQ import keeps ticks verbatim an
         }
     }
 
-    // Same PPQ -> no rescale, so no Info-severity SongModelBridge diagnostic
-    // (rescale is the only thing that can produce one; the timeline check, if
-    // it fires, is always a Warning).
+    // Same PPQ -> no rescale, so no rescale diagnostic at all (neither Info
+    // nor Warning) — the only SongModelBridge diagnostic that can appear here
+    // is R1's timeline-diff Warning, and only if the two files' tempo/meter
+    // maps actually differ. Assert the exact count, not just "every one is a
+    // Warning" (which would also pass if unrelated warnings appeared).
+    const int docPpq = 480, importedPpq = 480;
+    const bool timelineDiffers = rescaledTimelineDiffers (tempoAfterFirst, meterAfterFirst, directSong, docPpq, importedPpq);
+    const int expectedSongModelBridgeDiagnostics = timelineDiffers ? 1 : 0;
+
+    int actualSongModelBridgeDiagnostics = 0;
+    for (const auto& d : diag2)
+        if (d.source == "SongModelBridge")
+            ++actualSongModelBridgeDiagnostics;
+
+    CHECK (actualSongModelBridgeDiagnostics == expectedSongModelBridgeDiagnostics);
     for (const auto& d : diag2)
         if (d.source == "SongModelBridge")
             CHECK (d.severity == Severity::Warning);

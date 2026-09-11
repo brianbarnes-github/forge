@@ -51,7 +51,9 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
     const int importedPpq = imported.ticksPerQuarter;
     const bool needsRescale = ! isFirstImport && importedPpq != docPpq;
 
-    int roundedValueCount = 0;
+    int roundedValueCount    = 0;
+    int zeroLengthNoteCount  = 0;
+    int rescaledNoteCount    = 0;
 
     for (const auto& track : imported.tracks)
     {
@@ -64,11 +66,23 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 
             if (needsRescale)
             {
+                ++rescaledNoteCount;
+
                 if (! isExactRescale (startTick, docPpq, importedPpq))     ++roundedValueCount;
                 if (! isExactRescale (durationTicks, docPpq, importedPpq)) ++roundedValueCount;
 
                 startTick     = rescaleTick (startTick, docPpq, importedPpq);
                 durationTicks = rescaleTick (durationTicks, docPpq, importedPpq);
+
+                // A lossy downscale can round a nonzero duration all the way
+                // to 0. DurationConstraint drops zero-duration notes later in
+                // the pipeline without a Diagnostic of its own, so this is
+                // the only layer positioned to report the loss. The bridge
+                // does NOT clamp/invent a duration — that would be a musical
+                // decision it isn't allowed to make — it only reports the
+                // note is written as-is (duration 0) and will be dropped.
+                if (durationTicks == 0)
+                    ++zeroLengthNoteCount;
             }
 
             juce::ValueTree noteTree (SongIDs::NOTE);
@@ -84,15 +98,28 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
         }
     }
 
-    if (needsRescale && diagnostics != nullptr)
+    // Only emit the rescale diagnostic when a rescale actually touched at
+    // least one note — a trackless later import (zero notes) sets
+    // needsRescale via the PPQ mismatch alone but rescales nothing, and
+    // claiming a rescale happened would be misleading.
+    if (needsRescale && rescaledNoteCount > 0 && diagnostics != nullptr)
     {
         Diagnostic d;
         d.source   = "SongModelBridge";
-        d.severity = roundedValueCount > 0 ? Severity::Warning : Severity::Info;
+        // A zero-length note is always a Warning, even on the (currently
+        // unreachable in practice) chance it coincided with an otherwise
+        // "exact" rescale — silently losing a note is never an Info-level
+        // event.
+        d.severity = (roundedValueCount > 0 || zeroLengthNoteCount > 0) ? Severity::Warning : Severity::Info;
         d.message  = "Rescaled imported MIDI ticks from " + std::to_string (importedPpq)
                    + " to the document's " + std::to_string (docPpq) + " PPQ";
-        if (roundedValueCount > 0)
+        if (roundedValueCount > 0 && zeroLengthNoteCount > 0)
+            d.message += " (" + std::to_string (roundedValueCount) + " value(s) rounded, "
+                       + std::to_string (zeroLengthNoteCount) + " note(s) reduced to zero length and will be dropped)";
+        else if (roundedValueCount > 0)
             d.message += " (" + std::to_string (roundedValueCount) + " value(s) rounded)";
+        else if (zeroLengthNoteCount > 0)
+            d.message += " (" + std::to_string (zeroLengthNoteCount) + " note(s) reduced to zero length and will be dropped)";
         diagnostics->push_back (std::move (d));
     }
 
@@ -307,6 +334,12 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
             if (found == trackIdToIndex.end())
                 continue;
 
+            // ASSIGNMENT.rangePolicy is deliberately not translated here:
+            // forge_core's ConfigSource has no such field — v1 offers only
+            // octave-fold range handling, and R5 forbids adding one to
+            // Config for this phase — so there is nothing on the Config
+            // side for it to become. This is an intentional omission, not a
+            // missed field.
             ConfigSource source;
             source.midiTrackIndex     = found->second;
             source.transposeSemitones = (int) assignment.getProperty (SongIDs::transposeSemitones);

@@ -17,8 +17,10 @@ namespace lotro
 // Parts/Assignments, and does NOT touch SONG.inputMidiPath (the caller
 // sets that separately).
 //
-// Time-base handling (only relevant once the document already has
-// tracks, i.e. this is not the first import into an empty document):
+// Time-base handling (only relevant once an import has already landed,
+// i.e. TEMPO_MAP is not empty — that emptiness, not track count, is what
+// distinguishes the first import from a later one; see appendImportedSong's
+// definition of isFirstImport in the .cpp):
 //   * TEMPO_MAP/METER_MAP belong to the FIRST import only. A later
 //     import's tempo/meter map is never appended/concatenated. If the
 //     later import's map (after rescaling its ticks below) differs from
@@ -30,10 +32,16 @@ namespace lotro
 //     durationTicks is rescaled via
 //     std::lround(tick * (double) docPpq / importedPpq) before being
 //     written. pitch/velocity/isDrum/sourceTrackIndex/sourceEventIndex
-//     are never touched. One Diagnostic is appended per rescaled
-//     import: Severity::Info if every rescaled value was exact,
-//     Severity::Warning (naming the rounded-value count) otherwise.
-//     Same-PPQ imports are not rescaled and emit no rescale Diagnostic.
+//     are never touched. A lossy downscale can round a nonzero
+//     durationTicks all the way to 0 — the bridge never clamps/invents a
+//     duration to prevent that (a musical decision it isn't allowed to
+//     make), it only reports it; DurationConstraint drops such notes
+//     later in the pipeline. One Diagnostic is appended per rescaled
+//     import that touched at least one note (a trackless import emits
+//     none): Severity::Info if every rescaled value was exact and no
+//     note was zeroed; Severity::Warning otherwise, naming the
+//     rounded-value count and, if any, the zeroed-note count. Same-PPQ
+//     imports are not rescaled and emit no rescale Diagnostic.
 // `diagnostics`, when non-null, receives the above; pass nullptr to
 // silently skip diagnostic collection (existing behavior).
 void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
