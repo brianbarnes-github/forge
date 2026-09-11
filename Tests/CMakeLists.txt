@@ -30,15 +30,19 @@ add_executable(forge_tests
     SongsmithRoundTrip_tests.cpp
     SourceTrackNoteSource_tests.cpp
     PianoRollGeometry_tests.cpp
+    TrackListComponent_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
-    ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollGeometry.cpp)
+    ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollGeometry.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/TrackListComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/TrackRowComponent.cpp)
 
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain
     forge_core
-    juce::juce_data_structures)
+    juce::juce_data_structures
+    juce::juce_gui_basics)
 
 include(${CMAKE_SOURCE_DIR}/Tests/Catch2/extras/Catch.cmake)
 catch_discover_tests(forge_tests)

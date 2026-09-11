@@ -29,6 +29,14 @@ public:
     std::function<void (juce::int64)> onTrackSelected;
 
 private:
+    // Test-only access to selectTrack()/rebuild() so TrackListComponent_tests.cpp
+    // can drive selection and stale-selection cleanup deterministically
+    // without needing to pump JUCE's message loop for the real (async,
+    // debounced) ValueTree-listener path. Declared here rather than widening
+    // the public API for behavior that's otherwise only ever triggered
+    // internally (a row click) or by JUCE's async update mechanism.
+    friend struct TrackListComponentTestAccess;
+
     class ListContent : public juce::Component
     {
     public:

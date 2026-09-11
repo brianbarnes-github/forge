@@ -1,6 +1,7 @@
 // Verifies SourceTrackNoteSource reads NOTE children live off a MIDI_TRACK
 // ValueTree (no internal cache) and answers PianoRollNoteSource's tick/pitch
-// range queries correctly, including the empty-track edge case.
+// range queries correctly, including the empty-track edge case and the
+// track-removed-from-its-document edge case.
 
 #include "UI/SourceTrackNoteSource.h"
 
@@ -37,7 +38,9 @@ namespace
 
 TEST_CASE ("SourceTrackNoteSource: empty track has zero notes and start==end ranges", "[piano-roll]")
 {
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
     auto track = makeTrack (1, (int) 0xFF7FA8D0);
+    parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
     CHECK (source.getNumNotes() == 0);
@@ -47,8 +50,10 @@ TEST_CASE ("SourceTrackNoteSource: empty track has zero notes and start==end ran
 
 TEST_CASE ("SourceTrackNoteSource: reads note fields and the track's colour verbatim", "[piano-roll]")
 {
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
     auto track = makeTrack (1, (int) 0xFF7FA8D0);
     track.addChild (makeNote (/*pitch*/ 60, /*start*/ 100, /*dur*/ 240), -1, nullptr);
+    parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
     REQUIRE (source.getNumNotes() == 1);
@@ -61,6 +66,7 @@ TEST_CASE ("SourceTrackNoteSource: reads note fields and the track's colour verb
 
 TEST_CASE ("SourceTrackNoteSource: tick/pitch ranges span every note, not just the first/last added", "[piano-roll]")
 {
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
     auto track = makeTrack (1, (int) 0xFF000000);
     // Deliberately out of order and with the widest span note added in the
     // middle, so a buggy implementation that only looked at getChild(0) and
@@ -68,6 +74,7 @@ TEST_CASE ("SourceTrackNoteSource: tick/pitch ranges span every note, not just t
     track.addChild (makeNote (/*pitch*/ 60, /*start*/ 500, /*dur*/ 100), -1, nullptr);
     track.addChild (makeNote (/*pitch*/ 72, /*start*/ 0,   /*dur*/ 50),  -1, nullptr);
     track.addChild (makeNote (/*pitch*/ 48, /*start*/ 900, /*dur*/ 200), -1, nullptr);
+    parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
     REQUIRE (source.getNumNotes() == 3);
@@ -81,9 +88,32 @@ TEST_CASE ("SourceTrackNoteSource: tick/pitch ranges span every note, not just t
     CHECK (pitchRange.getEnd() == 73);    // exclusive: highest pitch (72) + 1
 }
 
+TEST_CASE ("SourceTrackNoteSource: returns empty once its track is removed from the document", "[piano-roll]")
+{
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
+    auto track = makeTrack (1, (int) 0xFF000000);
+    track.addChild (makeNote (/*pitch*/ 60, /*start*/ 0, /*dur*/ 480), -1, nullptr);
+    parent.addChild (track, -1, nullptr);
+
+    SourceTrackNoteSource source (track);
+    REQUIRE (source.getNumNotes() == 1);
+
+    // Orphan the track the way SongDocument::removeTrack does: the ValueTree
+    // object itself stays valid (refcounted), just unparented.
+    parent.removeChild (track, nullptr);
+    REQUIRE (track.isValid());
+    REQUIRE (! track.getParent().isValid());
+
+    CHECK (source.getNumNotes() == 0);
+    CHECK (source.getTickRange().isEmpty());
+    CHECK (source.getPitchRange().isEmpty());
+}
+
 TEST_CASE ("SourceTrackNoteSource: reads live off the tree, no cache", "[piano-roll]")
 {
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
     auto track = makeTrack (1, (int) 0xFF000000);
+    parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
     REQUIRE (source.getNumNotes() == 0);
