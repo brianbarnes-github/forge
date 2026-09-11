@@ -4,6 +4,7 @@
 // Config.midiTrackIndex depends on.
 
 #include "UI/SongModelBridge.h"
+#include "UI/SongsmithColours.h"
 
 #include "Core/LotroInstrument.h"
 
@@ -372,6 +373,63 @@ TEST_CASE ("SongModelBridge: a later import's differing tempo/meter timeline emi
     // count and in tick/bpm/numerator/denominator values).
     CHECK (infoCount == 1);
     CHECK (warningCount == 1);
+
+    // A-R4: the timeline Warning names both tempos (first TEMPO_CHANGE of
+    // each side) rather than the old generic "differs... was ignored"
+    // wording — firstImport starts at 120 BPM (the document's), secondImport
+    // starts at 200 BPM (the incoming file's).
+    for (const auto& d : diagnostics)
+        if (d.source == "SongModelBridge" && d.severity == Severity::Warning)
+        {
+            CHECK (d.message.find ("200") != std::string::npos);
+            CHECK (d.message.find ("120") != std::string::npos);
+            CHECK (d.message.find ("BPM") != std::string::npos);
+            CHECK (d.message.find ("tempo map differs") != std::string::npos);
+        }
+}
+
+// A-R4: when only the meter map differs (the tempo maps are identical), the
+// sharper diagnostic must say "meter map differs" and name both first
+// meters, not the tempo wording.
+TEST_CASE ("SongModelBridge: a later import whose meter (but not tempo) differs from the document's names both meters", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 480;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "Existing Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 0, 240, 100, false, 0, 0));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 480;
+    second.tempoMap = { { 0, 120.0 } }; // Identical to first's — tempo does NOT differ.
+    second.meterMap = { { 0, 3, 4 } };  // Differs from first's {0,4,4}.
+    Track t1;
+    t1.name              = "Incoming Track";
+    t1.sourceMidiChannel = 1;
+    t1.notes.push_back (makeNote (64, 0, 240, 80, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, diag1);
+    REQUIRE (diag1.empty());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, diag2);
+
+    // Same PPQ on both sides -> no rescale diagnostic, so the only
+    // SongModelBridge diagnostic is the meter-differs Warning.
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].source == "SongModelBridge");
+    CHECK (diag2[0].severity == Severity::Warning);
+    CHECK (diag2[0].message.find ("meter map differs") != std::string::npos);
+    CHECK (diag2[0].message.find ("3/4") != std::string::npos);
+    CHECK (diag2[0].message.find ("4/4") != std::string::npos);
+    CHECK (diag2[0].message.find ("tempo map differs") == std::string::npos);
 }
 
 // The real-fixture round-trip tests only ever exercise an exact rescale
@@ -381,16 +439,25 @@ TEST_CASE ("SongModelBridge: a later import's differing tempo/meter timeline emi
 // startTick of 7 (7*3 = 21, not divisible by 2) specifically so the rescale
 // is inexact, independent of any MIDI file's coincidental tick alignment.
 //
+// A-R3 (Phase 4): this pins the OVER-CAP fallback, which keeps the Phase 3
+// lossy-downscale behaviour verbatim. lcm(9600, 6400) = 19200, which is over
+// the 15360 cap, so no LCM raise happens here — re-parameterised from the
+// original 3/2 PPQ pair (scaled ×3200, preserving the exact 3:2 ratio and
+// thus every hand-computed exactness/roundedness fact below) specifically so
+// this stays on the fallback path instead of being absorbed by A-R3's new
+// under-cap raise. See the "raised" tests below for the LCM path this no
+// longer takes.
+//
 // This is also the load-bearing test for std::lround's rounding mode
 // (round-half-away-from-zero): the hand-computed expectations 11 and 9 below
 // can only be satisfied by that rounding mode, not by truncation. The
 // Tests/SongsmithRoundTrip_tests.cpp helpers of the same name reuse the
 // bridge's own formula rather than an independently-derived one, so they
 // cannot by themselves catch a wrong rounding mode — this test is what does.
-TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the correct rounded-value count", "[songmodelbridge]")
+TEST_CASE ("SongModelBridge: an inexact rescale over the LCM cap emits a Warning naming the correct rounded-value count (Phase 3 fallback)", "[songmodelbridge]")
 {
     Song first;
-    first.ticksPerQuarter = 3;
+    first.ticksPerQuarter = 9600;
     first.tempoMap = { { 0, 120.0 } };
     first.meterMap = { { 0, 4, 4 } };
     Track t0;
@@ -400,7 +467,7 @@ TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the corre
     first.tracks.push_back (t0);
 
     Song second;
-    second.ticksPerQuarter = 2;
+    second.ticksPerQuarter = 6400;
     // Same tempo/meter maps as `first` (values unchanged, tick 0 rescales to
     // 0 either way) so the only diagnostic in play is the rescale one, not
     // R1's timeline-diff Warning.
@@ -409,8 +476,11 @@ TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the corre
     Track t1;
     t1.name              = "Second Track";
     t1.sourceMidiChannel = 1;
-    // startTick 7 at a 3:2 ratio: (7*3) % 2 == 1 -> inexact, rounds to 11.
-    // durationTicks 6 at the same ratio: (6*3) % 2 == 0 -> exact, rounds to 9.
+    // startTick 7 at a 3:2 ratio (9600:6400): (7*9600) % 6400 == 3200 != 0 ->
+    // inexact, rounds to 11 (same hand-computed result as the original 3:2
+    // fixture, since the ratio — not the absolute PPQ values — drives both
+    // exactness and the rounded value).
+    // durationTicks 6 at the same ratio: (6*9600) % 6400 == 0 -> exact, rounds to 9.
     t1.notes.push_back (makeNote (61, 7, 6, 90, false, 1, 0));
     second.tracks.push_back (t1);
 
@@ -439,15 +509,20 @@ TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the corre
 // drops zero-duration notes silently, without a Diagnostic of its own, so the
 // bridge must name the loss at rescale time or the note vanishes from the
 // ABC with no signal anywhere. This fixture picks a 1:8 ratio (document PPQ
-// 1, incoming PPQ 8) specifically so one note's duration rounds to 0
-// (3 * 1 / 8 = 0.375 -> lround 0) while another survives (8 * 1 / 8 = 1,
-// exact) — the bridge must count and report the dropped note, not clamp its
-// duration to invent a value, and must not delete it itself (that is
-// DurationConstraint's job, later in the pipeline).
-TEST_CASE ("SongModelBridge: a rescale that zeroes a note's duration names the dropped-note count as a Warning, without deleting the note", "[songmodelbridge]")
+// 2000, incoming PPQ 16000 — re-parameterised for A-R3: lcm(2000, 16000) =
+// 16000, over the 15360 cap, so this still exercises the Phase 3 lossy
+// fallback rather than being absorbed into the new LCM-raise path; the ratio
+// is unchanged from the original 1:8 pair, so every hand-computed
+// exactness/roundedness fact below is unchanged too) specifically so one
+// note's duration rounds to 0 (3 * 2000 / 16000 = 0.375 -> lround 0) while
+// another survives (8 * 2000 / 16000 = 1, exact) — the bridge must count and
+// report the dropped note, not clamp its duration to invent a value, and
+// must not delete it itself (that is DurationConstraint's job, later in the
+// pipeline).
+TEST_CASE ("SongModelBridge: a rescale over the LCM cap that zeroes a note's duration names the dropped-note count as a Warning, without deleting the note (Phase 3 fallback)", "[songmodelbridge]")
 {
     Song first;
-    first.ticksPerQuarter = 1;
+    first.ticksPerQuarter = 2000;
     first.tempoMap = { { 0, 120.0 } };
     first.meterMap = { { 0, 4, 4 } };
     Track t0;
@@ -457,7 +532,7 @@ TEST_CASE ("SongModelBridge: a rescale that zeroes a note's duration names the d
     first.tracks.push_back (t0);
 
     Song second;
-    second.ticksPerQuarter = 8;
+    second.ticksPerQuarter = 16000;
     // Same tempo/meter as `first` (both rescale tick 0 -> 0) so the only
     // diagnostic in play is the rescale one, not R1's timeline-diff Warning.
     second.tempoMap = { { 0, 120.0 } };
@@ -493,6 +568,240 @@ TEST_CASE ("SongModelBridge: a rescale that zeroes a note's duration names the d
     CHECK ((int) zeroedNote.getProperty (SongIDs::durationTicks) == 0);
     auto survivingNote = secondTrackTree.getChild (1);
     CHECK ((int) survivingNote.getProperty (SongIDs::durationTicks) == 1);
+}
+
+// A-R3 (Phase 4): lcm(120, 480) = 480, which is > the document's current PPQ
+// (120) and under the 15360 cap, so the document's time base is RAISED to
+// 480 rather than the incoming import being lossily downscaled into 120.
+// Every existing note/tempo-change/meter-change tick is rescaled ×4 (exact,
+// since 480/120 = 4); the incoming import's own ticks need no rescale at all
+// (480/480 = 1) since the raise landed exactly on its PPQ.
+TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ raises the document's time base (120 then 480)", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 120;
+    first.tempoMap = { { 0, 100.0 }, { 60, 110.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "Existing Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 10, 20, 100, false, 0, 0));
+    t0.notes.push_back (makeNote (62, 30, 15, 90, false, 0, 1));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 480;
+    // Same tempo/meter as `first`, rescaled ×4 (0->0, 60->240), so the only
+    // diagnostic in play is the raise one, not R1's timeline-diff Warning.
+    second.tempoMap = { { 0, 100.0 }, { 240, 110.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Incoming Track";
+    t1.sourceMidiChannel = 1;
+    t1.notes.push_back (makeNote (64, 5, 3, 80, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, diag1);
+    REQUIRE (diag1.empty());
+
+    // An undoable edit made before the second import must NOT survive —
+    // clearUndoHistory() is called as part of the raise (Ruling A-R3(c)).
+    doc.setProperty (doc.getTree(), SongIDs::title, juce::String ("Untitled"));
+    REQUIRE (doc.canUndo());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, diag2);
+
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
+
+    // Existing (first import's) notes rescaled ×4, exactly.
+    auto existingTrack = doc.getTrack (0);
+    REQUIRE (existingTrack.getNumChildren() == 2);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 40);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 80);
+    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::startTick) == 120);
+    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::durationTicks) == 60);
+
+    // Existing tempo/meter map ticks rescaled ×4 too.
+    auto tempoMapNode = doc.getTempoMapNode();
+    REQUIRE (tempoMapNode.getNumChildren() == 2);
+    CHECK ((int) tempoMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((int) tempoMapNode.getChild (1).getProperty (SongIDs::tick) == 240);
+
+    // Incoming (second import's) notes verbatim — the raise landed exactly
+    // on the incoming PPQ, so no rescale was needed on that side.
+    auto incomingTrack = doc.getTrack (1);
+    REQUIRE (incomingTrack.getNumChildren() == 1);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 5);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 3);
+
+    // Exactly one Info diagnostic naming the raise; no Warning is possible on
+    // this path (the raise never rounds).
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].source == "SongModelBridge");
+    CHECK (diag2[0].severity == Severity::Info);
+    CHECK (diag2[0].message.find ("120") != std::string::npos);
+    CHECK (diag2[0].message.find ("480") != std::string::npos);
+
+    // clearUndoHistory() wiped the pre-raise undo step.
+    CHECK_FALSE (doc.canUndo());
+}
+
+// A-R3: lcm(480, 120) = 480 == the document's current PPQ, so this does NOT
+// raise the document's time base — it stays on the existing (Phase 3) exact-
+// rescale path, and per the explicit ruling ("when newPpq == docPpq emit the
+// Phase 3 Info wording") the diagnostic keeps its original
+// "Rescaled imported MIDI ticks..." wording, not the new "Raised document
+// time base..." wording.
+TEST_CASE ("SongModelBridge: an import whose LCM equals the document's PPQ does not raise, and keeps the Phase 3 diagnostic wording (480 then 120)", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 480;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "Existing Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 40, 80, 100, false, 0, 0));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 120;
+    second.tempoMap = { { 0, 120.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Incoming Track";
+    t1.sourceMidiChannel = 1;
+    t1.notes.push_back (makeNote (64, 5, 3, 80, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, diag1);
+    REQUIRE (diag1.empty());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, diag2);
+
+    // No raise: document PPQ unchanged.
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
+
+    // Existing notes untouched.
+    auto existingTrack = doc.getTrack (0);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 40);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 80);
+
+    // Incoming notes rescaled ×4 (480/120), exactly.
+    auto incomingTrack = doc.getTrack (1);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 20);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 12);
+
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].severity == Severity::Info);
+    CHECK (diag2[0].message.find ("Rescaled imported MIDI ticks") != std::string::npos);
+    CHECK (diag2[0].message.find ("Raised document time base") == std::string::npos);
+    CHECK (diag2[0].message.find ("120") != std::string::npos);
+    CHECK (diag2[0].message.find ("480") != std::string::npos);
+}
+
+// A-R3: lcm(480, 960) = 960 > 480 (the document's PPQ) and under the cap ->
+// raise to 960.
+TEST_CASE ("SongModelBridge: a later import raises the document's time base to the higher PPQ when it is itself the LCM (480 then 960)", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 480;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "Existing Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 10, 20, 100, false, 0, 0));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 960;
+    second.tempoMap = { { 0, 120.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Incoming Track";
+    t1.sourceMidiChannel = 1;
+    t1.notes.push_back (makeNote (64, 5, 3, 80, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, diag1);
+    REQUIRE (diag1.empty());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, diag2);
+
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 960);
+
+    // Existing notes ×2 (960/480).
+    auto existingTrack = doc.getTrack (0);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 20);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 40);
+
+    // Incoming notes verbatim (960/960 == 1).
+    auto incomingTrack = doc.getTrack (1);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 5);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 3);
+
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].severity == Severity::Info);
+    CHECK (diag2[0].message.find ("Raised document time base from 480 to 960") != std::string::npos);
+}
+
+// A-R3: lcm(7, 11) = 77, which is neither PPQ — both sides need rescaling,
+// and both are exact (77/7 = 11, 77/11 = 7).
+TEST_CASE ("SongModelBridge: a raise where neither side's PPQ equals the LCM rescales both sides exactly (7 then 11)", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 7;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "Existing Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 2, 3, 100, false, 0, 0));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 11;
+    second.tempoMap = { { 0, 120.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Incoming Track";
+    t1.sourceMidiChannel = 1;
+    t1.notes.push_back (makeNote (64, 4, 5, 80, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, diag1);
+    REQUIRE (diag1.empty());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, diag2);
+
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 77);
+
+    // Existing notes ×11 (77/7).
+    auto existingTrack = doc.getTrack (0);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 22);
+    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 33);
+
+    // Incoming notes ×7 (77/11), exactly.
+    auto incomingTrack = doc.getTrack (1);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 28);
+    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 35);
+
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].severity == Severity::Info);
+    CHECK (diag2[0].message.find ("Raised document time base from 7 to 77") != std::string::npos);
 }
 
 // A later import that contributes zero tracks (and therefore zero notes)
@@ -580,14 +889,15 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
         }
     }
 
-    // One timeline Warning was emitted (the second import's tempo/meter
-    // differs from what the document holds).
-    int timelineWarnings = 0;
+    // One tempo-differs Warning was emitted (the second import's tempo
+    // differs from what the document holds) — A-R4's sharper wording names
+    // both tempos rather than saying "timeline".
+    int tempoWarnings = 0;
     for (const auto& d : diagnostics)
         if (d.source == "SongModelBridge" && d.severity == Severity::Warning
-            && d.message.find ("timeline") != std::string::npos)
-            ++timelineWarnings;
-    CHECK (timelineWarnings == 1);
+            && d.message.find ("tempo map differs") != std::string::npos)
+            ++tempoWarnings;
+    CHECK (tempoWarnings == 1);
 }
 
 // A-R1: default-part synthesis becomes production code, replacing the
@@ -684,4 +994,60 @@ TEST_CASE ("SongModelBridge: synthesiseDefaultParts on a document with nothing l
     synthesiseDefaultParts (doc);
 
     CHECK (doc.getNumParts() == 1);
+}
+
+// A-R5: appendImportedSong assigns each new MIDI_TRACK a colorArgb from
+// SongsmithColours' 8-entry swatch cycle, keyed by the track's DOCUMENT-WIDE
+// position (doc.getNumTracks() at add-time), not a per-import-local index —
+// so a second import continues the cycle rather than restarting at entry 0.
+TEST_CASE ("SongModelBridge: appendImportedSong assigns colorArgb from the track-swatch cycle, wrapping across 8 entries and continuing across imports", "[songmodelbridge]")
+{
+    Song nineTracks;
+    nineTracks.ticksPerQuarter = 480;
+    nineTracks.tempoMap = { { 0, 120.0 } };
+    nineTracks.meterMap = { { 0, 4, 4 } };
+    for (int i = 0; i < 9; ++i)
+    {
+        Track t;
+        t.name              = "Track " + std::to_string (i);
+        t.sourceMidiChannel = i;
+        nineTracks.tracks.push_back (t);
+    }
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, nineTracks, 1, diag1);
+
+    REQUIRE (doc.getNumTracks() == 9);
+    for (int i = 0; i < 9; ++i)
+    {
+        const auto expected = (int) SongsmithColours::trackColourForIndex (i);
+        const int actual = (int) doc.getTrack (i).getProperty (SongIDs::colorArgb);
+        CHECK (actual == expected);
+    }
+    // The 9th track (document-wide index 8) wraps back to entry 0 — same
+    // colour as the very first track.
+    CHECK ((int) doc.getTrack (8).getProperty (SongIDs::colorArgb)
+           == (int) doc.getTrack (0).getProperty (SongIDs::colorArgb));
+
+    Song oneMoreTrack;
+    oneMoreTrack.ticksPerQuarter = 480;
+    oneMoreTrack.tempoMap = { { 0, 120.0 } };
+    oneMoreTrack.meterMap = { { 0, 4, 4 } };
+    Track t;
+    t.name              = "Track 9";
+    t.sourceMidiChannel = 9;
+    oneMoreTrack.tracks.push_back (t);
+
+    Diagnostics diag2;
+    appendImportedSong (doc, oneMoreTrack, 2, diag2);
+
+    REQUIRE (doc.getNumTracks() == 10);
+    // The second import's track continues the cycle at document-wide index 9
+    // (entry 1), not entry 0 — proving the index is document-wide, not reset
+    // per import.
+    CHECK ((int) doc.getTrack (9).getProperty (SongIDs::colorArgb)
+           == (int) SongsmithColours::trackColourForIndex (9));
+    CHECK ((int) doc.getTrack (9).getProperty (SongIDs::colorArgb)
+           != (int) doc.getTrack (0).getProperty (SongIDs::colorArgb));
 }
