@@ -3,6 +3,7 @@
 #include "DiagnosticsPane.h"
 #include "SongModelBridge.h"
 #include "SongsmithMainComponent.h"
+#include "SplitterComponent.h"
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
@@ -19,7 +20,8 @@ namespace lotro
 class MainWindow::Body : public juce::Component
 {
 public:
-    explicit Body (SongDocument& doc) : songsmith (doc)
+    explicit Body (SongDocument& doc)
+        : splitter (SplitterComponent::Orientation::leftRight), songsmith (doc)
     {
         addAndMakeVisible (editor);
         addAndMakeVisible (diagnostics);
@@ -60,56 +62,9 @@ public:
     bool isSongsmithMode() const { return songsmith.isVisible(); }
 
 private:
-    class Splitter : public juce::Component
-    {
-    public:
-        void setComponents (juce::Component* l, juce::Component* r) { left = l; right = r; }
-
-        void resized() override
-        {
-            const auto area = getLocalBounds();
-            const int barWidth = 6;
-            const int leftWidth = (int) std::lround (area.getWidth() * leftFraction);
-            if (left)  left->setBounds  (area.withWidth (leftWidth));
-            bar.setBounds (area.withX (leftWidth).withWidth (barWidth));
-            if (right) right->setBounds (area.withTrimmedLeft (leftWidth + barWidth));
-            addAndMakeVisible (bar);
-        }
-
-    private:
-        class Bar : public juce::Component
-        {
-        public:
-            void paint (juce::Graphics& g) override { g.fillAll (juce::Colours::grey); }
-            void mouseDrag (const juce::MouseEvent& e) override
-            {
-                if (auto* parent = getParentComponent())
-                {
-                    auto* split = dynamic_cast<Splitter*> (parent);
-                    if (split == nullptr) return;
-                    const float w = (float) parent->getWidth();
-                    if (w <= 0.0f) return;
-                    split->leftFraction = juce::jlimit (0.15f, 0.85f,
-                        e.getEventRelativeTo (parent).x / w);
-                    parent->resized();
-                }
-            }
-            void mouseEnter (const juce::MouseEvent&) override
-            {
-                setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
-            }
-        };
-
-        juce::Component* left  = nullptr;
-        juce::Component* right = nullptr;
-        Bar              bar;
-        float            leftFraction = 0.55f;
-        friend class Bar;
-    };
-
     EditorPane      editor;
     DiagnosticsPane diagnostics;
-    Splitter        splitter;
+    SplitterComponent splitter;
     SongsmithMainComponent songsmith;
 };
 
