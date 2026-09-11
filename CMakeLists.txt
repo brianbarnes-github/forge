@@ -96,6 +96,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/MainWindow.cpp
     Source/UI/SongDocument.cpp
     Source/UI/SongModelBridge.cpp
+    Source/UI/SourceTrackNoteSource.cpp
+    Source/UI/PianoRollGeometry.cpp
     Source/UI/TrackRowComponent.cpp
     Source/UI/TrackListComponent.cpp
     Source/UI/AssignmentChipComponent.cpp
