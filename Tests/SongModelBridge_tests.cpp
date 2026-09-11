@@ -581,7 +581,11 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     Song first;
     first.ticksPerQuarter = 120;
     first.tempoMap = { { 0, 100.0 }, { 60, 110.0 } };
-    first.meterMap = { { 0, 4, 4 } };
+    // Second entry at a nonzero tick (3/4 after 4/4), so the rescale of
+    // METER_CHANGE.tick by the raise factor is actually exercised — a
+    // fixture with only a tick-0 entry can't distinguish "rescaled" from
+    // "never touched" (0 * anything == 0).
+    first.meterMap = { { 0, 4, 4 }, { 60, 3, 4 } };
     Track t0;
     t0.name              = "Existing Track";
     t0.sourceMidiChannel = 0;
@@ -594,7 +598,7 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     // Same tempo/meter as `first`, rescaled ×4 (0->0, 60->240), so the only
     // diagnostic in play is the raise one, not R1's timeline-diff Warning.
     second.tempoMap = { { 0, 100.0 }, { 240, 110.0 } };
-    second.meterMap = { { 0, 4, 4 } };
+    second.meterMap = { { 0, 4, 4 }, { 240, 3, 4 } };
     Track t1;
     t1.name              = "Incoming Track";
     t1.sourceMidiChannel = 1;
@@ -629,6 +633,16 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     REQUIRE (tempoMapNode.getNumChildren() == 2);
     CHECK ((int) tempoMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
     CHECK ((int) tempoMapNode.getChild (1).getProperty (SongIDs::tick) == 240);
+
+    // METER_CHANGE.tick rescaled ×4 too (this is the assertion a tick-0-only
+    // meter fixture couldn't make: 0 * 4 == 0 either way, so it wouldn't
+    // catch a rescale loop that silently skipped the meter map).
+    auto meterMapNode = doc.getMeterMapNode();
+    REQUIRE (meterMapNode.getNumChildren() == 2);
+    CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((int) meterMapNode.getChild (1).getProperty (SongIDs::tick) == 240);
+    CHECK ((int) meterMapNode.getChild (1).getProperty (SongIDs::numerator) == 3);
+    CHECK ((int) meterMapNode.getChild (1).getProperty (SongIDs::denominator) == 4);
 
     // Incoming (second import's) notes verbatim — the raise landed exactly
     // on the incoming PPQ, so no rescale was needed on that side.
