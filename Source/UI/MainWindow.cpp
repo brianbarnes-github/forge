@@ -183,9 +183,16 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         saveAs.addItem (FileSaveAsJson, "JSON (.json)", true, false);
         saveAs.addItem (FileSaveAsToml, "TOML (.toml)", true, false);
         saveAs.addItem (FileSaveAsXml,  "XML (.xml)",   true, false);
-        m.addSubMenu ("Save Config As", saveAs);
-        // Save ABC is greyed until Run Converter has produced output.
-        m.addItem (FileSaveAbc, "Save ABC As...", ! lastAbc.empty(), false);
+        // Save Config As reads the classic EditorPane's Config, which is
+        // never fed anything in Songsmith mode — disabled there so the
+        // dialog can never be opened to overwrite a real file with a
+        // near-empty classic Config (same defect class as Open Config,
+        // see saveConfigAs()'s own early return below).
+        m.addSubMenu ("Save Config As", saveAs, ! body->isSongsmithMode());
+        // Save ABC As reads `lastAbc`, which only Run Converter (classic
+        // mode) ever populates — enabled only in classic mode, same
+        // rationale as Save Config As above.
+        m.addItem (FileSaveAbc, "Save ABC As...", ! body->isSongsmithMode() && ! lastAbc.empty(), false);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
     }
@@ -193,9 +200,13 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     {
         // No keyboard shortcuts yet (Phase 8). Recomputed fresh every time
         // the menu opens, so canUndo()/canRedo() don't need an explicit
-        // menuItemsChanged() poke elsewhere.
-        m.addItem (EditUndo, "Undo", songDocument.canUndo(), false);
-        m.addItem (EditRedo, "Redo", songDocument.canRedo(), false);
+        // menuItemsChanged() poke elsewhere. Mode-gated like Song/File's
+        // Songsmith-only items below: songDocument is invisible in classic
+        // mode, so undoing/redoing it there would silently mutate a
+        // document the user isn't looking at.
+        const bool songsmith = body->isSongsmithMode();
+        m.addItem (EditUndo, "Undo", songsmith && songDocument.canUndo(), false);
+        m.addItem (EditRedo, "Redo", songsmith && songDocument.canRedo(), false);
     }
     else if (topLevelMenuIndex == 2) // Song
     {
@@ -288,7 +299,7 @@ void MainWindow::openMidiFromPath (const juce::File& file)
     {
         Diagnostics diags;
         importMidiFile (songDocument, file, nextImportBatch++, diags);
-        body->getSongsmith().getDiagnostics().show (std::move (diags), {});
+        body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
         return;
     }
 
@@ -325,6 +336,21 @@ void MainWindow::openMidiFromPath (const juce::File& file)
 
 void MainWindow::saveConfigAs (ConfigFormat format)
 {
+    // Same defect class as openConfigFromPath's guard below: the classic
+    // EditorPane's Config is never fed anything in Songsmith mode, so
+    // without this the user could pick an existing config file and have it
+    // silently overwritten with a near-empty one. The menu item is also
+    // disabled in Songsmith mode (getMenuForIndex), so this is defence in
+    // depth against reaching saveConfigAs any other way.
+    if (body->isSongsmithMode())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::InfoIcon,
+            "Not supported",
+            "Save Config is not supported in Songsmith mode yet");
+        return;
+    }
+
     const juce::String ext =
         (format == ConfigFormat::Json) ? ".json"
       : (format == ConfigFormat::Toml) ? ".toml"

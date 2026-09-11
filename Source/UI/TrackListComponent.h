@@ -39,6 +39,12 @@ private:
     void rebuild();
     void selectTrack (juce::int64 trackId);
 
+    // Content width for `content`, accounting for the viewport's vertical
+    // scrollbar (M2: rebuild() used to set the un-subtracted viewport width,
+    // clipping rows under the scrollbar until the next resize; both call
+    // sites now share this one expression).
+    int contentWidth() const;
+
     // juce::ValueTree::Listener — any of these firing on the SOURCE_MIDI
     // subtree (track add/remove/reorder or a property change on a track)
     // means the row list is stale. A real MIDI import appends notes one at a

@@ -7,7 +7,7 @@ namespace lotro
 {
 
 SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
-    : doc (document), trackList (document), partStrip (document)
+    : trackList (document), partStrip (document)
 {
     sourceHeader.setText (
         juce::String::fromUTF8 ("\xe2\x96\xb2 MIDI SOURCE \xc2\xb7 drag tracks down to assign"),

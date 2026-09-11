@@ -41,6 +41,12 @@ juce::String AssignmentChipComponent::buildLabel() const
     const auto trackId = (juce::int64) assignment.getProperty (SongIDs::trackId);
     const auto trackNode = doc.findTrackById (trackId);
 
+    // M8: resolving trackId to a positional index here (rather than only in
+    // SongModelBridge, the project's one sanctioned place for it) is
+    // deliberately allowed — this is display-only label text, re-resolved
+    // fresh on every paint, and the resulting int is never used as an index
+    // into anything. It exists because B3 requires a "Tk<n>" chip label, and
+    // that number IS the track's current SOURCE_MIDI position.
     juce::String trackLabel = "Tk?";
     if (trackNode.isValid())
     {
