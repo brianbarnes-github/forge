@@ -1,5 +1,7 @@
 #include "SongDocument.h"
 
+#include <algorithm>
+
 namespace lotro
 {
 
@@ -214,6 +216,25 @@ void SongDocument::removeTrack (juce::int64 trackIdToRemove)
         return;
 
     undoManager.beginNewTransaction();
+
+    // Cascade, in the same transaction as the track removal: an ASSIGNMENT
+    // referencing a track that no longer exists is a dangling reference.
+    // buildConfigAndRawSong silently skips these as defence in depth, but
+    // the document itself should not go on holding them — and folding the
+    // removal into this one transaction means a single undo() restores both
+    // the track and every assignment that pointed to it.
+    auto partsNode = getPartsNode();
+    for (int p = 0; p < partsNode.getNumChildren(); ++p)
+    {
+        auto part = partsNode.getChild (p);
+        for (int a = part.getNumChildren(); --a >= 0; )
+        {
+            auto assignment = part.getChild (a);
+            if ((juce::int64) assignment.getProperty (SongIDs::trackId) == trackIdToRemove)
+                part.removeChild (assignment, &undoManager);
+        }
+    }
+
     getSourceMidiNode().removeChild (track, &undoManager);
 }
 
@@ -223,9 +244,19 @@ juce::ValueTree SongDocument::addPart (const juce::String& instrumentName, const
     if (newTransaction)
         undoManager.beginNewTransaction();
 
+    // x is minted as (max existing PART.x) + 1, not getNumParts() + 1: the
+    // latter collides after an add/remove/add sequence (add A/B/C -> x
+    // 1/2/3, remove B, add D -> getNumParts()+1 == 3, colliding with C's
+    // still-live x). See the class-level comment above for why that
+    // collision matters (validateConfig rejects it).
+    int maxX = 0;
+    auto partsNode = getPartsNode();
+    for (int i = 0; i < partsNode.getNumChildren(); ++i)
+        maxX = std::max (maxX, (int) partsNode.getChild (i).getProperty (SongIDs::x));
+
     juce::ValueTree part (SongIDs::PART);
     part.setProperty (SongIDs::partId, mintPartId(), &undoManager);
-    part.setProperty (SongIDs::x, getNumParts() + 1, &undoManager);
+    part.setProperty (SongIDs::x, maxX + 1, &undoManager);
     part.setProperty (SongIDs::instrumentName, instrumentName, &undoManager);
     part.setProperty (SongIDs::label, label, &undoManager);
     part.setProperty (SongIDs::drumMapPath, juce::String(), &undoManager);

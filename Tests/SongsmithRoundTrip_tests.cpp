@@ -319,6 +319,13 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's
             const auto& directNote = directTrack.notes[n];
             CHECK ((int) noteTree.getProperty (SongIDs::startTick) == directNote.startTick * raiseFactor);
             CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == directNote.durationTicks * raiseFactor);
+
+            // Provenance untouched by the raise (only tick fields are
+            // multiplied).
+            CHECK ((int) noteTree.getProperty (SongIDs::pitch) == directNote.pitch);
+            CHECK ((int) noteTree.getProperty (SongIDs::velocity) == directNote.velocity);
+            CHECK ((int) noteTree.getProperty (SongIDs::sourceTrackIndex) == directNote.sourceTrackIndex);
+            CHECK ((int) noteTree.getProperty (SongIDs::sourceEventIndex) == directNote.sourceEventIndex);
         }
     }
 

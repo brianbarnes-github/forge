@@ -92,11 +92,14 @@ namespace SongIDs
  * override, fall back to the imported MIDI's own value" apart from "user
  * explicitly set it to empty/some value". Query these with
  * juce::ValueTree::hasProperty() before reading, not just getProperty()'s
- * fallback. PART.x is NOT synthetic like partId — it is minted positionally
- * (getNumParts() + 1 at add-time, mirroring synthesiseConfig's i+1
- * convention in Source/Core/Pipeline.cpp) and is expected to be
- * renumbered/non-stable across removals, matching forge_core::Track::x's
- * own "ABC X: index" semantics.
+ * fallback. PART.x is NOT synthetic like partId — it is minted positionally,
+ * as (max existing PART.x) + 1, or 1 when there are no parts, matching
+ * forge_core::Track::x's own "ABC X: index" semantics. This is deliberately
+ * NOT getNumParts() + 1: after an add/remove/add sequence that scheme mints
+ * a duplicate x colliding with a still-present part (validateConfig rejects
+ * a document with two parts sharing one x), so addPart always looks at the
+ * current maximum instead. x is still expected to be renumbered/non-stable
+ * across removals — just never colliding.
  */
 class SongDocument
 {
