@@ -22,13 +22,13 @@ struct PianoRollNoteBounds
 // UI state beyond the numbers needed to place notes: the fixed keyboard
 // gutter/row-height layout constants, which pitch is drawn at the top of the
 // visible area, and a tick->pixel mapping driven by an independent zoom
-// factor (pixels per quarter note) plus a scrollable visible-tick window.
+// factor (pixels per quarter note) plus a content-space origin tick.
 //
-// The visible-tick window is exposed as an explicit Range<double> getter/
-// setter (rather than being read back from a juce::Viewport's scroll
-// position) because Phase 6 needs to synchronize two roll instances on one
-// shared time axis — this is the seam that makes that a wiring change later
-// rather than a redesign.
+// Actual scroll position lives in PianoRollComponent's juce::Viewport, not
+// here — this class has no notion of "currently visible" ticks. contentOriginTick
+// is set once by fitToContent and is the tick that maps to content-space
+// x == getKeyboardGutterWidth(); everything to its right is positive content
+// x, scrolled by the Viewport like any other content.
 class PianoRollGeometry
 {
 public:
@@ -46,14 +46,14 @@ public:
     void setPixelsPerQuarterNote (double pixelsPerQuarterNoteIn) noexcept { pixelsPerQuarterNote = pixelsPerQuarterNoteIn; }
     double getPixelsPerQuarterNote() const noexcept { return pixelsPerQuarterNote; }
 
-    void setVisibleTickRange (juce::Range<double> range) noexcept { visibleTickRange = range; }
-    juce::Range<double> getVisibleTickRange() const noexcept { return visibleTickRange; }
+    void setContentOriginTick (double tick) noexcept { contentOriginTick = tick; }
+    double getContentOriginTick() const noexcept { return contentOriginTick; }
 
     // Horizontal: tick <-> x, driven by pixelsPerQuarterNote/ticksPerQuarter
-    // (zoom) and visibleTickRange's start (scroll offset). No clamping is
-    // applied here — a negative or out-of-content scroll position is a
-    // valid (if blank) view; callers that want clamping do it when setting
-    // the range.
+    // (zoom) and contentOriginTick (the tick at content-space x ==
+    // getKeyboardGutterWidth()). No clamping is applied here — a negative or
+    // out-of-content origin is a valid (if blank) view; callers that want
+    // clamping do it when setting the origin.
     int xForTick (int tick) const noexcept;
     int tickForX (int x) const noexcept;
 
@@ -64,6 +64,13 @@ public:
     int pitchForY (int y) const noexcept;
 
     PianoRollNoteBounds noteBounds (const PianoRollNote& note) const noexcept;
+
+    // True for the 5 black-key pitch classes {1,3,6,8,10} (C#/D#/F#/G#/A#).
+    // `pitch` is a raw MIDI note number; only its pitch class matters, so
+    // negative pitches are handled correctly too. Drives the row-band
+    // shading in PianoRollComponent — semitone-parity alternation disagrees
+    // with the real keyboard at the E/F and B/C boundaries.
+    static bool isBlackKey (int pitch) noexcept;
 
     // Default view when a track is first selected: computes a zoom factor
     // and visible tick window so the whole tick range fits the viewport
@@ -83,7 +90,7 @@ private:
     int topPitch = 84; // C6, per the mockup's default keyboard-gutter alignment
     int ticksPerQuarter = 480;
     double pixelsPerQuarterNote = 40.0;
-    juce::Range<double> visibleTickRange { 0.0, 1920.0 };
+    double contentOriginTick = 0.0;
 };
 
 } // namespace lotro

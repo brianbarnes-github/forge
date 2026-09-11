@@ -60,7 +60,6 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
     // clicks so upperRegion/lowerRegion get them, but its drag bar still
     // gets its own via the second `true`.
     splitter.setComponents (&upperRegion, &lowerRegion);
-    splitter.setInterceptsMouseClicks (false, true);
     addAndMakeVisible (splitter);
 }
 

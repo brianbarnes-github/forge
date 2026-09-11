@@ -26,11 +26,6 @@ public:
         addAndMakeVisible (editor);
         addAndMakeVisible (diagnostics);
         splitter.setComponents (&editor, &diagnostics);
-        // Splitter sits ON TOP of editor and diagnostics in z-order. Without
-        // this, the splitter's full bounds intercept every mouse click and
-        // editor/diagnostics receive nothing. Children (the drag bar) still
-        // get clicks because the second arg is true.
-        splitter.setInterceptsMouseClicks (false, true);
         // Both the classic splitter and the Songsmith view are children
         // throughout this Body's lifetime; only one is ever visible
         // (toggled by setSongsmithMode), so switching modes never needs to

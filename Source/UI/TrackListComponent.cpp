@@ -46,19 +46,24 @@ void TrackListComponent::rebuild()
 
     // M5: the previously-selected track may have just disappeared (e.g. all
     // tracks removed, or SongDocument::removeTrack on this one specifically)
-    // — clear the stale selection and notify via the same callback used for
-    // a real click, so listeners (SongsmithMainComponent) can drop it too
-    // instead of keeping the now-orphaned track's notes on screen.
+    // — clear the stale selection so it isn't reported as still live below.
     if (selectedTrackId != -1 && ! doc.findTrackById (selectedTrackId).isValid())
-    {
         selectedTrackId = -1;
-        if (onTrackSelected)
-            onTrackSelected (selectedTrackId);
-    }
 
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
     repaint(); // M4: empty-state message visibility may have changed.
+
+    // I1: unconditionally re-fire onTrackSelected with whatever is currently
+    // selected (including "nothing"), not only when the selection just
+    // disappeared. A rebuild means something under SOURCE_MIDI changed —
+    // that can affect a *live* selection too (e.g. a second MIDI import
+    // raising the document's ticksPerQuarter, Phase 5's I1) without the
+    // selected track itself ever disappearing, so the disappearance check
+    // alone isn't enough to tell callers (SongsmithMainComponent) to re-read
+    // fresh document state and refit the piano roll.
+    if (onTrackSelected)
+        onTrackSelected (selectedTrackId);
 }
 
 void TrackListComponent::selectTrack (juce::int64 trackId)

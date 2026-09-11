@@ -8,6 +8,12 @@ namespace lotro
 SplitterComponent::SplitterComponent (Orientation orientationIn) : orientation (orientationIn)
 {
     addAndMakeVisible (bar);
+
+    // Positions its siblings, not its own children — without this, the
+    // splitter's full bounds would swallow every mouse click before
+    // first/second ever see it. The bar (a child) still gets clicks via the
+    // second `true`.
+    setInterceptsMouseClicks (false, true);
 }
 
 void SplitterComponent::setComponents (juce::Component* firstIn, juce::Component* secondIn)
