@@ -44,5 +44,13 @@ target_link_libraries(forge_tests PRIVATE
     juce::juce_data_structures
     juce::juce_gui_basics)
 
+# TrackListComponent_tests.cpp's real-async-listener-path test needs a
+# bounded, non-blocking way to pump JUCE's message loop once
+# (MessageManager::runDispatchLoopUntil) rather than the plain
+# runDispatchLoop()/stopDispatchLoop() pair, whose "stop" is a one-shot
+# latch on MessageManager's singleton that's easy to leave in a stale state
+# across unrelated tests sharing the same test binary/process.
+target_compile_definitions(forge_tests PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
+
 include(${CMAKE_SOURCE_DIR}/Tests/Catch2/extras/Catch.cmake)
 catch_discover_tests(forge_tests)

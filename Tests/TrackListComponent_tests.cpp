@@ -19,6 +19,7 @@ namespace lotro
     {
         static void selectTrack (TrackListComponent& c, juce::int64 trackId) { c.selectTrack (trackId); }
         static void rebuild (TrackListComponent& c) { c.rebuild(); }
+        static int numRows (TrackListComponent& c) { return c.content.rows.size(); }
     };
 }
 
@@ -151,4 +152,43 @@ TEST_CASE ("TrackListComponent: rebuild() re-fires a live selection after a seco
     CHECK (callbackCount == 2);
     CHECK (lastCallback == track1Id);
     CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
+}
+
+TEST_CASE ("TrackListComponent: a real import populates the row list through the real async listener path", "[piano-roll]")
+{
+    // Every other test in this file drives rebuild()/selectTrack() directly
+    // via TrackListComponentTestAccess, bypassing the real
+    // ValueTree::Listener -> triggerAsyncUpdate() -> handleAsyncUpdate()
+    // chain that a real import actually goes through in forge_ui. This test
+    // exercises that real chain end to end, with a real pumped message loop,
+    // to catch a bug that direct rebuild() calls structurally cannot: import
+    // reported empty track lists in the real app despite `ctest` passing.
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    TrackListComponent list (doc);
+    REQUIRE (Access::numRows (list) == 0);
+
+    Diagnostics diags;
+    // __FILE__-relative, not getCurrentWorkingDirectory()-relative: ctest
+    // runs test binaries with CWD = build/Tests, not the repo root (see
+    // Tests/SongsmithRoundTrip_tests.cpp's projectRoot() for the same
+    // pattern already established there).
+    const auto file = juce::File (__FILE__).getParentDirectory().getParentDirectory()
+                           .getChildFile ("midi").getChildFile ("blue.mid");
+    REQUIRE (file.existsAsFile());
+    REQUIRE (importMidiFile (doc, file, 1, diags));
+
+    // Import happened synchronously; TrackListComponent's ValueTree::Listener
+    // callbacks fired synchronously too (JUCE notifies listeners at the point
+    // of mutation), each just calling triggerAsyncUpdate() — so rebuild()
+    // itself has NOT run yet. Pump the message loop for a bounded real
+    // wall-clock window to let it run. runDispatchLoopUntil (rather than
+    // runDispatchLoop()/stopDispatchLoop()) is used deliberately: stop is a
+    // one-shot latch on MessageManager's process-wide singleton, easy to
+    // leave stale across unrelated tests sharing this test binary.
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
+
+    CHECK (doc.getNumTracks() > 0);
+    CHECK (Access::numRows (list) == doc.getNumTracks());
 }
