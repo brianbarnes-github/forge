@@ -5,8 +5,10 @@
 // Songsmith's theming palette (Songsmith Arch doc, "Theming" section) and the
 // MIDI-track swatch colour cycle (A-R5). Header-only, plain constexpr ARGB
 // values — deliberately NO juce_gui_basics include, since SongModelBridge.cpp
-// (which assigns track swatches on import) is compiled into forge_tests,
-// which links only juce_core/juce_data_structures, not juce_gui_basics.
+// (which assigns track swatches on import) is compiled into forge_tests. As
+// of Phase 5 forge_tests also links juce_gui_basics (for TrackListComponent/
+// TrackRowComponent tests), but SongModelBridge.cpp itself still doesn't
+// need it, so this header stays juce_core-only on principle.
 namespace lotro::SongsmithColours
 {
     constexpr juce::uint32 background   = 0xFF2B2B2B;
