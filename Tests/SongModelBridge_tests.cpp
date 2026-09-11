@@ -265,13 +265,16 @@ TEST_CASE ("SongModelBridge: rawSong.title derives from inputMidiPath's filename
     }
 }
 
-// This test pins *append ordering* only — that a second import's tracks and
-// tempo/meter entries are added alongside the first's rather than replacing
-// them, and that positional indices continue rather than restart. It is NOT
-// a claim that concatenating two files' tempo/meter timelines end-to-end is
-// semantically meaningful (it generally isn't — reconciling two files' time
-// bases is an open Phase 3 decision).
-TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks/tempoMap/meterMap instead of the second clearing the first", "[songmodelbridge]")
+// This test pins two different things per Ruling 1 (Phase 3): tracks still
+// *accumulate* across imports (second import's tracks are added alongside
+// the first's, positional indices continuing rather than restarting), but
+// TEMPO_MAP/METER_MAP belong to the FIRST import only — a second import's
+// tempo/meter entries are never appended/concatenated, since a single
+// document can only have one sorted timeline (TempoCollapse assumes it).
+// This supersedes the previous "both imports' entries accumulate" pin: that
+// was ordering-only scaffolding, not a claim that concatenating two files'
+// timelines is semantically meaningful (it isn't).
+TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks but keep only the first import's tempoMap/meterMap (Ruling 1)", "[songmodelbridge]")
 {
     const auto firstImport  = threeTrackImportedSong();
     const auto secondImport = twoTrackImportedSongSecondBatch();
@@ -288,30 +291,31 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks/temp
     CHECK (doc.getTrack (3).getProperty (SongIDs::name).toString() == "Second Import Track Zero");
     CHECK (doc.getTrack (4).getProperty (SongIDs::name).toString() == "Second Import Track One");
 
-    // TEMPO_MAP/METER_MAP: both imports' entries present, not just the
-    // second's — a clear-then-append bug would leave only 1 child each.
+    // TEMPO_MAP/METER_MAP: only the FIRST import's entries are present — the
+    // second import's differing tempo/meter (Ruling 1) never got appended. A
+    // bug that concatenates both would leave 3 children each instead of 2.
     auto tempoMapNode = doc.getTempoMapNode();
     auto meterMapNode = doc.getMeterMapNode();
-    REQUIRE (tempoMapNode.getNumChildren() == (int) (firstImport.tempoMap.size() + secondImport.tempoMap.size()));
-    REQUIRE (meterMapNode.getNumChildren() == (int) (firstImport.meterMap.size() + secondImport.meterMap.size()));
+    REQUIRE (tempoMapNode.getNumChildren() == (int) firstImport.tempoMap.size());
+    REQUIRE (meterMapNode.getNumChildren() == (int) firstImport.meterMap.size());
 
     CHECK ((int) tempoMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
     CHECK ((double) tempoMapNode.getChild (0).getProperty (SongIDs::bpm) == 120.0);
-    CHECK ((int) tempoMapNode.getChild (2).getProperty (SongIDs::tick) == 3840);
-    CHECK ((double) tempoMapNode.getChild (2).getProperty (SongIDs::bpm) == 200.0);
+    CHECK ((int) tempoMapNode.getChild (1).getProperty (SongIDs::tick) == 1920);
+    CHECK ((double) tempoMapNode.getChild (1).getProperty (SongIDs::bpm) == 140.0);
 
     CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
-    CHECK ((int) meterMapNode.getChild (2).getProperty (SongIDs::numerator) == 7);
-    CHECK ((int) meterMapNode.getChild (2).getProperty (SongIDs::denominator) == 8);
+    CHECK ((int) meterMapNode.getChild (1).getProperty (SongIDs::numerator) == 3);
+    CHECK ((int) meterMapNode.getChild (1).getProperty (SongIDs::denominator) == 4);
 
-    // buildConfigAndRawSong sees both imports' tempoMap/meterMap entries,
-    // and the second import's tracks are positioned after the first's
-    // (index 3, 4) rather than restarting at 0.
+    // buildConfigAndRawSong sees only the first import's tempoMap/meterMap
+    // entries, and the second import's tracks are positioned after the
+    // first's (index 3, 4) rather than restarting at 0.
     auto built = buildConfigAndRawSong (doc);
-    REQUIRE (built.rawSong.tempoMap.size() == 3);
-    CHECK (built.rawSong.tempoMap[2].bpm == 200.0);
-    REQUIRE (built.rawSong.meterMap.size() == 3);
-    CHECK (built.rawSong.meterMap[2].numerator == 7);
+    REQUIRE (built.rawSong.tempoMap.size() == 2);
+    CHECK (built.rawSong.tempoMap[1].bpm == 140.0);
+    REQUIRE (built.rawSong.meterMap.size() == 2);
+    CHECK (built.rawSong.meterMap[1].numerator == 3);
 
     // ticksPerQuarter: only the first import sets the document's time base
     // (960, from threeTrackImportedSong()) — the second import's differing
@@ -329,4 +333,37 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks/temp
     REQUIRE (builtWithAssignment.config.instruments.size() == 1);
     REQUIRE (builtWithAssignment.config.instruments[0].sources.size() == 1);
     CHECK (builtWithAssignment.config.instruments[0].sources[0].midiTrackIndex == 3);
+}
+
+// R1 also requires a diagnostic when a later import's (rescaled) tempo/meter
+// timeline differs from what the document already holds. firstImport's PPQ
+// (960) and secondImport's (480) differ too, so this exercises both R2 (the
+// rescale is an exact x2 upscale -> Info) and R1 (the timelines themselves
+// differ in both entry count and values -> Warning) from the same call.
+TEST_CASE ("SongModelBridge: a later import's differing tempo/meter timeline emits one Warning Diagnostic naming SongModelBridge as the source", "[songmodelbridge]")
+{
+    const auto firstImport  = threeTrackImportedSong();
+    const auto secondImport = twoTrackImportedSongSecondBatch();
+
+    SongDocument doc;
+    Diagnostics diagnostics;
+    appendImportedSong (doc, firstImport, 1, &diagnostics);
+    REQUIRE (diagnostics.empty());
+
+    appendImportedSong (doc, secondImport, 2, &diagnostics);
+
+    int infoCount = 0, warningCount = 0;
+    for (const auto& d : diagnostics)
+    {
+        if (d.source != "SongModelBridge") continue;
+        if (d.severity == Severity::Info) ++infoCount;
+        else if (d.severity == Severity::Warning) ++warningCount;
+    }
+
+    // Exactly one rescale diagnostic (Info: 960/480 is an exact x2 upscale)
+    // and exactly one timeline diagnostic (Warning: secondImport's tempo/
+    // meter maps deliberately differ from firstImport's, both in entry
+    // count and in tick/bpm/numerator/denominator values).
+    CHECK (infoCount == 1);
+    CHECK (warningCount == 1);
 }
