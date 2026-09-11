@@ -370,13 +370,19 @@ TEST_CASE ("SongModelBridge: a later import's differing tempo/meter timeline emi
     CHECK (warningCount == 1);
 }
 
-// Finding (Phase 3 review): the real-fixture round-trip tests only ever
-// exercise an exact rescale (their PPQ ratios all happen to divide evenly),
-// so the "Warning when roundedValueCount > 0" branch of the rescale
-// diagnostic was never taken by any test with real data. This synthetic
-// fixture uses a 3:2 ratio and a startTick of 7 (7*3 = 21, not divisible by
-// 2) specifically so the rescale is inexact, independent of any MIDI file's
-// coincidental tick alignment.
+// The real-fixture round-trip tests only ever exercise an exact rescale
+// (their PPQ ratios all happen to divide evenly), so the "Warning when
+// roundedValueCount > 0" branch of the rescale diagnostic was never taken by
+// any test with real data. This synthetic fixture uses a 3:2 ratio and a
+// startTick of 7 (7*3 = 21, not divisible by 2) specifically so the rescale
+// is inexact, independent of any MIDI file's coincidental tick alignment.
+//
+// This is also the load-bearing test for std::lround's rounding mode
+// (round-half-away-from-zero): the hand-computed expectations 11 and 9 below
+// can only be satisfied by that rounding mode, not by truncation. The
+// Tests/SongsmithRoundTrip_tests.cpp helpers of the same name reuse the
+// bridge's own formula rather than an independently-derived one, so they
+// cannot by themselves catch a wrong rounding mode — this test is what does.
 TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the correct rounded-value count", "[songmodelbridge]")
 {
     Song first;
@@ -424,15 +430,102 @@ TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the corre
     CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == 9);
 }
 
-// Finding (Phase 3 review): Ruling 1's "doc.getNumTracks() == 0" first-import
-// guard was not distinct from "has any track ever landed" — an all-silent
-// first MIDI file (every track's notes empty, so importMidi drops all of
-// them) would leave the document with zero tracks despite having already
-// set ticksPerQuarter/TEMPO_MAP/METER_MAP, so a second import would
-// incorrectly be treated as the first import too. The fix defines "first
-// import" as an empty TEMPO_MAP instead (importMidi always seeds a
-// non-empty one), which this test's zero-track first import still leaves
-// non-empty.
+// A lossy downscale can round a note's durationTicks all the way to 0.
+// DurationConstraint (Source/Core/Constraints/DurationConstraint.cpp) later
+// drops zero-duration notes silently, without a Diagnostic of its own, so the
+// bridge must name the loss at rescale time or the note vanishes from the
+// ABC with no signal anywhere. This fixture picks a 1:8 ratio (document PPQ
+// 1, incoming PPQ 8) specifically so one note's duration rounds to 0
+// (3 * 1 / 8 = 0.375 -> lround 0) while another survives (8 * 1 / 8 = 1,
+// exact) — the bridge must count and report the dropped note, not clamp its
+// duration to invent a value, and must not delete it itself (that is
+// DurationConstraint's job, later in the pipeline).
+TEST_CASE ("SongModelBridge: a rescale that zeroes a note's duration names the dropped-note count as a Warning, without deleting the note", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 1;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "First Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 0, 1, 100, false, 0, 0));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 8;
+    // Same tempo/meter as `first` (both rescale tick 0 -> 0) so the only
+    // diagnostic in play is the rescale one, not R1's timeline-diff Warning.
+    second.tempoMap = { { 0, 120.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Second Track";
+    t1.sourceMidiChannel = 1;
+    // durationTicks 3 at a 1:8 ratio: lround(3/8) == 0 -> zeroed, dropped later.
+    t1.notes.push_back (makeNote (61, 0, 3, 90, false, 1, 0));
+    // durationTicks 8 at the same ratio: lround(8/8) == 1, exact -> survives.
+    t1.notes.push_back (makeNote (62, 8, 8, 80, false, 1, 1));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, &diag1);
+    REQUIRE (diag1.empty());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, &diag2);
+
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].source == "SongModelBridge");
+    CHECK (diag2[0].severity == Severity::Warning);
+    CHECK (diag2[0].message.find ("1 value(s) rounded") != std::string::npos);
+    CHECK (diag2[0].message.find ("1 note(s) reduced to zero length and will be dropped") != std::string::npos);
+
+    // The bridge does NOT delete the zero-duration note itself — that is
+    // DurationConstraint's job, downstream in the pipeline.
+    auto secondTrackTree = doc.getTrack (1);
+    REQUIRE (secondTrackTree.getNumChildren() == 2);
+    auto zeroedNote = secondTrackTree.getChild (0);
+    CHECK ((int) zeroedNote.getProperty (SongIDs::durationTicks) == 0);
+    auto survivingNote = secondTrackTree.getChild (1);
+    CHECK ((int) survivingNote.getProperty (SongIDs::durationTicks) == 1);
+}
+
+// A later import that contributes zero tracks (and therefore zero notes)
+// touches nothing during rescale — no Diagnostic should claim a rescale
+// happened when no tick was ever actually rescaled.
+TEST_CASE ("SongModelBridge: a trackless later import at a different PPQ emits no rescale diagnostic", "[songmodelbridge]")
+{
+    const auto first = threeTrackImportedSong(); // PPQ 960.
+
+    Song tracklessSecond;
+    tracklessSecond.ticksPerQuarter = 480; // Differs from the document's 960.
+    // Ticks chosen so that, after the 2x rescale (960/480), they land exactly
+    // on `first`'s own tempo/meter map ({0, 120.0}/{1920, 140.0} and
+    // {0,4,4}/{1920,3,4} at doc PPQ 960) — no timeline-diff Warning muddies
+    // the assertion below.
+    tracklessSecond.tempoMap = { { 0, 120.0 }, { 960, 140.0 } };
+    tracklessSecond.meterMap = { { 0, 4, 4 }, { 960, 3, 4 } };
+    // Deliberately no tracks.
+
+    SongDocument doc;
+    Diagnostics diagnostics;
+    appendImportedSong (doc, first, 1, &diagnostics);
+    REQUIRE (diagnostics.empty());
+
+    appendImportedSong (doc, tracklessSecond, 2, &diagnostics);
+
+    CHECK (diagnostics.empty());
+}
+
+// Ruling 1's "doc.getNumTracks() == 0" first-import guard was not distinct
+// from "has any track ever landed" — an all-silent first MIDI file (every
+// track's notes empty, so importMidi drops all of them) would leave the
+// document with zero tracks despite having already set
+// ticksPerQuarter/TEMPO_MAP/METER_MAP, so a second import would incorrectly
+// be treated as the first import too. The fix defines "first import" as an
+// empty TEMPO_MAP instead (importMidi always seeds a non-empty one), which
+// this test's zero-track first import still leaves non-empty.
 TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' for a later import (Ruling 1's guard is TEMPO_MAP emptiness, not track count)", "[songmodelbridge]")
 {
     Song zeroTrackFirst;
