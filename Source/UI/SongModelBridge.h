@@ -2,18 +2,52 @@
 
 #include "SongDocument.h"
 #include "Core/Config.h"
+#include "Core/Diagnostics.h"
 #include "Core/Song.h"
+
+#include <juce_core/juce_core.h>
 
 #include <vector>
 
 namespace lotro
 {
 
-// Import path: appends imported's tracks (and, per Ruling 2, its
-// tempo/meter maps) as new document state, minting fresh trackIds,
-// copying Note fields verbatim. Does NOT touch Parts/Assignments, and
-// does NOT touch SONG.inputMidiPath (the caller sets that separately).
-void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch);
+// Import path: appends imported's tracks as new document state, minting
+// fresh trackIds, copying Note fields verbatim. Does NOT touch
+// Parts/Assignments, and does NOT touch SONG.inputMidiPath (the caller
+// sets that separately).
+//
+// Time-base handling (only relevant once the document already has
+// tracks, i.e. this is not the first import into an empty document):
+//   * TEMPO_MAP/METER_MAP belong to the FIRST import only. A later
+//     import's tempo/meter map is never appended/concatenated. If the
+//     later import's map (after rescaling its ticks below) differs from
+//     what the document already holds, one Severity::Warning Diagnostic
+//     is appended (source "SongModelBridge") saying the document's
+//     timeline was kept; identical maps emit nothing.
+//   * If `imported.ticksPerQuarter` differs from the document's PPQ
+//     (fixed by the first import), every incoming note's startTick/
+//     durationTicks is rescaled via
+//     std::lround(tick * (double) docPpq / importedPpq) before being
+//     written. pitch/velocity/isDrum/sourceTrackIndex/sourceEventIndex
+//     are never touched. One Diagnostic is appended per rescaled
+//     import: Severity::Info if every rescaled value was exact,
+//     Severity::Warning (naming the rounded-value count) otherwise.
+//     Same-PPQ imports are not rescaled and emit no rescale Diagnostic.
+// `diagnostics`, when non-null, receives the above; pass nullptr to
+// silently skip diagnostic collection (existing behavior).
+void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
+                         Diagnostics* diagnostics = nullptr);
+
+// Opens `midiFile`, runs forge_core's importMidi (sourceName = the
+// file's stem, matching the CLI's ad-hoc path in Source/Main.cpp), and
+// appends the result via appendImportedSong. Sets SONG.inputMidiPath
+// only if it is currently empty (first import's filename wins). Never
+// touches the UndoManager (bulk import is not a user-undoable edit). On
+// an unopenable file: appends a Severity::Error Diagnostic (source
+// "SongModelBridge"), leaves the document unchanged, and returns false.
+bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
+                     Diagnostics& diagnostics);
 
 // Export path (also used later for scoped live preview). Builds a
 // forge_core Config from Song-level metadata + the given parts (empty =

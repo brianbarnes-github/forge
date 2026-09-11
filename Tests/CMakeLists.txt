@@ -27,6 +27,7 @@ add_executable(forge_tests
     Provenance_tests.cpp
     SongDocument_tests.cpp
     SongModelBridge_tests.cpp
+    SongsmithRoundTrip_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp)
 

@@ -1,22 +1,48 @@
 #include "SongModelBridge.h"
 
+#include "Core/MidiImporter.h"
+
 #include <algorithm>
+#include <cmath>
+#include <fstream>
 #include <map>
 
 namespace lotro
 {
 
-void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch)
+namespace
 {
-    // Only the first import sets the document's time base. A second import
-    // with a different ticksPerQuarter would need every incoming note tick
-    // rescaled into the document's already-established tick space to stay
-    // meaningful — nobody owns that rescaling yet (open Phase 3 decision,
-    // see the plan's deferred "multi-import time-base reconciliation" item)
-    // — so a later import silently keeps the first import's PPQ rather than
-    // clobbering or averaging it.
-    if (doc.getNumTracks() == 0)
+    int rescaleTick (int tick, int docPpq, int importedPpq)
+    {
+        return (int) std::lround ((double) tick * (double) docPpq / (double) importedPpq);
+    }
+
+    bool isExactRescale (int tick, int docPpq, int importedPpq)
+    {
+        return ((long long) tick * (long long) docPpq) % (long long) importedPpq == 0;
+    }
+}
+
+void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
+                         Diagnostics* diagnostics)
+{
+    // R1: only the first import into an empty document sets the document's
+    // time base and TEMPO_MAP/METER_MAP. A later import describes a
+    // different timeline, not a continuation of the first's — concatenating
+    // two files' tempo/meter maps would be meaningless (TempoCollapse
+    // assumes one sorted timeline), so a later import's maps are compared
+    // (after R2 rescaling) against the document's and, if they differ,
+    // reported via a single Warning Diagnostic rather than applied.
+    const bool isFirstImport = doc.getNumTracks() == 0;
+
+    if (isFirstImport)
         doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, imported.ticksPerQuarter, nullptr);
+
+    const int docPpq      = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter);
+    const int importedPpq = imported.ticksPerQuarter;
+    const bool needsRescale = ! isFirstImport && importedPpq != docPpq;
+
+    int roundedValueCount = 0;
 
     for (const auto& track : imported.tracks)
     {
@@ -24,10 +50,22 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 
         for (const auto& note : track.notes)
         {
+            int startTick     = note.startTick;
+            int durationTicks = note.durationTicks;
+
+            if (needsRescale)
+            {
+                if (! isExactRescale (startTick, docPpq, importedPpq))     ++roundedValueCount;
+                if (! isExactRescale (durationTicks, docPpq, importedPpq)) ++roundedValueCount;
+
+                startTick     = rescaleTick (startTick, docPpq, importedPpq);
+                durationTicks = rescaleTick (durationTicks, docPpq, importedPpq);
+            }
+
             juce::ValueTree noteTree (SongIDs::NOTE);
             noteTree.setProperty (SongIDs::pitch, note.pitch, nullptr);
-            noteTree.setProperty (SongIDs::startTick, note.startTick, nullptr);
-            noteTree.setProperty (SongIDs::durationTicks, note.durationTicks, nullptr);
+            noteTree.setProperty (SongIDs::startTick, startTick, nullptr);
+            noteTree.setProperty (SongIDs::durationTicks, durationTicks, nullptr);
             noteTree.setProperty (SongIDs::velocity, note.velocity, nullptr);
             noteTree.setProperty (SongIDs::isDrum, note.isDrum, nullptr);
             noteTree.setProperty (SongIDs::sourceTrackIndex, note.sourceTrackIndex, nullptr);
@@ -37,24 +75,110 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
         }
     }
 
-    auto tempoMapNode = doc.getTempoMapNode();
-    for (const auto& change : imported.tempoMap)
+    if (needsRescale && diagnostics != nullptr)
     {
-        juce::ValueTree changeTree (SongIDs::TEMPO_CHANGE);
-        changeTree.setProperty (SongIDs::tick, change.tick, nullptr);
-        changeTree.setProperty (SongIDs::bpm, change.bpm, nullptr);
-        SongDocument::appendChildBulk (tempoMapNode, changeTree);
+        Diagnostic d;
+        d.source   = "SongModelBridge";
+        d.severity = roundedValueCount > 0 ? Severity::Warning : Severity::Info;
+        d.message  = "Rescaled imported MIDI ticks from " + std::to_string (importedPpq)
+                   + " to the document's " + std::to_string (docPpq) + " PPQ";
+        if (roundedValueCount > 0)
+            d.message += " (" + std::to_string (roundedValueCount) + " value(s) rounded)";
+        diagnostics->push_back (std::move (d));
     }
 
-    auto meterMapNode = doc.getMeterMapNode();
-    for (const auto& change : imported.meterMap)
+    if (isFirstImport)
     {
-        juce::ValueTree changeTree (SongIDs::METER_CHANGE);
-        changeTree.setProperty (SongIDs::tick, change.tick, nullptr);
-        changeTree.setProperty (SongIDs::numerator, change.numerator, nullptr);
-        changeTree.setProperty (SongIDs::denominator, change.denominator, nullptr);
-        SongDocument::appendChildBulk (meterMapNode, changeTree);
+        auto tempoMapNode = doc.getTempoMapNode();
+        for (const auto& change : imported.tempoMap)
+        {
+            juce::ValueTree changeTree (SongIDs::TEMPO_CHANGE);
+            changeTree.setProperty (SongIDs::tick, change.tick, nullptr);
+            changeTree.setProperty (SongIDs::bpm, change.bpm, nullptr);
+            SongDocument::appendChildBulk (tempoMapNode, changeTree);
+        }
+
+        auto meterMapNode = doc.getMeterMapNode();
+        for (const auto& change : imported.meterMap)
+        {
+            juce::ValueTree changeTree (SongIDs::METER_CHANGE);
+            changeTree.setProperty (SongIDs::tick, change.tick, nullptr);
+            changeTree.setProperty (SongIDs::numerator, change.numerator, nullptr);
+            changeTree.setProperty (SongIDs::denominator, change.denominator, nullptr);
+            SongDocument::appendChildBulk (meterMapNode, changeTree);
+        }
     }
+    else if (diagnostics != nullptr)
+    {
+        auto tempoMapNode = doc.getTempoMapNode();
+        bool timelineDiffers = tempoMapNode.getNumChildren() != (int) imported.tempoMap.size();
+
+        for (size_t i = 0; ! timelineDiffers && i < imported.tempoMap.size(); ++i)
+        {
+            const auto rescaledTick = needsRescale
+                ? rescaleTick (imported.tempoMap[i].tick, docPpq, importedPpq)
+                : imported.tempoMap[i].tick;
+            auto existing = tempoMapNode.getChild ((int) i);
+            if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
+                || (double) existing.getProperty (SongIDs::bpm) != imported.tempoMap[i].bpm)
+                timelineDiffers = true;
+        }
+
+        if (! timelineDiffers)
+        {
+            auto meterMapNode = doc.getMeterMapNode();
+            timelineDiffers = meterMapNode.getNumChildren() != (int) imported.meterMap.size();
+
+            for (size_t i = 0; ! timelineDiffers && i < imported.meterMap.size(); ++i)
+            {
+                const auto rescaledTick = needsRescale
+                    ? rescaleTick (imported.meterMap[i].tick, docPpq, importedPpq)
+                    : imported.meterMap[i].tick;
+                auto existing = meterMapNode.getChild ((int) i);
+                if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
+                    || (int) existing.getProperty (SongIDs::numerator) != imported.meterMap[i].numerator
+                    || (int) existing.getProperty (SongIDs::denominator) != imported.meterMap[i].denominator)
+                    timelineDiffers = true;
+            }
+        }
+
+        if (timelineDiffers)
+        {
+            Diagnostic d;
+            d.source   = "SongModelBridge";
+            d.severity = Severity::Warning;
+            d.message  = "Later MIDI import's tempo/meter timeline differs from the document's; "
+                         "the document's timeline was kept and the incoming file's was ignored";
+            diagnostics->push_back (std::move (d));
+        }
+    }
+}
+
+bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
+                     Diagnostics& diagnostics)
+{
+    std::ifstream input (midiFile.getFullPathName().toStdString(), std::ios::binary);
+    if (! input)
+    {
+        Diagnostic d;
+        d.source   = "SongModelBridge";
+        d.severity = Severity::Error;
+        d.message  = "Could not open MIDI file: " + midiFile.getFullPathName().toStdString();
+        diagnostics.push_back (std::move (d));
+        return false;
+    }
+
+    const auto sourceName = midiFile.getFileNameWithoutExtension().toStdString();
+    auto imported = importMidi (input, sourceName, diagnostics);
+
+    appendImportedSong (doc, imported, importBatch, &diagnostics);
+
+    // R3: first import's filename wins for SONG.inputMidiPath (and thus the
+    // bridge-derived rawSong.title) — only set it when currently empty.
+    if (doc.getTree().getProperty (SongIDs::inputMidiPath).toString().isEmpty())
+        doc.getTree().setProperty (SongIDs::inputMidiPath, midiFile.getFullPathName(), nullptr);
+
+    return true;
 }
 
 BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
