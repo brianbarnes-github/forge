@@ -26,14 +26,23 @@ namespace
 void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
                          Diagnostics* diagnostics)
 {
-    // R1: only the first import into an empty document sets the document's
-    // time base and TEMPO_MAP/METER_MAP. A later import describes a
-    // different timeline, not a continuation of the first's — concatenating
-    // two files' tempo/meter maps would be meaningless (TempoCollapse
-    // assumes one sorted timeline), so a later import's maps are compared
-    // (after R2 rescaling) against the document's and, if they differ,
-    // reported via a single Warning Diagnostic rather than applied.
-    const bool isFirstImport = doc.getNumTracks() == 0;
+    // R1: only the first import sets the document's time base and
+    // TEMPO_MAP/METER_MAP. A later import describes a different timeline,
+    // not a continuation of the first's — concatenating two files' tempo/
+    // meter maps would be meaningless (TempoCollapse assumes one sorted
+    // timeline), so a later import's maps are compared (after R2 rescaling)
+    // against the document's and, if they differ, reported via a single
+    // Warning Diagnostic rather than applied.
+    //
+    // "First import" is defined as an empty TEMPO_MAP, not
+    // doc.getNumTracks() == 0: importMidi always seeds a non-empty tempoMap
+    // (defaulting to {0, 120.0} when the source file has none), so a first
+    // MIDI file whose every track was silent (dropped for having no notes,
+    // leaving zero tracks) would otherwise still read as "no import has
+    // landed yet" on the next call, causing a second import to re-set
+    // ticksPerQuarter and re-append onto maps that already hold the first
+    // file's entries.
+    const bool isFirstImport = doc.getTempoMapNode().getNumChildren() == 0;
 
     if (isFirstImport)
         doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, imported.ticksPerQuarter, nullptr);
@@ -169,7 +178,21 @@ bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBa
     }
 
     const auto sourceName = midiFile.getFileNameWithoutExtension().toStdString();
-    auto imported = importMidi (input, sourceName, diagnostics);
+
+    Song imported;
+    try
+    {
+        imported = importMidi (input, sourceName, diagnostics);
+    }
+    catch (const MidiImportError& e)
+    {
+        Diagnostic d;
+        d.source   = "SongModelBridge";
+        d.severity = Severity::Error;
+        d.message  = std::string ("Malformed MIDI file: ") + e.what();
+        diagnostics.push_back (std::move (d));
+        return false;
+    }
 
     appendImportedSong (doc, imported, importBatch, &diagnostics);
 

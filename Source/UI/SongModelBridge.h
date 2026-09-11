@@ -44,8 +44,10 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 // appends the result via appendImportedSong. Sets SONG.inputMidiPath
 // only if it is currently empty (first import's filename wins). Never
 // touches the UndoManager (bulk import is not a user-undoable edit). On
-// an unopenable file: appends a Severity::Error Diagnostic (source
-// "SongModelBridge"), leaves the document unchanged, and returns false.
+// an unopenable or malformed file (including a lotro::MidiImportError
+// thrown by importMidi for content that opens fine but doesn't parse):
+// appends a Severity::Error Diagnostic (source "SongModelBridge"),
+// leaves the document unchanged, and returns false.
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
                      Diagnostics& diagnostics);
 

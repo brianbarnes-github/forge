@@ -7,6 +7,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <string>
+
 using namespace lotro;
 
 namespace
@@ -366,4 +368,127 @@ TEST_CASE ("SongModelBridge: a later import's differing tempo/meter timeline emi
     // count and in tick/bpm/numerator/denominator values).
     CHECK (infoCount == 1);
     CHECK (warningCount == 1);
+}
+
+// Finding (Phase 3 review): the real-fixture round-trip tests only ever
+// exercise an exact rescale (their PPQ ratios all happen to divide evenly),
+// so the "Warning when roundedValueCount > 0" branch of the rescale
+// diagnostic was never taken by any test with real data. This synthetic
+// fixture uses a 3:2 ratio and a startTick of 7 (7*3 = 21, not divisible by
+// 2) specifically so the rescale is inexact, independent of any MIDI file's
+// coincidental tick alignment.
+TEST_CASE ("SongModelBridge: an inexact rescale emits a Warning naming the correct rounded-value count", "[songmodelbridge]")
+{
+    Song first;
+    first.ticksPerQuarter = 3;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "First Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 0, 3, 100, false, 0, 0));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 2;
+    // Same tempo/meter maps as `first` (values unchanged, tick 0 rescales to
+    // 0 either way) so the only diagnostic in play is the rescale one, not
+    // R1's timeline-diff Warning.
+    second.tempoMap = { { 0, 120.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Second Track";
+    t1.sourceMidiChannel = 1;
+    // startTick 7 at a 3:2 ratio: (7*3) % 2 == 1 -> inexact, rounds to 11.
+    // durationTicks 6 at the same ratio: (6*3) % 2 == 0 -> exact, rounds to 9.
+    t1.notes.push_back (makeNote (61, 7, 6, 90, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, &diag1);
+    REQUIRE (diag1.empty());
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, &diag2);
+
+    REQUIRE (diag2.size() == 1);
+    CHECK (diag2[0].source == "SongModelBridge");
+    CHECK (diag2[0].severity == Severity::Warning);
+    CHECK (diag2[0].message.find ("1 value(s) rounded") != std::string::npos);
+
+    auto secondTrackTree = doc.getTrack (1);
+    REQUIRE (secondTrackTree.getNumChildren() == 1);
+    auto noteTree = secondTrackTree.getChild (0);
+    CHECK ((int) noteTree.getProperty (SongIDs::startTick) == 11);
+    CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == 9);
+}
+
+// Finding (Phase 3 review): Ruling 1's "doc.getNumTracks() == 0" first-import
+// guard was not distinct from "has any track ever landed" — an all-silent
+// first MIDI file (every track's notes empty, so importMidi drops all of
+// them) would leave the document with zero tracks despite having already
+// set ticksPerQuarter/TEMPO_MAP/METER_MAP, so a second import would
+// incorrectly be treated as the first import too. The fix defines "first
+// import" as an empty TEMPO_MAP instead (importMidi always seeds a
+// non-empty one), which this test's zero-track first import still leaves
+// non-empty.
+TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' for a later import (Ruling 1's guard is TEMPO_MAP emptiness, not track count)", "[songmodelbridge]")
+{
+    Song zeroTrackFirst;
+    zeroTrackFirst.ticksPerQuarter = 960;
+    zeroTrackFirst.tempoMap = { { 0, 100.0 } };
+    zeroTrackFirst.meterMap = { { 0, 4, 4 } };
+    // Deliberately no tracks — simulates a MIDI file whose every track had
+    // no note-on events and was dropped by importMidi.
+
+    const auto second = twoTrackImportedSongSecondBatch(); // PPQ 480, differing tempo/meter.
+
+    SongDocument doc;
+    Diagnostics diagnostics;
+    appendImportedSong (doc, zeroTrackFirst, 1, &diagnostics);
+    REQUIRE (diagnostics.empty());
+    REQUIRE (doc.getNumTracks() == 0);
+
+    appendImportedSong (doc, second, 2, &diagnostics);
+
+    // Document PPQ stays at the first import's value (960), not the second's
+    // (480) — proving the second import was NOT (incorrectly) treated as
+    // the first.
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 960);
+
+    // TEMPO_MAP/METER_MAP still hold only the zero-track first import's
+    // entries — count and values.
+    auto tempoMapNode = doc.getTempoMapNode();
+    auto meterMapNode = doc.getMeterMapNode();
+    REQUIRE (tempoMapNode.getNumChildren() == 1);
+    CHECK ((int) tempoMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((double) tempoMapNode.getChild (0).getProperty (SongIDs::bpm) == 100.0);
+    REQUIRE (meterMapNode.getNumChildren() == 1);
+    CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::numerator) == 4);
+    CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::denominator) == 4);
+
+    // The second import's notes were rescaled 2x (960/480), exactly.
+    REQUIRE (doc.getNumTracks() == (int) second.tracks.size());
+    for (size_t t = 0; t < second.tracks.size(); ++t)
+    {
+        auto trackTree = doc.getTrack ((int) t);
+        REQUIRE (trackTree.getNumChildren() == (int) second.tracks[t].notes.size());
+        for (size_t n = 0; n < second.tracks[t].notes.size(); ++n)
+        {
+            auto noteTree = trackTree.getChild ((int) n);
+            const auto& note = second.tracks[t].notes[n];
+            CHECK ((int) noteTree.getProperty (SongIDs::startTick) == note.startTick * 2);
+            CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == note.durationTicks * 2);
+        }
+    }
+
+    // One timeline Warning was emitted (the second import's tempo/meter
+    // differs from what the document holds).
+    int timelineWarnings = 0;
+    for (const auto& d : diagnostics)
+        if (d.source == "SongModelBridge" && d.severity == Severity::Warning
+            && d.message.find ("timeline") != std::string::npos)
+            ++timelineWarnings;
+    CHECK (timelineWarnings == 1);
 }
