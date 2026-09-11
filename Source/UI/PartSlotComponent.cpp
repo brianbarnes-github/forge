@@ -3,8 +3,6 @@
 
 #include "Core/LotroInstrument.h"
 
-#include <cmath>
-
 namespace lotro
 {
 
@@ -57,12 +55,12 @@ void PartSlotComponent::paint (juce::Graphics& g)
 
     auto xArea = header.removeFromLeft (16);
     g.setColour (juce::Colour (textMuted));
-    g.setFont (juce::Font (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain));
+    g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain)));
     g.drawText (juce::String ((int) part.getProperty (SongIDs::x)), xArea, juce::Justification::centredLeft);
 
     const auto instrumentName = part.getProperty (SongIDs::instrumentName).toString();
-    juce::Font badgeFont (10.0f);
-    const int badgeWidth = (int) std::ceil (badgeFont.getStringWidthFloat (instrumentName)) + 12;
+    juce::Font badgeFont (juce::FontOptions (10.0f));
+    const int badgeWidth = juce::GlyphArrangement::getStringWidthInt (badgeFont, instrumentName) + 12;
     auto badgeArea = header.removeFromLeft (badgeWidth);
     g.setColour (juce::Colour (accentAmber).withAlpha (0.25f));
     g.fillRoundedRectangle (badgeArea.reduced (0, 2).toFloat(), 2.0f);
@@ -72,7 +70,7 @@ void PartSlotComponent::paint (juce::Graphics& g)
 
     header.removeFromLeft (6);
     g.setColour (juce::Colour (text));
-    g.setFont (juce::Font (10.0f));
+    g.setFont (juce::Font (juce::FontOptions (10.0f)));
     g.drawText (part.getProperty (SongIDs::label).toString(), header, juce::Justification::centredLeft);
 
     if (chips.isEmpty())
@@ -89,7 +87,7 @@ void PartSlotComponent::paint (juce::Graphics& g)
         g.fillPath (dashed);
 
         g.setColour (juce::Colour (textMuted));
-        g.setFont (juce::Font (10.0f));
+        g.setFont (juce::Font (juce::FontOptions (10.0f)));
         g.drawText ("drop here", placeholder, juce::Justification::centred);
     }
 }
@@ -177,23 +175,39 @@ void PartSlotComponent::showContextMenu()
     menu.addSeparator();
     menu.addItem (1001, "Remove part");
 
+    // showMenuAsync pumps the message loop rather than blocking it, so a
+    // PARTS-subtree change from elsewhere (Undo, "Default parts from
+    // tracks", ...) can run PartStripComponent::rebuild() — which destroys
+    // this PartSlotComponent — while the menu is still open. Follow
+    // promptRename()'s pattern below: copy the ValueTree and a stable
+    // SongDocument* into the lambda instead of reading them through `this`.
+    // A SafePointer guards the one branch (Rename...) that still needs to
+    // call back into a live PartSlotComponent.
+    juce::Component::SafePointer<PartSlotComponent> safeThis (this);
+    juce::ValueTree partRef = part;
+    SongDocument* docPtr = &doc;
+
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
-        [this, names] (int result)
+        [safeThis, partRef, docPtr, names] (int result)
         {
             if (result == 0) return;
 
-            if (result == 1000) { promptRename(); return; }
-            if (result == 1001) { doc.removePart (getPartId()); return; }
+            if (result == 1000)
+            {
+                if (safeThis != nullptr)
+                    safeThis->promptRename();
+                return;
+            }
+
+            const auto partId = (juce::int64) partRef.getProperty (SongIDs::partId);
+            if (result == 1001) { docPtr->removePart (partId); return; }
 
             if (result >= 1 && result <= (int) names.size())
             {
                 const auto& chosen = names[(size_t) result - 1];
-                doc.setProperty (part, SongIDs::instrumentName,
-                                  juce::String (chosen.data(), chosen.size()));
+                docPtr->setProperty (partRef, SongIDs::instrumentName,
+                                     juce::String (chosen.data(), chosen.size()));
             }
-            // Any branch above that mutates the document may have already
-            // destroyed `this` via PartStripComponent::rebuild() — nothing
-            // after this point may touch member state.
         });
 }
 

@@ -261,14 +261,6 @@ void MainWindow::filesDropped (const juce::StringArray& files, int, int)
         if (ext == ".mid" || ext == ".midi") { openMidiFromPath (file);   return; }
         if (ext == ".json" || ext == ".toml" || ext == ".xml")
         {
-            if (body->isSongsmithMode())
-            {
-                juce::NativeMessageBox::showMessageBoxAsync (
-                    juce::MessageBoxIconType::InfoIcon,
-                    "Not supported",
-                    "Config files are not supported in Songsmith mode yet");
-                return;
-            }
             openConfigFromPath (file);
             return;
         }
@@ -380,6 +372,19 @@ void MainWindow::openConfigViaDialog()
 
 void MainWindow::openConfigFromPath (const juce::File& file)
 {
+    // Config files load into the classic EditorPane, which isn't visible (or
+    // wired up) in Songsmith mode. Both the File -> Open Config... dialog and
+    // dropped config files funnel through here, so this is the single place
+    // that branch needs to live.
+    if (body->isSongsmithMode())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::InfoIcon,
+            "Not supported",
+            "Config files are not supported in Songsmith mode yet");
+        return;
+    }
+
     Config cfg;
     Diagnostics migDiag;
     const auto loadErr = loadConfigFromFile (file.getFullPathName().toStdString(),

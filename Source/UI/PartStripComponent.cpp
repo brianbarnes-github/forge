@@ -12,7 +12,7 @@ PartStripComponent::PartStripComponent (SongDocument& document) : doc (document)
                      juce::dontSendNotification);
     header.setColour (juce::Label::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
     header.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
-    header.setFont (juce::Font (11.0f).withExtraKerningFactor (0.04f));
+    header.setFont (juce::Font (juce::FontOptions (11.0f)).withExtraKerningFactor (0.04f));
     addAndMakeVisible (header);
 
     addAndMakeVisible (addButton);
@@ -24,6 +24,9 @@ PartStripComponent::PartStripComponent (SongDocument& document) : doc (document)
 
 PartStripComponent::~PartStripComponent()
 {
+    // Cancel before removing the listener so a rebuild can't fire against a
+    // component that is mid-destruction.
+    cancelPendingUpdate();
     doc.getPartsNode().removeListener (this);
 }
 

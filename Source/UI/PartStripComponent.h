@@ -15,7 +15,8 @@ namespace lotro
 {
 
 class PartStripComponent : public juce::Component,
-                            private juce::ValueTree::Listener
+                            private juce::ValueTree::Listener,
+                            private juce::AsyncUpdater
 {
 public:
     explicit PartStripComponent (SongDocument& document);
@@ -32,12 +33,17 @@ private:
     void selectPart (juce::int64 partId);
     void addPartClicked();
 
-    // juce::ValueTree::Listener
-    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { rebuild(); }
-    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { rebuild(); }
-    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { rebuild(); }
-    void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { rebuild(); }
+    // juce::ValueTree::Listener. PARTS is a smaller subtree than SOURCE_MIDI
+    // in practice, but the same bubbling hazard applies (e.g. many
+    // assignments changing at once), so coalesce the same way
+    // TrackListComponent does: listeners only request a rebuild via
+    // AsyncUpdater, and handleAsyncUpdate() does the single real rebuild.
+    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { triggerAsyncUpdate(); }
+    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { triggerAsyncUpdate(); }
+    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { triggerAsyncUpdate(); }
+    void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { triggerAsyncUpdate(); }
     void valueTreeParentChanged (juce::ValueTree&) override {}
+    void handleAsyncUpdate() override { rebuild(); }
 
     SongDocument&    doc;
     juce::Label      header;

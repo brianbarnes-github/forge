@@ -26,6 +26,9 @@ TrackListComponent::TrackListComponent (SongDocument& document) : doc (document)
 
 TrackListComponent::~TrackListComponent()
 {
+    // Cancel before removing the listener so a rebuild can't fire against a
+    // component that is mid-destruction.
+    cancelPendingUpdate();
     doc.getSourceMidiNode().removeListener (this);
 }
 
