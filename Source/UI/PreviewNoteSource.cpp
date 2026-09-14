@@ -64,6 +64,15 @@ juce::Range<int> PreviewNoteSource::getPitchRange() const
     {
         lo = std::min (lo, n.prePitch);
         hi = std::max (hi, n.prePitch);
+
+        // A folding note's ghost is painted at postPitch, potentially many
+        // rows away from prePitch — the range this drives (PianoRollComponent's
+        // vertical fit) must cover the ghost's row too, or it lands off-canvas.
+        if (n.postPitch.has_value())
+        {
+            lo = std::min (lo, *n.postPitch);
+            hi = std::max (hi, *n.postPitch);
+        }
     }
 
     return { lo, hi + 1 };

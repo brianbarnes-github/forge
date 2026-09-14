@@ -99,6 +99,14 @@ private:
     void rebuildContentSize();
     void zoom (float wheelDeltaY);
 
+    // Union of the note source's own pitch range with `rangeBand`. The band
+    // is supplied independently of the note source (via setPreviewRangeBand,
+    // which can be called before or after setNoteSource), so neither side
+    // alone is guaranteed to cover the other — a note that folds outside the
+    // band, or a band drawn wider than every note in view, must both still
+    // land on-canvas.
+    juce::Range<int> effectivePitchRange() const;
+
     Role role;
     PianoRollNoteSource* noteSource = nullptr;
     PianoRollGeometry geometry;

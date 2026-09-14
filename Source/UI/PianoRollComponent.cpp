@@ -34,7 +34,7 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
     meterMap = meterMapNode;
 
     geometry = noteSource != nullptr
-                   ? PianoRollGeometry::fitToContent (noteSource->getTickRange(), noteSource->getPitchRange(),
+                   ? PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
                                                        ticksPerQuarter, viewport.getWidth(), viewport.getHeight())
                    : PianoRollGeometry();
 
@@ -45,7 +45,28 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
 void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
 {
     rangeBand = midiRange;
+
+    // The band can arrive after setNoteSource already ran fitToContent's
+    // vertical fit off the note source alone — re-derive topPitch so a band
+    // wider than every note in view (or a note that folds outside the band)
+    // still lands on-canvas, mirroring fitToContent's own topPitch rule.
+    if (noteSource != nullptr)
+    {
+        const auto pitchRange = effectivePitchRange();
+        if (! pitchRange.isEmpty())
+            geometry.setTopPitch (pitchRange.getEnd() - 1);
+    }
+
+    rebuildContentSize();
     canvas.repaint();
+}
+
+juce::Range<int> PianoRollComponent::effectivePitchRange() const
+{
+    auto range = noteSource != nullptr ? noteSource->getPitchRange() : juce::Range<int>();
+    if (! rangeBand.isEmpty())
+        range = range.isEmpty() ? rangeBand : range.getUnionWith (rangeBand);
+    return range;
 }
 
 void PianoRollComponent::paint (juce::Graphics& g)
@@ -75,7 +96,7 @@ void PianoRollComponent::rebuildContentSize()
     if (noteSource != nullptr)
     {
         const auto tickRange = noteSource->getTickRange();
-        const auto pitchRange = noteSource->getPitchRange();
+        const auto pitchRange = effectivePitchRange();
 
         const int contentTickEnd = tickRange.isEmpty() ? tickRange.getStart() : tickRange.getEnd();
         width = juce::jmax (width, geometry.xForTick (contentTickEnd));
@@ -241,7 +262,18 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         const auto note = noteSource->getNote (i);
         const auto bounds = geometry.noteBounds (note);
         const juce::Rectangle<int> rect (bounds.x, bounds.y, bounds.width, bounds.height);
-        if (! rect.intersects (clip))
+
+        const bool hasGhost = role == Role::Preview && note.state == NoteState::WillFold && note.postPitch.has_value();
+        const juce::Rectangle<int> ghostRect = hasGhost
+            ? juce::Rectangle<int> (bounds.x, geometry.yForPitch (*note.postPitch), bounds.width, geometry.getRowHeight())
+            : juce::Rectangle<int>();
+
+        // A WillFold note's ghost can sit many rows away from its solid
+        // rect — cull against the union of both, so a partial repaint (e.g.
+        // a Viewport scroll exposing only a newly-visible strip) that
+        // contains the ghost's row but not the solid rect's row still draws
+        // the note.
+        if (! (hasGhost ? rect.getUnion (ghostRect) : rect).intersects (clip))
             continue;
 
         const auto fill = juce::Colour (note.colourArgb);
@@ -264,10 +296,8 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         if (role != Role::Preview)
             continue;
 
-        if (note.state == NoteState::WillFold && note.postPitch.has_value())
+        if (hasGhost)
         {
-            const juce::Rectangle<int> ghostRect (bounds.x, geometry.yForPitch (*note.postPitch),
-                                                   bounds.width, geometry.getRowHeight());
             g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
             g.drawRect (ghostRect, 1);
         }

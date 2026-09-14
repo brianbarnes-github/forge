@@ -110,3 +110,24 @@ TEST_CASE ("PreviewNoteSource: tick/pitch ranges span every note's prePitch/star
     CHECK (pitchRange.getStart() == 48);
     CHECK (pitchRange.getEnd() == 73); // exclusive: highest pitch (72) + 1
 }
+
+TEST_CASE ("PreviewNoteSource: pitch range also covers a WillFold note's postPitch, even when it falls outside every prePitch", "[previewnotesource]")
+{
+    // A note that folds UPWARD past every other note's prePitch (e.g. pitch
+    // 20 -> 44, LuteOfAges's range) must still pull the ghost's destination
+    // row into the reported range — a bug that only unions prePitch would
+    // place the ghost off the top of PianoRollComponent's canvas (C1).
+    PreviewNote folding = makeNormal (20, 0, 480);
+    folding.state    = NoteState::WillFold;
+    folding.postPitch = 44;
+
+    std::vector<PreviewNote> notes {
+        folding,
+        makeNormal (30, 480, 480), // an ordinary note whose prePitch alone would cap the range lower than 44
+    };
+    PreviewNoteSource source (notes);
+
+    auto pitchRange = source.getPitchRange();
+    CHECK (pitchRange.getStart() == 20);
+    CHECK (pitchRange.getEnd() == 45); // exclusive: postPitch (44) + 1, not prePitch's own max (30)
+}
