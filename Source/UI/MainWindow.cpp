@@ -269,6 +269,16 @@ void MainWindow::runConversion()
 
     Diagnostics diagnostics;
 
+    // A part with zero assignments (e.g. freshly created via the part
+    // strip's "+ Add", before any track is dragged onto it) builds a
+    // ConfigInstrument with an empty `sources` array, which validateConfig
+    // rejects — but that should only drop that one part from the export,
+    // not abort every other correctly-configured part. (The scoped preview
+    // path, computePartPreview, is unaffected — it never calls
+    // validateConfig, so an empty part previews as empty rather than
+    // erroring.)
+    dropUnassignedInstruments (built.config, diagnostics);
+
     const auto validErr = validateConfig (built.config, (int) built.rawSong.tracks.size());
     if (! validErr.empty())
     {

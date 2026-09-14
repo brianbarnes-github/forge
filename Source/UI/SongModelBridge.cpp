@@ -524,4 +524,25 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
     return result;
 }
 
+void dropUnassignedInstruments (Config& config, Diagnostics& diagnostics)
+{
+    auto& instruments = config.instruments;
+    instruments.erase (
+        std::remove_if (instruments.begin(), instruments.end(),
+            [&] (const ConfigInstrument& inst)
+            {
+                if (! inst.sources.empty())
+                    return false;
+
+                Diagnostic warn;
+                warn.severity = Severity::Warning;
+                warn.source   = "SongModelBridge";
+                warn.message  = "Skipped part with no assigned tracks: "
+                               + (inst.label.has_value() ? *inst.label : inst.name);
+                diagnostics.push_back (warn);
+                return true;
+            }),
+        instruments.end());
+}
+
 } // namespace lotro

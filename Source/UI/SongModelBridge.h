@@ -85,4 +85,14 @@ struct BuiltConfigAndSong
 BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
                                           const std::vector<juce::int64>& partIds = {});
 
+// Full-export helper (MainWindow::runConversion only — not the scoped
+// preview path, which deliberately never calls validateConfig). Drops any
+// ConfigInstrument with an empty `sources` array — a part with no assigned
+// tracks, e.g. one freshly added via the part strip's "+ Add" and not yet
+// dragged a track onto — since forge_core's validateConfig rejects that
+// outright and would otherwise abort the whole export over one unfinished
+// part. Appends one Severity::Warning Diagnostic per dropped instrument,
+// naming it by label (falling back to its instrument name).
+void dropUnassignedInstruments (Config& config, Diagnostics& diagnostics);
+
 } // namespace lotro
