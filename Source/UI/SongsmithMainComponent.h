@@ -54,6 +54,8 @@ public:
     DiagnosticListView& getDiagnostics() noexcept { return diagnostics; }
 
 private:
+    friend struct SongsmithMainComponentTestAccess;
+
     // Groups the widgets shown above the splitter's drag bar so the splitter
     // can treat them as a single component for layout purposes (mirrors
     // MainWindow::Body's editor/diagnostics split — see SplitterComponent.h).
@@ -114,7 +116,17 @@ private:
     void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { triggerAsyncUpdate(); }
     void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { triggerAsyncUpdate(); }
     void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { triggerAsyncUpdate(); }
-    void valueTreeParentChanged (juce::ValueTree&) override {}
+
+    // ValueTree::removeChild notifies listeners on the removed node's
+    // PARENT, never on the removed child's own listener list — so removing
+    // the watched PART node itself never reaches valueTreeChildRemoved
+    // above. It does fire valueTreeParentChanged on the removed node, which
+    // is how this catches it.
+    void valueTreeParentChanged (juce::ValueTree& tree) override
+    {
+        if (tree == watchedPartNode)
+            triggerAsyncUpdate();
+    }
     void handleAsyncUpdate() override;
 
     SongDocument& doc;
