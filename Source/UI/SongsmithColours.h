@@ -29,8 +29,11 @@ namespace lotro::SongsmithColours
 
     // Phase 6 — preview roll overlays (Songsmith UI Guide mockup's "LOTRO
     // preview" pane). Colour is driven entirely by NoteState, not by the
-    // note's original source track (see the Phase 6 plan note ruling out
-    // track-tinted preview notes for legibility).
+    // note's original source track: the mockup renders every preview note
+    // in one instrument-accent colour regardless of source track, and the
+    // session lead decided during Phase 6 not to deviate from that (see
+    // the plan's "Multi-track-per-part preview legibility" deferred
+    // decision, resolved 2026-09-14).
     constexpr juce::uint32 previewNoteNormal    = 0xFF7FA8D0;
     constexpr juce::uint32 previewNoteBorder    = 0xFFA0C0E0;
     constexpr juce::uint32 outOfRangeFill       = 0xFFC06060;
