@@ -110,15 +110,9 @@ target_sources(forge_ui PRIVATE
     Source/UI/PartStripComponent.cpp
     Source/UI/PreviewAssignedPanel.cpp
     Source/UI/SongsmithMainComponent.cpp
-    Source/UI/EditorPane.cpp
     Source/UI/DiagnosticsPane.cpp
     Source/UI/DiagnosticListView.cpp
-    Source/UI/AbcPreviewView.cpp
-    Source/UI/SongPropertyPage.cpp
-    Source/UI/InstrumentPropertyPage.cpp
-    Source/UI/SourcePropertyPage.cpp
-    Source/UI/PropertyPageHost.cpp
-    Source/UI/InstrumentsTree.cpp)
+    Source/UI/AbcPreviewView.cpp)
 
 target_compile_definitions(forge_ui PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:forge_ui,JUCE_PRODUCT_NAME>"
