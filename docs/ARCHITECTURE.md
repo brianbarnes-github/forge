@@ -12,6 +12,22 @@ An in-depth tour of how Forge works. Organised by functional group, top-down: ra
 > forge (CLI exe)                              forge_ui (JUCE GUI exe)
 > ```
 
+## Repository layout
+
+```
+Source/
+├── Core/            forge_core — JUCE-free public API (see §1-§7)
+│   └── Constraints/  the six pipeline passes (see §5)
+├── Cli/              CliOptions (arg parser), DrumMapLoader
+├── UI/               forge_ui — JUCE GUI (see §9)
+└── Main.cpp          CLI entry point (see §8)
+```
+
+Only `Source/Core/MidiImporter.cpp` touches `juce::MidiFile`. Every
+constraint takes a `Track&` and mutates it in place. All `Source/Core`
+public headers are `juce::`-free (verified: `grep juce Source/Core/*.h
+Source/Core/**/*.h` returns nothing).
+
 ## Contents
 
 1. [Core data types](#1-core-data-types)
@@ -526,6 +542,25 @@ forge [OPTIONS] INPUT.mid [OUTPUT.abc]
 
 - **Config mode** (`--config` given): loads the file, applies `--tempo` / `--transpose` as additive overrides, resolves `input` / `output` paths *relative to the config file's directory* if they weren't absolute, `validateConfig`s, and rejects any `--instrument N=NAME` flags as inconsistent with config-driven conversion.
 - **Ad-hoc mode** (no `--config`): collects `--instrument N=NAME` flags into a `std::map<int, LotroInstrument>` and passes them to `synthesiseConfig(raw, input, output, tempo, transpose, overrides)`.
+
+Full schema for the `--config` file format:
+`docs/superpowers/specs/2026-04-23-config-driven-conversion-design.md`.
+
+### Defaults
+
+- Instrument per track defaults to `LuteOfAges` for every non-drum
+  track. The converter does **not** auto-pick based on note ranges —
+  the MIDI-is-source-of-truth principle (see `CLAUDE.md`) means we
+  don't second-guess the song writer. The user is expected to pick the
+  real instrument via `--instrument N=NAME` (CLI) or the Instrument
+  property page dropdown (GUI).
+- MIDI channel-10 tracks are imported as `Drums` in `MidiImporter`
+  because General MIDI declares channel 10 as percussion; this is
+  reading the MIDI, not a converter heuristic.
+- Output path defaults to `<input-stem>.abc` next to the input.
+- Drum mappings default to the spec §2.6 + extended-GM-percussion set
+  in `defaultDrumMap()`. `--drum-map` merges overrides on top; unlisted
+  pitches keep their defaults. See `docs/REFERENCE.md`.
 
 ### Main flow — `Source/Main.cpp`
 
