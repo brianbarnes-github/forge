@@ -154,9 +154,22 @@ TEST_CASE ("PianoRollGeometry: fitToContent pins the content origin to tick 0, n
     const juce::Range<int> tickRange (960, 1920);
     const juce::Range<int> pitchRange (60, 61);
 
-    auto geometry = PianoRollGeometry::fitToContent (tickRange, pitchRange, 480, 800, 300);
+    const int viewportWidth = 800;
+    auto geometry = PianoRollGeometry::fitToContent (tickRange, pitchRange, 480, viewportWidth, 300);
 
     CHECK (geometry.getContentOriginTick() == 0.0);
+
+    // The note range's actual pixel bounds must land inside the viewport —
+    // pinning the origin to 0 without also zooming to fit the distance from
+    // that origin (not just the range's own length) would push the content
+    // off-screen to the right.
+    const int gutter = geometry.getKeyboardGutterWidth();
+    const int xStart = geometry.xForTick (tickRange.getStart());
+    const int xEnd = geometry.xForTick (tickRange.getEnd());
+    CHECK (xStart >= gutter);
+    CHECK (xStart <= viewportWidth);
+    CHECK (xEnd >= gutter);
+    CHECK (xEnd <= viewportWidth);
 }
 
 TEST_CASE ("PianoRollGeometry: fitToContent on an empty source doesn't divide by zero or crash", "[piano-roll]")

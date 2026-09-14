@@ -73,11 +73,11 @@ public:
     static bool isBlackKey (int pitch) noexcept;
 
     // Default view when a track is first selected: computes a zoom factor
-    // and visible tick window so the whole tick range fits the viewport
-    // width without horizontal scrolling, and a topPitch placing the
-    // highest pitch in range at the top of the viewport. ticksPerQuarter is
-    // the document's PPQ (for the zoom-factor conversion), independent of
-    // this geometry's own pixelsPerQuarterNote zoom value.
+    // so the span from the fixed tick-0 origin to the end of the tick range
+    // fits the viewport width without horizontal scrolling, and a topPitch
+    // placing the highest pitch in range at the top of the viewport.
+    // ticksPerQuarter is the document's PPQ (for the zoom-factor conversion),
+    // independent of this geometry's own pixelsPerQuarterNote zoom value.
     static PianoRollGeometry fitToContent (juce::Range<int> tickRange,
                                             juce::Range<int> pitchRange,
                                             int ticksPerQuarter,

@@ -62,10 +62,13 @@ PianoRollGeometry PianoRollGeometry::fitToContent (juce::Range<int> tickRange,
     PianoRollGeometry geometry;
     geometry.ticksPerQuarter = ticksPerQuarter;
 
-    // Horizontal: choose a zoom factor so the whole tick span fits the
-    // available width (viewport minus the keyboard gutter) without
-    // scrolling — this is the "see the whole track" default view.
-    const int tickSpan = tickRange.isEmpty() ? 1 : tickRange.getLength();
+    // Horizontal: choose a zoom factor so the span from the fixed tick-0
+    // origin (below) to the end of the tick range fits the available width
+    // (viewport minus the keyboard gutter) without scrolling — this is the
+    // "see the whole track" default view. Measuring from the range's own
+    // start (its length) would under-zoom whenever the range doesn't start
+    // near 0, leaving the content off the right edge of the viewport.
+    const int tickSpan = tickRange.isEmpty() || tickRange.getEnd() <= 0 ? 1 : tickRange.getEnd();
     const int availableWidth = std::max (1, viewportWidth - geometry.keyboardGutterWidth);
     const double quarterSpan = std::max (0.0001, (double) tickSpan / (double) ticksPerQuarter);
     geometry.pixelsPerQuarterNote = std::max (1.0, (double) availableWidth / quarterSpan);
