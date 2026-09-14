@@ -108,6 +108,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/AssignmentChipComponent.cpp
     Source/UI/PartSlotComponent.cpp
     Source/UI/PartStripComponent.cpp
+    Source/UI/PreviewAssignedPanel.cpp
     Source/UI/SongsmithMainComponent.cpp
     Source/UI/EditorPane.cpp
     Source/UI/DiagnosticsPane.cpp
