@@ -42,6 +42,8 @@ public:
     void resized() override;
 
 private:
+    friend struct PianoRollComponentTestAccess;
+
     class Canvas : public juce::Component
     {
     public:

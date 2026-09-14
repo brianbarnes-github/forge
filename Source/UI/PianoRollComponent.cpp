@@ -247,7 +247,18 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         const auto fill = juce::Colour (note.colourArgb);
         g.setColour (fill);
         g.fillRect (rect);
-        g.setColour (fill.brighter (0.4f));
+
+        if (role == Role::Preview)
+        {
+            const auto borderArgb = note.state == NoteState::Normal
+                                         ? SongsmithColours::previewNoteBorder
+                                         : SongsmithColours::outOfRangeBorder;
+            g.setColour (juce::Colour (borderArgb));
+        }
+        else
+        {
+            g.setColour (fill.brighter (0.4f));
+        }
         g.drawRect (rect, 1);
 
         if (role != Role::Preview)
