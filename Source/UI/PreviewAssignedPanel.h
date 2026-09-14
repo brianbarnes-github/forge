@@ -34,6 +34,8 @@ public:
     void paint (juce::Graphics& g) override;
 
 private:
+    friend struct PreviewAssignedPanelTestAccess;
+
     struct AssignedRow
     {
         juce::String trackName;
@@ -47,6 +49,7 @@ private:
     juce::String rangeText;
     int totalNotes = 0;
     int droppedNotes = 0;
+    int willFoldNotes = 0;
 };
 
 } // namespace lotro

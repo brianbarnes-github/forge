@@ -34,6 +34,7 @@ void PreviewAssignedPanel::clear()
     rangeText = {};
     totalNotes = 0;
     droppedNotes = 0;
+    willFoldNotes = 0;
     repaint();
 }
 
@@ -83,9 +84,14 @@ void PreviewAssignedPanel::setPreview (SongDocument& doc, juce::int64 partId, co
         totalNotes += (int) track.notes.size();
 
     droppedNotes = 0;
+    willFoldNotes = 0;
     for (const auto& note : diff)
+    {
         if (note.state == NoteState::Dropped)
             ++droppedNotes;
+        else if (note.state == NoteState::WillFold)
+            ++willFoldNotes;
+    }
 
     repaint();
 }
@@ -164,6 +170,16 @@ void PreviewAssignedPanel::paint (juce::Graphics& g)
     g.setColour (juce::Colour (text));
     g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::plain)));
     g.drawText (juce::String (totalNotes) + " notes", area.removeFromTop (lineHeight), juce::Justification::centredLeft);
+
+    // Per-note detail (which diagnostic explains a given dropped/folded
+    // note) is a Phase 7 tooltip, needing a TooltipWindow + roll hit-testing
+    // — natural to build alongside Phase 7's mouse handlers, not here.
+    if (willFoldNotes > 0)
+    {
+        g.setColour (juce::Colour (accentAmber));
+        g.drawText (juce::String (willFoldNotes) + " will octave-shift", area.removeFromTop (lineHeight),
+                     juce::Justification::centredLeft);
+    }
 
     if (droppedNotes > 0)
     {

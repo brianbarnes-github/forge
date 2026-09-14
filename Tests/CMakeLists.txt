@@ -36,6 +36,7 @@ add_executable(forge_tests
     PreviewNoteSource_tests.cpp
     SongsmithMainComponent_tests.cpp
     PianoRollComponent_tests.cpp
+    PreviewAssignedPanel_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
