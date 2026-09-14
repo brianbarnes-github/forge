@@ -42,6 +42,12 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
     canvas.repaint();
 }
 
+void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
+{
+    rangeBand = midiRange;
+    canvas.repaint();
+}
+
 void PianoRollComponent::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (SongsmithColours::background));
@@ -106,6 +112,7 @@ void PianoRollComponent::paintCanvas (juce::Graphics& g, juce::Rectangle<int> cl
     g.fillAll (juce::Colour (SongsmithColours::background));
 
     drawRowBands (g, clip);
+    drawRangeBand (g, clip);
     drawGridlines (g, clip);
     drawNotes (g, clip);
 }
@@ -126,6 +133,29 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
         g.setColour (juce::Colour (PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
         g.fillRect (clip.getX(), row * rowHeight, clip.getWidth(), rowHeight);
     }
+}
+
+void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const
+{
+    if (role != Role::Preview || rangeBand.isEmpty() || clip.isEmpty())
+        return;
+
+    const int rowHeight = geometry.getRowHeight();
+    const int bandTop = geometry.yForPitch (rangeBand.getEnd() - 1);
+    const int bandBottom = geometry.yForPitch (rangeBand.getStart()) + rowHeight;
+
+    g.setColour (juce::Colour (SongsmithColours::outOfRangeZoneFillHi));
+    g.fillRect (clip.withBottom (bandTop));
+
+    g.setColour (juce::Colour (SongsmithColours::outOfRangeZoneFillLo));
+    g.fillRect (clip.withTop (bandBottom));
+
+    g.setColour (juce::Colour (SongsmithColours::rangeBandFill));
+    g.fillRect (clip.getX(), bandTop, clip.getWidth(), bandBottom - bandTop);
+
+    g.setColour (juce::Colour (SongsmithColours::rangeBandBorder));
+    g.drawHorizontalLine (bandTop, (float) clip.getX(), (float) clip.getRight());
+    g.drawHorizontalLine (bandBottom, (float) clip.getX(), (float) clip.getRight());
 }
 
 void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const
@@ -219,6 +249,26 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         g.fillRect (rect);
         g.setColour (fill.brighter (0.4f));
         g.drawRect (rect, 1);
+
+        if (role != Role::Preview)
+            continue;
+
+        if (note.state == NoteState::WillFold && note.postPitch.has_value())
+        {
+            const juce::Rectangle<int> ghostRect (bounds.x, geometry.yForPitch (*note.postPitch),
+                                                   bounds.width, geometry.getRowHeight());
+            g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
+            g.drawRect (ghostRect, 1);
+        }
+        else if (note.state == NoteState::Dropped)
+        {
+            juce::Graphics::ScopedSaveState hatchClip (g);
+            g.reduceClipRegion (rect);
+            g.setColour (fill.darker (0.3f));
+            const int step = juce::jmax (2, rect.getWidth() / 3);
+            for (int x = rect.getX(); x < rect.getRight(); x += step)
+                g.drawLine ((float) x, (float) rect.getBottom(), (float) (x + rect.getHeight()), (float) rect.getY());
+        }
     }
 }
 

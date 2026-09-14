@@ -31,6 +31,13 @@ public:
     // this project's one-meter-timeline convention elsewhere).
     void setNoteSource (PianoRollNoteSource* source, int ticksPerQuarter, juce::ValueTree meterMapNode);
 
+    // Preview role only: the instrument's playable MIDI range (half-open,
+    // [midiLow, midiHigh+1), matching getPitchRange()'s convention), painted
+    // as a translucent band with red out-of-range zones above/below it. An
+    // empty range (the default, and Role::Source's permanent state) means
+    // "don't paint a band" — never call this for a Role::Source roll.
+    void setPreviewRangeBand (juce::Range<int> midiRange);
+
     void paint (juce::Graphics& g) override;
     void resized() override;
 
@@ -82,6 +89,7 @@ private:
 
     void paintCanvas (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawRowBands (juce::Graphics& g, juce::Rectangle<int> clip) const;
+    void drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void paintGutter (juce::Graphics& g) const;
     void drawNotes (juce::Graphics& g, juce::Rectangle<int> clip) const;
@@ -94,6 +102,7 @@ private:
     PianoRollGeometry geometry;
     int ticksPerQuarter = 480;
     juce::ValueTree meterMap;
+    juce::Range<int> rangeBand; // Preview role only; empty means "no band".
 
     ScrollAwareViewport viewport { *this };
     Canvas canvas { *this };
