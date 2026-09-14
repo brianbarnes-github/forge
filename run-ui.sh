@@ -12,4 +12,4 @@ fi
 
 cmake --build build --target forge_ui
 
-exec build/forge_ui_artefacts/Debug/forge_ui "$@"
+exec build/forge_ui_artefacts/Debug/song-smith "$@"

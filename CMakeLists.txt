@@ -85,7 +85,7 @@ target_link_libraries(forge PRIVATE
 # forge_ui — JUCE GUI editor for forge config files
 # ---------------------------------------------------------------------------
 juce_add_gui_app(forge_ui
-    PRODUCT_NAME "forge_ui"
+    PRODUCT_NAME "song-smith"
     COMPANY_NAME "Forge"
     VERSION ${PROJECT_VERSION})
 

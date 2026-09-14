@@ -63,8 +63,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifact-staging | Out-Null
-          Copy-Item build/forge_artefacts/Release/forge.exe       artifact-staging/
-          Copy-Item build/forge_ui_artefacts/Release/forge_ui.exe artifact-staging/
+          Copy-Item build/forge_artefacts/Release/forge.exe         artifact-staging/
+          Copy-Item build/forge_ui_artefacts/Release/song-smith.exe artifact-staging/
           Copy-Item drum_map.json                                  artifact-staging/
           Copy-Item docs/UI_GUIDE.md                               artifact-staging/
           Copy-Item docs/ARCHITECTURE.md                           artifact-staging/ -ErrorAction SilentlyContinue
@@ -74,14 +74,14 @@ jobs:
           ===============================
 
           Files in this folder:
-            forge_ui.exe       — the GUI; double-click to launch
+            song-smith.exe     — the GUI; double-click to launch
             forge.exe          — the command-line tool
             drum_map.json      — sample / default drum mapping (editable)
             UI_GUIDE.md        — reference for GUI components and field names
             ARCHITECTURE.md    — deep technical doc (optional reading)
 
           Quick start (GUI):
-            1. Double-click forge_ui.exe
+            1. Double-click song-smith.exe
             2. File → Open MIDI…  (or drag a .mid onto the window)
             3. Click each instrument in the tree, pick the LOTRO instrument
             4. Click Run Converter
@@ -126,4 +126,4 @@ jobs:
 
             **Download:** [forge-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/forge-windows.zip)
 
-            Unzip and run `forge_ui.exe` (GUI) or `forge.exe` (CLI). See `UI_GUIDE.md` for the GUI walkthrough.
+            Unzip and run `song-smith.exe` (GUI) or `forge.exe` (CLI). See `UI_GUIDE.md` for the GUI walkthrough.

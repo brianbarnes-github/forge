@@ -47,7 +47,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 CLI binary: `build/forge_artefacts/Debug/forge`. UI binary:
-`build/forge_ui_artefacts/Debug/forge_ui` (or `./run-ui.sh`); it launches
+`build/forge_ui_artefacts/Debug/song-smith` (or `./run-ui.sh`); it launches
 into the Songsmith view (source region, part strip, LOTRO preview region
 with range-band/ghost/dropped-note overlays, diagnostics) — the classic
 Config-editing UI (`EditorPane`/`InstrumentsTree`/`PropertyPageHost` +
