@@ -2,6 +2,8 @@
 
 #include <juce_core/juce_core.h>
 
+#include <optional>
+
 // Abstract note-source interface so PianoRollGeometry/PianoRollComponent
 // never depend on ValueTree directly. Phase 6 adds a second implementation
 // (PreviewNoteSource, over PreviewResult) — this seam is why the interface
@@ -9,12 +11,34 @@
 namespace lotro
 {
 
+// General note-source concept (not preview-specific), so PreviewNoteDiff.h
+// can reuse it via this header instead of redefining it.
+enum class NoteState
+{
+    Normal,
+    WillFold,
+    Dropped
+};
+
 struct PianoRollNote
 {
     int pitch = 0;
     int startTick = 0;
     int durationTicks = 0;
     juce::uint32 colourArgb = 0;
+
+    // Provenance — mirrors lotro::Note's field names exactly; the join key
+    // for PreviewNoteDiff and for mapping a clicked rectangle back to a
+    // NOTE node. -1 means "unknown" (matches lotro::Note's sentinel).
+    int sourceTrackIndex = -1;
+    int sourceEventIndex = -1;
+
+    // Preview-only state. A source-role note (SourceTrackNoteSource) never
+    // folds/drops, so these stay at their defaults there. postPitch is only
+    // meaningful when state == WillFold (the post-range-fold destination
+    // pitch, for ghost-note rendering).
+    NoteState state = NoteState::Normal;
+    std::optional<int> postPitch;
 };
 
 class PianoRollNoteSource

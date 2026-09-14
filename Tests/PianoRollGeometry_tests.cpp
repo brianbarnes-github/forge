@@ -146,6 +146,19 @@ TEST_CASE ("PianoRollGeometry: isBlackKey matches the real piano key pattern, no
     CHECK_FALSE (PianoRollGeometry::isBlackKey (-12)); // pitch class 0 (C)
 }
 
+TEST_CASE ("PianoRollGeometry: fitToContent pins the content origin to tick 0, not the track's own first tick", "[piano-roll]")
+{
+    // A track range that does NOT start at 0 — the old per-track-fitted
+    // origin would set contentOriginTick to 960.0 here, which blocks a
+    // shared time axis between the source and preview rolls (Phase 6).
+    const juce::Range<int> tickRange (960, 1920);
+    const juce::Range<int> pitchRange (60, 61);
+
+    auto geometry = PianoRollGeometry::fitToContent (tickRange, pitchRange, 480, 800, 300);
+
+    CHECK (geometry.getContentOriginTick() == 0.0);
+}
+
 TEST_CASE ("PianoRollGeometry: fitToContent on an empty source doesn't divide by zero or crash", "[piano-roll]")
 {
     const juce::Range<int> emptyTicks (0, 0);
