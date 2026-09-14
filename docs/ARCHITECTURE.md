@@ -604,46 +604,28 @@ Everything under `Source/UI/`. Uses JUCE modules `juce_gui_basics`, `juce_gui_ex
 `juce::DocumentWindow`, implements `MenuBarModel` (File/Edit/Song/View menus) and `FileDragAndDropTarget`. Owns the single `SongDocument songDocument` for the process and an `int nextImportBatch = 1` counter passed to every `importMidiFile` call. Responsibilities:
 
 - **Non-native title bar** (`setUsingNativeTitleBar(false)`) — fixes a WSLg drift-on-focus issue.
-- **File menu**: Open MIDI (Ctrl+O), Open Config (Ctrl+Shift+O), Save Config As (JSON/TOML/XML submenu), Save ABC As, Quit. Save Config As and Save ABC As are each mode-gated (M9 fix): Save Config As's submenu is disabled in Songsmith mode and `saveConfigAs()` itself early-returns with a `NativeMessageBox` if somehow still reached (mirroring `openConfigFromPath`'s guard — the classic `EditorPane`'s `Config` is never fed anything in Songsmith mode, so saving it would silently overwrite a real file with a near-empty one); Save ABC As is enabled only in classic mode (Songsmith has no Run path to populate `lastAbc` yet).
-- **Edit menu** (Phase 4): visible in both modes but only meaningful in Songsmith mode (M9 fix, mirroring the Song menu below) — Undo/Redo are enabled only when `body->isSongsmithMode()` and `songDocument.canUndo()`/`canRedo()`. No keyboard shortcuts yet (Phase 8). Enabled-ness needs no explicit `menuItemsChanged()` poke elsewhere: `getMenuForIndex` is called fresh every time a menu opens, so it always reads the document's current undo state.
-- **Song menu** (Phase 4): visible in both modes, but its one item — "Default parts from tracks" (→ `synthesiseDefaultParts(songDocument)`) — is enabled only in Songsmith mode, since only that mode has anything in `songDocument` to act on.
-- **View menu** (Phase 4): one checkable item, "Classic editor", **off by default** — Songsmith is the default view on startup. Ticking it swaps `Body`'s visible content from `SongsmithMainComponent` to the classic `EditorPane`/`DiagnosticsPane` splitter (kept fully functional; it is deleted only at the end of Phase 6, not this phase). `toggleClassicEditorMode()` flips `Body::setSongsmithMode` and calls `menuItemsChanged()` so the View/Song menus' checked/enabled state repaints immediately on next open.
-- **Drag-drop** — `.mid`/`.midi` routed to Open MIDI (which branches on `Body::isSongsmithMode()`: Songsmith mode imports into `songDocument` via `importMidiFile` and shows the returned `Diagnostics` in the Songsmith view's own `DiagnosticListView` — the diagnostics list only, not a full `DiagnosticsPane` (§9.10); classic mode is unchanged, loading straight into `EditorPane`). `.json`/`.toml`/`.xml` routed to Open Config (both the drag-drop path and the File → Open Config… dialog funnel through the same `openConfigFromPath`); in classic mode it loads normally, in Songsmith mode it is rejected with a `NativeMessageBox` ("Config files are not supported in Songsmith mode yet") rather than being loaded — Songsmith has no `Config`-editing surface yet (that's Phase 6). The mode check lives once, in `openConfigFromPath`, so the dialog and drop paths can't drift apart.
-- **Body**: an inner `Body` class holding both the classic splitter (`EditorPane` left / `DiagnosticsPane` right, `setInterceptsMouseClicks(false, true)` so drags hit the bar but clicks pass through) and a `SongsmithMainComponent`, constructed from `songDocument`, as permanent children — `setSongsmithMode(bool)` only toggles which one is visible, so switching modes never reparents anything. Songsmith is visible by default (amendment to Ruling B7: originally spec'd the other way around, inverted before this phase's build so early Songsmith testing doesn't require a menu click every launch).
+- **File menu**: Open MIDI (Ctrl+O), Open Config (Ctrl+Shift+O), Save Config As (JSON/TOML/XML submenu), Save ABC As, Quit. Save Config As's submenu is permanently disabled and `saveConfigAs()` itself early-returns with a `NativeMessageBox` if somehow still reached — there is still no translation from `SongDocument`'s `ValueTree` into a `Config` file. Save ABC As is enabled once `runConversion()` has populated `lastAbc`.
+- **Edit menu**: Undo/Redo, enabled per `songDocument.canUndo()`/`canRedo()`. No keyboard shortcuts yet (Phase 8). Enabled-ness needs no explicit `menuItemsChanged()` poke elsewhere: `getMenuForIndex` is called fresh every time a menu opens, so it always reads the document's current undo state.
+- **Song menu**: "Default parts from tracks" (→ `synthesiseDefaultParts(songDocument)`) and "Run Converter" (→ `runConversion()`, then shows the export panel).
+- **View menu**: one checkable item, "Export ABC panel" — toggles `Body`'s visible content between the Songsmith view and the export panel (`ViewExportPanelToggle` calls `body->setExportPanelVisible(!body->isExportPanelVisible())` and `menuItemsChanged()` so the checkmark repaints immediately on next open). There is only one editing surface now (Songsmith) — this toggle is between it and the export panel, not between two editors.
+- **Drag-drop** — `.mid`/`.midi` routed to Open MIDI, which imports into `songDocument` via `importMidiFile` and shows the returned `Diagnostics` in the Songsmith view's own `DiagnosticListView` (§9.10) — not the export panel's `DiagnosticListView` (§9.9). `.json`/`.toml`/`.xml` routed to Open Config (both the drag-drop path and the File → Open Config… dialog funnel through the same `openConfigFromPath`), which always shows a `NativeMessageBox` ("Config files are not supported yet") rather than loading — there is still no path from a loaded Config file into `SongDocument`'s `ValueTree`.
+- **Body**: an inner `Body` class holding both `SongsmithMainComponent` and the export panel (`DiagnosticsPane`) as permanent children (`addChildComponent`) — `setExportPanelVisible(bool)` only toggles which one is visible, so toggling never reparents anything. Songsmith is visible by default.
 - **State**: `lastAbc` (populated by Run Converter, consumed by Save ABC).
-- **Run**: `runConversion()` = `validateConfig → assembleInstruments → runPipeline → writeAbc → DiagnosticsPane.show(diags, abc)`. Classic-mode-only; Songsmith's export/run path is out of scope until Phase 6 (no Run button exists in `SongsmithMainComponent`).
+- **Run**: `runConversion()` builds the full-export `Config` (`buildConfigAndRawSong(songDocument)`, no `partIds` filter), drops any zero-assignment part via `SongModelBridge::dropUnassignedInstruments` (§9.8) — warning once per drop rather than failing the whole export — then runs `validateConfig → assembleInstruments → runPipeline → writeAbc → DiagnosticsPane.show(diags, abc)`. This is the only conversion path; the scoped live-preview path (§9.8/9.12) never calls `validateConfig`.
 
-### 9.3 `EditorPane` — `Source/UI/EditorPane.{h,cpp}`
+### 9.3–9.6 Historical: the deleted classic Config-editing UI
 
-Owns the mutable `Config` and the (effectively immutable) raw `Song`. Child layout:
-
-- `InstrumentsTree` — top 40%.
-- `PropertyPageHost` — middle/lower.
-- Run Converter button — bottom.
-
-Callbacks: `onConfigChanged` (wired to refresh the ABC preview / etc.), `onRunRequested` (wired to `MainWindow::runConversion`). `loadFromMidi(newRaw, newCfg)` swaps state, rebuilds the tree, forces the Song property page, enables the Run button if any tracks were imported.
-
-### 9.4 `InstrumentsTree` — `Source/UI/InstrumentsTree.{h,cpp}`
-
-`juce::TreeView` + three nested `TreeViewItem` subclasses. Invariant pinned at the top of the `.cpp`: every stored index (`instrumentIdx`, `sourceIdx`) is only valid for that item's lifetime — any `config.instruments` mutation MUST call `rebuild()` so a fresh item tree is constructed.
-
-- **`SongItem`** (root; always one). Label = `config.title` if set, else input filename stem, else `(no MIDI loaded)`, drawn bold. Right-click menu: `Add Instrument`; `Clear All Instruments` (disabled when empty — opens a confirmation dialog).
-- **`InstrumentItem`**. Label = `X:N  NAME — "label"`. Lazy-populates `SourceItem` children on first expand via `itemOpennessChanged`. Right-click: `Add Source ▸` submenu listing unused raw MIDI tracks, separator, `Delete Instrument`.
-- **`SourceItem`**. Label = `MIDI N: trackname (chan C, notecount)`. Right-click: `Delete Source`.
-
-Left-click on any item fires `notifySelection(Kind, instrumentIdx, sourceIdx)` which `EditorPane` wires to `PropertyPageHost::showFor(...)`. Every mutation fires `notifyMutation()` and then `rebuild()`.
-
-### 9.5 `PropertyPageHost` — `Source/UI/PropertyPageHost.{h,cpp}`
-
-A page switcher with three pre-instantiated child components. `showFor(Kind, iIdx, sIdx)` toggles visibility and calls `editInstrument` / `editSource` / `refresh` on the newly-visible page. `refresh()` refreshes all three (used after external mutations). `resized()` assigns `getLocalBounds()` to all three so only the visible one actually paints.
-
-### 9.6 Property pages
-
-Each is a `juce::Component` + `juce::TextEditor::Listener` that pushes every keystroke straight into `Config`.
-
-- **`SongPropertyPage`** (`Source/UI/SongPropertyPage.{h,cpp}`). Six rows: Input MIDI (read-only label), Output ABC (read-only label), Title (text), Transcriber (text), Tempo BPM (numeric), Global transpose semitones (numeric).
-- **`InstrumentPropertyPage`** (`Source/UI/InstrumentPropertyPage.{h,cpp}`). X: index (numeric), Name (dropdown populated from `allInstrumentNames()`), Label (text), Drum map (text + Browse button; enabled only when Name == Drums).
-- **`SourcePropertyPage`** (`Source/UI/SourcePropertyPage.{h,cpp}`). MIDI track (read-only — shows index + name + channel + note count), Transpose semitones (numeric), Volume % (numeric).
+Earlier phases had a second, form/tree-based "classic" editor —
+`EditorPane` (owning the mutable `Config` + raw `Song`), `InstrumentsTree`
+(a `juce::TreeView` over `Config.instruments`), `PropertyPageHost` + three
+property pages (`SongPropertyPage`/`InstrumentPropertyPage`/
+`SourcePropertyPage`, each pushing keystrokes straight into `Config`) —
+toggleable alongside Songsmith via the View menu. All of it (plus its
+CMake entries) was **deleted** at the end of Phase 6, per the Songsmith
+plan's decision, once `SongsmithMainComponent` covered everything it did.
+These classes no longer exist in `Source/UI/`; this section is kept only
+as a pointer for anyone reading old commit history or the Songsmith plan's
+early phases, not as documentation of current code.
 
 ### 9.7 `SongDocument` — `Source/UI/SongDocument.{h,cpp}`
 
@@ -674,7 +656,7 @@ The translation layer between `SongDocument`'s `ValueTree` and `forge_core`'s pl
 
 ### 9.9 `DiagnosticsPane` — `Source/UI/DiagnosticsPane.{h,cpp}`
 
-Classic-mode only: right half of `MainWindow::Body`'s splitter (`EditorPane` left, `DiagnosticsPane` right), populated by `runConversion()`. Songsmith mode does not use this component — see §9.10, which hosts a bare `DiagnosticListView` instead. Inner `Body` class owns the horizontal splitter between the list (top ~50%) and the preview (bottom).
+The toggleable export panel: one of `MainWindow::Body`'s two permanent children (see §9.2), shown in place of `SongsmithMainComponent` by `Song → Run Converter` or `View → Export ABC panel`, and populated by `runConversion()`. `SongsmithMainComponent` does not use this component for its own (import-only) diagnostics — see §9.10, which hosts a bare `DiagnosticListView` instead. `DiagnosticsPane`'s own inner `Body` class owns the horizontal splitter between the list (top ~50%) and the preview (bottom).
 
 - **`DiagnosticListView`** — `juce::TableListBox` with 6 columns: Severity (coloured dot + text — blue Info / orange Warning / red Error), Source, Tick, Pitch, Track, Message. `--` for unset locator fields. Empty state message when nothing to show.
 - **`AbcPreviewView`** — read-only `juce::TextEditor` + grey status-line label ("`5,824 bytes · 184 bars · 3 parts`").
@@ -690,19 +672,19 @@ Phase 4's UI layer: six new `juce`-GUI components, all namespace `lotro`, that r
 - **`AssignmentChipComponent`** — one `ASSIGNMENT` inside a `PartSlotComponent`'s body: swatch (the referenced track's `colorArgb`, resolved via `doc.findTrackById`), `"Tk<n>"` (n = that track's current 1-based `SOURCE_MIDI` position, re-resolved on every paint so it can't go stale), monospace transpose (`"+0"`/`"−12"`, U+2212 minus for negatives), and an `×` `juce::TextButton` that calls `SongDocument::removeAssignment`. Dashed border in the track's colour, matching the mockup.
 - **`PartSlotComponent`** — one `PART`: header (`x` index, monospace muted; an instrument badge; the label) over a wrapping row of `AssignmentChipComponent`s, or a dashed "drop here" placeholder when empty. Selected → 2px amber top border + lighter fill. A `juce::DragAndDropTarget`: `isInterestedInDragSource` accepts only an `int64` `var` that resolves via `doc.findTrackById`; `itemDragEnter`/`itemDragExit` toggle a highlight fill; `itemDropped` calls `doc.assignTrackToPart(partId, trackId)` and returns immediately after — dedup is the document's job (`assignTrackToPart` silently no-ops a repeat drop of the same track onto the same slot), and the resulting `ASSIGNMENT` add fires `PartStripComponent`'s listener, which rebuilds the whole strip and destroys this slot, so nothing may touch `this` after that call. Right-click opens a `juce::PopupMenu`: an "Instrument" submenu (every `allInstrumentNames()` entry, current one ticked) writing `instrumentName` via `doc.setProperty`; "Rename…" (async `juce::AlertWindow` text prompt → `label`); "Remove part" (`doc.removePart`) — the same just-mutated/component-destroyed caveat applies to every branch.
 - **`PartStripComponent`** — a horizontal strip of `PartSlotComponent`s, rebuilt from `doc.getPartsNode()` on any subtree change (a `PART` add/remove, or an `ASSIGNMENT` add/remove/property-change underneath one, since chips live under parts). Header bar: `"PARTS · DROP TRACKS TO ASSIGN"`, panel-header colour, uppercase with extra letter-spacing, matching the mockup. Trailing "+ Add" button calls `doc.addPart(displayName(LotroInstrument::LuteOfAges), "")` and auto-selects the new slot.
-- **`SongsmithMainComponent`** — the top-level Songsmith view: a `juce::Component` + `juce::DragAndDropContainer` (the drag source/target root for the whole view) split top/bottom by a user-resizable `SplitterComponent` (§9.11) into an `UpperRegion` (header label `"▲ MIDI SOURCE · drag tracks down to assign"`, `TrackListComponent` fixed 220px left, `PianoRollComponent` — §9.11 — filling the remainder) and a `LowerRegion` (`PartStripComponent` fixed height, then a bare `DiagnosticListView` — deliberately NOT the full `DiagnosticsPane`, §9.9). Songsmith has no export path until Phase 6, so driving `DiagnosticsPane`'s ABC-preview half with an empty string produced a permanently-visible `"0 bytes · 0 bars · 0 parts"` status line that read as a failed import on every single MIDI import (Phase 4 whole-branch review finding I2) — `MainWindow::openMidiFromPath`'s Songsmith branch now calls `getDiagnostics().setDiagnostics(...)` on this list directly instead of `DiagnosticsPane::show`. Phase 6 is expected to bring the ABC preview back as a toggleable panel once Songsmith has a Run path to populate it. `TrackListComponent::onTrackSelected` drives `trackSelected(trackId)`, which repoints a `SourceTrackNoteSource` (owned via `unique_ptr`, rebuilt on every selection) at `sourceRoll` along with the document's current `ticksPerQuarter`/meter map; `rebuild()` re-fires the selection callback on every `SOURCE_MIDI` change (not just when the selected track disappears — Phase 5 whole-branch review finding I1), so the roll always re-fits to the document's current time base, including after a Phase 4 LCM PPQ-raise triggered by a second MIDI import. The Phase 4-era fixed-proportion layout (40% source region / fixed part-strip height / remainder to diagnostics) and its horizontal-only `MainWindow::Body::Splitter` are both gone — see §9.11.
+- **`SongsmithMainComponent`** — the top-level Songsmith view: a `juce::Component` + `juce::DragAndDropContainer` (the drag source/target root for the whole view) split top/bottom by a user-resizable `SplitterComponent` (§9.11) into an `UpperRegion` (header label `"▲ MIDI SOURCE · drag tracks down to assign"`, `TrackListComponent` fixed 220px left, `PianoRollComponent` — §9.11 — filling the remainder) and a `LowerRegion` (`PartStripComponent` fixed height, then a bare `DiagnosticListView` — deliberately NOT the full `DiagnosticsPane`, §9.9). At the time this list was added (Phase 4), Songsmith had no export path at all, so driving `DiagnosticsPane`'s ABC-preview half with an empty string produced a permanently-visible `"0 bytes · 0 bars · 0 parts"` status line that read as a failed import on every single MIDI import (Phase 4 whole-branch review finding I2) — `MainWindow::openMidiFromPath` calls `getDiagnostics().setDiagnostics(...)` on this list directly instead of `DiagnosticsPane::show`. Phase 6 brought the ABC preview back, but as a separate, toggleable export panel (§9.9) populated by `MainWindow::runConversion()`, not by feeding this list — this list stays import-diagnostics-only by design now, not as a stopgap. `TrackListComponent::onTrackSelected` drives `trackSelected(trackId)`, which repoints a `SourceTrackNoteSource` (owned via `unique_ptr`, rebuilt on every selection) at `sourceRoll` along with the document's current `ticksPerQuarter`/meter map; `rebuild()` re-fires the selection callback on every `SOURCE_MIDI` change (not just when the selected track disappears — Phase 5 whole-branch review finding I1), so the roll always re-fits to the document's current time base, including after a Phase 4 LCM PPQ-raise triggered by a second MIDI import. The Phase 4-era fixed-proportion layout (40% source region / fixed part-strip height / remainder to diagnostics) and its horizontal-only `MainWindow::Body::Splitter` are both gone — see §9.11.
 
-`MainWindow` wires this into the app: see §9.2's View-menu and drag-drop bullets for how mode-toggling and MIDI import reach `SongsmithMainComponent`'s `DiagnosticListView`.
+`MainWindow` wires this into the app: see §9.2's drag-drop bullet for how MIDI import reaches `SongsmithMainComponent`'s `DiagnosticListView`, and its View-menu bullet for the export-panel toggle (not a second editing mode — there is only one now).
 
 ### 9.11 Songsmith source piano roll — `Source/UI/{PianoRollNoteSource,SourceTrackNoteSource,PianoRollGeometry,PianoRollComponent,SplitterComponent}.{h,cpp}`
 
-Phase 5's UI layer: the source-role piano roll (view-only — no note editing), plus a splitter generalized out of Phase 4's `MainWindow`-private one so both the classic editor and `SongsmithMainComponent` can use it.
+Phase 5's UI layer: the source-role piano roll (view-only — no note editing), plus a splitter generalized out of Phase 4's `MainWindow`-private one (originally shared with the classic editor's left/right split, since deleted along with it — see §9.3–9.6) so `SongsmithMainComponent` could reuse the same drag-to-resize logic instead of a bespoke one.
 
 - **`PianoRollNoteSource`** (header-only) — the abstract note-source interface the roll paints from, so it never depends on `ValueTree` directly. One `PianoRollNote` per note (`pitch`/`startTick`/`durationTicks`/`colourArgb`, no provenance or velocity — Phase 5 is read-only display, so nothing needs a handle back to a `NOTE` node yet; Phase 6's ghost/dropped-note diff and Phase 7's click-to-edit will need to decide what that handle looks like). Phase 6 adds a second implementation (`PreviewNoteSource`) over a `PreviewResult`; this interface is the seam that lets `PianoRollComponent` stay agnostic to which one it's given.
 - **`SourceTrackNoteSource`** — the Phase 5 implementation, wrapping one `MIDI_TRACK` `ValueTree`. Reads `NOTE` children live on every call (no internal cache — matches this project's ValueTree-as-source-of-truth style; v1 tracks don't gain notes after import, so this isn't a performance concern). `isTrackLive()` checks `track.getParent().isValid()` (not `track.isValid()` — `ValueTree::removeChild` orphans a node without invalidating it, so a removed-but-still-referenced tree stays `isValid()==true`) and reports zero notes / a zero-length range once a track is gone, rather than silently keep showing stale content.
 - **`PianoRollGeometry`** — pure, `juce_core`-only pixel↔model coordinate math (deliberately no `juce::Rectangle`, which lives in `juce_graphics` and isn't linked into `forge_tests`; `PianoRollNoteBounds` is a plain 4-int struct instead). Fixed keyboard-gutter width and per-semitone row height; `topPitch` (which pitch draws at the top) and `contentOriginTick` (the tick mapped to content-space x at the gutter's right edge) are the two knobs `fitToContent` sets once per track selection to fit the whole track without scrolling. **Scroll position is not tracked here at all — it lives entirely in `PianoRollComponent`'s `juce::Viewport`**; `contentOriginTick` is a fixed content-space origin, not a live "currently visible" window (an earlier revision named it `visibleTickRange` with `get`/`setVisibleTickRange` accessors and a doc comment describing it as a Phase 6 scroll-sync seam — both were wrong, since the setter was never called outside tests and the accessor's `Range::getEnd()` was never read anywhere; renamed to avoid a future implementer wiring real scroll state through it and getting double-scrolling). `isBlackKey(pitch)` (the 5 pitch classes {1,3,6,8,10}) drives the roll's row-band shading — plain semitone-parity (`pitch % 2`) disagrees with the real keyboard at the E/F and B/C boundaries, where two white keys are adjacent.
 - **`PianoRollComponent`** — the shared canvas, source role only this phase (a `Role` enum seams in a Preview role for Phase 6, unused today). A `juce::Viewport` wraps an inner `Canvas` component (row bands, bar-boundary gridlines from the document's first `METER_MAP` entry, note rectangles in the track's colour) for two-axis scroll; a separate `Gutter` component is added *outside* the viewport's scrollable content, pinned at the left edge and kept vertically in sync via a `ScrollAwareViewport::visibleAreaChanged` override (JUCE's `Viewport` has no listener interface — subclassing and overriding this is the documented mechanism) — this is what keeps the keyboard labels visible while horizontal scroll moves notes underneath them. The gutter is mouse-transparent (`setInterceptsMouseClicks(false, false)`) and its bounds trim for the viewport's horizontal scrollbar when one is showing, so it doesn't paint over the scrollbar thumb. Ctrl/Cmd+mouse-wheel zooms (adjusts `pixelsPerQuarterNote`, clamped `[2, 400]`); a plain wheel event falls through to `Component::mouseWheelMove` so the `Viewport`'s own scroll handling still applies — no fighting between the two.
-- **`SplitterComponent`** — generalized from `MainWindow::Body`'s original private, left/right-only `Splitter` class (drag-to-resize a fraction `[0.15, 0.85]` of the available space along either axis, via a thin bar between two sibling components it positions but doesn't own/parent). Self-enforces `setInterceptsMouseClicks(false, true)` in its own constructor (both call sites need this so the splitter's full-bounds hit area doesn't swallow clicks meant for its siblings; the original made every caller remember it separately). `MainWindow.cpp`'s classic-editor split now uses this class (`Orientation::leftRight`) instead of its own private one; `SongsmithMainComponent` uses a second instance (`Orientation::topBottom`) between its `UpperRegion` (header + track list + piano roll) and `LowerRegion` (part strip + diagnostics), replacing the Phase 4 fixed 40%-of-height split.
+- **`SplitterComponent`** — generalized from `MainWindow::Body`'s original private, left/right-only `Splitter` class (drag-to-resize a fraction `[0.15, 0.85]` of the available space along either axis, via a thin bar between two sibling components it positions but doesn't own/parent). Self-enforces `setInterceptsMouseClicks(false, true)` in its own constructor (so the splitter's full-bounds hit area doesn't swallow clicks meant for its siblings). `MainWindow.cpp`'s own `Body` no longer uses a splitter at all — its two children (`SongsmithMainComponent` and the export panel) are shown one-at-a-time, never side-by-side, since the classic editor's left/right split was deleted along with it (§9.3–9.6). `SongsmithMainComponent` uses this class twice: once (`Orientation::topBottom`) between its `UpperRegion` (header + track list + piano roll) and `LowerRegion` (part strip + preview region + diagnostics), and again, inside `LowerRegion`, between the preview region and the diagnostics list (Phase 6) — replacing the Phase 4 fixed 40%-of-height split.
 
 ---
 
@@ -739,32 +721,35 @@ write to file; print Diagnostics to stderr if -v
 ### GUI mode
 
 ```
-drop .mid                 drop .json/.toml/.xml         File menu
-   │                             │                           │
-   ▼                             ▼                           ▼
-MainWindow::openMidiFromPath   openConfigFromPath         (various)
-   │                             │
-   ▼                             ▼
-importMidi + synthesiseConfig   loadConfigFromFile + validateConfig
-   │                             │
-   └─────────────┬───────────────┘
-                 ▼
-EditorPane::loadFromMidi(Song, Config)
+drop .mid                         drop .json/.toml/.xml
+   │                                     │
+   ▼                                     ▼
+MainWindow::openMidiFromPath        openConfigFromPath
+   │                                     │
+   ▼                                     ▼
+SongModelBridge::importMidiFile     NativeMessageBox("not supported yet")
+   │  (importMidi + appendImportedSong)   — no ValueTree ← Config path exists
+   ▼
+SongDocument (ValueTree)
+                 │
+       user drags tracks onto parts, edits assignments/labels via
+       SongsmithMainComponent — every edit goes through
+       SongDocument's UndoManager
                  │
                  ▼
-InstrumentsTree.rebuild()  ─► Song/Instrument/Source items
+Song → Run Converter (MainWindow::runConversion)
                  │
-       user edits via tree context menus / property pages
-                 │  every edit mutates Config in place, fires
-                 │  notifyMutation() or onConfigChanged()
                  ▼
-Run Converter button
+SongModelBridge::buildConfigAndRawSong(doc) ─► Config + raw Song
                  │
+                 ▼
+SongModelBridge::dropUnassignedInstruments   (skips zero-assignment
+                 │                            parts, warns per skip)
                  ▼
 validateConfig + assembleInstruments + runPipeline + writeAbc
                  │
                  ▼
-DiagnosticsPane.show(diagnostics, abc)
+DiagnosticsPane.show(diagnostics, abc)   ← the export panel
 ```
 
 ---
@@ -782,7 +767,7 @@ DiagnosticsPane.show(diagnostics, abc)
 | The `Q:`/`M:` bake-in math                                     | `Source/Core/Constraints/TempoCollapse.cpp`     |
 | Cluster-at-boundary, z-pulse, bar labels, per-instrument shift | `Source/Core/AbcWriter.cpp` (top-of-file comment and `ChordEmitter` class) |
 | CLI flags, `--config` vs ad-hoc, drum-map loader               | `Source/Cli/*.cpp`, `Source/Main.cpp`           |
-| GUI layout, tree interaction, property pages                   | `Source/UI/*.cpp`, `docs/UI_GUIDE.md`           |
+| GUI layout, Songsmith component interaction                    | `Source/UI/*.cpp`, `docs/UI_GUIDE.md`           |
 | Guiding principle ("MIDI is truth, no auto")                   | `CLAUDE.md` → *Guiding principle*               |
 
-See also `docs/UI_GUIDE.md` for a reference of the GUI's named regions, field → Config-path table, and right-click context menus.
+See also `docs/UI_GUIDE.md` for a reference of the GUI's named regions, menus, and right-click context menus.

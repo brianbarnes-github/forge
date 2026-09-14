@@ -48,12 +48,16 @@ ctest --test-dir build --output-on-failure
 
 CLI binary: `build/forge_artefacts/Debug/forge`. UI binary:
 `build/forge_ui_artefacts/Debug/forge_ui` (or `./run-ui.sh`); it launches
-into the Songsmith view (track list, part strip, diagnostics) — the old
-config editor is behind View → Classic editor until Phase 6 deletes it.
-Do not launch the GUI from subagents; the user sees every window. Single
-test: `ctest --test-dir build -R <name> --output-on-failure`. First
-clone: `git submodule update --init --recursive`. Details, toolchain
-rationale, and Windows CI packaging: `docs/BUILD.md`.
+into the Songsmith view (source region, part strip, LOTRO preview region
+with range-band/ghost/dropped-note overlays, diagnostics) — the classic
+Config-editing UI (`EditorPane`/`InstrumentsTree`/`PropertyPageHost` +
+property pages) was deleted at the end of Phase 6; `View → Export ABC
+panel` now toggles a separate full-export diagnostics/ABC-preview panel
+instead. Do not launch the GUI from subagents; the user sees every
+window. Single test: `ctest --test-dir build -R <name>
+--output-on-failure`. First clone: `git submodule update --init
+--recursive`. Details, toolchain rationale, and Windows CI packaging:
+`docs/BUILD.md`.
 
 ## Git
 

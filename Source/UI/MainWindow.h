@@ -10,9 +10,6 @@
 namespace lotro
 {
 
-class EditorPane;
-class DiagnosticsPane;
-
 class MainWindow : public juce::DocumentWindow,
                    public juce::MenuBarModel,
                    public juce::FileDragAndDropTarget
@@ -45,7 +42,8 @@ private:
         EditUndo,
         EditRedo,
         SongDefaultParts,
-        ViewClassicEditorToggle
+        SongRunConverter,
+        ViewExportPanelToggle
     };
 
     class Body;
@@ -65,7 +63,6 @@ private:
     void runConversion();
     void saveConfigAs (ConfigFormat format);
     void saveAbcAs();
-    void toggleClassicEditorMode();
 
     std::string lastAbc;   // populated by runConversion(); consumed by saveAbcAs()
 };

@@ -34,12 +34,39 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
     meterMap = meterMapNode;
 
     geometry = noteSource != nullptr
-                   ? PianoRollGeometry::fitToContent (noteSource->getTickRange(), noteSource->getPitchRange(),
+                   ? PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
                                                        ticksPerQuarter, viewport.getWidth(), viewport.getHeight())
                    : PianoRollGeometry();
 
     rebuildContentSize();
     canvas.repaint();
+}
+
+void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
+{
+    rangeBand = midiRange;
+
+    // The band can arrive after setNoteSource already ran fitToContent's
+    // vertical fit off the note source alone — re-derive topPitch so a band
+    // wider than every note in view (or a note that folds outside the band)
+    // still lands on-canvas, mirroring fitToContent's own topPitch rule.
+    if (noteSource != nullptr)
+    {
+        const auto pitchRange = effectivePitchRange();
+        if (! pitchRange.isEmpty())
+            geometry.setTopPitch (pitchRange.getEnd() - 1);
+    }
+
+    rebuildContentSize();
+    canvas.repaint();
+}
+
+juce::Range<int> PianoRollComponent::effectivePitchRange() const
+{
+    auto range = noteSource != nullptr ? noteSource->getPitchRange() : juce::Range<int>();
+    if (! rangeBand.isEmpty())
+        range = range.isEmpty() ? rangeBand : range.getUnionWith (rangeBand);
+    return range;
 }
 
 void PianoRollComponent::paint (juce::Graphics& g)
@@ -69,7 +96,7 @@ void PianoRollComponent::rebuildContentSize()
     if (noteSource != nullptr)
     {
         const auto tickRange = noteSource->getTickRange();
-        const auto pitchRange = noteSource->getPitchRange();
+        const auto pitchRange = effectivePitchRange();
 
         const int contentTickEnd = tickRange.isEmpty() ? tickRange.getStart() : tickRange.getEnd();
         width = juce::jmax (width, geometry.xForTick (contentTickEnd));
@@ -106,6 +133,7 @@ void PianoRollComponent::paintCanvas (juce::Graphics& g, juce::Rectangle<int> cl
     g.fillAll (juce::Colour (SongsmithColours::background));
 
     drawRowBands (g, clip);
+    drawRangeBand (g, clip);
     drawGridlines (g, clip);
     drawNotes (g, clip);
 }
@@ -126,6 +154,29 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
         g.setColour (juce::Colour (PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
         g.fillRect (clip.getX(), row * rowHeight, clip.getWidth(), rowHeight);
     }
+}
+
+void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const
+{
+    if (role != Role::Preview || rangeBand.isEmpty() || clip.isEmpty())
+        return;
+
+    const int rowHeight = geometry.getRowHeight();
+    const int bandTop = geometry.yForPitch (rangeBand.getEnd() - 1);
+    const int bandBottom = geometry.yForPitch (rangeBand.getStart()) + rowHeight;
+
+    g.setColour (juce::Colour (SongsmithColours::outOfRangeZoneFillHi));
+    g.fillRect (clip.withBottom (bandTop));
+
+    g.setColour (juce::Colour (SongsmithColours::outOfRangeZoneFillLo));
+    g.fillRect (clip.withTop (bandBottom));
+
+    g.setColour (juce::Colour (SongsmithColours::rangeBandFill));
+    g.fillRect (clip.getX(), bandTop, clip.getWidth(), bandBottom - bandTop);
+
+    g.setColour (juce::Colour (SongsmithColours::rangeBandBorder));
+    g.drawHorizontalLine (bandTop, (float) clip.getX(), (float) clip.getRight());
+    g.drawHorizontalLine (bandBottom, (float) clip.getX(), (float) clip.getRight());
 }
 
 void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const
@@ -211,14 +262,54 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         const auto note = noteSource->getNote (i);
         const auto bounds = geometry.noteBounds (note);
         const juce::Rectangle<int> rect (bounds.x, bounds.y, bounds.width, bounds.height);
-        if (! rect.intersects (clip))
+
+        const bool hasGhost = role == Role::Preview && note.state == NoteState::WillFold && note.postPitch.has_value();
+        const juce::Rectangle<int> ghostRect = hasGhost
+            ? juce::Rectangle<int> (bounds.x, geometry.yForPitch (*note.postPitch), bounds.width, geometry.getRowHeight())
+            : juce::Rectangle<int>();
+
+        // A WillFold note's ghost can sit many rows away from its solid
+        // rect — cull against the union of both, so a partial repaint (e.g.
+        // a Viewport scroll exposing only a newly-visible strip) that
+        // contains the ghost's row but not the solid rect's row still draws
+        // the note.
+        if (! (hasGhost ? rect.getUnion (ghostRect) : rect).intersects (clip))
             continue;
 
         const auto fill = juce::Colour (note.colourArgb);
         g.setColour (fill);
         g.fillRect (rect);
-        g.setColour (fill.brighter (0.4f));
+
+        if (role == Role::Preview)
+        {
+            const auto borderArgb = note.state == NoteState::Normal
+                                         ? SongsmithColours::previewNoteBorder
+                                         : SongsmithColours::outOfRangeBorder;
+            g.setColour (juce::Colour (borderArgb));
+        }
+        else
+        {
+            g.setColour (fill.brighter (0.4f));
+        }
         g.drawRect (rect, 1);
+
+        if (role != Role::Preview)
+            continue;
+
+        if (hasGhost)
+        {
+            g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
+            g.drawRect (ghostRect, 1);
+        }
+        else if (note.state == NoteState::Dropped)
+        {
+            juce::Graphics::ScopedSaveState hatchClip (g);
+            g.reduceClipRegion (rect);
+            g.setColour (fill.darker (0.3f));
+            const int step = juce::jmax (2, rect.getWidth() / 3);
+            for (int x = rect.getX(); x < rect.getRight(); x += step)
+                g.drawLine ((float) x, (float) rect.getBottom(), (float) (x + rect.getHeight()), (float) rect.getY());
+        }
     }
 }
 

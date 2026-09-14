@@ -31,10 +31,19 @@ public:
     // this project's one-meter-timeline convention elsewhere).
     void setNoteSource (PianoRollNoteSource* source, int ticksPerQuarter, juce::ValueTree meterMapNode);
 
+    // Preview role only: the instrument's playable MIDI range (half-open,
+    // [midiLow, midiHigh+1), matching getPitchRange()'s convention), painted
+    // as a translucent band with red out-of-range zones above/below it. An
+    // empty range (the default, and Role::Source's permanent state) means
+    // "don't paint a band" — never call this for a Role::Source roll.
+    void setPreviewRangeBand (juce::Range<int> midiRange);
+
     void paint (juce::Graphics& g) override;
     void resized() override;
 
 private:
+    friend struct PianoRollComponentTestAccess;
+
     class Canvas : public juce::Component
     {
     public:
@@ -82,6 +91,7 @@ private:
 
     void paintCanvas (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawRowBands (juce::Graphics& g, juce::Rectangle<int> clip) const;
+    void drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void paintGutter (juce::Graphics& g) const;
     void drawNotes (juce::Graphics& g, juce::Rectangle<int> clip) const;
@@ -89,11 +99,20 @@ private:
     void rebuildContentSize();
     void zoom (float wheelDeltaY);
 
+    // Union of the note source's own pitch range with `rangeBand`. The band
+    // is supplied independently of the note source (via setPreviewRangeBand,
+    // which can be called before or after setNoteSource), so neither side
+    // alone is guaranteed to cover the other — a note that folds outside the
+    // band, or a band drawn wider than every note in view, must both still
+    // land on-canvas.
+    juce::Range<int> effectivePitchRange() const;
+
     Role role;
     PianoRollNoteSource* noteSource = nullptr;
     PianoRollGeometry geometry;
     int ticksPerQuarter = 480;
     juce::ValueTree meterMap;
+    juce::Range<int> rangeBand; // Preview role only; empty means "no band".
 
     ScrollAwareViewport viewport { *this };
     Canvas canvas { *this };

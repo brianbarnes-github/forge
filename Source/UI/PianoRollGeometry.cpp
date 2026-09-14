@@ -62,14 +62,21 @@ PianoRollGeometry PianoRollGeometry::fitToContent (juce::Range<int> tickRange,
     PianoRollGeometry geometry;
     geometry.ticksPerQuarter = ticksPerQuarter;
 
-    // Horizontal: choose a zoom factor so the whole tick span fits the
-    // available width (viewport minus the keyboard gutter) without
-    // scrolling — this is the "see the whole track" default view.
-    const int tickSpan = tickRange.isEmpty() ? 1 : tickRange.getLength();
+    // Horizontal: choose a zoom factor so the span from the fixed tick-0
+    // origin (below) to the end of the tick range fits the available width
+    // (viewport minus the keyboard gutter) without scrolling — this is the
+    // "see the whole track" default view. Measuring from the range's own
+    // start (its length) would under-zoom whenever the range doesn't start
+    // near 0, leaving the content off the right edge of the viewport.
+    const int tickSpan = tickRange.isEmpty() || tickRange.getEnd() <= 0 ? 1 : tickRange.getEnd();
     const int availableWidth = std::max (1, viewportWidth - geometry.keyboardGutterWidth);
     const double quarterSpan = std::max (0.0001, (double) tickSpan / (double) ticksPerQuarter);
     geometry.pixelsPerQuarterNote = std::max (1.0, (double) availableWidth / quarterSpan);
-    geometry.contentOriginTick = (double) tickRange.getStart();
+    // Fixed at tick 0, not the content's own first tick — a document-level
+    // origin is required for Phase 6's shared time axis between the source
+    // and preview rolls; "document's earliest note" was rejected because
+    // that value shifts on every note add/delete.
+    geometry.contentOriginTick = 0.0;
 
     // Vertical: row height stays the fixed default (only horizontal zoom is
     // interactively adjustable — see PianoRollComponent's ctrl+wheel zoom in

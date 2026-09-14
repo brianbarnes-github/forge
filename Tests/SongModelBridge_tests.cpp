@@ -1081,3 +1081,53 @@ TEST_CASE ("SongModelBridge: appendImportedSong assigns colorArgb from the track
     CHECK ((int) doc.getTrack (9).getProperty (SongIDs::colorArgb)
            != (int) doc.getTrack (0).getProperty (SongIDs::colorArgb));
 }
+
+TEST_CASE ("SongModelBridge: dropUnassignedInstruments drops only the zero-assignment part and lets the rest validate", "[songmodelbridge]")
+{
+    // The reachable state this targets: a document with one properly
+    // assigned part and one freshly-added, not-yet-assigned part (the part
+    // strip's "+ Add" default) — buildConfigAndRawSong's full export
+    // includes both, and the second one's empty `sources` would otherwise
+    // fail validateConfig for the whole document.
+    Song raw;
+    raw.ticksPerQuarter = 480;
+    raw.tempoMap = { { 0, 120.0 } };
+    raw.meterMap = { { 0, 4, 4 } };
+    Track t;
+    t.name = "Track Zero";
+    t.notes.push_back (makeNote (60, 0, 480, 100, false, 0, 0));
+    raw.tracks.push_back (t);
+
+    SongDocument doc;
+    Diagnostics importDiags;
+    appendImportedSong (doc, raw, 1, importDiags);
+
+    const auto trackId = (juce::int64) doc.getTrack (0).getProperty (SongIDs::trackId);
+
+    auto assignedPart = doc.addPart ("LuteOfAges", "Lead");
+    doc.addAssignment (assignedPart, trackId, 0, 0, "octaveShift");
+
+    doc.addPart ("LuteOfAges", "Empty"); // no assignment — the state under test
+
+    auto built = buildConfigAndRawSong (doc); // no partIds => full export, both parts included
+    REQUIRE (built.config.instruments.size() == 2);
+
+    Diagnostics diagnostics;
+    dropUnassignedInstruments (built.config, diagnostics);
+
+    REQUIRE (built.config.instruments.size() == 1);
+    CHECK (built.config.instruments[0].label == std::optional<std::string> ("Lead"));
+
+    REQUIRE (diagnostics.size() == 1);
+    CHECK (diagnostics[0].severity == Severity::Warning);
+    CHECK (diagnostics[0].message.find ("Empty") != std::string::npos);
+
+    // The point of the fix: the surviving part alone now passes validation
+    // (before the fix, the empty part's ConfigInstrument stayed in the list
+    // and validateConfig rejected the whole export over it). config.input
+    // is set here only because validateConfig requires it and this
+    // document never had an inputMidiPath set (out of scope for this test).
+    built.config.input = "test.mid";
+    const auto err = validateConfig (built.config, (int) built.rawSong.tracks.size());
+    CHECK (err.empty());
+}

@@ -31,12 +31,29 @@ add_executable(forge_tests
     SourceTrackNoteSource_tests.cpp
     PianoRollGeometry_tests.cpp
     TrackListComponent_tests.cpp
+    PreviewPipeline_tests.cpp
+    PreviewNoteDiff_tests.cpp
+    PreviewNoteSource_tests.cpp
+    SongsmithMainComponent_tests.cpp
+    PianoRollComponent_tests.cpp
+    PreviewAssignedPanel_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollGeometry.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackListComponent.cpp
-    ${CMAKE_SOURCE_DIR}/Source/UI/TrackRowComponent.cpp)
+    ${CMAKE_SOURCE_DIR}/Source/UI/TrackRowComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewPipeline.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteDiff.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteSource.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PartStripComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewAssignedPanel.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/DiagnosticListView.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SongsmithMainComponent.cpp)
 
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain

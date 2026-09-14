@@ -1,15 +1,12 @@
 #include "MainWindow.h"
-#include "EditorPane.h"
 #include "DiagnosticsPane.h"
 #include "SongModelBridge.h"
 #include "SongsmithMainComponent.h"
-#include "SplitterComponent.h"
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
 #include "Core/ConfigWriter.h"
 #include "Core/InstrumentAssembly.h"
-#include "Core/MidiImporter.h"
 #include "Core/Pipeline.h"
 
 #include <fstream>
@@ -20,47 +17,39 @@ namespace lotro
 class MainWindow::Body : public juce::Component
 {
 public:
-    explicit Body (SongDocument& doc)
-        : splitter (SplitterComponent::Orientation::leftRight), songsmith (doc)
+    explicit Body (SongDocument& doc) : songsmith (doc)
     {
-        addAndMakeVisible (editor);
-        addAndMakeVisible (diagnostics);
-        splitter.setComponents (&editor, &diagnostics);
-        // Both the classic splitter and the Songsmith view are children
-        // throughout this Body's lifetime; only one is ever visible
-        // (toggled by setSongsmithMode), so switching modes never needs to
-        // reparent anything. Songsmith is the default on startup (amendment
-        // (a)); the View menu's "Classic editor" item, off by default,
-        // switches back to the splitter.
-        addChildComponent (splitter);
-        splitter.setVisible (false);
-
+        // Both songsmith and exportPanel are children throughout this Body's
+        // lifetime; only one is ever visible (toggled by
+        // setExportPanelVisible), so switching never needs to reparent
+        // anything. Songsmith is the default; the export panel is shown by
+        // Song -> Run Converter or View -> Export ABC panel.
         addChildComponent (songsmith);
         songsmith.setVisible (true);
+
+        addChildComponent (exportPanel);
+        exportPanel.setVisible (false);
     }
 
     void resized() override
     {
-        splitter.setBounds (getLocalBounds());
         songsmith.setBounds (getLocalBounds());
+        exportPanel.setBounds (getLocalBounds());
     }
 
-    EditorPane&      getEditor()      { return editor; }
-    DiagnosticsPane& getDiagnostics() { return diagnostics; }
-    SongsmithMainComponent& getSongsmith() { return songsmith; }
+    SongsmithMainComponent& getSongsmith()    { return songsmith; }
+    DiagnosticsPane&        getExportPanel()  { return exportPanel; }
 
-    void setSongsmithMode (bool enabled)
+    bool isExportPanelVisible() const { return exportPanel.isVisible(); }
+    void setExportPanelVisible (bool shouldBeVisible)
     {
-        splitter.setVisible (! enabled);
-        songsmith.setVisible (enabled);
+        exportPanel.setVisible (shouldBeVisible);
+        songsmith.setVisible (! shouldBeVisible);
     }
-    bool isSongsmithMode() const { return songsmith.isVisible(); }
 
 private:
-    EditorPane      editor;
-    DiagnosticsPane diagnostics;
-    SplitterComponent splitter;
     SongsmithMainComponent songsmith;
+    DiagnosticsPane        exportPanel;
 };
 
 MainWindow::MainWindow()
@@ -108,8 +97,6 @@ MainWindow::MainWindow()
 
     centreWithSize (getWidth(), getHeight());
     setVisible (true);
-
-    body->getEditor().onRunRequested = [this] { runConversion(); };
 }
 
 MainWindow::~MainWindow() = default;
@@ -133,16 +120,12 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         saveAs.addItem (FileSaveAsJson, "JSON (.json)", true, false);
         saveAs.addItem (FileSaveAsToml, "TOML (.toml)", true, false);
         saveAs.addItem (FileSaveAsXml,  "XML (.xml)",   true, false);
-        // Save Config As reads the classic EditorPane's Config, which is
-        // never fed anything in Songsmith mode — disabled there so the
-        // dialog can never be opened to overwrite a real file with a
-        // near-empty classic Config (same defect class as Open Config,
-        // see saveConfigAs()'s own early return below).
-        m.addSubMenu ("Save Config As", saveAs, ! body->isSongsmithMode());
-        // Save ABC As reads `lastAbc`, which only Run Converter (classic
-        // mode) ever populates — enabled only in classic mode, same
-        // rationale as Save Config As above.
-        m.addItem (FileSaveAbc, "Save ABC As...", ! body->isSongsmithMode() && ! lastAbc.empty(), false);
+        // There is still no path from a loaded Config file into
+        // SongDocument's ValueTree (see openConfigFromPath) — kept visible
+        // per the plan's "keep File menu" decision, but permanently
+        // disabled until that translation exists.
+        m.addSubMenu ("Save Config As", saveAs, false);
+        m.addItem (FileSaveAbc, "Save ABC As...", ! lastAbc.empty(), false);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
     }
@@ -150,26 +133,18 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     {
         // No keyboard shortcuts yet (Phase 8). Recomputed fresh every time
         // the menu opens, so canUndo()/canRedo() don't need an explicit
-        // menuItemsChanged() poke elsewhere. Mode-gated like Song/File's
-        // Songsmith-only items below: songDocument is invisible in classic
-        // mode, so undoing/redoing it there would silently mutate a
-        // document the user isn't looking at.
-        const bool songsmith = body->isSongsmithMode();
-        m.addItem (EditUndo, "Undo", songsmith && songDocument.canUndo(), false);
-        m.addItem (EditRedo, "Redo", songsmith && songDocument.canRedo(), false);
+        // menuItemsChanged() poke elsewhere.
+        m.addItem (EditUndo, "Undo", songDocument.canUndo(), false);
+        m.addItem (EditRedo, "Redo", songDocument.canRedo(), false);
     }
     else if (topLevelMenuIndex == 2) // Song
     {
-        // Visible in both modes; only meaningful (and enabled) in Songsmith
-        // mode, which is the only mode with a songDocument to act on.
-        m.addItem (SongDefaultParts, "Default parts from tracks", body->isSongsmithMode(), false);
+        m.addItem (SongDefaultParts, "Default parts from tracks", true, false);
+        m.addItem (SongRunConverter, "Run Converter", true, false);
     }
     else if (topLevelMenuIndex == 3) // View
     {
-        // Songsmith is the default view; this item is OFF by default and,
-        // when ticked, switches to the classic EditorPane/DiagnosticsPane
-        // layout (kept fully functional until it is deleted in Phase 6).
-        m.addItem (ViewClassicEditorToggle, "Classic editor", true, ! body->isSongsmithMode());
+        m.addItem (ViewExportPanelToggle, "Export ABC panel", true, body->isExportPanelVisible());
     }
     return m;
 }
@@ -187,19 +162,17 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
-        case SongDefaultParts:
-            if (body->isSongsmithMode())
-                synthesiseDefaultParts (songDocument);
+        case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
+        case SongRunConverter:
+            runConversion();
+            body->setExportPanelVisible (true);
             return;
-        case ViewClassicEditorToggle: toggleClassicEditorMode();                              return;
-        default:                                                                              return;
+        case ViewExportPanelToggle:
+            body->setExportPanelVisible (! body->isExportPanelVisible());
+            menuItemsChanged();
+            return;
+        default: return;
     }
-}
-
-void MainWindow::toggleClassicEditorMode()
-{
-    body->setSongsmithMode (! body->isSongsmithMode());
-    menuItemsChanged();
 }
 
 bool MainWindow::isInterestedInFileDrag (const juce::StringArray& files)
@@ -245,90 +218,22 @@ void MainWindow::openMidiViaDialog()
 
 void MainWindow::openMidiFromPath (const juce::File& file)
 {
-    if (body->isSongsmithMode())
-    {
-        Diagnostics diags;
-        importMidiFile (songDocument, file, nextImportBatch++, diags);
-        body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
-        return;
-    }
-
-    std::ifstream stream (file.getFullPathName().toStdString(), std::ios::binary);
-    if (! stream)
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::WarningIcon,
-            "Open MIDI failed", "Could not read: " + file.getFullPathName());
-        return;
-    }
-
-    Diagnostics importDiags;
-    Song raw;
-    try
-    {
-        raw = importMidi (stream, file.getFileNameWithoutExtension().toStdString(), importDiags);
-    }
-    catch (const std::exception& e)
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::WarningIcon,
-            "Open MIDI failed", juce::String (e.what()));
-        return;
-    }
-
-    auto cfg = synthesiseConfig (raw,
-        file.getFullPathName().toStdString(),
-        file.withFileExtension (".abc").getFullPathName().toStdString(),
-        std::nullopt, 0, {});
-
-    body->getEditor().loadFromMidi (std::move (raw), std::move (cfg));
+    Diagnostics diags;
+    importMidiFile (songDocument, file, nextImportBatch++, diags);
+    body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
 }
 
 void MainWindow::saveConfigAs (ConfigFormat format)
 {
-    // Same defect class as openConfigFromPath's guard below: the classic
-    // EditorPane's Config is never fed anything in Songsmith mode, so
-    // without this the user could pick an existing config file and have it
-    // silently overwritten with a near-empty one. The menu item is also
-    // disabled in Songsmith mode (getMenuForIndex), so this is defence in
-    // depth against reaching saveConfigAs any other way.
-    if (body->isSongsmithMode())
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::InfoIcon,
-            "Not supported",
-            "Save Config is not supported in Songsmith mode yet");
-        return;
-    }
-
-    const juce::String ext =
-        (format == ConfigFormat::Json) ? ".json"
-      : (format == ConfigFormat::Toml) ? ".toml"
-      :                                    ".xml";
-
-    fileChooser = std::make_unique<juce::FileChooser> (
-        "Save Config", juce::File(), "*" + ext);
-
-    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
-                            | juce::FileBrowserComponent::canSelectFiles
-                            | juce::FileBrowserComponent::warnAboutOverwriting,
-        [this, format, ext] (const juce::FileChooser& fc)
-        {
-            auto file = fc.getResult();
-            if (file == juce::File()) return;
-            if (! file.getFileName().endsWithIgnoreCase (ext))
-                file = file.withFileExtension (ext);
-
-            const auto& cfg = body->getEditor().getConfig();
-            const auto err = writeConfigToFile (file.getFullPathName().toStdString(),
-                                                format, cfg);
-            if (! err.empty())
-            {
-                juce::NativeMessageBox::showMessageBoxAsync (
-                    juce::MessageBoxIconType::WarningIcon,
-                    "Save failed", juce::String (err));
-            }
-        });
+    // Save Config As is disabled in the menu (getMenuForIndex) — there is
+    // still no path from SongDocument's ValueTree into a Config file, so
+    // this early return is defence in depth against reaching it any other
+    // way, matching openConfigFromPath's own guard below.
+    juce::NativeMessageBox::showMessageBoxAsync (
+        juce::MessageBoxIconType::InfoIcon,
+        "Not supported",
+        "Save Config is not supported yet");
+    juce::ignoreUnused (format);
 }
 
 void MainWindow::openConfigViaDialog()
@@ -346,81 +251,35 @@ void MainWindow::openConfigViaDialog()
         });
 }
 
-void MainWindow::openConfigFromPath (const juce::File& file)
+void MainWindow::openConfigFromPath (const juce::File&)
 {
-    // Config files load into the classic EditorPane, which isn't visible (or
-    // wired up) in Songsmith mode. Both the File -> Open Config... dialog and
-    // dropped config files funnel through here, so this is the single place
-    // that branch needs to live.
-    if (body->isSongsmithMode())
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::InfoIcon,
-            "Not supported",
-            "Config files are not supported in Songsmith mode yet");
-        return;
-    }
-
-    Config cfg;
-    Diagnostics migDiag;
-    const auto loadErr = loadConfigFromFile (file.getFullPathName().toStdString(),
-                                             ConfigFormat::Auto, cfg, migDiag);
-    if (! loadErr.empty())
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::WarningIcon,
-            "Open Config failed", juce::String (loadErr));
-        return;
-    }
-
-    if (cfg.input.empty())
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::WarningIcon,
-            "Open Config failed",
-            "Config has no 'input' field — cannot load the referenced MIDI.");
-        return;
-    }
-
-    const auto configDir = file.getParentDirectory();
-    const auto midiFile  = configDir.getChildFile (juce::String (cfg.input));
-
-    std::ifstream stream (midiFile.getFullPathName().toStdString(), std::ios::binary);
-    if (! stream)
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::WarningIcon,
-            "Open Config failed",
-            "Could not read MIDI referenced by the config: " + midiFile.getFullPathName());
-        return;
-    }
-
-    Diagnostics importDiags;
-    Song raw;
-    try
-    {
-        raw = importMidi (stream, midiFile.getFileNameWithoutExtension().toStdString(), importDiags);
-    }
-    catch (const std::exception& e)
-    {
-        juce::NativeMessageBox::showMessageBoxAsync (
-            juce::MessageBoxIconType::WarningIcon,
-            "Open Config failed", juce::String (e.what()));
-        return;
-    }
-
-    body->getEditor().loadFromMidi (std::move (raw), std::move (cfg));
+    // There is still no path from a loaded Config file into SongDocument's
+    // ValueTree — building one is out of scope for this phase. Both the
+    // File -> Open Config... dialog and dropped config files funnel through
+    // here, so this is the single place that early return needs to live.
+    juce::NativeMessageBox::showMessageBoxAsync (
+        juce::MessageBoxIconType::InfoIcon,
+        "Not supported",
+        "Config files are not supported yet");
 }
 
 void MainWindow::runConversion()
 {
-    auto& editor = body->getEditor();
-    const auto& cfg = editor.getConfig();
-    const auto& raw = editor.getRawSong();
+    auto built = buildConfigAndRawSong (songDocument); // no partIds => full export
 
     Diagnostics diagnostics;
 
-    const auto validErr = validateConfig (cfg, (int) raw.tracks.size());
+    // A part with zero assignments (e.g. freshly created via the part
+    // strip's "+ Add", before any track is dragged onto it) builds a
+    // ConfigInstrument with an empty `sources` array, which validateConfig
+    // rejects — but that should only drop that one part from the export,
+    // not abort every other correctly-configured part. (The scoped preview
+    // path, computePartPreview, is unaffected — it never calls
+    // validateConfig, so an empty part previews as empty rather than
+    // erroring.)
+    dropUnassignedInstruments (built.config, diagnostics);
+
+    const auto validErr = validateConfig (built.config, (int) built.rawSong.tracks.size());
     if (! validErr.empty())
     {
         Diagnostic err;
@@ -428,7 +287,7 @@ void MainWindow::runConversion()
         err.source   = "Config";
         err.message  = validErr;
         diagnostics.push_back (err);
-        body->getDiagnostics().show (std::move (diagnostics), {});
+        body->getExportPanel().show (std::move (diagnostics), {});
         return;
     }
 
@@ -436,7 +295,7 @@ void MainWindow::runConversion()
     std::string abc;
     try
     {
-        assembled = assembleInstruments (raw, cfg, diagnostics);
+        assembled = assembleInstruments (built.rawSong, built.config, diagnostics);
         runPipeline (assembled, diagnostics);
         abc = writeAbc (assembled);
     }
@@ -447,12 +306,12 @@ void MainWindow::runConversion()
         err.source   = "Pipeline";
         err.message  = e.what();
         diagnostics.push_back (err);
-        body->getDiagnostics().show (std::move (diagnostics), {});
+        body->getExportPanel().show (std::move (diagnostics), {});
         return;
     }
 
     lastAbc = abc;
-    body->getDiagnostics().show (std::move (diagnostics), std::move (abc));
+    body->getExportPanel().show (std::move (diagnostics), std::move (abc));
 }
 
 void MainWindow::saveAbcAs()
@@ -468,10 +327,10 @@ void MainWindow::saveAbcAs()
 
     // Default the dialog's initial filename to <input-stem>.abc so a saved
     // ABC lands next to the MIDI's name by default.
-    const auto& cfg = body->getEditor().getConfig();
+    const auto inputMidiPath = songDocument.getTree().getProperty (SongIDs::inputMidiPath).toString();
     juce::File defaultPath;
-    if (! cfg.input.empty())
-        defaultPath = juce::File (juce::String (cfg.input)).withFileExtension (".abc");
+    if (inputMidiPath.isNotEmpty())
+        defaultPath = juce::File (inputMidiPath).withFileExtension (".abc");
 
     fileChooser = std::make_unique<juce::FileChooser> (
         "Save ABC", defaultPath, "*.abc");

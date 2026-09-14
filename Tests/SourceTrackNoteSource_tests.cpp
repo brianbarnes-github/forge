@@ -22,7 +22,8 @@ namespace
         return track;
     }
 
-    juce::ValueTree makeNote (int pitch, int startTick, int durationTicks)
+    juce::ValueTree makeNote (int pitch, int startTick, int durationTicks,
+                             int sourceTrackIndex = 0, int sourceEventIndex = 0)
     {
         juce::ValueTree note (SongIDs::NOTE);
         note.setProperty (SongIDs::pitch, pitch, nullptr);
@@ -30,8 +31,8 @@ namespace
         note.setProperty (SongIDs::durationTicks, durationTicks, nullptr);
         note.setProperty (SongIDs::velocity, 100, nullptr);
         note.setProperty (SongIDs::isDrum, false, nullptr);
-        note.setProperty (SongIDs::sourceTrackIndex, 0, nullptr);
-        note.setProperty (SongIDs::sourceEventIndex, 0, nullptr);
+        note.setProperty (SongIDs::sourceTrackIndex, sourceTrackIndex, nullptr);
+        note.setProperty (SongIDs::sourceEventIndex, sourceEventIndex, nullptr);
         return note;
     }
 }
@@ -107,6 +108,24 @@ TEST_CASE ("SourceTrackNoteSource: returns empty once its track is removed from 
     CHECK (source.getNumNotes() == 0);
     CHECK (source.getTickRange().isEmpty());
     CHECK (source.getPitchRange().isEmpty());
+}
+
+TEST_CASE ("SourceTrackNoteSource: copies sourceTrackIndex/sourceEventIndex verbatim from the NOTE node", "[piano-roll]")
+{
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
+    auto track = makeTrack (1, (int) 0xFF000000);
+    // Deliberately distinct, non-matching values so a bug that swaps them,
+    // zeroes them, or defaults them to the track's own trackId is caught.
+    track.addChild (makeNote (60, 0, 480, /*sourceTrackIndex*/ 3, /*sourceEventIndex*/ 7), -1, nullptr);
+    parent.addChild (track, -1, nullptr);
+    SourceTrackNoteSource source (track);
+
+    REQUIRE (source.getNumNotes() == 1);
+    auto note = source.getNote (0);
+    CHECK (note.sourceTrackIndex == 3);
+    CHECK (note.sourceEventIndex == 7);
+    CHECK (note.state == NoteState::Normal);
+    CHECK_FALSE (note.postPitch.has_value());
 }
 
 TEST_CASE ("SourceTrackNoteSource: reads live off the tree, no cache", "[piano-roll]")
