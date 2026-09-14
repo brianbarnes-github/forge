@@ -120,25 +120,46 @@ Source/
 ├── Cli/
 │   ├── CliOptions.{h,cpp}       hand-rolled arg parser (juce::String internally)
 │   └── DrumMapLoader.{h,cpp}    JSON parser for --drum-map (uses juce::JSON)
-├── UI/                          JUCE GUI app — forge_ui binary.
+├── UI/                          JUCE GUI app — forge_ui binary. Songsmith-only
+│   │                            since Phase 6 (the earlier classic Config-
+│   │                            editing UI — EditorPane/InstrumentsTree/
+│   │                            PropertyPageHost + three property pages —
+│   │                            was deleted at the end of that phase).
 │   ├── UiMain.cpp               JUCE app entry point
-│   ├── MainWindow.{h,cpp}       Window, menus, splitter, drag-drop
+│   ├── MainWindow.{h,cpp}       Window, menus, drag-drop; Body hosts
+│   │                            SongsmithMainComponent + the toggleable
+│   │                            export panel (DiagnosticsPane), one visible
+│   │                            at a time
 │   ├── SongDocument.{h,cpp}     Songsmith's ValueTree document (SONG/
 │   │                            SOURCE_MIDI/MIDI_TRACK/NOTE/PARTS/PART/
 │   │                            ASSIGNMENT/TEMPO_MAP/TEMPO_CHANGE/
 │   │                            METER_MAP/METER_CHANGE schema), owned
 │   │                            UndoManager, synthetic trackId/partId minting
 │   ├── SongModelBridge.{h,cpp}  ValueTree <-> forge_core Config/Song
-│   │                            translation layer (import: appendImportedSong;
-│   │                            export: buildConfigAndRawSong)
-│   ├── EditorPane.{h,cpp}       Left pane: tree + property page host + Run
-│   ├── InstrumentsTree.{h,cpp}  Three-level treeview (Song/Instrument/Source)
-│   ├── PropertyPageHost.{h,cpp} Swaps the visible property page on selection
-│   ├── SongPropertyPage.{h,cpp}      Song-node property page
-│   ├── InstrumentPropertyPage.{h,cpp} Instrument-node property page
-│   ├── SourcePropertyPage.{h,cpp}    Source-node property page
-│   ├── DiagnosticsPane.{h,cpp}       Right pane container
-│   ├── DiagnosticListView.{h,cpp}    Diagnostic table
+│   │                            translation layer (import: appendImportedSong,
+│   │                            synthesiseDefaultParts; export:
+│   │                            buildConfigAndRawSong, dropUnassignedInstruments)
+│   ├── SongsmithColours.h       juce_core-only ARGB palette + track-swatch cycle
+│   ├── SplitterComponent.{h,cpp}     Drag-to-resize bar between two siblings
+│   │                                  (left/right or top/bottom)
+│   ├── TrackListComponent.{h,cpp}    Draggable MIDI-track rows
+│   ├── TrackRowComponent.{h,cpp}     One track row (name, swatch, note stats)
+│   ├── PartStripComponent.{h,cpp}    Part slots strip; "+ Add"
+│   ├── PartSlotComponent.{h,cpp}     One part slot; drop target; context menu
+│   ├── AssignmentChipComponent.{h,cpp} One assignment chip inside a part slot
+│   ├── PianoRollNoteSource.h         Abstract note-source interface (+ NoteState)
+│   ├── SourceTrackNoteSource.{h,cpp} Note source over a MIDI_TRACK ValueTree
+│   ├── PreviewNoteSource.{h,cpp}     Note source over a PreviewNote vector
+│   ├── PianoRollGeometry.{h,cpp}     Pure pixel<->model coordinate math
+│   ├── PianoRollComponent.{h,cpp}    Shared canvas: Role::Source / Role::Preview
+│   ├── PreviewPipeline.{h,cpp}       computePartPreview (scoped live preview)
+│   ├── PreviewNoteDiff.{h,cpp}       diffPreviewNotes (ghost/dropped diff)
+│   ├── PreviewAssignedPanel.{h,cpp}  Preview region's left info panel
+│   ├── SongsmithMainComponent.{h,cpp} Top-level Songsmith view (source region +
+│   │                                  part strip + preview region + diagnostics)
+│   ├── DiagnosticsPane.{h,cpp}       Toggleable export panel container
+│   ├── DiagnosticListView.{h,cpp}    Diagnostic table (used by both the export
+│   │                                  panel and SongsmithMainComponent directly)
 │   └── AbcPreviewView.{h,cpp}        Read-only ABC text + status line
 └── Main.cpp                     wires import → synthesise default config →
                                   overrides → pipeline → writer, converts
