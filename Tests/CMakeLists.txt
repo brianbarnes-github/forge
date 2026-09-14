@@ -33,6 +33,7 @@ add_executable(forge_tests
     TrackListComponent_tests.cpp
     PreviewPipeline_tests.cpp
     PreviewNoteDiff_tests.cpp
+    PreviewNoteSource_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
@@ -40,7 +41,8 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackListComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackRowComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewPipeline.cpp
-    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteDiff.cpp)
+    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteDiff.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteSource.cpp)
 
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain

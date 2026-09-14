@@ -100,6 +100,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/PianoRollGeometry.cpp
     Source/UI/PreviewPipeline.cpp
     Source/UI/PreviewNoteDiff.cpp
+    Source/UI/PreviewNoteSource.cpp
     Source/UI/PianoRollComponent.cpp
     Source/UI/SplitterComponent.cpp
     Source/UI/TrackRowComponent.cpp
