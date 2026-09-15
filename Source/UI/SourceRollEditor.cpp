@@ -229,20 +229,23 @@ bool SourceRollEditor::keyPressed (const juce::KeyPress& key)
     if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))
         return deleteSelection();
 
-    // Check for Ctrl+Z (undo)
-    if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0)
-        || key == juce::KeyPress ('Z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
+    // KeyPress equality is used instead of the more idiomatic getModifiers()/getTextCharacter()
+    // pattern because KeyPress::operator== treats textCharacter as a wildcard when either side
+    // is 0, and case-folds keyCode when both are <256. This allows a lowercase-character KeyPress
+    // with textCharacter 0 to match both a real keyboard event (where keyCode='Z'/90) and a
+    // manually-constructed test KeyPress. In contrast, getTextCharacter() returns 0 on test
+    // KeyPress objects and never matches 'z'.
+    // (See JUCE/modules/juce_gui_basics/keyboard/juce_KeyPress.cpp:52-63)
+
+    if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
     {
         doc.undo();
         pruneSelection();
         return true;
     }
 
-    // Check for Ctrl+Shift+Z or Ctrl+Y (redo)
     if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier), 0)
-        || key == juce::KeyPress ('Z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier), 0)
-        || key == juce::KeyPress ('y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0)
-        || key == juce::KeyPress ('Y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
+        || key == juce::KeyPress ('y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
     {
         doc.redo();
         pruneSelection();
