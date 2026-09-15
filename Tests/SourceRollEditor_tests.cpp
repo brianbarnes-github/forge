@@ -292,3 +292,51 @@ TEST_CASE ("SourceRollEditor: quantizeSelection is a no-op with an empty selecti
     f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
     CHECK_FALSE (f.editor.quantizeSelection()); // grid still off (currentGridTicks == 0)
 }
+
+TEST_CASE ("SourceRollEditor: the delete key removes the selection; backspace does too", "[source-roll-editor]")
+{
+    Fixture f;
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    CHECK (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    CHECK (f.track.getNumChildren() == 1);
+
+    f.editor.mouseDown (f.centreOf (f.noteB), {}, false);
+    CHECK (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::backspaceKey)));
+    CHECK (f.track.getNumChildren() == 0);
+}
+
+TEST_CASE ("SourceRollEditor: the delete key with nothing selected is not handled", "[source-roll-editor]")
+{
+    Fixture f;
+    CHECK_FALSE (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+}
+
+TEST_CASE ("SourceRollEditor: Ctrl+Z undoes and Ctrl+Y redoes the last mutation", "[source-roll-editor]")
+{
+    Fixture f;
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    REQUIRE (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    REQUIRE (f.track.getNumChildren() == 1);
+
+    const auto ctrlZ = juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0);
+    CHECK (f.editor.keyPressed (ctrlZ));
+    CHECK (f.track.getNumChildren() == 2);
+
+    const auto ctrlY = juce::KeyPress ('y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0);
+    CHECK (f.editor.keyPressed (ctrlY));
+    CHECK (f.track.getNumChildren() == 1);
+}
+
+TEST_CASE ("SourceRollEditor: Ctrl+Shift+Z also redoes", "[source-roll-editor]")
+{
+    Fixture f;
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey));
+    f.editor.keyPressed (juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0));
+    REQUIRE (f.track.getNumChildren() == 2);
+
+    const auto ctrlShiftZ = juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier
+                                                                       | juce::ModifierKeys::shiftModifier), 0);
+    CHECK (f.editor.keyPressed (ctrlShiftZ));
+    CHECK (f.track.getNumChildren() == 1);
+}

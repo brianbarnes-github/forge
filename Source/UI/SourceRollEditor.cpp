@@ -224,7 +224,33 @@ bool SourceRollEditor::mouseUp (juce::Point<int>)
     return wasActive;
 }
 
-bool SourceRollEditor::keyPressed (const juce::KeyPress&) { return false; }     // Task 6
+bool SourceRollEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))
+        return deleteSelection();
+
+    // Check for Ctrl+Z (undo)
+    if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0)
+        || key == juce::KeyPress ('Z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
+    {
+        doc.undo();
+        pruneSelection();
+        return true;
+    }
+
+    // Check for Ctrl+Shift+Z or Ctrl+Y (redo)
+    if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier), 0)
+        || key == juce::KeyPress ('Z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier), 0)
+        || key == juce::KeyPress ('y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0)
+        || key == juce::KeyPress ('Y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
+    {
+        doc.redo();
+        pruneSelection();
+        return true;
+    }
+
+    return false;
+}
 bool SourceRollEditor::deleteSelection()
 {
     pruneSelection();
