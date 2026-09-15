@@ -82,7 +82,7 @@ TEST_CASE ("DIAGNOSTIC: a bare juce::Graphics fillAll onto a juce::Image round-t
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
-    juce::Image img (juce::Image::ARGB, 10, 10, true);
+    juce::Image img (juce::Image::ARGB, 10, 10, true, juce::SoftwareImageType());
     juce::Graphics g (img);
     g.fillAll (juce::Colours::red);
 
@@ -123,7 +123,7 @@ TEST_CASE ("PianoRollComponent: Preview-role notes border with the state-specifi
     const auto normalBounds = geometry.noteBounds (source.getNote (0));
     const auto droppedBounds = geometry.noteBounds (source.getNote (1));
 
-    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true);
+    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     Access::paintCanvas (roll, g, { 0, 0, viewportWidth, viewportHeight });
 
@@ -181,7 +181,7 @@ TEST_CASE ("PianoRollComponent: an upward-folding note's ghost and range band re
     const int belowBandY = (expectedTopPitch - 30) * rowHeight;  // pitch 30: below the band's floor (36)
 
     const int imageHeight = (expectedTopPitch - 20 + 2) * rowHeight; // covers the whole effective pitch span
-    juce::Image image (juce::Image::ARGB, viewportWidth, imageHeight, true);
+    juce::Image image (juce::Image::ARGB, viewportWidth, imageHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     Access::paintCanvas (roll, g, { 0, 0, viewportWidth, imageHeight });
 
@@ -192,7 +192,7 @@ TEST_CASE ("PianoRollComponent: an upward-folding note's ghost and range band re
     // Graphics compositing proves the ghost was actually painted on-canvas,
     // without hard-coding PianoRollComponent's private fill constants.
     const auto underlyingBeneathGhost = image.getPixelAt (sampleX, ghostY + 1);
-    juce::Image reference (juce::Image::ARGB, 1, 1, true);
+    juce::Image reference (juce::Image::ARGB, 1, 1, true, juce::SoftwareImageType());
     {
         juce::Graphics rg (reference);
         rg.fillAll (underlyingBeneathGhost);
@@ -243,7 +243,7 @@ TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a part
     // repaint that exposes only a newly-visible strip.
     const juce::Rectangle<int> partialClip (0, ghostY, viewportWidth, rowHeight);
 
-    juce::Image image (juce::Image::ARGB, viewportWidth, ghostY + rowHeight + 1, true);
+    juce::Image image (juce::Image::ARGB, viewportWidth, ghostY + rowHeight + 1, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     Access::paintCanvas (roll, g, partialClip);
 
@@ -253,7 +253,7 @@ TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a part
     // on top via JUCE's own compositing — proving the ghost was actually
     // painted despite the clip excluding the note's solid rect.
     const auto underlyingBeneathGhost = image.getPixelAt (sampleX, ghostY + 1);
-    juce::Image reference (juce::Image::ARGB, 1, 1, true);
+    juce::Image reference (juce::Image::ARGB, 1, 1, true, juce::SoftwareImageType());
     {
         juce::Graphics rg (reference);
         rg.fillAll (underlyingBeneathGhost);
@@ -382,7 +382,7 @@ TEST_CASE ("PianoRollComponent: a selected source-role note paints with the sele
     Access::mouseDown (roll, centre, {}, false);
     Access::mouseUp (roll, centre);
 
-    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true);
+    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     Access::paintCanvas (roll, g, { 0, 0, viewportWidth, viewportHeight });
 
