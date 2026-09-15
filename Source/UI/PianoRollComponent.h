@@ -8,11 +8,13 @@
 
 #include <memory>
 
-// Phase 5 — the shared piano-roll component (source role only this phase:
-// rectangles, keyboard gutter, gridlines, scroll, minimal ctrl+wheel zoom —
-// no note editing). Phase 6 adds a Preview role with range-band/ghost-note
-// overlays to the same component; the Role enum below is the seam for that,
-// even though Preview does nothing yet.
+// The shared piano-roll component: rectangles, keyboard gutter, gridlines,
+// scroll, ctrl+wheel zoom, for both roles. Role::Source (Phase 7) owns a
+// SourceRollEditor when constructed with a SongDocument, forwarding Canvas
+// mouse/keyboard events to it for note create/move/resize/delete/quantize,
+// each one undo transaction. Role::Preview (Phase 6) instead overlays a
+// translucent playable-range band plus ghost/dropped-note rendering and
+// stays read-only.
 namespace lotro
 {
 
@@ -43,8 +45,10 @@ public:
 
     // Source role only (no-op otherwise, or if this roll has no editable
     // document): repoints the roll's SourceRollEditor at a different
-    // MIDI_TRACK node. Call this alongside setNoteSource whenever the
-    // selected track changes.
+    // MIDI_TRACK node. Call this alongside setNoteSource, for the SAME
+    // track, whenever the selected track changes -- drawNotes's selection
+    // highlight indexes sourceEditor's track by the same child index i as
+    // noteSource->getNote(i), an invariant nothing else enforces.
     void setEditableTrack (juce::ValueTree trackNode);
 
     // Source role only: pushes the toolbar's current grid-size selection

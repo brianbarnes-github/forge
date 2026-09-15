@@ -100,7 +100,7 @@ private:
     void toggleSelection (const juce::ValueTree& note);
     void pruneSelection();
     void updateRubberBandSelection();
-    void createNoteAt (juce::Point<int> pos); // Task 4
+    void createNoteAt (juce::Point<int> pos);
 
     SongDocument& doc;
     juce::ValueTree track;

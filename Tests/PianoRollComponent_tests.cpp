@@ -32,6 +32,12 @@ namespace lotro
         }
         static bool mouseDrag (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseDrag (pos); }
         static bool mouseUp (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseUp (pos); }
+
+        // Exposes the private Canvas member itself so tests can drive its
+        // real JUCE mouseDown/mouseDoubleClick/mouseDrag/mouseUp/keyPressed
+        // overrides directly, instead of only the handleEditor* forwarding
+        // methods those overrides call into.
+        static PianoRollComponent::Canvas& canvas (PianoRollComponent& c) { return c.canvas; }
     };
 }
 
@@ -41,6 +47,19 @@ namespace
     constexpr int viewportWidth = 400;
     constexpr int viewportHeight = 200;
     constexpr int ticksPerQuarter = 480;
+
+    // Builds a real juce::MouseEvent the way JUCE's own event dispatch would
+    // (obtaining a MouseInputSource from the Desktop singleton), so tests can
+    // call a Component's real mouseDown/mouseDrag/mouseUp/mouseDoubleClick
+    // overrides directly rather than only a private forwarding method.
+    juce::MouseEvent makeMouseEvent (juce::Component& comp, juce::Point<int> pos, juce::Point<int> mouseDownPos,
+                                      int numberOfClicks, bool mouseWasDragged)
+    {
+        auto* source = juce::Desktop::getInstance().getMouseSource (0);
+        const auto now = juce::Time::getCurrentTime();
+        return juce::MouseEvent (*source, pos.toFloat(), juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                  &comp, &comp, now, mouseDownPos.toFloat(), now, numberOfClicks, mouseWasDragged);
+    }
 }
 
 TEST_CASE ("PianoRollComponent: Preview-role notes border with the state-specific preview colours", "[piano-roll]")
@@ -204,8 +223,23 @@ TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a part
     CHECK (image.getPixelAt (sampleX, ghostY) == reference.getPixelAt (0, 0));
 }
 
-TEST_CASE ("PianoRollComponent: mouse gestures reach SourceRollEditor and mutate the real SongDocument end to end", "[piano-roll]")
+TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDrag/mouseUp reach SourceRollEditor and mutate the real SongDocument end to end", "[piano-roll]")
 {
+    // Drives Canvas's own mouseDrag/mouseUp overrides with a real
+    // juce::MouseEvent (obtained via Desktop::getMouseSource, as real JUCE
+    // event dispatch would build one), so e.getPosition()'s coordinate
+    // handling for those two entry points is actually exercised, not just
+    // the private handleEditorMouseDrag/Up forwarding methods they call
+    // into. The initial press still goes through handleEditorMouseDown
+    // (not Canvas::mouseDown) deliberately: Canvas::mouseDown's first line
+    // is grabKeyboardFocus(), which JUCE unconditionally asserts on
+    // (`isShowing() || isOnDesktop()`) for a component that was never
+    // added to a real window -- true of every Component in this headless
+    // test binary, and this project's convention is to never add a real
+    // GUI window from a test/subagent (see CLAUDE.md's "Do not launch the
+    // GUI from subagents"). That one line of Canvas::mouseDown stays
+    // covered only by inspection, not a real-event test; see the comment
+    // on it in PianoRollComponent.cpp.
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
@@ -229,10 +263,10 @@ TEST_CASE ("PianoRollComponent: mouse gestures reach SourceRollEditor and mutate
     const juce::Point<int> clickPos (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     const juce::Point<int> dragPos = clickPos.translated (40, 0);
 
-    using Access = PianoRollComponentTestAccess;
+    auto& canvas = Access::canvas (roll);
     REQUIRE (Access::mouseDown (roll, clickPos, {}, false));
-    REQUIRE (Access::mouseDrag (roll, dragPos));
-    Access::mouseUp (roll, dragPos);
+    canvas.mouseDrag (makeMouseEvent (canvas, dragPos, clickPos, 1, true));
+    canvas.mouseUp (makeMouseEvent (canvas, dragPos, clickPos, 1, true));
 
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
@@ -242,6 +276,38 @@ TEST_CASE ("PianoRollComponent: mouse gestures reach SourceRollEditor and mutate
 
     doc.undo();
     CHECK ((int) track.getChild (0).getProperty (SongIDs::startTick) == 0);
+}
+
+TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDoubleClick and keyPressed reach SourceRollEditor end to end", "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", 0xFF0000, 0, 1);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+    track.addChild (note, -1, nullptr);
+
+    SourceTrackNoteSource source (track);
+
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    roll.setNoteSource (&source, ticksPerQuarter, {});
+    roll.setEditableTrack (track);
+
+    const auto geometry = PianoRollGeometry::fitToContent (source.getTickRange(), source.getPitchRange(),
+                                                             ticksPerQuarter, viewportWidth, viewportHeight);
+    const juce::Point<int> emptyCell (geometry.xForTick (ticksPerQuarter * 3), geometry.yForPitch (72));
+
+    auto& canvas = Access::canvas (roll);
+    REQUIRE (track.getNumChildren() == 1);
+    canvas.mouseDoubleClick (makeMouseEvent (canvas, emptyCell, emptyCell, 2, false));
+    REQUIRE (track.getNumChildren() == 2); // createNoteAt also selects the new note
+
+    REQUIRE (canvas.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    CHECK (track.getNumChildren() == 1);
 }
 
 TEST_CASE ("PianoRollComponent: a selected source-role note paints with the selection highlight border", "[piano-roll]")

@@ -141,6 +141,7 @@ void SongsmithMainComponent::trackSelected (juce::int64 trackId)
         currentNoteSource.reset();
         sourceRoll.setNoteSource (nullptr, 480, {});
         sourceRoll.setEditableTrack ({});
+        updateGridTicks();
         return;
     }
 
@@ -148,6 +149,7 @@ void SongsmithMainComponent::trackSelected (juce::int64 trackId)
     const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
     sourceRoll.setNoteSource (currentNoteSource.get(), ticksPerQuarter, doc.getMeterMapNode());
     sourceRoll.setEditableTrack (trackNode);
+    updateGridTicks();
 }
 
 void SongsmithMainComponent::updateGridTicks()

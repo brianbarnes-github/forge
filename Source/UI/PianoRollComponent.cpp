@@ -131,6 +131,11 @@ void PianoRollComponent::zoom (float wheelDeltaY)
 
 void PianoRollComponent::setEditableTrack (juce::ValueTree trackNode)
 {
+    // Invariant relied on by drawNotes's selection highlight: this must be
+    // called with the same MIDI_TRACK node passed to setNoteSource (so index
+    // i from noteSource->getNote(i) lines up with sourceEditor's track's
+    // child i). Nothing else enforces this -- it just happens to hold today
+    // because both are always called together for the same track.
     if (sourceEditor != nullptr)
         sourceEditor->setTrack (trackNode);
 }
@@ -196,6 +201,14 @@ bool PianoRollComponent::handleEditorKeyPressed (const juce::KeyPress& key)
 
 void PianoRollComponent::Canvas::mouseDown (const juce::MouseEvent& e)
 {
+    // Deliberately thin (just this + the line below): the gesture logic
+    // lives in the already-tested handleEditorMouseDown. Not covered by a
+    // real-juce::MouseEvent test: grabKeyboardFocus() asserts
+    // (isShowing() || isOnDesktop()) on a Component that was never added
+    // to a real window, which every Component in the headless test binary
+    // is -- see Tests/PianoRollComponent_tests.cpp's mouseDrag/mouseUp
+    // end-to-end test comment for why this line is exercised manually
+    // (run-ui.sh) rather than by a unit test.
     grabKeyboardFocus();
     owner.handleEditorMouseDown (e.getPosition(), e.mods, false);
 }

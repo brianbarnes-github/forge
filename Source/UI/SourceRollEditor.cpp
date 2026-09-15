@@ -82,6 +82,8 @@ juce::ValueTree SourceRollEditor::hitTestNote (juce::Point<int> pos) const
 int SourceRollEditor::hitTestEdgeZone (const juce::ValueTree& note, juce::Point<int> pos) const
 {
     auto bounds = toRect (geometry.noteBounds (toPianoRollNote (note)));
+    if (bounds.getWidth() < 3 * edgeThresholdPixels)
+        return 0; // too narrow for distinct edge zones -- body drag (Move) wins
     if (pos.x <= bounds.getX() + edgeThresholdPixels)
         return -1;
     if (pos.x >= bounds.getRight() - edgeThresholdPixels)

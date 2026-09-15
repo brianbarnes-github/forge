@@ -185,6 +185,12 @@ TEST_CASE ("SourceRollEditor: dragging a note's left edge changes startTick and 
     Fixture f; // noteB starts at tick 480, duration 480 (end tick 960)
     auto bounds = f.geometry.noteBounds (Fixture::toNote (f.noteB));
     const juce::Point<int> edgeStart (bounds.x + 1, bounds.y + bounds.height / 2);
+    // /2, not /4: at this fixture's geometry (~0.77 px/tick, computed by
+    // fitToContent for ticksPerQuarter=480/viewportWidth=800), /4 (120
+    // ticks) lands on an exact half-pixel that std::lround rounds up, and
+    // that half-pixel surplus survives the tickForX round-trip as a full
+    // extra tick. /2 (240 ticks) lands on an exact pixel with no rounding
+    // ambiguity.
     const int shrinkTicks = ticksPerQuarter / 2;
     const auto end = edgeStart.translated (f.geometry.xForTick (shrinkTicks) - f.geometry.xForTick (0), 0);
 
@@ -197,6 +203,32 @@ TEST_CASE ("SourceRollEditor: dragging a note's left edge changes startTick and 
     CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == expectedStart);
     CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == expectedDuration);
     CHECK (expectedStart + expectedDuration == ticksPerQuarter * 2); // end tick unchanged
+}
+
+TEST_CASE ("SourceRollEditor: a note too narrow for distinct edge zones (heavy zoom-out) starts a Move, not a resize, even when clicked at its very edge", "[source-roll-editor]")
+{
+    Fixture f;
+    PianoRollGeometry narrowGeometry = f.geometry;
+    narrowGeometry.setPixelsPerQuarterNote (2.0); // PianoRollComponent::zoom's minimum clamp
+    f.editor.setGeometry (narrowGeometry);
+
+    auto bounds = narrowGeometry.noteBounds (Fixture::toNote (f.noteA));
+    REQUIRE (bounds.width < 3 * 6); // narrower than 3 * edgeThresholdPixels -- the guard's threshold
+
+    const juce::Point<int> edgeStart (bounds.x, bounds.y + bounds.height / 2); // click at the note's very left pixel
+    const auto end = edgeStart.translated (narrowGeometry.xForTick (ticksPerQuarter) - narrowGeometry.xForTick (0), 0);
+    const int deltaTick = narrowGeometry.tickForX (end.x) - narrowGeometry.tickForX (edgeStart.x);
+    REQUIRE (deltaTick != 0);
+
+    REQUIRE (f.editor.mouseDown (edgeStart, {}, false));
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    // A Move (startTick shifts by the drag delta, durationTicks untouched) --
+    // before the fix, this click at the very left pixel would have been
+    // classified ResizeLeft and durationTicks would have shrunk instead.
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == deltaTick);
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
 }
 
 TEST_CASE ("SourceRollEditor: double-clicking an empty cell creates a note there, one undo transaction", "[source-roll-editor]")
