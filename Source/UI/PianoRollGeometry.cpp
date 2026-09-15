@@ -15,14 +15,13 @@ int PianoRollGeometry::xForTick (int tick) const noexcept
     // ticksPerQuarter (at least one pixel per tick -- see
     // PianoRollGeometry_tests.cpp's round-trip test at that ratio). Below
     // that ratio there are more possible tick values per quarter note than
-    // pixel columns to hold them, so a handful of ticks necessarily alias
-    // onto a neighbour's pixel (confirmed by hand at
-    // ticksPerQuarter=480/pixelsPerQuarterNote=479: 480 tick values, only
-    // 479 pixel columns) -- an inherent display-resolution limit of
-    // zooming below 1:1, not fixable by any choice of rounding rule, and
-    // not something Phase 7's drag/resize math depends on (deltas are
-    // computed as a difference of two tickForX calls, never by
-    // round-tripping through xForTick).
+    // pixel columns to hold them (pigeonhole principle). For ratios very
+    // close to 1:1, aliasing is minimal (e.g., at 479/480, drift is ±1 tick
+    // per the test), but the bound grows as the ratio shrinks — this is an
+    // inherent display-resolution limit of zooming below 1:1, not fixable
+    // by any choice of rounding rule. However, Phase 7's drag/resize math is
+    // unaffected since deltas are computed as differences of two tickForX
+    // calls, never by round-tripping through xForTick.
     const double ticksFromOrigin = (double) tick - contentOriginTick;
     return keyboardGutterWidth + (int) std::lround (ticksFromOrigin * pixelsPerTick());
 }
