@@ -1,6 +1,7 @@
 #include "SourceRollEditor.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace lotro
 {
@@ -236,7 +237,31 @@ bool SourceRollEditor::deleteSelection()
     selection.clear();
     return true;
 }
-bool SourceRollEditor::quantizeSelection() { return false; }                    // Task 5
+bool SourceRollEditor::quantizeSelection()
+{
+    pruneSelection();
+    if (selection.empty() || currentGridTicks <= 0)
+        return false;
+
+    doc.getUndoManager().beginNewTransaction();
+    for (auto& note : selection)
+    {
+        const int origStart = (int) note.getProperty (SongIDs::startTick);
+        const int origDuration = (int) note.getProperty (SongIDs::durationTicks);
+
+        const int snappedStart = juce::jmax (0, (int) std::lround ((double) origStart / currentGridTicks) * currentGridTicks);
+        // At least one grid unit -- the spec sets no floor, but a
+        // zero-length note after quantize is nonsensical.
+        const int snappedDuration = juce::jmax (currentGridTicks,
+                                                 (int) std::lround ((double) origDuration / currentGridTicks) * currentGridTicks);
+
+        if (origStart != snappedStart)
+            doc.setProperty (note, SongIDs::startTick, snappedStart, false);
+        if (origDuration != snappedDuration)
+            doc.setProperty (note, SongIDs::durationTicks, snappedDuration, false);
+    }
+    return true;
+}
 void SourceRollEditor::createNoteAt (juce::Point<int> pos)
 {
     if (! track.isValid())

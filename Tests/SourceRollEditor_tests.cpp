@@ -259,3 +259,36 @@ TEST_CASE ("SourceRollEditor: deleteSelection with nothing selected is a no-op",
     CHECK_FALSE (f.editor.deleteSelection());
     CHECK (f.track.getNumChildren() == 2);
 }
+
+TEST_CASE ("SourceRollEditor: quantizeSelection snaps startTick and durationTicks of every selected note to the grid, one undo transaction", "[source-roll-editor]")
+{
+    Fixture f;
+    // Nudge noteA off-grid so quantize has something to actually snap.
+    f.noteA.setProperty (SongIDs::startTick, 10, nullptr);
+    f.noteA.setProperty (SongIDs::durationTicks, 470, nullptr);
+
+    f.editor.setGridTicks (ticksPerQuarter / 4); // 120 ticks
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    juce::ModifierKeys shift (juce::ModifierKeys::shiftModifier);
+    f.editor.mouseDown (f.centreOf (f.noteB), shift, false);
+
+    CHECK (f.editor.quantizeSelection());
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);       // round(10/120)*120 = 0
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == 480); // round(470/120)*120 = 480
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == 480);     // already on-grid, value preserved
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == 480);
+
+    REQUIRE (f.doc.canUndo());
+    f.doc.undo();
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 10); // one undo restores BOTH notes
+}
+
+TEST_CASE ("SourceRollEditor: quantizeSelection is a no-op with an empty selection or the grid off", "[source-roll-editor]")
+{
+    Fixture f;
+    CHECK_FALSE (f.editor.quantizeSelection()); // nothing selected
+
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    CHECK_FALSE (f.editor.quantizeSelection()); // grid still off (currentGridTicks == 0)
+}
