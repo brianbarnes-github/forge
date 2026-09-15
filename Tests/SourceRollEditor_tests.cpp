@@ -198,3 +198,64 @@ TEST_CASE ("SourceRollEditor: dragging a note's left edge changes startTick and 
     CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == expectedDuration);
     CHECK (expectedStart + expectedDuration == ticksPerQuarter * 2); // end tick unchanged
 }
+
+TEST_CASE ("SourceRollEditor: double-clicking an empty cell creates a note there, one undo transaction", "[source-roll-editor]")
+{
+    Fixture f;
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+
+    REQUIRE (f.track.getNumChildren() == 2);
+    CHECK (f.editor.mouseDown (emptyCell, {}, true));
+    REQUIRE (f.track.getNumChildren() == 3);
+
+    auto created = f.track.getChild (2);
+    CHECK ((int) created.getProperty (SongIDs::pitch) == 72);
+    CHECK ((int) created.getProperty (SongIDs::startTick) == f.geometry.tickForX (emptyCell.x));
+    CHECK ((int) created.getProperty (SongIDs::durationTicks) == ticksPerQuarter); // grid off -> quarter note fallback
+
+    REQUIRE (f.doc.canUndo());
+    f.doc.undo();
+    CHECK (f.track.getNumChildren() == 2);
+}
+
+TEST_CASE ("SourceRollEditor: create uses the current grid size for the new note's duration when grid is on", "[source-roll-editor]")
+{
+    Fixture f;
+    f.editor.setGridTicks (ticksPerQuarter / 4);
+
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+    f.editor.mouseDown (emptyCell, {}, true);
+
+    auto created = f.track.getChild (2);
+    CHECK ((int) created.getProperty (SongIDs::durationTicks) == ticksPerQuarter / 4);
+}
+
+TEST_CASE ("SourceRollEditor: double-clicking an existing note is a no-op", "[source-roll-editor]")
+{
+    Fixture f;
+    CHECK_FALSE (f.editor.mouseDown (f.centreOf (f.noteA), {}, true));
+    CHECK (f.track.getNumChildren() == 2);
+}
+
+TEST_CASE ("SourceRollEditor: deleteSelection removes every selected note in one undo transaction", "[source-roll-editor]")
+{
+    Fixture f;
+    juce::ModifierKeys shift (juce::ModifierKeys::shiftModifier);
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseDown (f.centreOf (f.noteB), shift, false);
+    REQUIRE (f.editor.getNumSelected() == 2);
+
+    CHECK (f.editor.deleteSelection());
+    CHECK (f.track.getNumChildren() == 0);
+    CHECK (f.editor.getNumSelected() == 0);
+
+    f.doc.undo();
+    CHECK (f.track.getNumChildren() == 2); // one undo restores both
+}
+
+TEST_CASE ("SourceRollEditor: deleteSelection with nothing selected is a no-op", "[source-roll-editor]")
+{
+    Fixture f;
+    CHECK_FALSE (f.editor.deleteSelection());
+    CHECK (f.track.getNumChildren() == 2);
+}

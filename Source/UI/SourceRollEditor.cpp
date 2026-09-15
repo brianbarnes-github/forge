@@ -108,7 +108,13 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
     pruneSelection();
 
     if (isDoubleClick)
-        return false; // create implemented in Task 4
+    {
+        if (hitTestNote (pos).isValid())
+            return false;
+
+        createNoteAt (pos);
+        return true;
+    }
 
     auto note = hitTestNote (pos);
 
@@ -218,8 +224,36 @@ bool SourceRollEditor::mouseUp (juce::Point<int>)
 }
 
 bool SourceRollEditor::keyPressed (const juce::KeyPress&) { return false; }     // Task 6
-bool SourceRollEditor::deleteSelection() { return false; }                      // Task 4
+bool SourceRollEditor::deleteSelection()
+{
+    pruneSelection();
+    if (selection.empty())
+        return false;
+
+    doc.getUndoManager().beginNewTransaction();
+    for (auto& note : selection)
+        doc.removeChild (track, note, false);
+    selection.clear();
+    return true;
+}
 bool SourceRollEditor::quantizeSelection() { return false; }                    // Task 5
-void SourceRollEditor::createNoteAt (juce::Point<int>) {}                       // Task 4
+void SourceRollEditor::createNoteAt (juce::Point<int> pos)
+{
+    if (! track.isValid())
+        return;
+
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, geometry.pitchForY (pos.y), nullptr);
+    note.setProperty (SongIDs::startTick, std::max (0, geometry.tickForX (pos.x)), nullptr);
+    note.setProperty (SongIDs::durationTicks,
+                       currentGridTicks > 0 ? currentGridTicks : geometry.getTicksPerQuarter(), nullptr);
+    note.setProperty (SongIDs::velocity, 100, nullptr);
+    note.setProperty (SongIDs::isDrum, false, nullptr);
+    note.setProperty (SongIDs::sourceTrackIndex, -1, nullptr);
+    note.setProperty (SongIDs::sourceEventIndex, -1, nullptr);
+
+    doc.addChild (track, note);
+    selectOnly (note);
+}
 
 } // namespace lotro
