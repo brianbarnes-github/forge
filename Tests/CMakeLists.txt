@@ -38,6 +38,7 @@ add_executable(forge_tests
     PianoRollComponent_tests.cpp
     SourceRollEditor_tests.cpp
     PreviewAssignedPanel_tests.cpp
+    GridSize_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp

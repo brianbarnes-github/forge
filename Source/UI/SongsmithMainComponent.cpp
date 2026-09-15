@@ -2,17 +2,21 @@
 #include "PreviewPipeline.h"
 #include "PreviewNoteDiff.h"
 #include "SongsmithColours.h"
+#include "GridSize.h"
 
 #include "Core/LotroInstrument.h"
 
 namespace lotro
 {
 
-SongsmithMainComponent::UpperRegion::UpperRegion (juce::Label& headerIn, TrackListComponent& trackListIn,
+SongsmithMainComponent::UpperRegion::UpperRegion (juce::Label& headerIn, juce::ComboBox& gridComboIn,
+                                                   juce::TextButton& quantizeBtnIn, TrackListComponent& trackListIn,
                                                    PianoRollComponent& rollIn)
-    : header (headerIn), trackList (trackListIn), roll (rollIn)
+    : header (headerIn), gridCombo (gridComboIn), quantizeBtn (quantizeBtnIn), trackList (trackListIn), roll (rollIn)
 {
     addAndMakeVisible (header);
+    addAndMakeVisible (gridCombo);
+    addAndMakeVisible (quantizeBtn);
     addAndMakeVisible (trackList);
     addAndMakeVisible (roll);
 }
@@ -20,7 +24,10 @@ SongsmithMainComponent::UpperRegion::UpperRegion (juce::Label& headerIn, TrackLi
 void SongsmithMainComponent::UpperRegion::resized()
 {
     auto area = getLocalBounds();
-    header.setBounds (area.removeFromTop (sourceHeaderHeight));
+    auto headerRow = area.removeFromTop (sourceHeaderHeight);
+    quantizeBtn.setBounds (headerRow.removeFromRight (90));
+    gridCombo.setBounds (headerRow.removeFromRight (90));
+    header.setBounds (headerRow);
     trackList.setBounds (area.removeFromLeft (trackListWidth));
     roll.setBounds (area);
 }
@@ -64,8 +71,9 @@ void SongsmithMainComponent::LowerRegion::resized()
 SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
     : doc (document),
       trackList (document),
+      sourceRoll (PianoRollComponent::Role::Source, &doc),
       partStrip (document),
-      upperRegion (sourceHeader, trackList, sourceRoll),
+      upperRegion (sourceHeader, gridSizeCombo, quantizeButton, trackList, sourceRoll),
       previewRegion (previewHeader, previewAssignedPanel, previewRoll),
       lowerRegion (partStrip, previewRegion, diagnostics),
       splitter (SplitterComponent::Orientation::topBottom)
@@ -81,6 +89,16 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
         juce::dontSendNotification);
     previewHeader.setColour (juce::Label::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
     previewHeader.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::accentAmber));
+
+    gridSizeCombo.addItem ("Off", 1);
+    gridSizeCombo.addItem ("1/4", 2);
+    gridSizeCombo.addItem ("1/8", 3);
+    gridSizeCombo.addItem ("1/16", 4);
+    gridSizeCombo.setSelectedId (1, juce::dontSendNotification);
+    gridSizeCombo.onChange = [this] { updateGridTicks(); };
+    updateGridTicks();
+
+    quantizeButton.onClick = [this] { sourceRoll.quantizeSelection(); };
 
     trackList.onTrackSelected = [this] (juce::int64 trackId) { trackSelected (trackId); };
     partStrip.onPartSelected = [this] (juce::int64 partId) { selectPartForPreview (partId); };
@@ -122,12 +140,21 @@ void SongsmithMainComponent::trackSelected (juce::int64 trackId)
     {
         currentNoteSource.reset();
         sourceRoll.setNoteSource (nullptr, 480, {});
+        sourceRoll.setEditableTrack ({});
         return;
     }
 
     currentNoteSource = std::make_unique<SourceTrackNoteSource> (trackNode);
     const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
     sourceRoll.setNoteSource (currentNoteSource.get(), ticksPerQuarter, doc.getMeterMapNode());
+    sourceRoll.setEditableTrack (trackNode);
+}
+
+void SongsmithMainComponent::updateGridTicks()
+{
+    const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
+    const auto size = static_cast<GridSize> (gridSizeCombo.getSelectedId() - 1);
+    sourceRoll.setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
 }
 
 void SongsmithMainComponent::selectPartForPreview (juce::int64 partId)

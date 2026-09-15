@@ -62,11 +62,14 @@ private:
     class UpperRegion : public juce::Component
     {
     public:
-        UpperRegion (juce::Label& headerIn, TrackListComponent& trackListIn, PianoRollComponent& rollIn);
+        UpperRegion (juce::Label& headerIn, juce::ComboBox& gridComboIn, juce::TextButton& quantizeBtnIn,
+                     TrackListComponent& trackListIn, PianoRollComponent& rollIn);
         void resized() override;
 
     private:
         juce::Label& header;
+        juce::ComboBox& gridCombo;
+        juce::TextButton& quantizeBtn;
         TrackListComponent& trackList;
         PianoRollComponent& roll;
     };
@@ -101,6 +104,7 @@ private:
     };
 
     void trackSelected (juce::int64 trackId);
+    void updateGridTicks();
 
     // Unregisters from the previously-watched PART/ASSIGNMENT-referenced-
     // MIDI_TRACK nodes, resolves and registers on the newly-selected part's
@@ -133,6 +137,8 @@ private:
 
     juce::Label              sourceHeader;
     TrackListComponent       trackList;
+    juce::ComboBox            gridSizeCombo;
+    juce::TextButton          quantizeButton { "Quantize" };
     PianoRollComponent       sourceRoll;
     std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
 
