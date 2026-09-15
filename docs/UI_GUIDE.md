@@ -16,7 +16,7 @@ describes the current, Songsmith-only UI only.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Menu bar    [File ▾] [Edit ▾] [Song ▾] [View ▾]                      │  ← MENU BAR (24 px)
 ├──────────────────────────────────────────────────────────────────────┤
-│ ▲ MIDI SOURCE · drag tracks down to assign      [Grid: Off ▾][Quantize]│  ← UpperRegion header
+│ ▲ MIDI SOURCE · drag tracks down to assign    [Grid: Off ▾][Quantize]│  ← UpperRegion header
 ├──────────────────────┬───────────────────────────────────────────────┤
 │  TrackListComponent   │  PianoRollComponent (Role::Source)            │
 │  (220px, scrollable)  │  keyboard gutter · gridlines · notes ·        │
