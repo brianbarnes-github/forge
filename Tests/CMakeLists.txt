@@ -36,6 +36,7 @@ add_executable(forge_tests
     PreviewNoteSource_tests.cpp
     SongsmithMainComponent_tests.cpp
     PianoRollComponent_tests.cpp
+    SourceRollEditor_tests.cpp
     PreviewAssignedPanel_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
@@ -47,6 +48,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteDiff.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteSource.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp
