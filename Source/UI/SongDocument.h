@@ -177,6 +177,15 @@ public:
     void setProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,
                        const juce::var& newValue, bool newTransaction = true);
 
+    // Generic undoable child insertion -- e.g. adding a NOTE under a
+    // MIDI_TRACK from SourceRollEditor's create gesture. newTransaction
+    // mirrors setProperty's parameter of the same name/meaning.
+    void addChild (juce::ValueTree parent, juce::ValueTree child, bool newTransaction = true);
+
+    // Generic undoable child removal -- e.g. removing a NOTE from a
+    // MIDI_TRACK from SourceRollEditor's delete gesture.
+    void removeChild (juce::ValueTree parent, juce::ValueTree child, bool newTransaction = true);
+
     // Non-undoable bulk append — used by SongModelBridge's MIDI-import path.
     // Bulk import is not a user-undoable "edit" per the Songsmith plan.
     static void appendChildBulk (juce::ValueTree parent, juce::ValueTree child);

@@ -337,6 +337,22 @@ void SongDocument::setProperty (juce::ValueTree targetTree, const juce::Identifi
     targetTree.setProperty (propertyId, newValue, &undoManager);
 }
 
+void SongDocument::addChild (juce::ValueTree parent, juce::ValueTree child, bool newTransaction)
+{
+    if (newTransaction)
+        undoManager.beginNewTransaction();
+
+    parent.addChild (child, -1, &undoManager);
+}
+
+void SongDocument::removeChild (juce::ValueTree parent, juce::ValueTree child, bool newTransaction)
+{
+    if (newTransaction)
+        undoManager.beginNewTransaction();
+
+    parent.removeChild (child, &undoManager);
+}
+
 void SongDocument::appendChildBulk (juce::ValueTree parent, juce::ValueTree child)
 {
     parent.addChild (child, -1, nullptr);

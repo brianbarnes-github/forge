@@ -431,3 +431,54 @@ TEST_CASE ("SongDocument: assignTrackToPart succeeds once, undoably, and rejects
     doc.undo();
     CHECK (SongDocument::getNumAssignments (part) == 0);
 }
+
+TEST_CASE ("SongDocument: addChild/removeChild default to opening their own transaction", "[songdocument]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", 0xFF0000, 0, 1);
+
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+
+    doc.addChild (track, note);
+    REQUIRE (track.getNumChildren() == 1);
+
+    doc.removeChild (track, note);
+    REQUIRE (track.getNumChildren() == 0);
+
+    doc.undo(); // undoes removeChild only (its own transaction)
+    CHECK (track.getNumChildren() == 1);
+
+    doc.undo(); // undoes addChild (its own, separate, earlier transaction)
+    CHECK (track.getNumChildren() == 0);
+}
+
+TEST_CASE ("SongDocument: addChild/removeChild's newTransaction=false batches into the caller's already-open transaction", "[songdocument]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", 0xFF0000, 0, 1);
+
+    juce::ValueTree noteA (SongIDs::NOTE);
+    noteA.setProperty (SongIDs::pitch, 60, nullptr);
+    juce::ValueTree noteB (SongIDs::NOTE);
+    noteB.setProperty (SongIDs::pitch, 64, nullptr);
+
+    doc.getUndoManager().beginNewTransaction();
+    doc.addChild (track, noteA, false);
+    doc.addChild (track, noteB, false);
+    REQUIRE (track.getNumChildren() == 2);
+
+    doc.undo();
+    CHECK (track.getNumChildren() == 0); // one undo() reverts BOTH adds
+
+    doc.redo();
+    REQUIRE (track.getNumChildren() == 2);
+
+    doc.getUndoManager().beginNewTransaction();
+    doc.removeChild (track, track.getChild (0), false);
+    doc.removeChild (track, track.getChild (0), false);
+    CHECK (track.getNumChildren() == 0);
+
+    doc.undo();
+    CHECK (track.getNumChildren() == 2); // one undo() restores both removed children
+}
