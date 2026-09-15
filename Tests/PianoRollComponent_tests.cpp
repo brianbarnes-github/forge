@@ -73,6 +73,25 @@ namespace
     }
 }
 
+// TEMPORARY diagnostic (Windows-CI pixel-mismatch investigation, 2026-09-15):
+// the absolute minimal juce::Graphics -> juce::Image round trip, with zero
+// PianoRollComponent/Songsmith involvement. If this fails on Windows too,
+// the problem is a fundamental JUCE Graphics/Image issue in this CI
+// environment, not anything in paintCanvas. Remove once resolved.
+TEST_CASE ("DIAGNOSTIC: a bare juce::Graphics fillAll onto a juce::Image round-trips through getPixelAt", "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    juce::Image img (juce::Image::ARGB, 10, 10, true);
+    juce::Graphics g (img);
+    g.fillAll (juce::Colours::red);
+
+    const auto px = img.getPixelAt (5, 5);
+    INFO ("bare fillAll(red) pixel " << describeColour (px).toStdString()
+          << " vs expected " << describeColour (juce::Colours::red).toStdString());
+    CHECK (px == juce::Colours::red);
+}
+
 TEST_CASE ("PianoRollComponent: Preview-role notes border with the state-specific preview colours", "[piano-roll]")
 {
     // PianoRollComponent is a real juce::Component (owns a Viewport/Canvas);
