@@ -16,7 +16,7 @@ describes the current, Songsmith-only UI only.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Menu bar    [File ▾] [Edit ▾] [Song ▾] [View ▾]                      │  ← MENU BAR (24 px)
 ├──────────────────────────────────────────────────────────────────────┤
-│ ▲ MIDI SOURCE · drag tracks down to assign                           │  ← UpperRegion header
+│ ▲ MIDI SOURCE · drag tracks down to assign      [Grid: Off ▾][Quantize]│  ← UpperRegion header
 ├──────────────────────┬───────────────────────────────────────────────┤
 │  TrackListComponent   │  PianoRollComponent (Role::Source)            │
 │  (220px, scrollable)  │  keyboard gutter · gridlines · notes ·        │
@@ -59,6 +59,8 @@ When you say…       …I'll know you mean
 | **Preview region**              | `SongsmithMainComponent::PreviewRegion` — preview header + `PreviewAssignedPanel` + preview-role `PianoRollComponent` |
 | **Track list**                  | `TrackListComponent`/`TrackRowComponent` (`Source/UI/TrackListComponent.{h,cpp}`, `TrackRowComponent.{h,cpp}`) |
 | **Source piano roll**           | `PianoRollComponent` constructed with `Role::Source` (`Source/UI/PianoRollComponent.{h,cpp}`) |
+| **Grid-size combo**             | `SongsmithMainComponent::gridSizeCombo` (`juce::ComboBox`) — `Off`/`1/4`/`1/8`/`1/16`, translated to ticks by `GridSize.h`'s `gridSizeToTicks()` |
+| **Quantize button**             | `SongsmithMainComponent::quantizeButton` (`juce::TextButton`) — calls `sourceRoll.quantizeSelection()` |
 | **Preview piano roll**          | `PianoRollComponent` constructed with `Role::Preview` — adds the range band and ghost/dropped-note overlays |
 | **Part strip**                  | `PartStripComponent`/`PartSlotComponent` (`Source/UI/PartStripComponent.{h,cpp}`, `PartSlotComponent.{h,cpp}`) |
 | **Assignment chip**             | `AssignmentChipComponent` — swatch, `Tk<n>`, transpose, `×` to unassign, inside a part slot |
@@ -84,10 +86,26 @@ When you say…       …I'll know you mean
   row shading follows the real piano black/white-key pattern, not plain
   semitone alternation. Vertical gridlines mark bar boundaries from the
   document's meter. Ctrl/Cmd+scroll-wheel zooms horizontally; a plain
-  scroll wheel scrolls as usual. View-only — no note creation/move/resize/
-  delete yet (Phase 7). Selecting a different track, or any change to
-  `SOURCE_MIDI` (e.g. a second MIDI import), re-fits the view to the
-  newly-current track.
+  scroll wheel scrolls as usual. Selecting a different track, or any change
+  to `SOURCE_MIDI` (e.g. a second MIDI import), re-fits the view to the
+  newly-current track. Note editing (Phase 7, via `SourceRollEditor`):
+  click to select a note, shift/ctrl/cmd-click to add or remove one from
+  the selection, drag on empty canvas to rubber-band-select; drag a
+  selected note's body to move it (and every other selected note, together)
+  or its left/right edge to resize it; double-click empty canvas to create
+  a note there (duration from the grid-size combo below, or a quarter note
+  if the grid is off); Delete/Backspace removes the selection; Ctrl+Z/
+  Ctrl+Y (or Ctrl+Shift+Z) undo/redo. Every gesture is one undo transaction
+  through the same `songDocument` as the Edit menu's Undo/Redo.
+- **Grid-size combo box and Quantize button** — top-right of the upper
+  region's header row, next to the source header label. The combo
+  (`Off`/`1/4`/`1/8`/`1/16`) sets the grid `SourceRollEditor` snaps to: it
+  drives both the Quantize button's snap size and the duration a
+  double-click-created note gets by default. "Quantize" snaps every
+  currently-selected source-roll note's start and duration to that grid, one
+  undo transaction; a no-op with nothing selected or the grid off. Neither
+  control has a `Config` path — they drive `SourceRollEditor` state, not
+  document/config fields.
 - **Part slot** (`PartStripComponent`/`PartSlotComponent`) — `x:` index,
   instrument badge, label, and its assigned tracks as chips
   (`AssignmentChipComponent`: swatch, `Tk<n>`, transpose, `×` to unassign).
