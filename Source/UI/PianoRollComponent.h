@@ -2,8 +2,11 @@
 
 #include "PianoRollGeometry.h"
 #include "PianoRollNoteSource.h"
+#include "SourceRollEditor.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+
+#include <memory>
 
 // Phase 5 — the shared piano-roll component (source role only this phase:
 // rectangles, keyboard gutter, gridlines, scroll, minimal ctrl+wheel zoom —
@@ -18,7 +21,7 @@ class PianoRollComponent : public juce::Component
 public:
     enum class Role { Source, Preview };
 
-    explicit PianoRollComponent (Role roleIn = Role::Source);
+    explicit PianoRollComponent (Role roleIn = Role::Source, SongDocument* editableDocument = nullptr);
 
     Role getRole() const noexcept { return role; }
 
@@ -38,6 +41,20 @@ public:
     // "don't paint a band" — never call this for a Role::Source roll.
     void setPreviewRangeBand (juce::Range<int> midiRange);
 
+    // Source role only (no-op otherwise, or if this roll has no editable
+    // document): repoints the roll's SourceRollEditor at a different
+    // MIDI_TRACK node. Call this alongside setNoteSource whenever the
+    // selected track changes.
+    void setEditableTrack (juce::ValueTree trackNode);
+
+    // Source role only: pushes the toolbar's current grid-size selection
+    // into the roll's SourceRollEditor.
+    void setGridTicks (int ticks);
+
+    // Source role only: grid-snaps the current selection. Returns true if
+    // anything changed (mirrors SourceRollEditor::quantizeSelection).
+    bool quantizeSelection();
+
     void paint (juce::Graphics& g) override;
     void resized() override;
 
@@ -47,10 +64,15 @@ private:
     class Canvas : public juce::Component
     {
     public:
-        explicit Canvas (PianoRollComponent& ownerIn) : owner (ownerIn) {}
+        explicit Canvas (PianoRollComponent& ownerIn) : owner (ownerIn) { setWantsKeyboardFocus (true); }
 
         void paint (juce::Graphics& g) override { owner.paintCanvas (g, g.getClipBounds()); }
         void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
+        void mouseDown (const juce::MouseEvent& e) override;
+        void mouseDoubleClick (const juce::MouseEvent& e) override;
+        void mouseDrag (const juce::MouseEvent& e) override;
+        void mouseUp (const juce::MouseEvent& e) override;
+        bool keyPressed (const juce::KeyPress& key) override;
 
     private:
         PianoRollComponent& owner;
@@ -96,6 +118,12 @@ private:
     void paintGutter (juce::Graphics& g) const;
     void drawNotes (juce::Graphics& g, juce::Rectangle<int> clip) const;
 
+    bool handleEditorMouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
+    bool handleEditorMouseDrag (juce::Point<int> pos);
+    bool handleEditorMouseUp (juce::Point<int> pos);
+    bool handleEditorKeyPressed (const juce::KeyPress& key);
+    void afterEditorGesture (bool changed);
+
     void rebuildContentSize();
     void zoom (float wheelDeltaY);
 
@@ -109,6 +137,7 @@ private:
 
     Role role;
     PianoRollNoteSource* noteSource = nullptr;
+    std::unique_ptr<SourceRollEditor> sourceEditor; // Role::Source with an editable document only.
     PianoRollGeometry geometry;
     int ticksPerQuarter = 480;
     juce::ValueTree meterMap;

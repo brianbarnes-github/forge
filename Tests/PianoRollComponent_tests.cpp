@@ -6,7 +6,9 @@
 #include "UI/PianoRollComponent.h"
 #include "UI/PreviewNoteDiff.h"
 #include "UI/PreviewNoteSource.h"
+#include "UI/SongDocument.h"
 #include "UI/SongsmithColours.h"
+#include "UI/SourceTrackNoteSource.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -14,14 +16,22 @@ using namespace lotro;
 
 namespace lotro
 {
-    // Grants PianoRollComponent_tests.cpp access to the private paintCanvas(),
-    // which stays private on the class itself.
+    // Grants PianoRollComponent_tests.cpp access to the private paintCanvas()
+    // and the editor-gesture handlers, which stay private on the class
+    // itself.
     struct PianoRollComponentTestAccess
     {
         static void paintCanvas (const PianoRollComponent& c, juce::Graphics& g, juce::Rectangle<int> clip)
         {
             c.paintCanvas (g, clip);
         }
+
+        static bool mouseDown (PianoRollComponent& c, juce::Point<int> pos, juce::ModifierKeys mods, bool dbl)
+        {
+            return c.handleEditorMouseDown (pos, mods, dbl);
+        }
+        static bool mouseDrag (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseDrag (pos); }
+        static bool mouseUp (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseUp (pos); }
     };
 }
 
@@ -192,4 +202,80 @@ TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a part
     }
 
     CHECK (image.getPixelAt (sampleX, ghostY) == reference.getPixelAt (0, 0));
+}
+
+TEST_CASE ("PianoRollComponent: mouse gestures reach SourceRollEditor and mutate the real SongDocument end to end", "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", 0xFF0000, 0, 1);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+    track.addChild (note, -1, nullptr);
+
+    SourceTrackNoteSource source (track);
+
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    roll.setNoteSource (&source, ticksPerQuarter, {});
+    roll.setEditableTrack (track);
+
+    const auto geometry = PianoRollGeometry::fitToContent (source.getTickRange(), source.getPitchRange(),
+                                                             ticksPerQuarter, viewportWidth, viewportHeight);
+    const auto bounds = geometry.noteBounds (source.getNote (0));
+    const juce::Point<int> clickPos (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    const juce::Point<int> dragPos = clickPos.translated (40, 0);
+
+    using Access = PianoRollComponentTestAccess;
+    REQUIRE (Access::mouseDown (roll, clickPos, {}, false));
+    REQUIRE (Access::mouseDrag (roll, dragPos));
+    Access::mouseUp (roll, dragPos);
+
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    const int expectedDeltaTick = geometry.tickForX (dragPos.x) - geometry.tickForX (clickPos.x);
+    CHECK ((int) track.getChild (0).getProperty (SongIDs::startTick) == expectedDeltaTick);
+    CHECK (doc.canUndo());
+
+    doc.undo();
+    CHECK ((int) track.getChild (0).getProperty (SongIDs::startTick) == 0);
+}
+
+TEST_CASE ("PianoRollComponent: a selected source-role note paints with the selection highlight border", "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", 0xFF0000, 0, 1);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+    track.addChild (note, -1, nullptr);
+
+    SourceTrackNoteSource source (track);
+
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    roll.setNoteSource (&source, ticksPerQuarter, {});
+    roll.setEditableTrack (track);
+
+    const auto geometry = PianoRollGeometry::fitToContent (source.getTickRange(), source.getPitchRange(),
+                                                             ticksPerQuarter, viewportWidth, viewportHeight);
+    const auto bounds = geometry.noteBounds (source.getNote (0));
+    const juce::Point<int> centre (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+
+    using Access = PianoRollComponentTestAccess;
+    Access::mouseDown (roll, centre, {}, false);
+    Access::mouseUp (roll, centre);
+
+    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true);
+    juce::Graphics g (image);
+    Access::paintCanvas (roll, g, { 0, 0, viewportWidth, viewportHeight });
+
+    const auto topBorderPixel = image.getPixelAt (bounds.x + bounds.width / 2, bounds.y);
+    CHECK (topBorderPixel == juce::Colour (SongsmithColours::selectionHighlight));
 }

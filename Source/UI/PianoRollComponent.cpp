@@ -18,8 +18,11 @@ namespace
     constexpr juce::uint32 gridline     = 0xFF333333;
 }
 
-PianoRollComponent::PianoRollComponent (Role roleIn) : role (roleIn)
+PianoRollComponent::PianoRollComponent (Role roleIn, SongDocument* editableDocument) : role (roleIn)
 {
+    if (role == Role::Source && editableDocument != nullptr)
+        sourceEditor = std::make_unique<SourceRollEditor> (*editableDocument);
+
     viewport.setViewedComponent (&canvas, false);
     viewport.setScrollBarsShown (true, true);
     addAndMakeVisible (viewport);
@@ -37,6 +40,9 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
                    ? PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
                                                        ticksPerQuarter, viewport.getWidth(), viewport.getHeight())
                    : PianoRollGeometry();
+
+    if (sourceEditor != nullptr)
+        sourceEditor->setGeometry (geometry);
 
     rebuildContentSize();
     canvas.repaint();
@@ -116,8 +122,102 @@ void PianoRollComponent::zoom (float wheelDeltaY)
     const double factor = wheelDeltaY > 0.0f ? 1.1 : (1.0 / 1.1);
     geometry.setPixelsPerQuarterNote (juce::jlimit (2.0, 400.0, geometry.getPixelsPerQuarterNote() * factor));
 
+    if (sourceEditor != nullptr)
+        sourceEditor->setGeometry (geometry);
+
     rebuildContentSize();
     canvas.repaint();
+}
+
+void PianoRollComponent::setEditableTrack (juce::ValueTree trackNode)
+{
+    if (sourceEditor != nullptr)
+        sourceEditor->setTrack (trackNode);
+}
+
+void PianoRollComponent::setGridTicks (int ticks)
+{
+    if (sourceEditor != nullptr)
+        sourceEditor->setGridTicks (ticks);
+}
+
+bool PianoRollComponent::quantizeSelection()
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->quantizeSelection();
+    afterEditorGesture (changed);
+    return changed;
+}
+
+void PianoRollComponent::afterEditorGesture (bool changed)
+{
+    if (! changed)
+        return;
+    rebuildContentSize();
+    canvas.repaint();
+}
+
+bool PianoRollComponent::handleEditorMouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->mouseDown (pos, mods, isDoubleClick);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->mouseDrag (pos);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::handleEditorMouseUp (juce::Point<int> pos)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->mouseUp (pos);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::handleEditorKeyPressed (const juce::KeyPress& key)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->keyPressed (key);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+void PianoRollComponent::Canvas::mouseDown (const juce::MouseEvent& e)
+{
+    grabKeyboardFocus();
+    owner.handleEditorMouseDown (e.getPosition(), e.mods, false);
+}
+
+void PianoRollComponent::Canvas::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    owner.handleEditorMouseDown (e.getPosition(), e.mods, true);
+}
+
+void PianoRollComponent::Canvas::mouseDrag (const juce::MouseEvent& e)
+{
+    owner.handleEditorMouseDrag (e.getPosition());
+}
+
+void PianoRollComponent::Canvas::mouseUp (const juce::MouseEvent& e)
+{
+    owner.handleEditorMouseUp (e.getPosition());
+}
+
+bool PianoRollComponent::Canvas::keyPressed (const juce::KeyPress& key)
+{
+    return owner.handleEditorKeyPressed (key);
 }
 
 void PianoRollComponent::Canvas::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
@@ -293,6 +393,13 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         }
         g.drawRect (rect, 1);
 
+        if (role == Role::Source && sourceEditor != nullptr
+            && sourceEditor->isSelected (sourceEditor->getTrackNode().getChild (i)))
+        {
+            g.setColour (juce::Colour (SongsmithColours::selectionHighlight));
+            g.drawRect (rect, 2);
+        }
+
         if (role != Role::Preview)
             continue;
 
@@ -309,6 +416,18 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
             const int step = juce::jmax (2, rect.getWidth() / 3);
             for (int x = rect.getX(); x < rect.getRight(); x += step)
                 g.drawLine ((float) x, (float) rect.getBottom(), (float) (x + rect.getHeight()), (float) rect.getY());
+        }
+    }
+
+    if (role == Role::Source && sourceEditor != nullptr)
+    {
+        const auto bandRect = sourceEditor->getRubberBandRect();
+        if (! bandRect.isEmpty())
+        {
+            g.setColour (juce::Colour (SongsmithColours::selectionHighlight).withAlpha (0.15f));
+            g.fillRect (bandRect);
+            g.setColour (juce::Colour (SongsmithColours::selectionHighlight).withAlpha (0.6f));
+            g.drawRect (bandRect, 1);
         }
     }
 }

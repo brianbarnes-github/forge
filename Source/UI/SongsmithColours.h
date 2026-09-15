@@ -19,6 +19,9 @@ namespace lotro::SongsmithColours
     constexpr juce::uint32 textMuted    = 0xFF888888;
     constexpr juce::uint32 accentAmber  = 0xFFE0B080;
 
+    // Phase 7 -- source-role selection highlight (roll editing).
+    constexpr juce::uint32 selectionHighlight = 0xFFFFFFFF;
+
     // 8-entry MIDI-track swatch cycle. The first four match the Songsmith UI
     // Guide mockup's track rows; the remaining four extend the cycle for
     // documents with more than four tracks.
