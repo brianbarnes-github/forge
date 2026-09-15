@@ -85,6 +85,10 @@ public:
                                             int viewportHeight);
 
 private:
+    // Pixels per tick, shared by xForTick/tickForX so both are derived from
+    // one computation instead of two independently-structured formulas.
+    double pixelsPerTick() const noexcept { return pixelsPerQuarterNote / (double) ticksPerQuarter; }
+
     int keyboardGutterWidth = 60;
     int rowHeight = 14;
     int topPitch = 84; // C6, per the mockup's default keyboard-gutter alignment

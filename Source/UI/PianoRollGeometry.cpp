@@ -8,17 +8,29 @@ namespace lotro
 
 int PianoRollGeometry::xForTick (int tick) const noexcept
 {
+    // The exact algebraic left-inverse of tickForX below: same shared
+    // pixelsPerTick() ratio, same rounding rule (std::lround), applied to
+    // the inverse expression instead of an independently-structured one.
+    // This makes tick -> x -> tick exact whenever pixelsPerQuarterNote >=
+    // ticksPerQuarter (at least one pixel per tick -- see
+    // PianoRollGeometry_tests.cpp's round-trip test at that ratio). Below
+    // that ratio there are more possible tick values per quarter note than
+    // pixel columns to hold them, so a handful of ticks necessarily alias
+    // onto a neighbour's pixel (confirmed by hand at
+    // ticksPerQuarter=480/pixelsPerQuarterNote=479: 480 tick values, only
+    // 479 pixel columns) -- an inherent display-resolution limit of
+    // zooming below 1:1, not fixable by any choice of rounding rule, and
+    // not something Phase 7's drag/resize math depends on (deltas are
+    // computed as a difference of two tickForX calls, never by
+    // round-tripping through xForTick).
     const double ticksFromOrigin = (double) tick - contentOriginTick;
-    const double quarters = ticksFromOrigin / (double) ticksPerQuarter;
-    const double pixels = quarters * pixelsPerQuarterNote;
-    return keyboardGutterWidth + (int) std::lround (pixels);
+    return keyboardGutterWidth + (int) std::lround (ticksFromOrigin * pixelsPerTick());
 }
 
 int PianoRollGeometry::tickForX (int x) const noexcept
 {
-    const double pixels = (double) (x - keyboardGutterWidth);
-    const double quarters = pixels / pixelsPerQuarterNote;
-    const double ticksFromOrigin = quarters * (double) ticksPerQuarter;
+    // Source of truth for pixel -> tick -- see xForTick's comment above.
+    const double ticksFromOrigin = (double) (x - keyboardGutterWidth) / pixelsPerTick();
     return (int) std::lround (contentOriginTick + ticksFromOrigin);
 }
 

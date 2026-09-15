@@ -182,3 +182,35 @@ TEST_CASE ("PianoRollGeometry: fitToContent on an empty source doesn't divide by
     CHECK (geometry.getPixelsPerQuarterNote() > 0.0);
     CHECK (geometry.xForTick (0) == geometry.getKeyboardGutterWidth());
 }
+
+TEST_CASE ("PianoRollGeometry: tick round-trips exactly through xForTick/tickForX when there is at least one pixel per tick", "[piano-roll]")
+{
+    PianoRollGeometry geometry;
+    geometry.setTicksPerQuarter (480);
+    geometry.setPixelsPerQuarterNote (960.0); // 2 px/tick -- an exact integer ratio
+    geometry.setContentOriginTick (0.0);
+
+    for (int tick : { 0, 1, 100, 240, 479, 480, 1000 })
+        CHECK (geometry.tickForX (geometry.xForTick (tick)) == tick);
+}
+
+TEST_CASE ("PianoRollGeometry: below 1 pixel per tick, tick round-trip drift is bounded to at most 1 tick, not unbounded", "[piano-roll]")
+{
+    // The documented, inherent aliasing case: 480 possible tick values per
+    // quarter note, only 479 pixel columns to place them in -- some tick
+    // must land on a neighbour's pixel (pigeonhole), so this only asserts
+    // the bound stays tight. Exact equality here is provably impossible
+    // without changing tickForX's own rounding convention -- see the
+    // comment on xForTick in PianoRollGeometry.cpp.
+    PianoRollGeometry geometry;
+    geometry.setTicksPerQuarter (480);
+    geometry.setPixelsPerQuarterNote (479.0);
+    geometry.setContentOriginTick (0.0);
+
+    for (int tick : { 0, 120, 240, 360, 479 })
+    {
+        const int diff = geometry.tickForX (geometry.xForTick (tick)) - tick;
+        CHECK (diff >= -1);
+        CHECK (diff <= 1);
+    }
+}
