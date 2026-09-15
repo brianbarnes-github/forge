@@ -60,6 +60,17 @@ namespace
         return juce::MouseEvent (*source, pos.toFloat(), juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                   &comp, &comp, now, mouseDownPos.toFloat(), now, numberOfClicks, mouseWasDragged);
     }
+
+    // TEMPORARY diagnostic helper (Windows-CI pixel-mismatch investigation,
+    // 2026-09-15) -- prints a colour's exact channel values so a failing
+    // CHECK's INFO context shows what actually rendered, since Catch2 has no
+    // stringifier for juce::Colour (failures print "{?} == {?}"). Remove
+    // once the platform pixel-rendering discrepancy is understood/fixed.
+    juce::String describeColour (juce::Colour c)
+    {
+        return juce::String::formatted ("R=%d G=%d B=%d A=%d", (int) c.getRed(), (int) c.getGreen(),
+                                         (int) c.getBlue(), (int) c.getAlpha());
+    }
 }
 
 TEST_CASE ("PianoRollComponent: Preview-role notes border with the state-specific preview colours", "[piano-roll]")
@@ -103,7 +114,13 @@ TEST_CASE ("PianoRollComponent: Preview-role notes border with the state-specifi
     const auto normalBorderPixel = image.getPixelAt (normalBounds.x + normalBounds.width / 2, normalBounds.y);
     const auto droppedBorderPixel = image.getPixelAt (droppedBounds.x + droppedBounds.width / 2, droppedBounds.y);
 
+    INFO ("normalBorderPixel " << describeColour (normalBorderPixel).toStdString()
+          << " vs expected " << describeColour (juce::Colour (SongsmithColours::previewNoteBorder)).toStdString()
+          << " | neighbours y-1=" << describeColour (image.getPixelAt (normalBounds.x + normalBounds.width / 2, normalBounds.y - 1)).toStdString()
+          << " y+1=" << describeColour (image.getPixelAt (normalBounds.x + normalBounds.width / 2, normalBounds.y + 1)).toStdString());
     CHECK (normalBorderPixel == juce::Colour (SongsmithColours::previewNoteBorder));
+    INFO ("droppedBorderPixel " << describeColour (droppedBorderPixel).toStdString()
+          << " vs expected " << describeColour (juce::Colour (SongsmithColours::outOfRangeBorder)).toStdString());
     CHECK (droppedBorderPixel == juce::Colour (SongsmithColours::outOfRangeBorder));
 }
 
@@ -163,6 +180,9 @@ TEST_CASE ("PianoRollComponent: an upward-folding note's ghost and range band re
         rg.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
         rg.fillRect (0, 0, 1, 1);
     }
+    INFO ("ghost pixel " << describeColour (image.getPixelAt (sampleX, ghostY)).toStdString()
+          << " vs reference " << describeColour (reference.getPixelAt (0, 0)).toStdString()
+          << " | underlyingBeneathGhost " << describeColour (underlyingBeneathGhost).toStdString());
     CHECK (image.getPixelAt (sampleX, ghostY) == reference.getPixelAt (0, 0));
 
     // The band's interior tint and the below-range wash must be visibly
@@ -170,6 +190,8 @@ TEST_CASE ("PianoRollComponent: an upward-folding note's ghost and range band re
     // fell inside one giant "clip.withTop(negative bandBottom)" fill, so
     // this pixel pair would have been identical (the whole clip flooded
     // with the same wash).
+    INFO ("insideBand " << describeColour (image.getPixelAt (sampleX, insideBandY)).toStdString()
+          << " belowBand " << describeColour (image.getPixelAt (sampleX, belowBandY)).toStdString());
     CHECK (image.getPixelAt (sampleX, insideBandY) != image.getPixelAt (sampleX, belowBandY));
 }
 
@@ -220,6 +242,9 @@ TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a part
         rg.fillRect (0, 0, 1, 1);
     }
 
+    INFO ("ghost pixel " << describeColour (image.getPixelAt (sampleX, ghostY)).toStdString()
+          << " vs reference " << describeColour (reference.getPixelAt (0, 0)).toStdString()
+          << " | underlyingBeneathGhost " << describeColour (underlyingBeneathGhost).toStdString());
     CHECK (image.getPixelAt (sampleX, ghostY) == reference.getPixelAt (0, 0));
 }
 
@@ -343,5 +368,12 @@ TEST_CASE ("PianoRollComponent: a selected source-role note paints with the sele
     Access::paintCanvas (roll, g, { 0, 0, viewportWidth, viewportHeight });
 
     const auto topBorderPixel = image.getPixelAt (bounds.x + bounds.width / 2, bounds.y);
+    const int sampleXForDiag = bounds.x + bounds.width / 2;
+    INFO ("topBorderPixel(y="   << bounds.y     << ") "   << describeColour (topBorderPixel).toStdString()
+          << " vs expected "   << describeColour (juce::Colour (SongsmithColours::selectionHighlight)).toStdString()
+          << " | y-1=" << describeColour (image.getPixelAt (sampleXForDiag, bounds.y - 1)).toStdString()
+          << " y+1=" << describeColour (image.getPixelAt (sampleXForDiag, bounds.y + 1)).toStdString()
+          << " y+2=" << describeColour (image.getPixelAt (sampleXForDiag, bounds.y + 2)).toStdString()
+          << " | bounds.height=" << bounds.height);
     CHECK (topBorderPixel == juce::Colour (SongsmithColours::selectionHighlight));
 }
