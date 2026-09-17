@@ -73,7 +73,7 @@ When you say…       …I'll know you mean
 | 20 | **Preview region header**       | The "▼ LOTRO PREVIEW · how it will sound in-game" label row |
 | 21 | **Preview assigned panel**      | `PreviewAssignedPanel` (`Source/UI/PreviewAssignedPanel.{h,cpp}`) — assigned-track chips, instrument/range readout, range-policy label, output stats |
 | 22 | **Preview piano roll**          | `PianoRollComponent` constructed with `Role::Preview` — adds the range band and ghost/dropped-note overlays |
-| 23 | **Diagnostics list (Songsmith)** | `DiagnosticListView` hosted directly by `SongsmithMainComponent` — import diagnostics only, no ABC preview alongside it. **Hidden by default** — toggled via **View → Diagnostics list**; when hidden, the preview region (#19) takes the space it would otherwise share via the inner splitter (#18) |
+| 23 | **Diagnostics list (Songsmith)** | `DiagnosticListView` hosted directly by `SongsmithMainComponent` — import diagnostics only, no ABC preview alongside it; shares the lower region's height with the preview region (#19) via the inner splitter (#18) |
 | 24 | **Export panel**                | `DiagnosticsPane` (`Source/UI/DiagnosticsPane.{h,cpp}`) — the toggleable full-export view (`Song → Run Converter` / `View → Export ABC panel`) |
 | 25 | **Diagnostic List View (export panel)** | `DiagnosticListView` inside `DiagnosticsPane` — the 6-column table |
 | 26 | **ABC Preview View**            | `AbcPreviewView` (`Source/UI/AbcPreviewView.{h,cpp}`) — read-only text editor showing the generated ABC, inside `DiagnosticsPane` |
@@ -166,10 +166,7 @@ When you say…       …I'll know you mean
   part or any of its assigned tracks changes.
 - **Diagnostics** (#23, `DiagnosticListView`, hosted directly) — the bare list
   only, not the full `DiagnosticsPane`: import diagnostics land here; the
-  ABC-preview half only exists in the export panel. Hidden by default;
-  **View → Diagnostics list** shows/hides it, and hiding it hands its share
-  of the lower region's height straight to the preview region (#19) instead
-  of leaving a gap.
+  ABC-preview half only exists in the export panel.
 
 New menus (global — see "Menus" below):
 
@@ -197,10 +194,6 @@ Song
 View
   Export ABC panel                     ← toggles the export panel
                                           (checkbox; unchecked by default)
-  Diagnostics list                     ← toggles the Songsmith diagnostics
-                                          list (#23) (checkbox; unchecked
-                                          by default — hiding it gives its
-                                          space to the preview region)
 ```
 
 **File → Open MIDI…** and dropping a `.mid`/`.midi` file both import into
