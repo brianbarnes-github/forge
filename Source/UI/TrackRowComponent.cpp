@@ -34,6 +34,16 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onGhostToggled)
             onGhostToggled (getTrackId(), visible);
     };
+    notePreview.onNonToggleClick = [this]
+    {
+        if (onTrackSelected)
+            onTrackSelected (getTrackId());
+    };
+    notePreview.onNonToggleDoubleClick = [this]
+    {
+        if (onTrackDoubleClicked)
+            onTrackDoubleClicked (getTrackId());
+    };
 }
 
 void TrackRowComponent::resized()

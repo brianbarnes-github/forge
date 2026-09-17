@@ -74,6 +74,21 @@ namespace lotro
         return getLocalBounds().removeFromRight (16).removeFromTop (16).reduced (3);
     }
 
+    void TrackNotePreview::mouseDown (const juce::MouseEvent& e)
+    {
+        if (! toggleGhostIfHit (e.getPosition()) && onNonToggleClick)
+            onNonToggleClick();
+    }
+
+    void TrackNotePreview::mouseDoubleClick (const juce::MouseEvent& e)
+    {
+        // Tested against the toggle bounds rather than toggleGhostIfHit() so
+        // the second click of a double-click on the toggle doesn't flip the
+        // ghost back off again.
+        if (! ghostToggleBounds().contains (e.getPosition()) && onNonToggleDoubleClick)
+            onNonToggleDoubleClick();
+    }
+
     bool TrackNotePreview::toggleGhostIfHit (juce::Point<int> pos)
     {
         if (! ghostToggleBounds().contains (pos))

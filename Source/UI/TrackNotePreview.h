@@ -33,10 +33,21 @@ namespace lotro
         // full juce::MouseEvent.
         bool toggleGhostIfHit (juce::Point<int> pos);
 
-        void mouseDown (const juce::MouseEvent& e) override { toggleGhostIfHit (e.getPosition()); }
+        void mouseDown (const juce::MouseEvent& e) override;
+        void mouseDoubleClick (const juce::MouseEvent& e) override;
 
         // Fired when the ghost toggle is clicked, with the new state.
         std::function<void (bool)> onGhostToggled;
+
+        // Fired for a click/double-click anywhere in this preview EXCEPT the
+        // ghost toggle. This preview is a hit-testable child covering the
+        // right 160px of its row and JUCE never forwards a child's mouse
+        // events up to its parent, so without these the row's own
+        // select/double-click-to-edit gestures would be dead across most of
+        // its visible area. Same up-the-chain callback shape as
+        // onGhostToggled.
+        std::function<void()> onNonToggleClick;
+        std::function<void()> onNonToggleDoubleClick;
 
     private:
         juce::ValueTree track;
