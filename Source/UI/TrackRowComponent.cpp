@@ -22,11 +22,25 @@ namespace
     }
 }
 
-TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayIndex)
-    : track (std::move (trackNode)), index (displayIndex)
+TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayIndex, const TimelineViewState& viewState)
+    : track (trackNode), index (displayIndex), notePreview (trackNode, viewState)
 {
     jassert (track.hasType (SongIDs::MIDI_TRACK));
     setInterceptsMouseClicks (true, false);
+
+    addAndMakeVisible (notePreview);
+    notePreview.onGhostToggled = [this] (bool visible)
+    {
+        if (onGhostToggled)
+            onGhostToggled (getTrackId(), visible);
+    };
+}
+
+void TrackRowComponent::resized()
+{
+    auto area = getLocalBounds();
+    area.removeFromLeft (juce::jmax (0, area.getWidth() - notePreviewWidth));
+    notePreview.setBounds (area);
 }
 
 juce::int64 TrackRowComponent::getTrackId() const
@@ -88,7 +102,7 @@ void TrackRowComponent::paint (juce::Graphics& g)
     }
 
     const int textLeft = 8;
-    auto row = bounds.reduced (0, 0).withTrimmedLeft (textLeft).withTrimmedRight (6);
+    auto row = bounds.withTrimmedRight (notePreviewWidth).withTrimmedLeft (textLeft).withTrimmedRight (6);
     auto firstLine  = row.removeFromTop (row.getHeight() / 2);
     auto secondLine = row;
 
@@ -117,6 +131,12 @@ void TrackRowComponent::mouseDown (const juce::MouseEvent&)
 {
     if (onTrackSelected)
         onTrackSelected (getTrackId());
+}
+
+void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)
+{
+    if (onTrackDoubleClicked)
+        onTrackDoubleClicked (getTrackId());
 }
 
 void TrackRowComponent::mouseDrag (const juce::MouseEvent& e)

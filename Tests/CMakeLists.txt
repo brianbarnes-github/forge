@@ -42,6 +42,7 @@ add_executable(forge_tests
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
     TrackNotePreview_tests.cpp
+    TrackRowComponent_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
