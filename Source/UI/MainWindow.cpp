@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "DiagnosticsPane.h"
+#include "GridSize.h"
 #include "SongModelBridge.h"
 #include "SongsmithMainComponent.h"
 
@@ -136,6 +137,17 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         // menuItemsChanged() poke elsewhere.
         m.addItem (EditUndo, "Undo", songDocument.canUndo(), false);
         m.addItem (EditRedo, "Redo", songDocument.canRedo(), false);
+
+        m.addSeparator();
+        const bool editorOpen = body->getSongsmith().isTrackEditorOpen();
+        m.addItem (EditQuantize, "Quantize", editorOpen);
+
+        juce::PopupMenu gridMenu;
+        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Off,       "Off",  editorOpen);
+        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Quarter,   "1/4",  editorOpen);
+        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Eighth,    "1/8",  editorOpen);
+        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Sixteenth, "1/16", editorOpen);
+        m.addSubMenu ("Grid Size", gridMenu, editorOpen);
     }
     else if (topLevelMenuIndex == 2) // Song
     {
@@ -151,6 +163,12 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
 
 void MainWindow::menuItemSelected (int menuItemID, int)
 {
+    if (menuItemID >= EditGridSizeBase && menuItemID <= EditGridSizeBase + (int) GridSize::Sixteenth)
+    {
+        body->getSongsmith().setActiveEditorGridSize ((GridSize) (menuItemID - EditGridSizeBase));
+        return;
+    }
+
     switch (menuItemID)
     {
         case FileOpenMidi:    openMidiViaDialog();                                           return;
@@ -162,6 +180,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
+        case EditQuantize:    body->getSongsmith().quantizeActiveEditor();                    return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
         case SongRunConverter:
             runConversion();

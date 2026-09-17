@@ -43,7 +43,9 @@ private:
         EditRedo,
         SongDefaultParts,
         SongRunConverter,
-        ViewExportPanelToggle
+        ViewExportPanelToggle,
+        EditQuantize,
+        EditGridSizeBase // grid-size submenu items are EditGridSizeBase + GridSize enum value
     };
 
     class Body;
