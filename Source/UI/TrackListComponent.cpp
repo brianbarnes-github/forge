@@ -57,17 +57,6 @@ void TrackListComponent::rebuild()
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
     repaint(); // M4: empty-state message visibility may have changed.
-
-    // I1: unconditionally re-fire onTrackSelected with whatever is currently
-    // selected (including "nothing"), not only when the selection just
-    // disappeared. A rebuild means something under SOURCE_MIDI changed —
-    // that can affect a *live* selection too (e.g. a second MIDI import
-    // raising the document's ticksPerQuarter, Phase 5's I1) without the
-    // selected track itself ever disappearing, so the disappearance check
-    // alone isn't enough to tell callers (SongsmithMainComponent) to re-read
-    // fresh document state and refit the piano roll.
-    if (onTrackSelected)
-        onTrackSelected (selectedTrackId);
 }
 
 void TrackListComponent::selectTrack (juce::int64 trackId)
@@ -75,9 +64,6 @@ void TrackListComponent::selectTrack (juce::int64 trackId)
     selectedTrackId = trackId;
     for (auto* row : content.rows)
         row->setSelected (row->getTrackId() == trackId);
-
-    if (onTrackSelected)
-        onTrackSelected (trackId);
 }
 
 int TrackListComponent::contentWidth() const

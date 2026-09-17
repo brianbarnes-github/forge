@@ -27,9 +27,6 @@ public:
     void paint (juce::Graphics& g) override;
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
-    // Fired whenever a row is clicked, with that row's trackId.
-    std::function<void (juce::int64)> onTrackSelected;
-
     // Fired when a row is double-clicked, with that row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;
 

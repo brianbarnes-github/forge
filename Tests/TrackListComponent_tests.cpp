@@ -1,6 +1,6 @@
-// Verifies TrackListComponent::rebuild() clears a stale selection (and fires
-// onTrackSelected with the cleared sentinel) once the previously-selected
-// track disappears from SOURCE_MIDI — e.g. after SongDocument::removeTrack.
+// Verifies TrackListComponent::rebuild() clears a stale selection once the
+// previously-selected track disappears from SOURCE_MIDI — e.g. after
+// SongDocument::removeTrack — without over-pruning one that is still live.
 
 #include "UI/SongDocument.h"
 #include "UI/SongModelBridge.h"
@@ -29,6 +29,7 @@ namespace lotro
                 result.add (row);
             return result;
         }
+        static juce::int64 selectedTrackId (const TrackListComponent& c) { return c.selectedTrackId; }
         static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
         static int notePreviewOriginX (const TrackListComponent& c) { return c.notePreviewOriginX(); }
     };
@@ -48,65 +49,22 @@ TEST_CASE ("TrackListComponent: rebuild() clears a selection whose track was rem
 
     TrackListComponent list (doc);
 
-    juce::int64 lastCallback = -2; // distinct from both real ids and the -1 sentinel
-    int callbackCount = 0;
-    list.onTrackSelected = [&] (juce::int64 id)
-    {
-        lastCallback = id;
-        ++callbackCount;
-    };
-
     Access::selectTrack (list, track1Id);
-    CHECK (callbackCount == 1);
-    CHECK (lastCallback == track1Id);
+    CHECK (Access::selectedTrackId (list) == track1Id);
 
     doc.removeTrack (track1Id);
     Access::rebuild (list);
 
-    CHECK (callbackCount == 2);
-    CHECK (lastCallback == -1);
+    CHECK (Access::selectedTrackId (list) == -1);
 }
 
-TEST_CASE ("TrackListComponent: rebuild() re-fires onTrackSelected for a still-live selection too", "[piano-roll]")
+TEST_CASE ("TrackListComponent: a live selection survives a rebuild after a second import raises ticksPerQuarter", "[piano-roll]")
 {
-    // I1: a rebuild means something under SOURCE_MIDI changed, which can
-    // affect a live selection's document state (e.g. ticksPerQuarter after a
-    // second import) without the selected track itself disappearing —
-    // callers need onTrackSelected to re-fire so they re-read fresh state,
-    // not just on the disappearance case M5 originally covered.
-    SongDocument doc;
-    auto track1 = doc.addTrack ("Track 1", (int) 0xFF7FA8D0, 0, 0);
-    const auto track1Id = (juce::int64) track1.getProperty (SongIDs::trackId);
-
-    TrackListComponent list (doc);
-
-    juce::int64 lastCallback = -2;
-    int callbackCount = 0;
-    list.onTrackSelected = [&] (juce::int64 id)
-    {
-        lastCallback = id;
-        ++callbackCount;
-    };
-
-    Access::selectTrack (list, track1Id);
-    CHECK (callbackCount == 1);
-
-    Access::rebuild (list);
-
-    // The selected track is still present, but rebuild() must still re-fire
-    // onTrackSelected with the same (live) trackId, not clear the selection.
-    CHECK (callbackCount == 2);
-    CHECK (lastCallback == track1Id);
-}
-
-TEST_CASE ("TrackListComponent: rebuild() re-fires a live selection after a second import raises ticksPerQuarter", "[piano-roll]")
-{
-    // Reproduces I1: a second MIDI import at a higher PPQ than the first
-    // forces an LCM raise of the document's ticksPerQuarter (and rescales
-    // every existing note's ticks) without removing or adding a selected
-    // track. A caller (SongsmithMainComponent) that only refreshes on
-    // onTrackSelected firing must still see this, or it keeps rendering the
-    // piano roll against the stale, pre-raise PPQ.
+    // A second MIDI import at a higher PPQ than the first forces an LCM raise
+    // of the document's ticksPerQuarter (and rescales every existing note's
+    // ticks) without removing or adding the selected track. rebuild()'s
+    // stale-selection pruning must not over-prune here: the track is still
+    // there, so the selection has to stay.
     Song first;
     first.ticksPerQuarter = 120;
     Track t0;
@@ -127,16 +85,8 @@ TEST_CASE ("TrackListComponent: rebuild() re-fires a live selection after a seco
 
     TrackListComponent list (doc);
 
-    juce::int64 lastCallback = -2;
-    int callbackCount = 0;
-    list.onTrackSelected = [&] (juce::int64 id)
-    {
-        lastCallback = id;
-        ++callbackCount;
-    };
-
     Access::selectTrack (list, track1Id);
-    REQUIRE (callbackCount == 1);
+    REQUIRE (Access::selectedTrackId (list) == track1Id);
     REQUIRE ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 120);
 
     Song second;
@@ -157,11 +107,7 @@ TEST_CASE ("TrackListComponent: rebuild() re-fires a live selection after a seco
 
     Access::rebuild (list);
 
-    // rebuild() must re-fire onTrackSelected for the still-live track1Id, so
-    // a caller re-reading ticksPerQuarter from doc at that point gets 480,
-    // not the stale 120 it read at selection time.
-    CHECK (callbackCount == 2);
-    CHECK (lastCallback == track1Id);
+    CHECK (Access::selectedTrackId (list) == track1Id);
     CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
 }
 

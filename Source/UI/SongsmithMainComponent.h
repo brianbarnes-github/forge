@@ -106,7 +106,6 @@ public:
     void trackGhostToggled (juce::int64 trackId, bool visible);
 
     bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
-    void setActiveEditorGridTicks (int ticks) { if (trackEditorWindow != nullptr) trackEditorWindow->setGridTicks (ticks); }
     void setActiveEditorGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }
 
@@ -171,7 +170,6 @@ private:
     SplitterComponent splitter;
 
     static constexpr int sourceHeaderHeight = 20;
-    static constexpr int trackListWidth = 220;
     static constexpr int partStripHeight = 110;
     static constexpr int previewPanelWidth = 160;
 };

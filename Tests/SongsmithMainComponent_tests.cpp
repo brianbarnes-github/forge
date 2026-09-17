@@ -30,10 +30,6 @@ namespace lotro
         {
             return c.watchedPartNode.isValid();
         }
-        static bool hasTrackEditorWindow (const SongsmithMainComponent& c)
-        {
-            return c.trackEditorWindow != nullptr;
-        }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
@@ -190,7 +186,7 @@ TEST_CASE ("SongsmithMainComponent: a ghosted row's eye icon survives a SOURCE_M
     CHECK_FALSE (list.isTrackGhosted (idA));
 }
 
-TEST_CASE ("SongsmithMainComponent: quantizeActiveEditor/setActiveEditorGridTicks are no-ops when no editor is open", "[track-editor]")
+TEST_CASE ("SongsmithMainComponent: quantizeActiveEditor/setActiveEditorGridSize are no-ops when no editor is open", "[track-editor]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -199,5 +195,5 @@ TEST_CASE ("SongsmithMainComponent: quantizeActiveEditor/setActiveEditorGridTick
 
     CHECK_FALSE (main.isTrackEditorOpen());
     CHECK_NOTHROW (main.quantizeActiveEditor());
-    CHECK_NOTHROW (main.setActiveEditorGridTicks (240));
+    CHECK_NOTHROW (main.setActiveEditorGridSize (GridSize::Quarter));
 }
