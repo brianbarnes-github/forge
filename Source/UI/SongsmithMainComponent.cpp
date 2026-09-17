@@ -157,6 +157,15 @@ void SongsmithMainComponent::refreshGhostTracksOnEditor()
     trackEditorWindow->setGhostTracks (std::move (ghosts));
 }
 
+void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
+{
+    if (trackEditorWindow == nullptr)
+        return;
+
+    const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
+    trackEditorWindow->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
+}
+
 void SongsmithMainComponent::selectPartForPreview (juce::int64 partId)
 {
     if (watchedPartNode.isValid())

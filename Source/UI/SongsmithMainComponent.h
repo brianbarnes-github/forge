@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DiagnosticListView.h"
+#include "GridSize.h"
 #include "PartStripComponent.h"
 #include "PianoRollComponent.h"
 #include "PreviewAssignedPanel.h"
@@ -106,6 +107,7 @@ public:
 
     bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
     void setActiveEditorGridTicks (int ticks) { if (trackEditorWindow != nullptr) trackEditorWindow->setGridTicks (ticks); }
+    void setActiveEditorGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }
 
 private:
