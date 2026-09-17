@@ -82,3 +82,33 @@ TEST_CASE ("TrackNotePreview: toggleGhostIfHit flips visibility only inside the 
     CHECK (firedState);
     CHECK (preview.isGhostVisible());
 }
+
+TEST_CASE ("TrackNotePreview: draws ghost toggle as filled amber when visible, outlined muted when invisible", "[track-note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    const auto toggleBounds = preview.ghostToggleBounds();
+    const auto toggleCentre = toggleBounds.getCentre();
+
+    // When invisible (default), draw outlined toggle
+    juce::Image imageInvisible (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics gInvisible (imageInvisible);
+    preview.paint (gInvisible);
+    auto pixelAtCentreInvisible = imageInvisible.getPixelAt (toggleCentre.x, toggleCentre.y);
+    CHECK (pixelAtCentreInvisible != juce::Colour (SongsmithColours::accentAmber));
+
+    // When visible, draw filled toggle
+    preview.setGhostVisible (true);
+    juce::Image imageVisible (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics gVisible (imageVisible);
+    preview.paint (gVisible);
+    auto pixelAtCentreVisible = imageVisible.getPixelAt (toggleCentre.x, toggleCentre.y);
+    CHECK (pixelAtCentreVisible == juce::Colour (SongsmithColours::accentAmber));
+}

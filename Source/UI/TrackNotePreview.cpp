@@ -32,28 +32,40 @@ namespace lotro
             maxPitch = juce::jmax (maxPitch, pitch);
         }
 
-        if (! anyNotes)
-            return;
-
-        const int pitchSpan = juce::jmax (1, maxPitch - minPitch);
-
-        g.setColour (juce::Colour (accentAmber));
-        for (int i = 0; i < track.getNumChildren(); ++i)
+        if (anyNotes)
         {
-            auto note = track.getChild (i);
-            if (! note.hasType (SongIDs::NOTE))
-                continue;
+            const int pitchSpan = juce::jmax (1, maxPitch - minPitch);
 
-            const int pitch = (int) note.getProperty (SongIDs::pitch);
-            const int startTick = (int) note.getProperty (SongIDs::startTick);
-            const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);
+            g.setColour (juce::Colour (accentAmber));
+            for (int i = 0; i < track.getNumChildren(); ++i)
+            {
+                auto note = track.getChild (i);
+                if (! note.hasType (SongIDs::NOTE))
+                    continue;
 
-            const int x = viewState.xForTick (startTick);
-            const int width = juce::jmax (1, viewState.xForTick (startTick + durationTicks) - x);
-            const float normalisedPitch = (float) (pitch - minPitch) / (float) pitchSpan;
-            const int y = juce::roundToInt ((1.0f - normalisedPitch) * (float) juce::jmax (0, bounds.getHeight() - 2));
+                const int pitch = (int) note.getProperty (SongIDs::pitch);
+                const int startTick = (int) note.getProperty (SongIDs::startTick);
+                const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);
 
-            g.fillRect (x, y, width, 2);
+                const int x = viewState.xForTick (startTick);
+                const int width = juce::jmax (1, viewState.xForTick (startTick + durationTicks) - x);
+                const float normalisedPitch = (float) (pitch - minPitch) / (float) pitchSpan;
+                const int y = juce::roundToInt ((1.0f - normalisedPitch) * (float) juce::jmax (0, bounds.getHeight() - 2));
+
+                g.fillRect (x, y, width, 2);
+            }
+        }
+
+        auto toggleBounds = ghostToggleBounds().toFloat();
+        if (ghostVisible)
+        {
+            g.setColour (juce::Colour (accentAmber));
+            g.fillEllipse (toggleBounds);
+        }
+        else
+        {
+            g.setColour (juce::Colour (textMuted));
+            g.drawEllipse (toggleBounds.reduced (1.0f), 1.5f);
         }
     }
 
