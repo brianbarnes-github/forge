@@ -45,7 +45,13 @@ private:
         SongRunConverter,
         ViewExportPanelToggle,
         EditQuantize,
-        EditGridSizeBase // grid-size submenu items are EditGridSizeBase + GridSize enum value
+
+        // Grid-size submenu items occupy EditGridSizeBase + each GridSize
+        // enum value, and menuItemSelected range-checks incoming ids against
+        // that span. Pinned well clear of the ids above rather than left to
+        // be last in declaration order, so appending an enumerator here
+        // can't silently land inside the grid-size range.
+        EditGridSizeBase = 1000
     };
 
     class Body;
