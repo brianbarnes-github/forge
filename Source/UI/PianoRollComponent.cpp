@@ -368,7 +368,7 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
 void PianoRollComponent::setGhostTracks (std::vector<juce::ValueTree> tracks)
 {
     ghostTracks = std::move (tracks);
-    repaint();
+    canvas.repaint();
 }
 
 void PianoRollComponent::drawGhostTracks (juce::Graphics& g, juce::Rectangle<int> clip) const

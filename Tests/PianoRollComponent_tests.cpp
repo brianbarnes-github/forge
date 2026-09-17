@@ -358,21 +358,45 @@ TEST_CASE ("PianoRollComponent: ghost tracks render translucently and only for R
     note.setProperty (SongIDs::durationTicks, 480, nullptr);
     track.appendChild (note, nullptr);
 
+    // setNoteSource is never called on this roll, so PianoRollComponent's
+    // own `geometry` member stays default-constructed -- mirroring that
+    // here (rather than calling fitToContent) predicts the ghost rect's
+    // pixel location without hardcoding PianoRollGeometry's private layout
+    // constants.
+    PianoRollGeometry defaultGeometry;
+    const int ghostX = defaultGeometry.xForTick (0);
+    const int ghostWidth = juce::jmax (1, defaultGeometry.xForTick (480) - ghostX);
+    const int ghostY = defaultGeometry.yForPitch (60);
+    const int rowHeight = defaultGeometry.getRowHeight();
+    const int sampleX = ghostX + ghostWidth / 2; // clear of the tick-0 vertical gridline at ghostX itself
+    const int imageWidth = juce::jmax (viewportWidth, ghostX + ghostWidth + 1);
+    const int imageHeight = ghostY + rowHeight * 2;
+
     PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
-    roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    roll.setBounds (0, 0, imageWidth, imageHeight);
     roll.setGhostTracks ({ track });
 
-    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true, juce::SoftwareImageType());
+    juce::Image image (juce::Image::ARGB, imageWidth, imageHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
+    Access::paintCanvas (roll, g, { 0, 0, imageWidth, imageHeight });
 
-    // At minimum, ghost rendering must not crash and must not paint fully
-    // opaque accent-amber pixels identical to a real editable note (it's a
-    // translucent overlay, not a real note) -- assert the alpha channel of
-    // whatever gets drawn at the note's mapped location is not fully opaque.
-    // (Exact geometry mapping for a ghost track without an active
-    // SourceRollEditor selection is verified functionally here, not pixel-
-    // exact, since ghost tracks have no PianoRollNote/NoteSource wiring.)
-    CHECK_NOTHROW (Access::paintCanvas (roll, g, { 0, 0, viewportWidth, viewportHeight }));
+    // The row immediately below the ghost's own row is not touched by its
+    // fillRect (whose height is exactly one row), and -- like the ghost's
+    // own row -- is a white-key row band (pitch 60 is C, pitch 59 is B), so
+    // its rendered colour is exactly the ghost's own row's underlying
+    // background before the ghost was painted on top. Compositing
+    // accentAmber@0.25 onto that colour and comparing proves the ghost
+    // renders as a translucent overlay, not a fully opaque note fill.
+    const auto underlyingBeneathGhost = image.getPixelAt (sampleX, ghostY + rowHeight);
+    juce::Image reference (juce::Image::ARGB, 1, 1, true, juce::SoftwareImageType());
+    {
+        juce::Graphics rg (reference);
+        rg.fillAll (underlyingBeneathGhost);
+        rg.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.25f));
+        rg.fillRect (0, 0, 1, 1);
+    }
+
+    CHECK (image.getPixelAt (sampleX, ghostY) == reference.getPixelAt (0, 0));
 }
 
 TEST_CASE ("PianoRollComponent: Preview role ignores setGhostTracks", "[piano-roll][ghost-tracks]")
@@ -381,15 +405,39 @@ TEST_CASE ("PianoRollComponent: Preview role ignores setGhostTracks", "[piano-ro
 
     SongDocument doc;
     auto track = doc.addTrack ("Ghost Track", (int) 0xFFAABBCC, 0, 0);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, 480, nullptr);
+    track.appendChild (note, nullptr);
+
+    PianoRollGeometry defaultGeometry;
+    const int ghostX = defaultGeometry.xForTick (0);
+    const int ghostWidth = juce::jmax (1, defaultGeometry.xForTick (480) - ghostX);
+    const int ghostY = defaultGeometry.yForPitch (60);
+    const int rowHeight = defaultGeometry.getRowHeight();
+    const int sampleX = ghostX + ghostWidth / 2;
+    const int imageWidth = juce::jmax (viewportWidth, ghostX + ghostWidth + 1);
+    const int imageHeight = ghostY + rowHeight * 2;
 
     PianoRollComponent roll (PianoRollComponent::Role::Preview);
-    roll.setBounds (0, 0, 200, 100);
+    roll.setBounds (0, 0, imageWidth, imageHeight);
 
     // Must not crash even though Role::Preview never constructs a
     // SourceRollEditor and has no editable track concept.
     CHECK_NOTHROW (roll.setGhostTracks ({ track }));
 
-    juce::Image image (juce::Image::ARGB, 200, 100, true, juce::SoftwareImageType());
+    juce::Image image (juce::Image::ARGB, imageWidth, imageHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
-    CHECK_NOTHROW (Access::paintCanvas (roll, g, { 0, 0, 200, 100 }));
+    CHECK_NOTHROW (Access::paintCanvas (roll, g, { 0, 0, imageWidth, imageHeight }));
+
+    // Same white-key-adjacent-row background argument as the Source-role
+    // test above: if the Role::Preview gate in drawGhostTracks were broken
+    // (inverted or removed), the ghost's own row would be tinted
+    // accentAmber while the untouched row beneath it would not -- so the
+    // two must be pixel-identical when the gate correctly suppresses ghost
+    // rendering for this role.
+    const auto ghostPixel = image.getPixelAt (sampleX, ghostY);
+    const auto belowPixel = image.getPixelAt (sampleX, ghostY + rowHeight);
+    CHECK (ghostPixel == belowPixel);
 }
