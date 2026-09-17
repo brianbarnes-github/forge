@@ -42,6 +42,11 @@ namespace lotro
         roll.setGridTicks (ticks);
     }
 
+    int TrackEditorWindow::getGridTicks() const
+    {
+        return roll.getGridTicks();
+    }
+
     void TrackEditorWindow::quantizeSelection()
     {
         roll.quantizeSelection();

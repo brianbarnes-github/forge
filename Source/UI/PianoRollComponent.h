@@ -56,6 +56,10 @@ public:
     // into the roll's SourceRollEditor.
     void setGridTicks (int ticks);
 
+    // Reads back what setGridTicks pushed; 0 for a roll with no editor (and
+    // for "grid off", which is the same thing as far as snapping goes).
+    int getGridTicks() const;
+
     // Source role only: grid-snaps the current selection. Returns true if
     // anything changed (mirrors SourceRollEditor::quantizeSelection).
     bool quantizeSelection();

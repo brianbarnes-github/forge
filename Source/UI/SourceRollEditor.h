@@ -49,6 +49,7 @@ public:
     // SongsmithMainComponent from its grid-size combo box -- this class has
     // no notion of the combo's enum, only the resulting tick count.
     void setGridTicks (int ticks) noexcept { currentGridTicks = ticks; }
+    int getGridTicks() const noexcept { return currentGridTicks; }
 
     bool isSelected (const juce::ValueTree& note) const;
     int getNumSelected() const noexcept { return (int) selection.size(); }

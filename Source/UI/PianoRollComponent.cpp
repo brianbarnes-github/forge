@@ -146,6 +146,11 @@ void PianoRollComponent::setGridTicks (int ticks)
         sourceEditor->setGridTicks (ticks);
 }
 
+int PianoRollComponent::getGridTicks() const
+{
+    return sourceEditor != nullptr ? sourceEditor->getGridTicks() : 0;
+}
+
 bool PianoRollComponent::quantizeSelection()
 {
     if (sourceEditor == nullptr)

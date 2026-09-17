@@ -46,6 +46,10 @@ namespace lotro
         {
             return c.trackList;
         }
+        static int activeEditorGridTicks (const SongsmithMainComponent& c)
+        {
+            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getGridTicks() : -1;
+        }
     };
 }
 
@@ -120,6 +124,40 @@ TEST_CASE ("SongsmithMainComponent: double-clicking a second track re-points the
     Access::trackDoubleClicked (main, idB);
     CHECK (Access::trackEditorWindowTrackId (main) == idB);
     CHECK (main.isTrackEditorOpen());
+}
+
+TEST_CASE ("SongsmithMainComponent: setActiveEditorGridSize resolves ticks against the document's own ticksPerQuarter", "[track-editor]")
+{
+    // The whole point of taking a GridSize rather than a raw tick count: the
+    // same menu selection has to mean a different number of ticks in a
+    // 480-PPQ document than in a 120-PPQ one. A hardcoded constant would
+    // satisfy the 480 case alone, so both are checked.
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    for (const int ppq : { 480, 120 })
+    {
+        SongDocument doc;
+        auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+        const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+        doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, ppq, nullptr);
+
+        SongsmithMainComponent main (doc);
+        Access::trackDoubleClicked (main, trackId);
+        REQUIRE (main.isTrackEditorOpen());
+
+        main.setActiveEditorGridSize (GridSize::Quarter);
+        CHECK (Access::activeEditorGridTicks (main) == ppq);
+
+        main.setActiveEditorGridSize (GridSize::Eighth);
+        CHECK (Access::activeEditorGridTicks (main) == ppq / 2);
+
+        main.setActiveEditorGridSize (GridSize::Sixteenth);
+        CHECK (Access::activeEditorGridTicks (main) == ppq / 4);
+
+        // "Off" means no grid at all, not a tick count.
+        main.setActiveEditorGridSize (GridSize::Off);
+        CHECK (Access::activeEditorGridTicks (main) == 0);
+    }
 }
 
 TEST_CASE ("SongsmithMainComponent: a ghosted row's eye icon survives a SOURCE_MIDI rebuild", "[track-editor]")

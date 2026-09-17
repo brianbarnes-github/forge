@@ -23,6 +23,7 @@ namespace lotro
         juce::int64 getTrackId() const noexcept { return currentTrackId; }
 
         void setGridTicks (int ticks);
+        int getGridTicks() const;
         void quantizeSelection();
 
         void setGhostTracks (std::vector<juce::ValueTree> tracks);
