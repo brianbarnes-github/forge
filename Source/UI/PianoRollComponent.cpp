@@ -248,6 +248,7 @@ void PianoRollComponent::paintCanvas (juce::Graphics& g, juce::Rectangle<int> cl
     drawRowBands (g, clip);
     drawRangeBand (g, clip);
     drawGridlines (g, clip);
+    drawGhostTracks (g, clip);
     drawNotes (g, clip);
 }
 
@@ -361,6 +362,44 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
         const int y = geometry.yForPitch (pitch) - scrollY;
         g.drawFittedText ("C" + juce::String (octave), 0, y, gutterWidth - 4, rowHeight,
                            juce::Justification::centredRight, 1);
+    }
+}
+
+void PianoRollComponent::setGhostTracks (std::vector<juce::ValueTree> tracks)
+{
+    ghostTracks = std::move (tracks);
+    repaint();
+}
+
+void PianoRollComponent::drawGhostTracks (juce::Graphics& g, juce::Rectangle<int> clip) const
+{
+    if (role != Role::Source || ghostTracks.empty())
+        return;
+
+    g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.25f));
+
+    for (auto& ghostTrack : ghostTracks)
+    {
+        for (int i = 0; i < ghostTrack.getNumChildren(); ++i)
+        {
+            auto note = ghostTrack.getChild (i);
+            if (! note.hasType (SongIDs::NOTE))
+                continue;
+
+            const int pitch = (int) note.getProperty (SongIDs::pitch);
+            const int startTick = (int) note.getProperty (SongIDs::startTick);
+            const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);
+
+            const int x = geometry.xForTick (startTick);
+            const int width = juce::jmax (1, geometry.xForTick (startTick + durationTicks) - x);
+            const int y = geometry.yForPitch (pitch);
+            const juce::Rectangle<int> rect (x, y, width, geometry.getRowHeight());
+
+            if (! rect.intersects (clip))
+                continue;
+
+            g.fillRect (rect);
+        }
     }
 }
 

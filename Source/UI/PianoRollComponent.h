@@ -7,6 +7,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
+#include <vector>
 
 // The shared piano-roll component: rectangles, keyboard gutter, gridlines,
 // scroll, ctrl+wheel zoom, for both roles. Role::Source (Phase 7) owns a
@@ -58,6 +59,12 @@ public:
     // Source role only: grid-snaps the current selection. Returns true if
     // anything changed (mirrors SourceRollEditor::quantizeSelection).
     bool quantizeSelection();
+
+    // Other MIDI_TRACK nodes whose notes should render translucently, non-
+    // interactively, behind this roll's active track. Meaningless for
+    // Role::Preview. Transient UI state -- never persisted, never part of
+    // undo history (2026-09-15 upper-region-track-timeline design).
+    void setGhostTracks (std::vector<juce::ValueTree> tracks);
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -120,6 +127,7 @@ private:
     void drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void paintGutter (juce::Graphics& g) const;
+    void drawGhostTracks (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawNotes (juce::Graphics& g, juce::Rectangle<int> clip) const;
 
     bool handleEditorMouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
@@ -146,6 +154,7 @@ private:
     int ticksPerQuarter = 480;
     juce::ValueTree meterMap;
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
+    std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
 
     ScrollAwareViewport viewport { *this };
     Canvas canvas { *this };
