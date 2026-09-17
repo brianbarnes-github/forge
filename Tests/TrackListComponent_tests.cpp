@@ -30,6 +30,7 @@ namespace lotro
             return result;
         }
         static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
+        static int notePreviewOriginX (const TrackListComponent& c) { return c.notePreviewOriginX(); }
     };
 }
 
@@ -289,8 +290,14 @@ TEST_CASE ("TrackListComponent: a rebuild restores each row's ghost-visible stat
     CHECK_FALSE (rows[1]->notePreviewForTesting().isGhostVisible());
 }
 
-TEST_CASE ("TrackListComponent: mouse-wheel with ctrl held zooms the shared TimelineViewState", "[track-list]")
+TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState and keeps the tick under the cursor", "[track-list]")
 {
+    // TimelineViewState's coordinate frame is TrackNotePreview-LOCAL: that is
+    // the frame TrackNotePreview::paint() calls xForTick/tickForX in. The
+    // preview sits at the right edge of each row, so a wheel position in this
+    // component's own local space has to be shifted by that origin before it
+    // can serve as a zoom anchor. Checking only that pixelsPerTick grew would
+    // pass with the anchor in the wrong frame entirely.
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
@@ -300,16 +307,27 @@ TEST_CASE ("TrackListComponent: mouse-wheel with ctrl held zooms the shared Time
     list.setBounds (0, 0, 300, 400);
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
-    const double before = TrackListComponentTestAccess::timelineView (list).getPixelsPerTick();
+    const auto& view = Access::timelineView (list);
+    const int originX = Access::notePreviewOriginX (list);
+    REQUIRE (originX > 0); // otherwise the frames coincide and prove nothing
+
+    // 40px into the preview strip, expressed in both frames.
+    const int anchorInPreview = 40;
+    const int wheelX = originX + anchorInPreview;
+
+    const double pixelsPerTickBefore = view.getPixelsPerTick();
+    const int tickUnderCursorBefore = view.tickForX (anchorInPreview);
 
     juce::MouseWheelDetails wheel;
     wheel.deltaY = 1.0f;
+    const auto pos = juce::Point<float> ((float) wheelX, 10.0f);
     list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
-                                            juce::Point<float> (10.0f, 10.0f), juce::ModifierKeys::ctrlModifier,
+                                            pos, juce::ModifierKeys::ctrlModifier,
                                             0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
-                                            juce::Time::getCurrentTime(), juce::Point<float> (10.0f, 10.0f),
+                                            juce::Time::getCurrentTime(), pos,
                                             juce::Time::getCurrentTime(), 1, false),
                           wheel);
 
-    CHECK (TrackListComponentTestAccess::timelineView (list).getPixelsPerTick() > before);
+    CHECK (view.getPixelsPerTick() > pixelsPerTickBefore);
+    CHECK (view.tickForX (anchorInPreview) == tickUnderCursorBefore);
 }

@@ -69,6 +69,14 @@ private:
     // sites now share this one expression).
     int contentWidth() const;
 
+    // X of the note-timeline strip's left edge, in this component's local
+    // space. Rows span the content's full width and lay their
+    // TrackNotePreview out at the right edge (TrackRowComponent::resized()),
+    // and it is that preview-local frame which TimelineViewState's
+    // xForTick/tickForX are expressed in — so a local x has to be shifted by
+    // this before it can be used as a zoom anchor.
+    int notePreviewOriginX() const;
+
     // juce::ValueTree::Listener — any of these firing on the SOURCE_MIDI
     // subtree (track add/remove/reorder or a property change on a track)
     // means the row list is stale. A real MIDI import appends notes one at a

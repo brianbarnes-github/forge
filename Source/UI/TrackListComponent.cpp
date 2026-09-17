@@ -85,10 +85,18 @@ int TrackListComponent::contentWidth() const
     return viewport.getWidth() - viewport.getScrollBarThickness();
 }
 
+int TrackListComponent::notePreviewOriginX() const
+{
+    // Mirrors TrackRowComponent::resized()'s own jmax, so the two agree when
+    // the list is narrower than a single preview.
+    return juce::jmax (0, contentWidth() - TrackRowComponent::notePreviewWidth);
+}
+
 void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
     if (e.mods.isCtrlDown() || e.mods.isCommandDown())
-        timelineView.zoomBy (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1, e.getPosition().getX());
+        timelineView.zoomBy (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1,
+                              e.getPosition().getX() - notePreviewOriginX());
     else
         timelineView.scrollByPixels (juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * 50.0f));
 
