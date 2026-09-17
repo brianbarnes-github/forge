@@ -56,6 +56,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackEditorWindow.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackNotePreview.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp
