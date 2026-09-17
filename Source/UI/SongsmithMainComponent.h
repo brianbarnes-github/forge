@@ -6,13 +6,14 @@
 #include "PreviewAssignedPanel.h"
 #include "PreviewNoteSource.h"
 #include "SongDocument.h"
-#include "SourceTrackNoteSource.h"
 #include "SplitterComponent.h"
+#include "TrackEditorWindow.h"
 #include "TrackListComponent.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
+#include <set>
 #include <vector>
 
 // Phase 4, component B6 — the top-level Songsmith preview view: a vertical
@@ -62,16 +63,12 @@ private:
     class UpperRegion : public juce::Component
     {
     public:
-        UpperRegion (juce::Label& headerIn, juce::ComboBox& gridComboIn, juce::TextButton& quantizeBtnIn,
-                     TrackListComponent& trackListIn, PianoRollComponent& rollIn);
+        UpperRegion (juce::Label& headerIn, TrackListComponent& trackListIn);
         void resized() override;
 
     private:
         juce::Label& header;
-        juce::ComboBox& gridCombo;
-        juce::TextButton& quantizeBtn;
         TrackListComponent& trackList;
-        PianoRollComponent& roll;
     };
 
     // The LOTRO-preview region: a fixed-width left info panel plus the
@@ -103,8 +100,16 @@ private:
         SplitterComponent innerSplitter { SplitterComponent::Orientation::topBottom };
     };
 
-    void trackSelected (juce::int64 trackId);
-    void updateGridTicks();
+public:
+    void trackDoubleClicked (juce::int64 trackId);
+    void trackGhostToggled (juce::int64 trackId, bool visible);
+
+    bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
+    void setActiveEditorGridTicks (int ticks) { if (trackEditorWindow != nullptr) trackEditorWindow->setGridTicks (ticks); }
+    void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }
+
+private:
+    void refreshGhostTracksOnEditor();
 
     // Unregisters from the previously-watched PART/ASSIGNMENT-referenced-
     // MIDI_TRACK nodes, resolves and registers on the newly-selected part's
@@ -137,10 +142,9 @@ private:
 
     juce::Label              sourceHeader;
     TrackListComponent       trackList;
-    juce::ComboBox            gridSizeCombo;
-    juce::TextButton          quantizeButton { "Quantize" };
-    PianoRollComponent       sourceRoll;
-    std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
+
+    std::unique_ptr<TrackEditorWindow> trackEditorWindow;
+    std::set<juce::int64>    ghostedTrackIds;
 
     PartStripComponent        partStrip;
 

@@ -30,6 +30,18 @@ namespace lotro
         {
             return c.watchedPartNode.isValid();
         }
+        static bool hasTrackEditorWindow (const SongsmithMainComponent& c)
+        {
+            return c.trackEditorWindow != nullptr;
+        }
+        static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
+        {
+            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
+        }
+        static void trackDoubleClicked (SongsmithMainComponent& c, juce::int64 trackId)
+        {
+            c.trackDoubleClicked (trackId);
+        }
     };
 }
 
@@ -66,4 +78,54 @@ TEST_CASE ("SongsmithMainComponent: removing the previewed part clears the stale
 
     CHECK_FALSE (Access::hasWatchedPartNode (main));
     CHECK_FALSE (Access::hasPreviewNoteSource (main));
+}
+
+TEST_CASE ("SongsmithMainComponent: double-clicking a track opens the editor window", "[track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    SongsmithMainComponent main (doc);
+
+    CHECK_FALSE (main.isTrackEditorOpen());
+
+    Access::trackDoubleClicked (main, trackId);
+
+    CHECK (main.isTrackEditorOpen());
+    CHECK (Access::trackEditorWindowTrackId (main) == trackId);
+}
+
+TEST_CASE ("SongsmithMainComponent: double-clicking a second track re-points the existing window rather than opening a new one", "[track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto trackA = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto trackB = doc.addTrack ("Track B", (int) 0xFFDDEEFFu, 1, 0);
+    const auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
+    const auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
+
+    SongsmithMainComponent main (doc);
+
+    Access::trackDoubleClicked (main, idA);
+    CHECK (Access::trackEditorWindowTrackId (main) == idA);
+
+    Access::trackDoubleClicked (main, idB);
+    CHECK (Access::trackEditorWindowTrackId (main) == idB);
+    CHECK (main.isTrackEditorOpen());
+}
+
+TEST_CASE ("SongsmithMainComponent: quantizeActiveEditor/setActiveEditorGridTicks are no-ops when no editor is open", "[track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+
+    CHECK_FALSE (main.isTrackEditorOpen());
+    CHECK_NOTHROW (main.quantizeActiveEditor());
+    CHECK_NOTHROW (main.setActiveEditorGridTicks (240));
 }
