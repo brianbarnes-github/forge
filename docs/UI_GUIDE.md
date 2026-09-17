@@ -20,9 +20,9 @@ describes the current, Songsmith-only UI only.
 ├──────────────────────────────────────────────────────────────────────┤
 │ ▲ MIDI SOURCE · drag tracks down to assign                           │  #8  UpperRegion header
 ├──────────────────────────────────────────────────────────────────────┤
-│  TrackListComponent — one row per MIDI track, full width              │  #9 (track list, rows #10)
+│  TrackListComponent — one row per MIDI track, full width             │  #9 (track list, rows #10)
 │  index/name/note-range text, inline note-timeline preview            │  (inline preview under #10)
-│  (shared zoom/scroll) + per-row ghost-visibility toggle               │  dbl-click row → editor (#28)
+│  (shared zoom/scroll) + per-row ghost-visibility toggle              │  dbl-click row → editor (#28)
 ├══════════════════════ SplitterComponent (drag to resize, top/bottom) ═╡  #6  outer splitter
 │ PARTS · DROP TRACKS TO ASSIGN                                         │  #15  PartStripComponent
 │  [x:1 Lute "Lead"] [x:2 Drums ""] [+ Add]                             │  (slots are #16, chips #17)
@@ -84,10 +84,10 @@ When you say…       …I'll know you mean
 
 - **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — index, name,
   colour swatch, and a `"<n> notes · <lo>–<hi>"` (or `"· ch 10"` for drums)
-  second line on the left; an inline `TrackNotePreview` (read-only) fills the
-  rest of the row's width on the right, painted directly against the track
-  list's shared `TimelineViewState` (#9) — so every row zooms/scrolls in
-  lockstep. Ctrl/Cmd+scroll-wheel over any row zooms all rows horizontally
+  second line fill the row's flexible left portion; a fixed 160px-wide inline
+  `TrackNotePreview` (read-only) occupies the right edge, painted directly
+  against the track list's shared `TimelineViewState` (#9) — so every row
+  zooms/scrolls in lockstep. Ctrl/Cmd+scroll-wheel over any row zooms all rows horizontally
   around that point; a plain scroll wheel pans all rows. Each preview also
   has a per-row ghost-visibility toggle (an eye icon in its top-right
   corner): toggling it on/off is transient (never persisted) and adds/removes
