@@ -91,9 +91,15 @@ private:
     // unaffected and can keep using doc.getSourceMidiNode() freshly.
     juce::ValueTree sourceMidiNode;
     juce::Viewport  viewport;
+
+    // Must outlive `content`: every TrackRowComponent in content.rows embeds
+    // a TrackNotePreview holding a const reference to this (see
+    // TrackRowComponent.h's constructor doc), and members are destroyed in
+    // reverse declaration order — declaring this after `content` would
+    // destroy it first, leaving those references dangling during teardown.
+    TimelineViewState timelineView;
     ListContent     content;
     juce::int64     selectedTrackId = -1;
-    TimelineViewState timelineView;
 };
 
 } // namespace lotro
