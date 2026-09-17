@@ -41,6 +41,7 @@ void TrackListComponent::rebuild()
     {
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i + 1, timelineView));
         row->setSelected (row->getTrackId() == selectedTrackId);
+        row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTrackSelected = [this] (juce::int64 trackId) { selectTrack (trackId); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };

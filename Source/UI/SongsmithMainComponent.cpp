@@ -81,6 +81,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
 
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
+    trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
     partStrip.onPartSelected = [this] (juce::int64 partId) { selectPartForPreview (partId); };
 
     addAndMakeVisible (upperRegion);

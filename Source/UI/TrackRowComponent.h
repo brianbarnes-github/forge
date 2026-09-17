@@ -27,6 +27,10 @@ public:
 
     void setSelected (bool shouldBeSelected);
 
+    // Restores the embedded preview's eye-icon state after TrackListComponent
+    // recreates this row (see TrackListComponent::isTrackGhosted).
+    void setGhostVisible (bool shouldBeVisible);
+
     juce::int64 getTrackId() const;
 
     void paint (juce::Graphics& g) override;

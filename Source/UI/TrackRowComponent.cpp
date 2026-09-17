@@ -65,6 +65,11 @@ void TrackRowComponent::setSelected (bool shouldBeSelected)
     repaint();
 }
 
+void TrackRowComponent::setGhostVisible (bool shouldBeVisible)
+{
+    notePreview.setGhostVisible (shouldBeVisible);
+}
+
 juce::String TrackRowComponent::buildSecondLine() const
 {
     const int numNotes = track.getNumChildren();

@@ -36,6 +36,14 @@ public:
     // Fired when a row's ghost toggle is clicked: (trackId, newVisibility).
     std::function<void (juce::int64, bool)> onGhostToggled;
 
+    // Asked, per row, whether that track is currently ghosted, so rebuild()
+    // can restore each row's eye icon the same way it restores selection.
+    // The ghosted set itself lives with the owner (SongsmithMainComponent),
+    // which is what actually drives the editor's overlays — a recreated row
+    // has no way to know its own previous state. Unset means "nothing is
+    // ghosted".
+    std::function<bool (juce::int64)> isTrackGhosted;
+
 private:
     // Test-only access to selectTrack()/rebuild() so TrackListComponent_tests.cpp
     // can drive selection and stale-selection cleanup deterministically

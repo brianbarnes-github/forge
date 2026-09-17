@@ -8,6 +8,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <set>
+
 using namespace lotro;
 
 namespace lotro
@@ -243,6 +245,48 @@ TEST_CASE ("TrackListComponent: ghost toggle from a row forwards (trackId, visib
 
     CHECK (firedId == trackId);
     CHECK (firedVisible);
+}
+
+TEST_CASE ("TrackListComponent: a rebuild restores each row's ghost-visible state via isTrackGhosted", "[track-list]")
+{
+    // rebuild() recreates every row (and so every TrackNotePreview, which
+    // defaults to ghost-hidden) on ANY SOURCE_MIDI change -- including a note
+    // edit made in the floating editor, which bubbles up through the same
+    // tree. Without restoring the ghost state the way selection is already
+    // restored, every eye icon visually resets to "off" while the owner's
+    // ghostedTrackIds -- the actual source of truth driving the overlays --
+    // is untouched, so the icons contradict what the editor is rendering.
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto trackA = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 300, 400);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    // Mirrors SongsmithMainComponent's real wiring: it owns the ghosted-id
+    // set, and the list asks it what to restore.
+    std::set<juce::int64> ghosted;
+    list.onGhostToggled = [&] (juce::int64 id, bool visible)
+    {
+        if (visible) ghosted.insert (id);
+        else         ghosted.erase (id);
+    };
+    list.isTrackGhosted = [&] (juce::int64 id) { return ghosted.count (id) > 0; };
+
+    auto& preview = Access::rows (list).getFirst()->notePreviewForTesting();
+    REQUIRE (preview.toggleGhostIfHit (preview.ghostToggleBounds().getCentre()));
+    REQUIRE (ghosted.count (idA) == 1);
+
+    doc.addTrack ("Track B", (int) 0xFFDDEEFFu, 1, 0);
+    Access::rebuild (list);
+
+    auto rows = Access::rows (list);
+    REQUIRE (rows.size() == 2);
+    CHECK (rows.getFirst()->notePreviewForTesting().isGhostVisible());
+    CHECK_FALSE (rows[1]->notePreviewForTesting().isGhostVisible());
 }
 
 TEST_CASE ("TrackListComponent: mouse-wheel with ctrl held zooms the shared TimelineViewState", "[track-list]")

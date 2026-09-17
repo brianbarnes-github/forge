@@ -42,6 +42,10 @@ namespace lotro
         {
             c.trackDoubleClicked (trackId);
         }
+        static TrackListComponent& trackList (SongsmithMainComponent& c)
+        {
+            return c.trackList;
+        }
     };
 }
 
@@ -116,6 +120,36 @@ TEST_CASE ("SongsmithMainComponent: double-clicking a second track re-points the
     Access::trackDoubleClicked (main, idB);
     CHECK (Access::trackEditorWindowTrackId (main) == idB);
     CHECK (main.isTrackEditorOpen());
+}
+
+TEST_CASE ("SongsmithMainComponent: a ghosted row's eye icon survives a SOURCE_MIDI rebuild", "[track-editor]")
+{
+    // The end-to-end version of TrackListComponent's own isTrackGhosted test:
+    // proves the callback is actually wired to ghostedTrackIds in production,
+    // which is the half that was missing -- ghostedTrackIds kept driving the
+    // overlays while every eye icon reset to "off" on the next rebuild.
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto trackA = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
+
+    SongsmithMainComponent main (doc);
+    main.setSize (900, 700);
+
+    main.trackGhostToggled (idA, true);
+
+    auto trackB = doc.addTrack ("Track B", (int) 0xFFDDEEFFu, 1, 0);
+    const auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
+
+    auto& list = Access::trackList (main);
+    REQUIRE (list.isTrackGhosted != nullptr);
+    CHECK (list.isTrackGhosted (idA));
+    CHECK_FALSE (list.isTrackGhosted (idB));
+
+    main.trackGhostToggled (idA, false);
+    CHECK_FALSE (list.isTrackGhosted (idA));
 }
 
 TEST_CASE ("SongsmithMainComponent: quantizeActiveEditor/setActiveEditorGridTicks are no-ops when no editor is open", "[track-editor]")
