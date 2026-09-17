@@ -39,9 +39,11 @@ void TrackListComponent::rebuild()
 
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
-        auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i + 1));
+        auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i + 1, timelineView));
         row->setSelected (row->getTrackId() == selectedTrackId);
         row->onTrackSelected = [this] (juce::int64 trackId) { selectTrack (trackId); };
+        row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
+        row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
         content.addAndMakeVisible (row);
     }
 
@@ -80,6 +82,16 @@ void TrackListComponent::selectTrack (juce::int64 trackId)
 int TrackListComponent::contentWidth() const
 {
     return viewport.getWidth() - viewport.getScrollBarThickness();
+}
+
+void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    if (e.mods.isCtrlDown() || e.mods.isCommandDown())
+        timelineView.zoomBy (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1, e.getPosition().getX());
+    else
+        timelineView.scrollByPixels (juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * 50.0f));
+
+    content.repaint();
 }
 
 void TrackListComponent::resized()

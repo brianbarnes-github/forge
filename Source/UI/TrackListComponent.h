@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SongDocument.h"
+#include "TimelineViewState.h"
 #include "TrackRowComponent.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -24,9 +25,16 @@ public:
 
     void resized() override;
     void paint (juce::Graphics& g) override;
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
     // Fired whenever a row is clicked, with that row's trackId.
     std::function<void (juce::int64)> onTrackSelected;
+
+    // Fired when a row is double-clicked, with that row's trackId.
+    std::function<void (juce::int64)> onTrackDoubleClicked;
+
+    // Fired when a row's ghost toggle is clicked: (trackId, newVisibility).
+    std::function<void (juce::int64, bool)> onGhostToggled;
 
 private:
     // Test-only access to selectTrack()/rebuild() so TrackListComponent_tests.cpp
@@ -85,6 +93,7 @@ private:
     juce::Viewport  viewport;
     ListContent     content;
     juce::int64     selectedTrackId = -1;
+    TimelineViewState timelineView;
 };
 
 } // namespace lotro

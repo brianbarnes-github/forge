@@ -20,6 +20,14 @@ namespace lotro
         static void selectTrack (TrackListComponent& c, juce::int64 trackId) { c.selectTrack (trackId); }
         static void rebuild (TrackListComponent& c) { c.rebuild(); }
         static int numRows (TrackListComponent& c) { return c.content.rows.size(); }
+        static juce::Array<TrackRowComponent*> rows (TrackListComponent& c)
+        {
+            juce::Array<TrackRowComponent*> result;
+            for (auto* row : c.content.rows)
+                result.add (row);
+            return result;
+        }
+        static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
     };
 }
 
@@ -191,4 +199,73 @@ TEST_CASE ("TrackListComponent: a real import populates the row list through the
 
     CHECK (doc.getNumTracks() > 0);
     CHECK (Access::numRows (list) == doc.getNumTracks());
+}
+
+TEST_CASE ("TrackListComponent: double-clicking a row forwards its trackId via onTrackDoubleClicked", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 300, 400);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    juce::int64 firedId = -1;
+    list.onTrackDoubleClicked = [&] (juce::int64 id) { firedId = id; };
+
+    auto& row = *TrackListComponentTestAccess::rows (list).getFirst();
+    row.onTrackDoubleClicked (trackId);
+
+    CHECK (firedId == trackId);
+}
+
+TEST_CASE ("TrackListComponent: ghost toggle from a row forwards (trackId, visible) via onGhostToggled", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 300, 400);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    juce::int64 firedId = -1;
+    bool firedVisible = false;
+    list.onGhostToggled = [&] (juce::int64 id, bool visible) { firedId = id; firedVisible = visible; };
+
+    auto& row = *TrackListComponentTestAccess::rows (list).getFirst();
+    row.onGhostToggled (trackId, true);
+
+    CHECK (firedId == trackId);
+    CHECK (firedVisible);
+}
+
+TEST_CASE ("TrackListComponent: mouse-wheel with ctrl held zooms the shared TimelineViewState", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 300, 400);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    const double before = TrackListComponentTestAccess::timelineView (list).getPixelsPerTick();
+
+    juce::MouseWheelDetails wheel;
+    wheel.deltaY = 1.0f;
+    list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                            juce::Point<float> (10.0f, 10.0f), juce::ModifierKeys::ctrlModifier,
+                                            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
+                                            juce::Time::getCurrentTime(), juce::Point<float> (10.0f, 10.0f),
+                                            juce::Time::getCurrentTime(), 1, false),
+                          wheel);
+
+    CHECK (TrackListComponentTestAccess::timelineView (list).getPixelsPerTick() > before);
 }
