@@ -157,6 +157,7 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     else if (topLevelMenuIndex == 3) // View
     {
         m.addItem (ViewExportPanelToggle, "Export ABC panel", true, body->isExportPanelVisible());
+        m.addItem (ViewDiagnosticsToggle, "Diagnostics list", true, body->getSongsmith().isDiagnosticsVisible());
     }
     return m;
 }
@@ -188,6 +189,10 @@ void MainWindow::menuItemSelected (int menuItemID, int)
             return;
         case ViewExportPanelToggle:
             body->setExportPanelVisible (! body->isExportPanelVisible());
+            menuItemsChanged();
+            return;
+        case ViewDiagnosticsToggle:
+            body->getSongsmith().setDiagnosticsVisible (! body->getSongsmith().isDiagnosticsVisible());
             menuItemsChanged();
             return;
         default: return;

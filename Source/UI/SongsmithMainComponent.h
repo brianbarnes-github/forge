@@ -55,6 +55,12 @@ public:
 
     DiagnosticListView& getDiagnostics() noexcept { return diagnostics; }
 
+    // View -> Diagnostics list menu toggle (MainWindow). Hidden by default;
+    // hiding it hands its share of lowerRegion's height back to the preview
+    // region instead of leaving a dead gap (see LowerRegion::resized()).
+    void setDiagnosticsVisible (bool shouldShow) { lowerRegion.setDiagnosticsVisible (shouldShow); }
+    bool isDiagnosticsVisible() const noexcept { return lowerRegion.isDiagnosticsVisible(); }
+
 private:
     friend struct SongsmithMainComponentTestAccess;
 
@@ -93,6 +99,9 @@ private:
         LowerRegion (PartStripComponent& partStripIn, PreviewRegion& previewRegionIn,
                      DiagnosticListView& diagnosticsIn);
         void resized() override;
+
+        void setDiagnosticsVisible (bool shouldShow);
+        bool isDiagnosticsVisible() const noexcept { return diagnostics.isVisible(); }
 
     private:
         PartStripComponent& partStrip;

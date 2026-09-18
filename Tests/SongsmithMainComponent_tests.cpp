@@ -46,6 +46,18 @@ namespace lotro
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getGridTicks() : -1;
         }
+        // previewRegion is a child of lowerRegion, so its bounds are already
+        // relative to lowerRegion's own local space -- compare against
+        // lowerRegion's height (not lowerRegion.getBottom(), which is in
+        // lowerRegion's PARENT's coordinate space, a different frame).
+        static int lowerRegionHeight (const SongsmithMainComponent& c)
+        {
+            return c.lowerRegion.getHeight();
+        }
+        static int previewRegionBottom (const SongsmithMainComponent& c)
+        {
+            return c.previewRegion.getBottom();
+        }
     };
 }
 
@@ -196,4 +208,42 @@ TEST_CASE ("SongsmithMainComponent: quantizeActiveEditor/setActiveEditorGridSize
     CHECK_FALSE (main.isTrackEditorOpen());
     CHECK_NOTHROW (main.quantizeActiveEditor());
     CHECK_NOTHROW (main.setActiveEditorGridSize (GridSize::Quarter));
+}
+
+TEST_CASE ("SongsmithMainComponent: diagnostics list is hidden by default and its space goes to the preview region",
+           "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    main.setSize (900, 700);
+
+    CHECK_FALSE (main.isDiagnosticsVisible());
+    CHECK_FALSE (main.getDiagnostics().isVisible());
+    // With diagnostics hidden, the preview region alone fills all of
+    // lowerRegion's height below the part strip -- no dead gap left where
+    // the diagnostics list used to share space via the inner splitter.
+    CHECK (Access::previewRegionBottom (main) == Access::lowerRegionHeight (main));
+}
+
+TEST_CASE ("SongsmithMainComponent: View -> Diagnostics list toggle shows it again and shrinks the preview region",
+           "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    main.setSize (900, 700);
+
+    main.setDiagnosticsVisible (true);
+
+    CHECK (main.isDiagnosticsVisible());
+    CHECK (main.getDiagnostics().isVisible());
+    CHECK (Access::previewRegionBottom (main) < Access::lowerRegionHeight (main));
+
+    main.setDiagnosticsVisible (false);
+
+    CHECK_FALSE (main.isDiagnosticsVisible());
+    CHECK (Access::previewRegionBottom (main) == Access::lowerRegionHeight (main));
 }

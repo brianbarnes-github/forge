@@ -45,17 +45,39 @@ SongsmithMainComponent::LowerRegion::LowerRegion (PartStripComponent& partStripI
 {
     addAndMakeVisible (partStrip);
     addAndMakeVisible (previewRegion);
-    addAndMakeVisible (diagnostics);
+
+    // Hidden by default (View -> Diagnostics list shows it) -- addChildComponent,
+    // not addAndMakeVisible, so it starts invisible without an extra call.
+    addChildComponent (diagnostics);
 
     innerSplitter.setComponents (&previewRegion, &diagnostics);
-    addAndMakeVisible (innerSplitter);
+    addChildComponent (innerSplitter);
+}
+
+void SongsmithMainComponent::LowerRegion::setDiagnosticsVisible (bool shouldShow)
+{
+    diagnostics.setVisible (shouldShow);
+    resized();
 }
 
 void SongsmithMainComponent::LowerRegion::resized()
 {
     auto area = getLocalBounds();
     partStrip.setBounds (area.removeFromTop (partStripHeight));
-    innerSplitter.setBounds (area);
+
+    if (diagnostics.isVisible())
+    {
+        innerSplitter.setVisible (true);
+        innerSplitter.setBounds (area);
+    }
+    else
+    {
+        // No dead gap where diagnostics used to share space via the inner
+        // splitter -- the preview region takes all of it directly, bypassing
+        // the splitter entirely (it only positions siblings when visible).
+        innerSplitter.setVisible (false);
+        previewRegion.setBounds (area);
+    }
 }
 
 SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)

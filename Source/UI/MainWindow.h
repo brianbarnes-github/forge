@@ -44,6 +44,7 @@ private:
         SongDefaultParts,
         SongRunConverter,
         ViewExportPanelToggle,
+        ViewDiagnosticsToggle,
         EditQuantize,
 
         // Grid-size submenu items occupy EditGridSizeBase + each GridSize
