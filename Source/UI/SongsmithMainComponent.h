@@ -61,6 +61,11 @@ public:
     void setDiagnosticsVisible (bool shouldShow) { lowerRegion.setDiagnosticsVisible (shouldShow); }
     bool isDiagnosticsVisible() const noexcept { return lowerRegion.isDiagnosticsVisible(); }
 
+    // Called by MainWindow right after a MIDI import completes, so the
+    // per-track note previews default to showing the whole song instead of
+    // TimelineViewState's very-zoomed-in initial pixelsPerTick.
+    void fitTrackTimelineToDocument() { trackList.fitTimelineToDocument(); }
+
 private:
     friend struct SongsmithMainComponentTestAccess;
 

@@ -26,6 +26,12 @@ namespace lotro
         // Zooms so the tick currently under anchorX stays under anchorX.
         void zoomBy (double factor, int anchorX) noexcept;
 
+        // Sets pixelsPerTick so [0, totalTicks] exactly fills widthPixels,
+        // and resets scroll back to the start. A no-op when totalTicks <= 0
+        // (e.g. an empty document), so callers don't need to guard against
+        // dividing by zero themselves.
+        void fitToWidth (double totalTicks, int widthPixels) noexcept;
+
         // Pans by a raw pixel delta (positive = content moves left, i.e. view
         // scrolls forward in time), clamped so the offset never goes negative.
         void scrollByPixels (int deltaX) noexcept;

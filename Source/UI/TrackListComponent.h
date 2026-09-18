@@ -27,6 +27,15 @@ public:
     void paint (juce::Graphics& g) override;
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
+    // Rescales the shared TimelineViewState so the latest-ending note across
+    // all tracks fits the note-preview width, and resets scroll to the
+    // start. Called explicitly by whoever just imported a MIDI file (see
+    // MainWindow::openMidiFromPath) rather than from rebuild()/the
+    // ValueTree-listener path, so routine edits to an already-loaded
+    // document (dragging a note, renaming a track) don't keep snapping a
+    // user's deliberate zoom/scroll back to the fitted default.
+    void fitTimelineToDocument();
+
     // Fired when a row is double-clicked, with that row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;
 

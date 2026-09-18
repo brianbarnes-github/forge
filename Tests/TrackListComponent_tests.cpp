@@ -7,6 +7,7 @@
 #include "UI/TrackListComponent.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 
 #include <set>
 
@@ -31,6 +32,7 @@ namespace lotro
         }
         static juce::int64 selectedTrackId (const TrackListComponent& c) { return c.selectedTrackId; }
         static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
+        static int contentWidth (const TrackListComponent& c) { return c.contentWidth(); }
         static int notePreviewOriginX (const TrackListComponent& c) { return c.notePreviewOriginX(); }
     };
 }
@@ -276,4 +278,49 @@ TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState an
 
     CHECK (view.getPixelsPerTick() > pixelsPerTickBefore);
     CHECK (view.tickForX (anchorInPreview) == tickUnderCursorBefore);
+}
+
+TEST_CASE ("TrackListComponent: fitTimelineToDocument scales the shared zoom so the longest track fits the preview width",
+           "[piano-roll]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto trackA = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto trackB = doc.addTrack ("Track B", (int) 0xFF334455u, 1, 0);
+
+    juce::ValueTree shortNote (SongIDs::NOTE);
+    shortNote.setProperty (SongIDs::startTick, 0, nullptr);
+    shortNote.setProperty (SongIDs::durationTicks, 480, nullptr);
+    trackA.appendChild (shortNote, nullptr);
+
+    // Track B has the later-ending note, so it -- not Track A -- should
+    // determine the fit.
+    juce::ValueTree longNote (SongIDs::NOTE);
+    longNote.setProperty (SongIDs::startTick, 50000, nullptr);
+    longNote.setProperty (SongIDs::durationTicks, 2000, nullptr);
+    trackB.appendChild (longNote, nullptr);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 900, 700);
+    list.fitTimelineToDocument();
+
+    const auto& view = Access::timelineView (list);
+    const int expectedPreviewWidth = Access::contentWidth (list) - Access::notePreviewOriginX (list);
+    CHECK (view.getScrollOffsetTicks() == Catch::Approx (0.0));
+    CHECK (view.xForTick (52000) == expectedPreviewWidth);
+}
+
+TEST_CASE ("TrackListComponent: fitTimelineToDocument is a no-op when no track has any notes",
+           "[piano-roll]")
+{
+    SongDocument doc;
+    doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+
+    TrackListComponent list (doc);
+    const double before = Access::timelineView (list).getPixelsPerTick();
+
+    list.fitTimelineToDocument();
+
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (before));
 }

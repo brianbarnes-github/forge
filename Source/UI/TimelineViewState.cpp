@@ -19,6 +19,15 @@ namespace lotro
         setScrollOffsetTicks (anchorTick - (double) anchorX / pixelsPerTick);
     }
 
+    void TimelineViewState::fitToWidth (double totalTicks, int widthPixels) noexcept
+    {
+        if (totalTicks <= 0.0)
+            return;
+
+        setPixelsPerTick ((double) widthPixels / totalTicks);
+        setScrollOffsetTicks (0.0);
+    }
+
     void TimelineViewState::scrollByPixels (int deltaX) noexcept
     {
         setScrollOffsetTicks (scrollOffsetTicks + (double) deltaX / pixelsPerTick);

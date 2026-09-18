@@ -245,6 +245,7 @@ void MainWindow::openMidiFromPath (const juce::File& file)
     Diagnostics diags;
     importMidiFile (songDocument, file, nextImportBatch++, diags);
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
+    body->getSongsmith().fitTrackTimelineToDocument();
 }
 
 void MainWindow::saveConfigAs (ConfigFormat format)

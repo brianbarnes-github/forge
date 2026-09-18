@@ -59,6 +59,29 @@ void TrackListComponent::rebuild()
     repaint(); // M4: empty-state message visibility may have changed.
 }
 
+void TrackListComponent::fitTimelineToDocument()
+{
+    int lastTick = 0;
+    for (int t = 0; t < doc.getNumTracks(); ++t)
+    {
+        auto track = doc.getTrack (t);
+        for (int n = 0; n < track.getNumChildren(); ++n)
+        {
+            auto note = track.getChild (n);
+            if (! note.hasType (SongIDs::NOTE))
+                continue;
+
+            const int endTick = (int) note.getProperty (SongIDs::startTick)
+                               + (int) note.getProperty (SongIDs::durationTicks);
+            lastTick = juce::jmax (lastTick, endTick);
+        }
+    }
+
+    const int previewWidth = juce::jmax (0, contentWidth() - notePreviewOriginX());
+    timelineView.fitToWidth ((double) lastTick, previewWidth);
+    content.repaint();
+}
+
 void TrackListComponent::selectTrack (juce::int64 trackId)
 {
     selectedTrackId = trackId;
