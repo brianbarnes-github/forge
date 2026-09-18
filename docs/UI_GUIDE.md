@@ -84,14 +84,20 @@ When you say…       …I'll know you mean
 
 - **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — index, name,
   colour swatch, and a `"<n> notes · <lo>–<hi>"` (or `"· ch 10"` for drums)
-  second line fill the row's flexible left portion; a fixed 160px-wide inline
-  `TrackNotePreview` (read-only) occupies the right edge, painted directly
-  against the track list's shared `TimelineViewState` (#9) — so every row
-  zooms/scrolls in lockstep. Ctrl/Cmd+scroll-wheel over any row zooms all rows horizontally
-  around that point; a plain scroll wheel pans all rows. Each preview also
-  has a per-row ghost-visibility toggle (an eye icon in its top-right
-  corner): toggling it on/off is transient (never persisted) and adds/removes
-  that track from the set of translucent ghost overlays shown in the Track
+  second line fill a fixed 180px-wide left column; the inline
+  `TrackNotePreview` (read-only) fills everything to its right — the note
+  data is the primary content, so it grows with the window instead of being
+  pinned to a small fixed width — painted directly against the track list's
+  shared `TimelineViewState` (#9) — so every row zooms/scrolls in lockstep.
+  On import, the shared zoom auto-fits so the longest track's notes span the
+  full preview width (`TrackListComponent::fitTimelineToDocument()`, called
+  from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
+  so a deliberate zoom/scroll survives routine note edits. Ctrl/Cmd+scroll-wheel
+  over any row zooms all rows horizontally around that point; a plain scroll
+  wheel pans all rows. Each preview also has a per-row ghost-visibility
+  toggle (an eye icon in its top-right corner): toggling it on/off is
+  transient (never persisted) and adds/removes that track from the set of
+  translucent ghost overlays shown in the Track
   editor window (#28), if one is open. Click a row to select it; drag onto a
   part slot to assign (the drag payload is the track's synthetic id, not its
   row index); double-click to open the Track editor window (#28) on that

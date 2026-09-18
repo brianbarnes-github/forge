@@ -42,8 +42,11 @@ public:
     // Fixed row height used by TrackListComponent to lay out its content.
     static constexpr int rowHeight = 34;
 
-    // Fixed width of the embedded TrackNotePreview, at the right edge of the row.
-    static constexpr int notePreviewWidth = 160;
+    // Fixed width of the left-hand index/name/note-count text column. The
+    // embedded TrackNotePreview fills everything to its right, so it grows
+    // with the row instead of being pinned to a small fixed width — the
+    // note data is the primary content, the text is a label for it.
+    static constexpr int trackInfoWidth = 180;
 
     // Fired on a plain (non-drag) click, with this row's trackId.
     std::function<void (juce::int64)> onTrackSelected;

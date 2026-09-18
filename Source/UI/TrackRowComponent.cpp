@@ -49,7 +49,7 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
 void TrackRowComponent::resized()
 {
     auto area = getLocalBounds();
-    area.removeFromLeft (juce::jmax (0, area.getWidth() - notePreviewWidth));
+    area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
     notePreview.setBounds (area);
 }
 
@@ -117,7 +117,8 @@ void TrackRowComponent::paint (juce::Graphics& g)
     }
 
     const int textLeft = 8;
-    auto row = bounds.withTrimmedRight (notePreviewWidth).withTrimmedLeft (textLeft).withTrimmedRight (6);
+    auto row = bounds.withWidth (juce::jmin (trackInfoWidth, bounds.getWidth()))
+                      .withTrimmedLeft (textLeft).withTrimmedRight (6);
     auto firstLine  = row.removeFromTop (row.getHeight() / 2);
     auto secondLine = row;
 

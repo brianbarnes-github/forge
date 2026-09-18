@@ -96,9 +96,9 @@ int TrackListComponent::contentWidth() const
 
 int TrackListComponent::notePreviewOriginX() const
 {
-    // Mirrors TrackRowComponent::resized()'s own jmax, so the two agree when
-    // the list is narrower than a single preview.
-    return juce::jmax (0, contentWidth() - TrackRowComponent::notePreviewWidth);
+    // Mirrors TrackRowComponent::resized()'s own jmin, so the two agree when
+    // the list is narrower than the fixed info column.
+    return juce::jmin (TrackRowComponent::trackInfoWidth, contentWidth());
 }
 
 void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
