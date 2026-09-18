@@ -41,6 +41,7 @@ add_executable(forge_tests
     SourceRollEditor_tests.cpp
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
+    SplitterComponent_tests.cpp
     TrackNotePreview_tests.cpp
     TrackRowComponent_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp

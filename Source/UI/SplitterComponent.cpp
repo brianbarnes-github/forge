@@ -30,7 +30,13 @@ void SplitterComponent::setFraction (float newFraction)
 
 void SplitterComponent::resized()
 {
-    const auto area = getLocalBounds();
+    // getBounds(), not getLocalBounds(): `first`/`second` are siblings of
+    // this splitter (not children of it -- see the class comment), sharing
+    // its parent's coordinate space. getLocalBounds() is always zero-origin
+    // regardless of where this splitter itself sits within that parent, so
+    // using it here would silently place siblings back at (0,0) whenever
+    // the splitter isn't itself positioned at its parent's origin.
+    const auto area = getBounds();
 
     if (orientation == Orientation::leftRight)
     {
