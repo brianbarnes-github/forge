@@ -65,6 +65,10 @@ private:
     std::unique_ptr<juce::MenuBarComponent> menuBar;
     std::unique_ptr<juce::FileChooser>      fileChooser;
 
+    // Per-user app settings (window position so far), in the OS's usual
+    // per-user settings folder, e.g. %APPDATA%\SongSmith\SongSmith.settings.
+    std::unique_ptr<juce::PropertiesFile>   settings;
+
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
     void openConfigViaDialog();

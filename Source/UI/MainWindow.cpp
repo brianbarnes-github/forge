@@ -3,6 +3,7 @@
 #include "GridSize.h"
 #include "SongModelBridge.h"
 #include "SongsmithMainComponent.h"
+#include "WindowPlacement.h"
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
@@ -14,6 +15,21 @@
 
 namespace lotro
 {
+
+namespace
+{
+    constexpr const char* mainWindowPlacementKey = "mainWindowPlacement";
+
+    juce::PropertiesFile::Options settingsOptions()
+    {
+        juce::PropertiesFile::Options options;
+        options.applicationName = "SongSmith";
+        options.folderName = "SongSmith";
+        options.filenameSuffix = ".settings";
+        options.osxLibrarySubFolder = "Application Support";
+        return options;
+    }
+}
 
 class MainWindow::Body : public juce::Component
 {
@@ -58,7 +74,8 @@ MainWindow::MainWindow()
                             juce::Colours::lightgrey,
                             juce::DocumentWindow::allButtons),
       body (std::make_unique<Body> (songDocument)),
-      menuBar (std::make_unique<juce::MenuBarComponent> (this))
+      menuBar (std::make_unique<juce::MenuBarComponent> (this)),
+      settings (std::make_unique<juce::PropertiesFile> (settingsOptions()))
 {
     // JUCE's own title bar (false) rather than the native X11/WSLg one.
     // Works around a WSLg quirk where the WM re-positions the window on
@@ -96,11 +113,21 @@ MainWindow::MainWindow()
     host->setSize (1000, 700);
     setContentOwned (host, /*useBoundsForComponent=*/true);
 
-    centreWithSize (getWidth(), getHeight());
+    // Where it was last closed -- or centred on the primary monitor if that
+    // monitor is gone (WindowPlacement::resolve) or nothing was saved yet.
+    if (! WindowPlacement::restoreWindow (*settings, mainWindowPlacementKey, *this))
+        centreWithSize (getWidth(), getHeight());
     setVisible (true);
+    WindowPlacement::applyMaximised (*settings, mainWindowPlacementKey, *this);
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    // Every quit path (close button, File -> Quit, OS shutdown) destroys the
+    // window, so saving here covers them all.
+    WindowPlacement::saveWindow (*settings, mainWindowPlacementKey, *this);
+    settings->saveIfNeeded();
+}
 
 void MainWindow::closeButtonPressed()
 {

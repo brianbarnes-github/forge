@@ -51,7 +51,7 @@ When you say…       …I'll know you mean
 
 | # | Name in this guide            | Code class / file                                              |
 |---|--------------------------------|------------------------------------------------------------------|
-| 1 | **Main window**                | `MainWindow` (`Source/UI/MainWindow.{h,cpp}`)                    |
+| 1 | **Main window**                | `MainWindow` (`Source/UI/MainWindow.{h,cpp}`) — reopens where it was closed (position, size, maximised), or centred on the primary monitor if that spot is no longer on any connected monitor (`WindowPlacement`) |
 | 2 | **Title bar**                   | JUCE-drawn window chrome, reads "Forge" |
 | 3 | **Menu bar**                   | `juce::MenuBarComponent` inside `MainWindow`                     |
 | 4 | **Body**                       | `MainWindow::Body` (inner class; hosts Songsmith + the toggleable export panel) |
@@ -115,7 +115,9 @@ When you say…       …I'll know you mean
   track. An empty document shows a muted placeholder ("No MIDI loaded — File
   → Open MIDI… or drop a .mid here") instead of a blank panel.
 - **Track editor window** (#28, `TrackEditorWindow`) — a floating,
-  single-instance window opened by double-clicking a track row (#10).
+  single-instance window opened by double-clicking a track row (#10). It
+  pops up centred over the main window (kept on that window's monitor), not
+  on the primary monitor.
   Double-clicking a different row re-points the same window (`setTrack`)
   rather than opening a second one. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
