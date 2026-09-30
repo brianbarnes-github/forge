@@ -34,6 +34,7 @@ namespace lotro
         static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
         static int contentWidth (const TrackListComponent& c) { return c.contentWidth(); }
         static int notePreviewOriginX (const TrackListComponent& c) { return c.notePreviewOriginX(); }
+        static juce::ScrollBar& horizontalBar (TrackListComponent& c) { return c.horizontalBar; }
     };
 }
 
@@ -249,7 +250,15 @@ TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState an
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
-    doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+
+    // A song long enough that the zoomed view stays inside it — scrolling is
+    // clamped to the song's extent, which would otherwise pin the offset to 0
+    // and move the anchor for a reason unrelated to the frame under test.
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, 52000, nullptr);
+    track.appendChild (note, nullptr);
 
     TrackListComponent list (doc);
     list.setBounds (0, 0, 300, 400);
@@ -323,4 +332,134 @@ TEST_CASE ("TrackListComponent: fitTimelineToDocument is a no-op when no track h
     list.fitTimelineToDocument();
 
     CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (before));
+}
+
+namespace
+{
+    // One track, one note ending at `endTick` — the document's timeline end.
+    juce::ValueTree addTrackEndingAt (SongDocument& doc, int endTick)
+    {
+        auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::startTick, endTick - 1000, nullptr);
+        note.setProperty (SongIDs::durationTicks, 1000, nullptr);
+        track.appendChild (note, nullptr);
+        return track;
+    }
+
+    void wheelAt (TrackListComponent& list, int x, float deltaY, juce::ModifierKeys mods)
+    {
+        juce::MouseWheelDetails wheel;
+        wheel.deltaY = deltaY;
+        const auto pos = juce::Point<float> ((float) x, 10.0f);
+        list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                pos, mods,
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
+                                                juce::Time::getCurrentTime(), pos,
+                                                juce::Time::getCurrentTime(), 1, false),
+                              wheel);
+    }
+
+    int previewWidth (const TrackListComponent& list)
+    {
+        return Access::contentWidth (list) - Access::notePreviewOriginX (list);
+    }
+}
+
+TEST_CASE ("TrackListComponent: a fitted timeline refits when the list is resized, and needs no scroll bar", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 1400, 400);
+    list.fitTimelineToDocument();
+
+    list.setBounds (0, 0, 600, 400);
+
+    const auto& view = Access::timelineView (list);
+    CHECK (view.xForTick (52000) == previewWidth (list));
+    CHECK_FALSE (Access::horizontalBar (list).isVisible());
+}
+
+TEST_CASE ("TrackListComponent: after a manual ctrl+wheel zoom, resizing keeps the zoom and shows a scroll bar over the whole song", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 1400, 400);
+    list.fitTimelineToDocument();
+
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, juce::ModifierKeys::ctrlModifier); // zoom in
+    const double zoomed = Access::timelineView (list).getPixelsPerTick();
+
+    list.setBounds (0, 0, 600, 400);
+
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoomed));
+
+    auto& bar = Access::horizontalBar (list);
+    CHECK (bar.isVisible());
+    CHECK (bar.getMinimumRangeLimit() == Catch::Approx (0.0));
+    CHECK (bar.getMaximumRangeLimit() == Catch::Approx (52000.0));
+    CHECK (bar.getCurrentRangeSize() == Catch::Approx ((double) previewWidth (list) / zoomed));
+
+    // The bar spans the note-preview column only, along the bottom edge.
+    CHECK (bar.getX() == Access::notePreviewOriginX (list));
+    CHECK (bar.getBottom() == list.getHeight());
+}
+
+TEST_CASE ("TrackListComponent: dragging the scroll bar scrolls the shared timeline", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);   // default zoom (0.1 px/tick) — song is far wider than the pane
+
+    auto& bar = Access::horizontalBar (list);
+    REQUIRE (bar.isVisible());
+
+    bar.setCurrentRangeStart (10000.0, juce::sendNotificationSync);
+
+    CHECK (Access::timelineView (list).getScrollOffsetTicks() == Catch::Approx (10000.0));
+}
+
+TEST_CASE ("TrackListComponent: wheel panning moves the scroll bar and stops at the end of the song", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+
+    wheelAt (list, 300, -1.0f, {});
+    const auto& view = Access::timelineView (list);
+    REQUIRE (view.getScrollOffsetTicks() > 0.0);
+    CHECK (Access::horizontalBar (list).getCurrentRangeStart() == Catch::Approx (view.getScrollOffsetTicks()));
+
+    for (int i = 0; i < 500; ++i)
+        wheelAt (list, 300, -1.0f, {});
+
+    const double visibleTicks = (double) previewWidth (list) / view.getPixelsPerTick();
+    CHECK (view.getScrollOffsetTicks() == Catch::Approx (52000.0 - visibleTicks));
+}
+
+TEST_CASE ("TrackListComponent: an empty document shows no horizontal scroll bar", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+
+    CHECK_FALSE (Access::horizontalBar (list).isVisible());
 }

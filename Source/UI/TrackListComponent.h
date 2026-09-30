@@ -17,7 +17,8 @@ namespace lotro
 
 class TrackListComponent : public juce::Component,
                             private juce::ValueTree::Listener,
-                            private juce::AsyncUpdater
+                            private juce::AsyncUpdater,
+                            private juce::ScrollBar::Listener
 {
 public:
     explicit TrackListComponent (SongDocument& document);
@@ -84,6 +85,20 @@ private:
     // anchor.
     int notePreviewOriginX() const;
 
+    // End tick of the latest-ending note across all tracks (0 when empty).
+    int documentEndTick() const;
+
+    // Width of the note-preview strip in pixels.
+    int previewWidth() const;
+
+    // Clamps the shared scroll offset to [0, end of song - visible span] and
+    // pushes the current song length / visible span / offset into
+    // horizontalBar. Called after anything that changes zoom, scroll, width
+    // or the song's length.
+    void syncHorizontalBar();
+
+    void scrollBarMoved (juce::ScrollBar*, double newRangeStart) override;
+
     // juce::ValueTree::Listener — any of these firing on the SOURCE_MIDI
     // subtree (track add/remove/reorder or a property change on a track)
     // means the row list is stale. A real MIDI import appends notes one at a
@@ -114,6 +129,9 @@ private:
     // unaffected and can keep using doc.getSourceMidiNode() freshly.
     juce::ValueTree sourceMidiNode;
     juce::Viewport  viewport;
+    // Scrolls the shared TimelineViewState; spans only the note-preview
+    // column along the bottom edge. Auto-hides when the whole song fits.
+    juce::ScrollBar horizontalBar { false };
 
     // Must outlive `content`: every TrackRowComponent in content.rows embeds
     // a TrackNotePreview holding a const reference to this (see
@@ -123,6 +141,12 @@ private:
     TimelineViewState timelineView;
     ListContent     content;
     juce::int64     selectedTrackId = -1;
+
+    // True from fitTimelineToDocument() until the user zooms by hand: while
+    // set, resized() refits so the whole song stays visible across window
+    // resizes. After a manual zoom, resizing keeps the zoom and the
+    // horizontal scroll bar takes over.
+    bool timelineFitted = false;
 };
 
 } // namespace lotro

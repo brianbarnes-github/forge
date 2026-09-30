@@ -101,7 +101,11 @@ When you say…       …I'll know you mean
   from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
   so a deliberate zoom/scroll survives routine note edits. Ctrl/Cmd+scroll-wheel
   over any row zooms all rows horizontally around that point; a plain scroll
-  wheel pans all rows. Each preview also has a per-row ghost-visibility
+  wheel pans all rows, stopping at the song's end. Until you zoom by hand,
+  resizing the window refits so the whole song stays visible; after a manual
+  zoom, resizing keeps the zoom. A horizontal scroll bar under the note
+  previews (spanning only the preview column) scrolls all rows together and
+  auto-hides whenever the whole song fits. Each preview also has a per-row ghost-visibility
   toggle (an eye icon in its top-right corner): toggling it on/off is
   transient (never persisted) and adds/removes that track from the set of
   translucent ghost overlays shown in the Track

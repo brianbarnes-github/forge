@@ -21,6 +21,10 @@ TrackListComponent::TrackListComponent (SongDocument& document)
     viewport.setScrollBarsShown (true, false);
     addAndMakeVisible (viewport);
 
+    horizontalBar.setAutoHide (true);
+    horizontalBar.addListener (this);
+    addAndMakeVisible (horizontalBar); // auto-hide still decides whether it shows
+
     sourceMidiNode.addListener (this);
     rebuild();
 }
@@ -31,6 +35,7 @@ TrackListComponent::~TrackListComponent()
     // component that is mid-destruction.
     cancelPendingUpdate();
     sourceMidiNode.removeListener (this);
+    horizontalBar.removeListener (this);
 }
 
 void TrackListComponent::rebuild()
@@ -56,10 +61,11 @@ void TrackListComponent::rebuild()
 
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
+    syncHorizontalBar(); // the song may have got longer or shorter.
     repaint(); // M4: empty-state message visibility may have changed.
 }
 
-void TrackListComponent::fitTimelineToDocument()
+int TrackListComponent::documentEndTick() const
 {
     int lastTick = 0;
     for (int t = 0; t < doc.getNumTracks(); ++t)
@@ -76,9 +82,42 @@ void TrackListComponent::fitTimelineToDocument()
             lastTick = juce::jmax (lastTick, endTick);
         }
     }
+    return lastTick;
+}
 
-    const int previewWidth = juce::jmax (0, contentWidth() - notePreviewOriginX());
-    timelineView.fitToWidth ((double) lastTick, previewWidth);
+int TrackListComponent::previewWidth() const
+{
+    return juce::jmax (0, contentWidth() - notePreviewOriginX());
+}
+
+void TrackListComponent::fitTimelineToDocument()
+{
+    timelineView.fitToWidth ((double) documentEndTick(), previewWidth());
+    timelineFitted = true;
+    syncHorizontalBar();
+    content.repaint();
+}
+
+void TrackListComponent::syncHorizontalBar()
+{
+    const double endTick = (double) documentEndTick();
+    const double visibleTicks = (double) previewWidth() / timelineView.getPixelsPerTick();
+    const double maxOffset = juce::jmax (0.0, endTick - visibleTicks);
+
+    if (timelineView.getScrollOffsetTicks() > maxOffset)
+        timelineView.setScrollOffsetTicks (maxOffset);
+
+    // Never let the total range be shorter than the visible span, so a song
+    // that fits (or an empty document) reads as "fully visible" and the bar
+    // auto-hides instead of showing a thumb that can't move.
+    horizontalBar.setRangeLimits (0.0, juce::jmax (endTick, visibleTicks), juce::dontSendNotification);
+    horizontalBar.setCurrentRange (timelineView.getScrollOffsetTicks(), visibleTicks, juce::dontSendNotification);
+    horizontalBar.setSingleStepSize (visibleTicks / 20.0);
+}
+
+void TrackListComponent::scrollBarMoved (juce::ScrollBar*, double newRangeStart)
+{
+    timelineView.setScrollOffsetTicks (newRangeStart);
     content.repaint();
 }
 
@@ -104,19 +143,38 @@ int TrackListComponent::notePreviewOriginX() const
 void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
     if (e.mods.isCtrlDown() || e.mods.isCommandDown())
+    {
         timelineView.zoomBy (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1,
                               e.getPosition().getX() - notePreviewOriginX());
+        timelineFitted = false;
+    }
     else
+    {
         timelineView.scrollByPixels (juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * 50.0f));
+    }
 
+    syncHorizontalBar();
     content.repaint();
 }
 
 void TrackListComponent::resized()
 {
-    viewport.setBounds (getLocalBounds());
+    // The horizontal bar's strip is always reserved (even while it
+    // auto-hides) so rows don't jump when it appears.
+    auto area = getLocalBounds();
+    auto barStrip = area.removeFromBottom (viewport.getScrollBarThickness());
+    viewport.setBounds (area);
+
+    horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
+                                     .withWidth (previewWidth()));
+
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
+
+    if (timelineFitted)
+        timelineView.fitToWidth ((double) documentEndTick(), previewWidth());
+
+    syncHorizontalBar();
 }
 
 void TrackListComponent::paint (juce::Graphics& g)
