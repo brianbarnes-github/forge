@@ -43,6 +43,7 @@ add_executable(forge_tests
     GridSize_tests.cpp
     SplitterComponent_tests.cpp
     TrackNotePreview_tests.cpp
+    SongsmithColours_tests.cpp
     TrackRowComponent_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp

@@ -1026,60 +1026,78 @@ TEST_CASE ("SongModelBridge: synthesiseDefaultParts on a document with nothing l
     CHECK (doc.getNumParts() == 1);
 }
 
-// A-R5: appendImportedSong assigns each new MIDI_TRACK a colorArgb from
-// SongsmithColours' 8-entry swatch cycle, keyed by the track's DOCUMENT-WIDE
-// position (doc.getNumTracks() at add-time), not a per-import-local index —
-// so a second import continues the cycle rather than restarting at entry 0.
-TEST_CASE ("SongModelBridge: appendImportedSong assigns colorArgb from the track-swatch cycle, wrapping across 8 entries and continuing across imports", "[songmodelbridge]")
+// appendImportedSong colours each new MIDI_TRACK by its GM instrument
+// family (sourceProgram / channel 10), shading successive same-family tracks.
+// The per-family count is DOCUMENT-WIDE, so a second import continues each
+// family's shade cycle rather than restarting it.
+TEST_CASE ("SongModelBridge: appendImportedSong colours tracks by GM family, shading same-family tracks across imports", "[songmodelbridge]")
 {
-    Song nineTracks;
-    nineTracks.ticksPerQuarter = 480;
-    nineTracks.tempoMap = { { 0, 120.0 } };
-    nineTracks.meterMap = { { 0, 4, 4 } };
-    for (int i = 0; i < 9; ++i)
+    using SongsmithColours::GmFamily;
+    using SongsmithColours::trackColourFor;
+
+    auto makeTrack = [] (const std::string& name, int program, int channel)
     {
         Track t;
-        t.name              = "Track " + std::to_string (i);
-        t.sourceMidiChannel = i;
-        nineTracks.tracks.push_back (t);
-    }
+        t.name              = name;
+        t.sourceProgram     = program;
+        t.sourceMidiChannel = channel;
+        return t;
+    };
+
+    Song first;
+    first.ticksPerQuarter = 480;
+    first.tempoMap = { { 0, 120.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    first.tracks = { makeTrack ("Violin", 40, 0),
+                     makeTrack ("Cello", 42, 0),
+                     makeTrack ("Flute", 73, 0),
+                     makeTrack ("Drums", 0, 10),
+                     makeTrack ("Unspecified", 0, 0) };
 
     SongDocument doc;
     Diagnostics diag1;
-    appendImportedSong (doc, nineTracks, 1, diag1);
+    appendImportedSong (doc, first, 1, diag1);
 
-    REQUIRE (doc.getNumTracks() == 9);
-    for (int i = 0; i < 9; ++i)
-    {
-        const auto expected = (int) SongsmithColours::trackColourForIndex (i);
-        const int actual = (int) doc.getTrack (i).getProperty (SongIDs::colorArgb);
-        CHECK (actual == expected);
-    }
-    // The 9th track (document-wide index 8) wraps back to entry 0 — same
-    // colour as the very first track.
-    CHECK ((int) doc.getTrack (8).getProperty (SongIDs::colorArgb)
-           == (int) doc.getTrack (0).getProperty (SongIDs::colorArgb));
+    auto colourOf = [&doc] (int i) { return (juce::uint32) (int) doc.getTrack (i).getProperty (SongIDs::colorArgb); };
 
-    Song oneMoreTrack;
-    oneMoreTrack.ticksPerQuarter = 480;
-    oneMoreTrack.tempoMap = { { 0, 120.0 } };
-    oneMoreTrack.meterMap = { { 0, 4, 4 } };
-    Track t;
-    t.name              = "Track 9";
-    t.sourceMidiChannel = 9;
-    oneMoreTrack.tracks.push_back (t);
+    REQUIRE (doc.getNumTracks() == 5);
+    CHECK (colourOf (0) == trackColourFor (GmFamily::Strings, 0));
+    CHECK (colourOf (1) == trackColourFor (GmFamily::Strings, 1));
+    CHECK (colourOf (2) == trackColourFor (GmFamily::Pipe, 0));
+    CHECK (colourOf (3) == trackColourFor (GmFamily::Drums, 0));
+    CHECK (colourOf (4) == trackColourFor (GmFamily::Piano, 0));
+
+    CHECK ((int) doc.getTrack (0).getProperty (SongIDs::sourceProgram) == 40);
+    CHECK ((int) doc.getTrack (3).getProperty (SongIDs::sourceProgram) == 0);
+
+    Song second = first;
+    second.tracks = { makeTrack ("Viola", 41, 0) };
 
     Diagnostics diag2;
-    appendImportedSong (doc, oneMoreTrack, 2, diag2);
+    appendImportedSong (doc, second, 2, diag2);
 
-    REQUIRE (doc.getNumTracks() == 10);
-    // The second import's track continues the cycle at document-wide index 9
-    // (entry 1), not entry 0 — proving the index is document-wide, not reset
-    // per import.
-    CHECK ((int) doc.getTrack (9).getProperty (SongIDs::colorArgb)
-           == (int) SongsmithColours::trackColourForIndex (9));
-    CHECK ((int) doc.getTrack (9).getProperty (SongIDs::colorArgb)
-           != (int) doc.getTrack (0).getProperty (SongIDs::colorArgb));
+    REQUIRE (doc.getNumTracks() == 6);
+    CHECK (colourOf (5) == trackColourFor (GmFamily::Strings, 2));
+}
+
+TEST_CASE ("SongModelBridge: buildConfigAndRawSong carries each track's sourceProgram back into the raw Song", "[songmodelbridge]")
+{
+    Song imported;
+    imported.ticksPerQuarter = 480;
+    imported.tempoMap = { { 0, 120.0 } };
+    imported.meterMap = { { 0, 4, 4 } };
+    Track t;
+    t.name          = "Trumpet";
+    t.sourceProgram = 56;
+    imported.tracks.push_back (t);
+
+    SongDocument doc;
+    Diagnostics diag;
+    appendImportedSong (doc, imported, 1, diag);
+
+    const auto built = buildConfigAndRawSong (doc);
+    REQUIRE (built.rawSong.tracks.size() == 1);
+    CHECK (built.rawSong.tracks[0].sourceProgram == 56);
 }
 
 TEST_CASE ("SongModelBridge: dropUnassignedInstruments drops only the zero-assignment part and lets the rest validate", "[songmodelbridge]")

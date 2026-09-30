@@ -4,6 +4,7 @@
 #include "Core/MidiImporter.h"
 #include "SongsmithColours.h"
 
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -157,10 +158,22 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
     int zeroLengthNoteCount  = 0;
     int rescaledNoteCount    = 0;
 
+    // Tracks already in the document per GM family, so each new same-family
+    // track gets the next shade — continuing across imports.
+    std::array<int, SongsmithColours::numGmFamilies> familyCounts {};
+    for (int i = 0; i < doc.getNumTracks(); ++i)
+    {
+        const auto existing = doc.getTrack (i);
+        ++familyCounts[(size_t) SongsmithColours::gmFamilyFor ((int) existing.getProperty (SongIDs::sourceProgram),
+                                                             (int) existing.getProperty (SongIDs::sourceMidiChannel))];
+    }
+
     for (const auto& track : imported.tracks)
     {
-        const auto colorArgb = (int) SongsmithColours::trackColourForIndex (doc.getNumTracks());
+        const auto family = SongsmithColours::gmFamilyFor (track.sourceProgram, track.sourceMidiChannel);
+        const auto colorArgb = (int) SongsmithColours::trackColourFor (family, familyCounts[(size_t) family]++);
         auto trackTree = doc.addTrackBulk (track.name, colorArgb, track.sourceMidiChannel, importBatch);
+        trackTree.setProperty (SongIDs::sourceProgram, track.sourceProgram, nullptr);
 
         for (const auto& note : track.notes)
         {
@@ -434,6 +447,7 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
         Track track;
         track.name              = trackTree.getProperty (SongIDs::name).toString().toStdString();
         track.sourceMidiChannel = (int) trackTree.getProperty (SongIDs::sourceMidiChannel);
+        track.sourceProgram     = (int) trackTree.getProperty (SongIDs::sourceProgram);
 
         for (auto noteTree : trackTree)
         {

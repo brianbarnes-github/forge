@@ -31,6 +31,7 @@ namespace SongIDs
     const juce::Identifier name ("name");
     const juce::Identifier colorArgb ("colorArgb");
     const juce::Identifier sourceMidiChannel ("sourceMidiChannel");
+    const juce::Identifier sourceProgram ("sourceProgram");
     const juce::Identifier importBatch ("importBatch");
 
     const juce::Identifier pitch ("pitch");

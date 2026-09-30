@@ -40,6 +40,7 @@ namespace SongIDs
     extern const juce::Identifier name;
     extern const juce::Identifier colorArgb;
     extern const juce::Identifier sourceMidiChannel;
+    extern const juce::Identifier sourceProgram;
     extern const juce::Identifier importBatch;
 
     // NOTE properties — mirror lotro::Note's field names 1:1 (see
