@@ -13,11 +13,13 @@ namespace
     constexpr int previewHeight = 34;
 }
 
-TEST_CASE ("TrackNotePreview: paints a note as a bar at its mapped tick position", "[track-note-preview]")
+TEST_CASE ("TrackNotePreview: paints a note as a bar at its mapped tick position, in the track's colour", "[track-note-preview]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
+    constexpr juce::uint32 trackColour = 0xFF80C878;
     juce::ValueTree track (SongIDs::MIDI_TRACK);
+    track.setProperty (SongIDs::colorArgb, (int) trackColour, nullptr);
     juce::ValueTree note (SongIDs::NOTE);
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
@@ -37,7 +39,7 @@ TEST_CASE ("TrackNotePreview: paints a note as a bar at its mapped tick position
 
     const auto expectedX = viewState.xForTick (0);
     const auto pixel = image.getPixelAt (expectedX + 1, previewHeight - 2);
-    CHECK (pixel == juce::Colour (SongsmithColours::accentAmber));
+    CHECK (pixel == juce::Colour (trackColour));
 }
 
 TEST_CASE ("TrackNotePreview: an empty track paints only the background, no note bars", "[track-note-preview]")

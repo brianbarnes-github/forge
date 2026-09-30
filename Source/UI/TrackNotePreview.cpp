@@ -36,7 +36,7 @@ namespace lotro
         {
             const int pitchSpan = juce::jmax (1, maxPitch - minPitch);
 
-            g.setColour (juce::Colour (accentAmber));
+            g.setColour (juce::Colour ((juce::uint32) (int) track.getProperty (SongIDs::colorArgb)));
             for (int i = 0; i < track.getNumChildren(); ++i)
             {
                 auto note = track.getChild (i);
