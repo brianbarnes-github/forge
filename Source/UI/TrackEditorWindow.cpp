@@ -6,7 +6,7 @@ namespace lotro
     TrackEditorWindow::TrackEditorWindow (SongDocument& document)
         : juce::DocumentWindow ("Edit Track",
                                  juce::Colour (SongsmithColours::background),
-                                 juce::DocumentWindow::closeButton),
+                                 juce::DocumentWindow::allButtons),
           doc (document),
           roll (PianoRollComponent::Role::Source, &doc)
     {

@@ -40,3 +40,23 @@ TEST_CASE ("TrackEditorWindow: onClosed fires when the window's close button is 
 
     CHECK (closed);
 }
+
+TEST_CASE ("TrackEditorWindow: offers minimise, maximise and close title-bar buttons", "[track-editor-window]")
+{
+    // With a native title bar, these style flags are what tell the OS to show
+    // the buttons — and, on Windows, whether title-bar double-click / snap
+    // may maximise the window at all.
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    TrackEditorWindow window (doc);
+
+    const int flags = window.getDesktopWindowStyleFlags();
+    CHECK ((flags & juce::ComponentPeer::windowHasMaximiseButton) != 0);
+    CHECK ((flags & juce::ComponentPeer::windowHasMinimiseButton) != 0);
+    CHECK ((flags & juce::ComponentPeer::windowHasCloseButton) != 0);
+    // Not the windowIsResizable style flag: JUCE sets that only where
+    // Desktop::supportsBorderlessNonClientResize() (true on Windows, false on
+    // headless Linux), so it would test the platform rather than this class.
+    CHECK (window.isResizable());
+}
