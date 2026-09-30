@@ -3,7 +3,7 @@
 
 namespace lotro
 {
-    TrackEditorWindow::TrackEditorWindow (SongDocument& document)
+    TrackEditorWindow::TrackEditorWindow (SongDocument& document, juce::Component* centreAround)
         : juce::DocumentWindow ("Edit Track",
                                  juce::Colour (SongsmithColours::background),
                                  juce::DocumentWindow::allButtons),
@@ -13,7 +13,7 @@ namespace lotro
         setUsingNativeTitleBar (true);
         setResizable (true, false);
         setContentNonOwned (&roll, true);
-        centreWithSize (900, 500);
+        centreAroundComponent (centreAround, 900, 500);
         setVisible (true);
     }
 

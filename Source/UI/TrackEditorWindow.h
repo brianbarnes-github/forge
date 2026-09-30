@@ -16,7 +16,10 @@ namespace lotro
     class TrackEditorWindow : public juce::DocumentWindow
     {
     public:
-        explicit TrackEditorWindow (SongDocument& document);
+        // Pops up centred over `centreAround` (the application window),
+        // kept on that window's monitor; nullptr centres on the active
+        // top-level window instead.
+        TrackEditorWindow (SongDocument& document, juce::Component* centreAround);
         ~TrackEditorWindow() override;
 
         void setTrack (juce::ValueTree trackNode);
