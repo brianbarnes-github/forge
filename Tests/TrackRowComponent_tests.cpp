@@ -1,6 +1,7 @@
 #include "UI/SongDocument.h"
 #include "UI/TrackRowComponent.h"
 #include "UI/TimelineViewState.h"
+#include "UI/SongsmithColours.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -134,4 +135,34 @@ TEST_CASE ("TrackRowComponent: ghost-toggle forwarding reports this row's trackI
 
     CHECK (firedId == trackId);
     CHECK (firedVisible);
+}
+
+TEST_CASE ("TrackRowComponent: a divider line spans the row's full width along its bottom edge", "[track-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+    constexpr int width = 600;
+    row.setBounds (0, 0, width, TrackRowComponent::rowHeight);
+
+    juce::Image image (juce::Image::ARGB, width, TrackRowComponent::rowHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    row.paintEntireComponent (g, false);
+
+    const auto divider = juce::Colour (SongsmithColours::trackDivider);
+    const int bottom = TrackRowComponent::rowHeight - 1;
+
+    // Across both the info column and the note preview (which must not paint
+    // over it).
+    CHECK (image.getPixelAt (20, bottom) == divider);
+    CHECK (image.getPixelAt (TrackRowComponent::trackInfoWidth + 50, bottom) == divider);
+    CHECK (image.getPixelAt (width - 30, bottom) == divider);
+
+    // Only the bottom pixel row — the line is 1px thick.
+    CHECK (image.getPixelAt (20, bottom - 1) != divider);
+    CHECK (image.getPixelAt (TrackRowComponent::trackInfoWidth + 50, bottom - 1) != divider);
 }

@@ -48,6 +48,11 @@ public:
     // note data is the primary content, the text is a label for it.
     static constexpr int trackInfoWidth = 180;
 
+    // Height of the divider line painted along the row's bottom edge, across
+    // both the text column and the note preview, so adjacent tracks read as
+    // separate rows.
+    static constexpr int dividerThickness = 1;
+
     // Fired on a plain (non-drag) click, with this row's trackId.
     std::function<void (juce::int64)> onTrackSelected;
 

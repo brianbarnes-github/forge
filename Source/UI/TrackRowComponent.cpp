@@ -48,7 +48,7 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
 
 void TrackRowComponent::resized()
 {
-    auto area = getLocalBounds();
+    auto area = getLocalBounds().withTrimmedBottom (dividerThickness);
     area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
     notePreview.setBounds (area);
 }
@@ -103,7 +103,10 @@ void TrackRowComponent::paint (juce::Graphics& g)
     using namespace SongsmithColours;
 
     const auto swatch = (juce::uint32) (int) track.getProperty (SongIDs::colorArgb);
-    const auto bounds = getLocalBounds();
+    auto bounds = getLocalBounds();
+
+    g.setColour (juce::Colour (trackDivider));
+    g.fillRect (bounds.removeFromBottom (dividerThickness));
 
     g.setColour (juce::Colour (selected ? selectedRow : background));
     g.fillRect (bounds);
