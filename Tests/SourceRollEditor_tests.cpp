@@ -372,3 +372,73 @@ TEST_CASE ("SourceRollEditor: Ctrl+Shift+Z also redoes", "[source-roll-editor]")
     CHECK (f.editor.keyPressed (ctrlShiftZ));
     CHECK (f.track.getNumChildren() == 1);
 }
+
+namespace
+{
+    const juce::ModifierKeys rightClick { juce::ModifierKeys::rightButtonModifier };
+    const juce::ModifierKeys shiftRightClick { juce::ModifierKeys::rightButtonModifier | juce::ModifierKeys::shiftModifier };
+
+    // Any x inside `pitch`'s row -- right-click selects by row, not by note.
+    juce::Point<int> rowPoint (const PianoRollGeometry& geometry, int x, int pitch)
+    {
+        return { x, geometry.yForPitch (pitch) + geometry.getRowHeight() / 2 };
+    }
+}
+
+TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pitch and nothing else", "[source-roll-editor][pitch-select]")
+{
+    Fixture f;
+    auto laterC = makeNote (60, ticksPerQuarter * 4, ticksPerQuarter);
+    f.track.addChild (laterC, -1, nullptr);
+    f.editor.mouseDown (f.centreOf (f.noteB), {}, false); // prior selection is replaced
+    f.editor.mouseUp (f.centreOf (f.noteB));
+
+    CHECK (f.editor.mouseDown (rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 60), rightClick, false));
+
+    CHECK (f.editor.getNumSelected() == 2);
+    CHECK (f.editor.isSelected (f.noteA));
+    CHECK (f.editor.isSelected (laterC));
+    CHECK_FALSE (f.editor.isSelected (f.noteB));
+}
+
+TEST_CASE ("SourceRollEditor: right-clicking over the keyboard gutter selects that key's notes too", "[source-roll-editor][pitch-select]")
+{
+    Fixture f;
+    CHECK (f.editor.mouseDown (rowPoint (f.geometry, 5, 64), rightClick, false));
+    CHECK (f.editor.getNumSelected() == 1);
+    CHECK (f.editor.isSelected (f.noteB));
+}
+
+TEST_CASE ("SourceRollEditor: shift+right-click adds a pitch's notes to the existing selection", "[source-roll-editor][pitch-select]")
+{
+    Fixture f;
+    f.editor.mouseDown (rowPoint (f.geometry, 5, 60), rightClick, false);
+    f.editor.mouseDown (rowPoint (f.geometry, 5, 64), shiftRightClick, false);
+
+    CHECK (f.editor.getNumSelected() == 2);
+    CHECK (f.editor.isSelected (f.noteA));
+    CHECK (f.editor.isSelected (f.noteB));
+}
+
+TEST_CASE ("SourceRollEditor: right-clicking a pitch with no notes clears the selection", "[source-roll-editor][pitch-select]")
+{
+    Fixture f;
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteA));
+
+    f.editor.mouseDown (rowPoint (f.geometry, 5, 62), rightClick, false);
+    CHECK (f.editor.getNumSelected() == 0);
+}
+
+TEST_CASE ("SourceRollEditor: right-click selection never starts a drag or moves a note", "[source-roll-editor][pitch-select]")
+{
+    Fixture f;
+    const auto press = f.centreOf (f.noteA);
+    f.editor.mouseDown (press, rightClick, false);
+    CHECK_FALSE (f.editor.mouseDrag (press.translated (80, -30)));
+    f.editor.mouseUp (press.translated (80, -30));
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    CHECK ((int) f.noteA.getProperty (SongIDs::pitch) == 60);
+    CHECK (f.editor.getRubberBandRect().isEmpty());
+}

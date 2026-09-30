@@ -54,6 +54,21 @@ void SourceRollEditor::selectOnly (const juce::ValueTree& note)
         selection.push_back (note);
 }
 
+void SourceRollEditor::selectPitch (int pitch, bool addToSelection)
+{
+    if (! addToSelection)
+        selection.clear();
+    if (! track.isValid())
+        return;
+
+    for (int i = 0; i < track.getNumChildren(); ++i)
+    {
+        auto noteNode = track.getChild (i);
+        if ((int) noteNode.getProperty (SongIDs::pitch) == pitch && ! isSelected (noteNode))
+            selection.push_back (noteNode);
+    }
+}
+
 void SourceRollEditor::toggleSelection (const juce::ValueTree& note)
 {
     auto it = std::find (selection.begin(), selection.end(), note);
@@ -109,6 +124,13 @@ void SourceRollEditor::updateRubberBandSelection()
 bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick)
 {
     pruneSelection();
+
+    if (mods.isPopupMenu())
+    {
+        dragMode = DragMode::None;
+        selectPitch (geometry.pitchForY (pos.y), mods.isShiftDown() || mods.isCtrlDown() || mods.isCommandDown());
+        return true;
+    }
 
     if (isDoubleClick)
     {

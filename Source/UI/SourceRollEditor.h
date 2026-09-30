@@ -63,6 +63,10 @@ public:
     // own mouseDown/mouseDrag/mouseUp overrides with canvas-local pixel
     // coordinates. Each returns true if the caller should repaint (and
     // rebuild the canvas's content size, in case a note's extent changed).
+    // A right-click (ModifierKeys::isPopupMenu) anywhere in a pitch's row --
+    // on a note, on empty canvas, or over the keyboard gutter -- selects
+    // every note of that pitch, replacing the selection (shift/ctrl/cmd adds
+    // to it instead). It never starts a drag or mutates the document.
     bool mouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
     bool mouseDrag (juce::Point<int> pos);
     bool mouseUp (juce::Point<int> pos);
@@ -98,6 +102,7 @@ private:
     juce::ValueTree hitTestNote (juce::Point<int> pos) const;
     int hitTestEdgeZone (const juce::ValueTree& note, juce::Point<int> pos) const;
     void selectOnly (const juce::ValueTree& note);
+    void selectPitch (int pitch, bool addToSelection);
     void toggleSelection (const juce::ValueTree& note);
     void pruneSelection();
     void updateRubberBandSelection();
