@@ -16,6 +16,9 @@ namespace
     constexpr juce::uint32 rowBandDark  = 0xFF202020;
     constexpr juce::uint32 gutterFill   = 0xFF1E1E1E;
     constexpr juce::uint32 gridline     = 0xFF333333;
+
+    constexpr int middleC = 60;
+    constexpr juce::Range<int> fullMidiPitchRange { 0, 128 }; // half-open, like getPitchRange()
 }
 
 PianoRollComponent::PianoRollComponent (Role roleIn, SongDocument* editableDocument) : role (roleIn)
@@ -36,16 +39,37 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
     ticksPerQuarter = ticksPerQuarterIn;
     meterMap = meterMapNode;
 
-    geometry = noteSource != nullptr
-                   ? PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
-                                                       ticksPerQuarter, viewport.getWidth(), viewport.getHeight())
-                   : PianoRollGeometry();
+    if (noteSource != nullptr)
+        fitTimeline();
+    else
+        geometry = PianoRollGeometry();
+    timelineFitted = role == Role::Source && noteSource != nullptr;
 
     if (sourceEditor != nullptr)
         sourceEditor->setGeometry (geometry);
 
     rebuildContentSize();
+    if (role == Role::Source && noteSource != nullptr)
+        centreOnTrackPitches();
     canvas.repaint();
+}
+
+void PianoRollComponent::fitTimeline()
+{
+    const int availableWidth = visibleSizeFor ({ 0, contentHeight() }).x;
+    geometry = PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
+                                                 ticksPerQuarter, availableWidth, viewport.getHeight());
+}
+
+void PianoRollComponent::centreOnTrackPitches()
+{
+    const auto pitches = noteSource->getPitchRange();
+    const int centrePitch = pitches.isEmpty() ? middleC : (pitches.getStart() + pitches.getEnd() - 1) / 2;
+    const int rowCentreY = geometry.yForPitch (centrePitch) + geometry.getRowHeight() / 2;
+
+    // Viewport::setViewPosition clamps to the canvas, so pitches near either
+    // end of the MIDI range just scroll as far as they can.
+    viewport.setViewPosition (0, rowCentreY - viewport.getMaximumVisibleHeight() / 2);
 }
 
 void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
@@ -69,6 +93,9 @@ void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
 
 juce::Range<int> PianoRollComponent::effectivePitchRange() const
 {
+    if (role == Role::Source)
+        return fullMidiPitchRange;
+
     auto range = noteSource != nullptr ? noteSource->getPitchRange() : juce::Range<int>();
     if (! rangeBand.isEmpty())
         range = range.isEmpty() ? rangeBand : range.getUnionWith (rangeBand);
@@ -83,41 +110,76 @@ void PianoRollComponent::paint (juce::Graphics& g)
 void PianoRollComponent::resized()
 {
     viewport.setBounds (getLocalBounds());
-    rebuildContentSize();
 
+    if (timelineFitted && noteSource != nullptr)
+    {
+        fitTimeline();
+        if (sourceEditor != nullptr)
+            sourceEditor->setGeometry (geometry);
+    }
+
+    rebuildContentSize();
+}
+
+void PianoRollComponent::layoutGutter()
+{
     // Trim the gutter above the viewport's horizontal scrollbar (when shown)
     // so the scrollbar's thumb isn't painted over by the gutter's opaque
-    // fill in that bottom-left corner (M1).
+    // fill in that bottom-left corner (M1). Re-run on every content resize,
+    // not just resized(): zooming alone can show or hide that scrollbar.
     auto gutterBounds = getLocalBounds().withWidth (geometry.getKeyboardGutterWidth());
     if (viewport.getHorizontalScrollBar().isVisible())
         gutterBounds = gutterBounds.withTrimmedBottom (viewport.getScrollBarThickness());
     gutter.setBounds (gutterBounds);
 }
 
+int PianoRollComponent::contentHeight() const
+{
+    if (noteSource == nullptr)
+        return 0;
+    return juce::jmax (1, effectivePitchRange().getLength()) * geometry.getRowHeight();
+}
+
+juce::Point<int> PianoRollComponent::visibleSizeFor (juce::Point<int> contentSize) const
+{
+    const int thickness = viewport.getScrollBarThickness();
+    const int width = viewport.getWidth();
+    const int height = viewport.getHeight();
+
+    bool needsVertical = contentSize.y > height;
+    const bool needsHorizontal = contentSize.x > (needsVertical ? width - thickness : width);
+    if (needsHorizontal && ! needsVertical)
+        needsVertical = contentSize.y > height - thickness;
+
+    return { juce::jmax (0, needsVertical ? width - thickness : width),
+             juce::jmax (0, needsHorizontal ? height - thickness : height) };
+}
+
 void PianoRollComponent::rebuildContentSize()
 {
-    int width = viewport.getWidth();
-    int height = viewport.getHeight();
+    juce::Point<int> content;
 
     if (noteSource != nullptr)
     {
         const auto tickRange = noteSource->getTickRange();
-        const auto pitchRange = effectivePitchRange();
-
         const int contentTickEnd = tickRange.isEmpty() ? tickRange.getStart() : tickRange.getEnd();
-        width = juce::jmax (width, geometry.xForTick (contentTickEnd));
-
-        const int pitchSpan = juce::jmax (1, pitchRange.getLength());
-        height = juce::jmax (height, pitchSpan * geometry.getRowHeight());
+        content = { geometry.xForTick (contentTickEnd), contentHeight() };
     }
 
-    canvas.setSize (juce::jmax (1, width), juce::jmax (1, height));
+    // Filling exactly the visible area (not the whole viewport) keeps a
+    // canvas that fits from overhanging by a scroll bar's thickness and
+    // summoning the other scroll bar for nothing.
+    const auto visible = visibleSizeFor (content);
+    canvas.setSize (juce::jmax (1, visible.x, content.x), juce::jmax (1, visible.y, content.y));
+    layoutGutter();
 }
 
 void PianoRollComponent::zoom (float wheelDeltaY)
 {
     if (noteSource == nullptr)
         return;
+
+    timelineFitted = false;
 
     const double factor = wheelDeltaY > 0.0f ? 1.1 : (1.0 / 1.1);
     geometry.setPixelsPerQuarterNote (juce::jlimit (2.0, 400.0, geometry.getPixelsPerQuarterNote() * factor));

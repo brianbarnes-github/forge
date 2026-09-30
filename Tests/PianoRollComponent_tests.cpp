@@ -11,6 +11,7 @@
 #include "UI/SourceTrackNoteSource.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace lotro;
 
@@ -38,6 +39,11 @@ namespace lotro
         // overrides directly, instead of only the handleEditor* forwarding
         // methods those overrides call into.
         static PianoRollComponent::Canvas& canvas (PianoRollComponent& c) { return c.canvas; }
+
+        static const PianoRollGeometry& geometry (const PianoRollComponent& c) { return c.geometry; }
+        static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
+        static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
+        static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
     };
 }
 
@@ -257,8 +263,7 @@ TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDrag/mouseUp reach Sourc
     roll.setNoteSource (&source, ticksPerQuarter, {});
     roll.setEditableTrack (track);
 
-    const auto geometry = PianoRollGeometry::fitToContent (source.getTickRange(), source.getPitchRange(),
-                                                             ticksPerQuarter, viewportWidth, viewportHeight);
+    const auto geometry = Access::geometry (roll);
     const auto bounds = geometry.noteBounds (source.getNote (0));
     const juce::Point<int> clickPos (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     const juce::Point<int> dragPos = clickPos.translated (40, 0);
@@ -297,8 +302,7 @@ TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDoubleClick and keyPress
     roll.setNoteSource (&source, ticksPerQuarter, {});
     roll.setEditableTrack (track);
 
-    const auto geometry = PianoRollGeometry::fitToContent (source.getTickRange(), source.getPitchRange(),
-                                                             ticksPerQuarter, viewportWidth, viewportHeight);
+    const auto geometry = Access::geometry (roll);
     const juce::Point<int> emptyCell (geometry.xForTick (ticksPerQuarter * 3), geometry.yForPitch (72));
 
     auto& canvas = Access::canvas (roll);
@@ -329,18 +333,19 @@ TEST_CASE ("PianoRollComponent: a selected source-role note paints with the sele
     roll.setNoteSource (&source, ticksPerQuarter, {});
     roll.setEditableTrack (track);
 
-    const auto geometry = PianoRollGeometry::fitToContent (source.getTickRange(), source.getPitchRange(),
-                                                             ticksPerQuarter, viewportWidth, viewportHeight);
+    const auto geometry = Access::geometry (roll);
     const auto bounds = geometry.noteBounds (source.getNote (0));
     const juce::Point<int> centre (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 
-    using Access = PianoRollComponentTestAccess;
     Access::mouseDown (roll, centre, {}, false);
     Access::mouseUp (roll, centre);
 
-    juce::Image image (juce::Image::ARGB, viewportWidth, viewportHeight, true, juce::SoftwareImageType());
+    // Tall enough to hold the note's row: a Source roll spans all 128 MIDI
+    // pitches, so pitch 60 sits well below the first viewport-height of canvas.
+    const int imageHeight = bounds.y + bounds.height + geometry.getRowHeight();
+    juce::Image image (juce::Image::ARGB, viewportWidth, imageHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
-    Access::paintCanvas (roll, g, { 0, 0, viewportWidth, viewportHeight });
+    Access::paintCanvas (roll, g, { 0, 0, viewportWidth, imageHeight });
 
     const auto topBorderPixel = image.getPixelAt (bounds.x + bounds.width / 2, bounds.y);
     CHECK (topBorderPixel == juce::Colour (SongsmithColours::selectionHighlight));
@@ -440,4 +445,163 @@ TEST_CASE ("PianoRollComponent: Preview role ignores setGhostTracks", "[piano-ro
     const auto ghostPixel = image.getPixelAt (sampleX, ghostY);
     const auto belowPixel = image.getPixelAt (sampleX, ghostY + rowHeight);
     CHECK (ghostPixel == belowPixel);
+}
+
+namespace
+{
+    // A Source-role roll over one MIDI_TRACK, sized and pointed at the track
+    // the way TrackEditorWindow does it (bounds first, then setNoteSource).
+    struct SourceRollFixture
+    {
+        explicit SourceRollFixture (std::vector<int> pitches, int width = viewportWidth, int height = viewportHeight)
+        {
+            track = doc.addTrack ("Track A", 0xFF0000, 0, 1);
+            int startTick = 0;
+            for (int pitch : pitches)
+            {
+                juce::ValueTree note (SongIDs::NOTE);
+                note.setProperty (SongIDs::pitch, pitch, nullptr);
+                note.setProperty (SongIDs::startTick, startTick, nullptr);
+                note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+                track.addChild (note, -1, nullptr);
+                startTick += ticksPerQuarter;
+            }
+            source = std::make_unique<SourceTrackNoteSource> (track);
+            roll.setBounds (0, 0, width, height);
+            roll.setNoteSource (source.get(), ticksPerQuarter, {});
+            roll.setEditableTrack (track);
+        }
+
+        // Canvas-space y at the middle of the viewport's visible area.
+        int visibleCentreY()
+        {
+            auto& viewport = Access::viewport (roll);
+            return viewport.getViewPositionY() + viewport.getMaximumVisibleHeight() / 2;
+        }
+
+        int rowCentreY (int pitch) const
+        {
+            const auto& geometry = Access::geometry (roll);
+            return geometry.yForPitch (pitch) + geometry.getRowHeight() / 2;
+        }
+
+        SongDocument doc;
+        juce::ValueTree track;
+        std::unique_ptr<SourceTrackNoteSource> source;
+        PianoRollComponent roll { PianoRollComponent::Role::Source, &doc };
+    };
+}
+
+TEST_CASE ("PianoRollComponent: a Source roll lays out every MIDI pitch 0..127, whatever the track's own range", "[piano-roll][full-range]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+
+    const auto& geometry = Access::geometry (fixture.roll);
+    auto& canvas = Access::canvas (fixture.roll);
+
+    CHECK (geometry.getTopPitch() == 127);
+    CHECK (canvas.getHeight() == 128 * geometry.getRowHeight());
+    CHECK (geometry.yForPitch (127) == 0);
+    CHECK (geometry.yForPitch (0) + geometry.getRowHeight() == canvas.getHeight());
+    CHECK (Access::viewport (fixture.roll).getVerticalScrollBar().isVisible());
+}
+
+TEST_CASE ("PianoRollComponent: a Source roll can draw a new note at the extremes of the MIDI range", "[piano-roll][full-range]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60 });
+
+    const auto& geometry = Access::geometry (fixture.roll);
+    const int x = geometry.xForTick (ticksPerQuarter / 2);
+
+    REQUIRE (Access::mouseDown (fixture.roll, { x, geometry.yForPitch (127) + 1 }, {}, true));
+    REQUIRE (Access::mouseDown (fixture.roll, { x, geometry.yForPitch (0) + 1 }, {}, true));
+
+    REQUIRE (fixture.track.getNumChildren() == 3);
+    CHECK ((int) fixture.track.getChild (1).getProperty (SongIDs::pitch) == 127);
+    CHECK ((int) fixture.track.getChild (2).getProperty (SongIDs::pitch) == 0);
+}
+
+TEST_CASE ("PianoRollComponent: a Source roll opens scrolled so the track's notes are centred vertically", "[piano-roll][full-range]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SECTION ("notes around pitch 40")
+    {
+        SourceRollFixture fixture ({ 36, 44 });
+        CHECK (std::abs (fixture.visibleCentreY() - fixture.rowCentreY (40)) <= Access::geometry (fixture.roll).getRowHeight());
+    }
+
+    SECTION ("an empty track centres on middle C")
+    {
+        SourceRollFixture fixture ({});
+        CHECK (std::abs (fixture.visibleCentreY() - fixture.rowCentreY (60)) <= Access::geometry (fixture.roll).getRowHeight());
+    }
+
+    SECTION ("re-pointing at another track re-centres on that track")
+    {
+        SourceRollFixture fixture ({ 100 });
+        auto other = fixture.doc.addTrack ("Track B", (int) 0xFF00FF00, 1, 0);
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, 30, nullptr);
+        note.setProperty (SongIDs::startTick, 0, nullptr);
+        note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+        other.addChild (note, -1, nullptr);
+        SourceTrackNoteSource otherSource (other);
+
+        fixture.roll.setNoteSource (&otherSource, ticksPerQuarter, {});
+        CHECK (std::abs (fixture.visibleCentreY() - fixture.rowCentreY (30)) <= Access::geometry (fixture.roll).getRowHeight());
+        fixture.roll.setNoteSource (nullptr, ticksPerQuarter, {});
+    }
+}
+
+TEST_CASE ("PianoRollComponent: a fitted Source roll shows no horizontal scroll bar until zoomed in", "[piano-roll][full-range]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64, 65 });
+
+    auto& viewport = Access::viewport (fixture.roll);
+    auto& canvas = Access::canvas (fixture.roll);
+
+    // The always-present vertical bar narrows the visible width -- the fit
+    // must account for it, or the canvas overhangs by the bar's thickness.
+    CHECK (canvas.getWidth() == viewport.getMaximumVisibleWidth());
+    CHECK_FALSE (viewport.getHorizontalScrollBar().isVisible());
+
+    Access::zoom (fixture.roll, 1.0f);
+    CHECK (canvas.getWidth() > viewport.getMaximumVisibleWidth());
+    CHECK (viewport.getHorizontalScrollBar().isVisible());
+}
+
+TEST_CASE ("PianoRollComponent: a Source roll refits the song to the width on resize, until the user zooms", "[piano-roll][full-range]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64, 65 });
+
+    auto& viewport = Access::viewport (fixture.roll);
+    const int songEndTick = 4 * ticksPerQuarter;
+
+    fixture.roll.setBounds (0, 0, viewportWidth * 2, viewportHeight * 2); // e.g. the window was maximised
+    CHECK (Access::geometry (fixture.roll).xForTick (songEndTick) == viewport.getMaximumVisibleWidth());
+    CHECK_FALSE (viewport.getHorizontalScrollBar().isVisible());
+
+    Access::zoom (fixture.roll, 1.0f);
+    const double zoomed = Access::geometry (fixture.roll).getPixelsPerQuarterNote();
+
+    fixture.roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    CHECK_THAT (Access::geometry (fixture.roll).getPixelsPerQuarterNote(), Catch::Matchers::WithinAbs (zoomed, 1e-9));
+    CHECK (viewport.getHorizontalScrollBar().isVisible());
+}
+
+TEST_CASE ("PianoRollComponent: the keyboard gutter stops above the horizontal scroll bar once zooming shows it", "[piano-roll][full-range]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64, 65 });
+
+    auto& viewport = Access::viewport (fixture.roll);
+    Access::zoom (fixture.roll, 1.0f);
+
+    REQUIRE (viewport.getHorizontalScrollBar().isVisible());
+    CHECK (Access::gutter (fixture.roll).getBottom() <= viewport.getHorizontalScrollBar().getY());
 }

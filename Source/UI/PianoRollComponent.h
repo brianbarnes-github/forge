@@ -30,7 +30,10 @@ public:
 
     // Repoints the roll at a new note source (or nullptr for "no track
     // selected", which paints an empty roll) and refits the geometry/content
-    // size to it. Does not take ownership of `source` — the caller
+    // size to it. Role::Source always lays out the whole MIDI pitch range
+    // (0..127) and scrolls vertically to centre the track's own notes (middle
+    // C for an empty track); its timeline then refits to the width on every
+    // resize until the user ctrl+wheel zooms. Does not take ownership of `source` — the caller
     // (SongsmithMainComponent) owns the SourceTrackNoteSource and must keep
     // it alive at least as long as it stays set here. ticksPerQuarter and
     // meterMapNode drive bar-boundary gridlines (first meter entry only, per
@@ -141,9 +144,21 @@ private:
     void afterEditorGesture (bool changed);
 
     void rebuildContentSize();
+    void fitTimeline();
+    void centreOnTrackPitches();
+    void layoutGutter();
     void zoom (float wheelDeltaY);
 
-    // Union of the note source's own pitch range with `rangeBand`. The band
+    // The viewport area the canvas can fill without scrolling, once the
+    // scroll bars a canvas of `contentSize` would force on are subtracted.
+    // viewport.getMaximumVisibleWidth/Height only reflect the bars shown
+    // for the *current* canvas, which is stale while resizing it.
+    juce::Point<int> visibleSizeFor (juce::Point<int> contentSize) const;
+    int contentHeight() const;
+
+    // Role::Source: always the whole MIDI range, so notes can be drawn or
+    // dragged to any pitch. Role::Preview: union of the note source's own
+    // pitch range with `rangeBand`. The band
     // is supplied independently of the note source (via setPreviewRangeBand,
     // which can be called before or after setNoteSource), so neither side
     // alone is guaranteed to cover the other — a note that folds outside the
@@ -159,6 +174,7 @@ private:
     juce::ValueTree meterMap;
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
+    bool timelineFitted = false; // Source role only: refit on resize until the user zooms.
 
     ScrollAwareViewport viewport { *this };
     Canvas canvas { *this };

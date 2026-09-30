@@ -125,7 +125,15 @@ When you say…       …I'll know you mean
   the next double-click opens a fresh instance.
 - **Source piano roll** (#13, `PianoRollComponent`, `Role::Source`) — shows the
   track the Track editor window (#28) is currently pointed at (one track at
-  a time), scrollable in both axes via an internal `juce::Viewport`. A
+  a time), scrollable in both axes via an internal `juce::Viewport`. It
+  always lays out the whole MIDI pitch range, 0–127 (C-1 to G9), however
+  narrow the track's own range, so a note can be drawn or dragged to any
+  pitch; the vertical scroll bar is therefore effectively always shown, and
+  the view opens scrolled so the track's notes sit mid-view (middle C for an
+  empty track). The horizontal scroll bar appears only while the timeline is
+  wider than the view: the track opens fitted to the width and keeps
+  refitting as the window is resized or maximised, until the first
+  Ctrl/Cmd+wheel zoom, after which the zoom is kept and the bar appears. A
   pinned keyboard gutter on the left (C-note labels only) stays put while
   notes scroll underneath it; row shading follows the real piano
   black/white-key pattern, not plain semitone alternation. Vertical
@@ -134,7 +142,8 @@ When you say…       …I'll know you mean
   this zoom/scroll state belongs to the editor window and is independent of
   the track list's shared `TimelineViewState` (#9). Re-pointing the window
   at a different track, or any change to `SOURCE_MIDI` (e.g. a second MIDI
-  import), re-fits the view to the newly-current track. Note editing (Phase
+  import), re-fits the view (and re-arms refit-on-resize) for the
+  newly-current track. Note editing (Phase
   7, via `SourceRollEditor`): click to select a note, shift/ctrl/cmd-click to
   add or remove one from the selection, drag on empty canvas to
   rubber-band-select; drag a selected note's body to move it (and every
