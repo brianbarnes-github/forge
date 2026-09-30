@@ -45,6 +45,7 @@ namespace lotro
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
         static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
         static void paintGutter (const PianoRollComponent& c, juce::Graphics& g) { c.paintGutter (g); }
+        static int hoveredPitch (const PianoRollComponent& c) { return c.hoveredPitch; }
     };
 }
 
@@ -665,5 +666,123 @@ TEST_CASE ("PianoRollComponent: adjacent white keys with no black key between th
         const auto divider = image.getPixelAt (leftX, keyTopY (fixture.roll, lowerWhite));
         const auto keyFace = image.getPixelAt (leftX, keyTopY (fixture.roll, lowerWhite) + 3);
         CHECK (divider.getBrightness() < keyFace.getBrightness());
+    }
+}
+
+namespace
+{
+    // Canvas-space point in the middle of `pitch`'s row.
+    juce::Point<int> canvasRowPoint (PianoRollComponent& roll, int x, int pitch)
+    {
+        const auto& geometry = Access::geometry (roll);
+        return { x, geometry.yForPitch (pitch) + geometry.getRowHeight() / 2 };
+    }
+
+    // Number of pixels in one key's row (gutter space) that differ from the
+    // key face colour sampled at its left edge -- i.e. how much text/marking
+    // is drawn on it.
+    int markedPixelsInKeyRow (const juce::Image& image, PianoRollComponent& roll, int pitch)
+    {
+        const int top = keyTopY (roll, pitch);
+        const int rowHeight = Access::geometry (roll).getRowHeight();
+        const int blackKeyRight = juce::roundToInt ((float) image.getWidth() * 0.6f);
+        const auto face = image.getPixelAt (image.getWidth() - 3, top + 1);
+        int marked = 0;
+        for (int y = top + 2; y < top + rowHeight - 2; ++y)
+            for (int x = blackKeyRight + 1; x < image.getWidth() - 2; ++x)
+                if (image.getPixelAt (x, y) != face)
+                    ++marked;
+        return marked;
+    }
+}
+
+TEST_CASE ("PianoRollComponent: moving the mouse over a row hovers that row's pitch; leaving clears it", "[piano-roll][keyboard][hover]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    auto& canvas = Access::canvas (fixture.roll);
+
+    CHECK (Access::hoveredPitch (fixture.roll) == -1);
+
+    const auto overKeyboard = canvasRowPoint (fixture.roll, 5, 66);
+    canvas.mouseMove (makeMouseEvent (canvas, overKeyboard, overKeyboard, 0, false));
+    CHECK (Access::hoveredPitch (fixture.roll) == 66);
+
+    const auto overNotes = canvasRowPoint (fixture.roll, 200, 63);
+    canvas.mouseMove (makeMouseEvent (canvas, overNotes, overNotes, 0, false));
+    CHECK (Access::hoveredPitch (fixture.roll) == 63);
+
+    canvas.mouseExit (makeMouseEvent (canvas, overNotes, overNotes, 0, false));
+    CHECK (Access::hoveredPitch (fixture.roll) == -1);
+}
+
+TEST_CASE ("PianoRollComponent: dragging keeps the hovered pitch following the mouse", "[piano-roll][keyboard][hover]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    auto& canvas = Access::canvas (fixture.roll);
+
+    const auto from = canvasRowPoint (fixture.roll, 200, 60);
+    const auto to = canvasRowPoint (fixture.roll, 200, 71);
+    canvas.mouseDrag (makeMouseEvent (canvas, to, from, 1, true));
+    CHECK (Access::hoveredPitch (fixture.roll) == 71);
+}
+
+TEST_CASE ("PianoRollComponent: the hovered key is tinted and labelled with its note name", "[piano-roll][keyboard][hover]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    auto& canvas = Access::canvas (fixture.roll);
+    const int leftX = 3;
+    const int rowMiddle = Access::geometry (fixture.roll).getRowHeight() / 2;
+
+    const auto unhovered = paintKeyboard (fixture.roll);
+    const auto hover = canvasRowPoint (fixture.roll, 5, 62); // D4, a white key
+    canvas.mouseMove (makeMouseEvent (canvas, hover, hover, 0, false));
+    const auto hovered = paintKeyboard (fixture.roll);
+
+    const auto face = hovered.getPixelAt (leftX, keyTopY (fixture.roll, 62) + rowMiddle);
+    CHECK (face != unhovered.getPixelAt (leftX, keyTopY (fixture.roll, 62) + rowMiddle));
+    CHECK (isLight (face)); // a subtle tint, still reads as a white key
+
+    CHECK (markedPixelsInKeyRow (unhovered, fixture.roll, 62) == 0);
+    CHECK (markedPixelsInKeyRow (hovered, fixture.roll, 62) > 0);
+
+    // Other keys are untouched.
+    CHECK (hovered.getPixelAt (leftX, keyTopY (fixture.roll, 64) + rowMiddle)
+           == unhovered.getPixelAt (leftX, keyTopY (fixture.roll, 64) + rowMiddle));
+}
+
+TEST_CASE ("PianoRollComponent: a hovered black key is labelled in the white-key area to its right", "[piano-roll][keyboard][hover]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    auto& canvas = Access::canvas (fixture.roll);
+
+    const auto unhovered = paintKeyboard (fixture.roll);
+    const auto hover = canvasRowPoint (fixture.roll, 5, 66); // F#4
+    canvas.mouseMove (makeMouseEvent (canvas, hover, hover, 0, false));
+    const auto hovered = paintKeyboard (fixture.roll);
+
+    // The divider behind the black key already marks a few pixels; the label adds more.
+    CHECK (markedPixelsInKeyRow (hovered, fixture.roll, 66) > markedPixelsInKeyRow (unhovered, fixture.roll, 66));
+    CHECK (isDark (hovered.getPixelAt (3, keyTopY (fixture.roll, 66) + Access::geometry (fixture.roll).getRowHeight() / 2)));
+}
+
+TEST_CASE ("PianoRollComponent: hovering B or E keeps the divider to the white key above it", "[piano-roll][keyboard][hover]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    auto& canvas = Access::canvas (fixture.roll);
+
+    for (int lowerWhite : { 59, 64 })
+    {
+        const auto hover = canvasRowPoint (fixture.roll, 5, lowerWhite);
+        canvas.mouseMove (makeMouseEvent (canvas, hover, hover, 0, false));
+        const auto image = paintKeyboard (fixture.roll);
+
+        const auto divider = image.getPixelAt (3, keyTopY (fixture.roll, lowerWhite));
+        const auto tintedFace = image.getPixelAt (3, keyTopY (fixture.roll, lowerWhite) + 3);
+        CHECK (divider.getBrightness() < tintedFace.getBrightness());
     }
 }

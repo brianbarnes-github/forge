@@ -49,6 +49,14 @@ bool PianoRollGeometry::isBlackKey (int pitch) noexcept
     return pitchClass == 1 || pitchClass == 3 || pitchClass == 6 || pitchClass == 8 || pitchClass == 10;
 }
 
+juce::String PianoRollGeometry::noteName (int pitch)
+{
+    static const char* const names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    const int pitchClass = ((pitch % 12) + 12) % 12;
+    const int octave = (pitch - pitchClass) / 12 - 1;
+    return juce::String (names[pitchClass]) + juce::String (octave);
+}
+
 PianoRollNoteBounds PianoRollGeometry::noteBounds (const PianoRollNote& note) const noexcept
 {
     const int x1 = xForTick (note.startTick);

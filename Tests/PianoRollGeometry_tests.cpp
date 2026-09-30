@@ -218,3 +218,13 @@ TEST_CASE ("PianoRollGeometry: near the 1:1 pixel/tick boundary, tick round-trip
         CHECK (diff <= 1);
     }
 }
+
+TEST_CASE ("PianoRollGeometry: noteName spells a MIDI pitch with sharps and the pitch-60-is-C4 octave", "[piano-roll]")
+{
+    CHECK (PianoRollGeometry::noteName (60) == "C4");
+    CHECK (PianoRollGeometry::noteName (61) == "C#4");
+    CHECK (PianoRollGeometry::noteName (69) == "A4");
+    CHECK (PianoRollGeometry::noteName (59) == "B3");
+    CHECK (PianoRollGeometry::noteName (0) == "C-1");
+    CHECK (PianoRollGeometry::noteName (127) == "G9");
+}

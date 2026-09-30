@@ -137,7 +137,10 @@ When you say…       …I'll know you mean
   pinned keyboard gutter on the left, drawn as a real piano keyboard —
   full-width white keys, shorter black keys for the sharps/flats, divider
   lines where keys meet, C-note labels only — stays put while notes scroll
-  underneath it; row shading follows the real piano
+  underneath it. Hovering over the keyboard or any note row (including while
+  dragging) faintly tints that row's key and names it in light grey (e.g.
+  `F#4`, sharps only, pitch 60 = C4), so a row can be identified without
+  counting from the nearest C; row shading follows the real piano
   black/white-key pattern, not plain semitone alternation. Vertical
   gridlines mark bar boundaries from the document's meter. Ctrl/Cmd+
   scroll-wheel zooms horizontally; a plain scroll wheel scrolls as usual —

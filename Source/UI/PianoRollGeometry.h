@@ -72,6 +72,10 @@ public:
     // with the real keyboard at the E/F and B/C boundaries.
     static bool isBlackKey (int pitch) noexcept;
 
+    // Sharps-only note name with the MIDI octave convention used by the
+    // keyboard gutter's C labels (pitch 60 == "C4", pitch 0 == "C-1").
+    static juce::String noteName (int pitch);
+
     // Default view when a track is first selected: computes a zoom factor
     // so the span from the fixed tick-0 origin to the end of the tick range
     // fits the viewport width without horizontal scrolling, and a topPitch

@@ -90,6 +90,8 @@ private:
         void mouseDoubleClick (const juce::MouseEvent& e) override;
         void mouseDrag (const juce::MouseEvent& e) override;
         void mouseUp (const juce::MouseEvent& e) override;
+        void mouseMove (const juce::MouseEvent& e) override;
+        void mouseExit (const juce::MouseEvent& e) override;
         bool keyPressed (const juce::KeyPress& key) override;
 
     private:
@@ -143,6 +145,11 @@ private:
     bool handleEditorKeyPressed (const juce::KeyPress& key);
     void afterEditorGesture (bool changed);
 
+    // Pitch of the row under the mouse (-1 for none), so the keyboard gutter
+    // can tint that key and name it. The gutter is mouse-transparent, so the
+    // Canvas beneath it tracks this for both the gutter and the note rows.
+    void setHoveredPitch (int pitch);
+
     void rebuildContentSize();
     void fitTimeline();
     void centreOnTrackPitches();
@@ -174,6 +181,7 @@ private:
     juce::ValueTree meterMap;
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
+    int hoveredPitch = -1;
     bool timelineFitted = false; // Source role only: refit on resize until the user zooms.
 
     ScrollAwareViewport viewport { *this };

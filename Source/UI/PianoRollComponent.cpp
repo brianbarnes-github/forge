@@ -22,6 +22,9 @@ namespace
     constexpr juce::uint32 blackKey        = 0xFF141414;
     constexpr juce::uint32 whiteKeyDivider = 0xFF9A9A9A;
     constexpr juce::uint32 whiteKeyLabel   = 0xFF505050;
+    constexpr juce::uint32 whiteKeyHover   = 0xFFD6D6D6;
+    constexpr juce::uint32 blackKeyHover   = 0xFF2E2E2E;
+    constexpr juce::uint32 hoverLabel      = 0xFF8C8C8C; // light grey: identifies the key without shouting
     constexpr float blackKeyWidthRatio = 0.6f;
 
     constexpr int middleC = 60;
@@ -294,7 +297,28 @@ void PianoRollComponent::Canvas::mouseDoubleClick (const juce::MouseEvent& e)
 
 void PianoRollComponent::Canvas::mouseDrag (const juce::MouseEvent& e)
 {
+    owner.setHoveredPitch (owner.geometry.pitchForY (e.getPosition().y));
     owner.handleEditorMouseDrag (e.getPosition());
+}
+
+void PianoRollComponent::Canvas::mouseMove (const juce::MouseEvent& e)
+{
+    owner.setHoveredPitch (owner.geometry.pitchForY (e.getPosition().y));
+}
+
+void PianoRollComponent::Canvas::mouseExit (const juce::MouseEvent&)
+{
+    owner.setHoveredPitch (-1);
+}
+
+void PianoRollComponent::setHoveredPitch (int pitch)
+{
+    if (pitch < 0 || pitch > 127 || noteSource == nullptr)
+        pitch = -1;
+    if (pitch == hoveredPitch)
+        return;
+    hoveredPitch = pitch;
+    gutter.repaint();
 }
 
 void PianoRollComponent::Canvas::mouseUp (const juce::MouseEvent& e)
@@ -429,15 +453,34 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
             const int pitchClass = ((pitch % 12) + 12) % 12;
             const int y = geometry.yForPitch (pitch) - scrollY;
 
+            const bool hovered = pitch == hoveredPitch;
+
             if (PianoRollGeometry::isBlackKey (pitch))
             {
-                g.setColour (juce::Colour (blackKey));
+                g.setColour (juce::Colour (hovered ? blackKeyHover : blackKey));
                 g.fillRect (0, y, blackKeyWidth, rowHeight);
 
                 // The two white keys either side meet behind the black key's middle.
                 g.setColour (juce::Colour (whiteKeyDivider));
                 g.drawHorizontalLine (y + rowHeight / 2, (float) blackKeyWidth, (float) gutterWidth);
+
+                if (hovered) // named in the white-key area to its right
+                {
+                    g.setColour (juce::Colour (hoverLabel));
+                    g.drawFittedText (PianoRollGeometry::noteName (pitch), blackKeyWidth, y,
+                                       gutterWidth - blackKeyWidth - 4, rowHeight,
+                                       juce::Justification::centredRight, 1);
+                }
                 continue;
+            }
+
+            if (hovered)
+            {
+                // B and E carry the B/C, E/F divider on their top pixel,
+                // drawn by the row above -- tint beneath it, not over it.
+                const int tintTop = (pitchClass == 11 || pitchClass == 4) ? y + 1 : y;
+                g.setColour (juce::Colour (whiteKeyHover));
+                g.fillRect (0, tintTop, gutterWidth, y + rowHeight - tintTop);
             }
 
             // C and F have a white key directly beneath them (B, E) with no
@@ -448,7 +491,13 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
                 g.drawHorizontalLine (y + rowHeight, 0.0f, (float) gutterWidth);
             }
 
-            if (pitchClass == 0) // only label C notes, per the mockup
+            if (hovered)
+            {
+                g.setColour (juce::Colour (hoverLabel));
+                g.drawFittedText (PianoRollGeometry::noteName (pitch), 0, y, gutterWidth - 4, rowHeight,
+                                   juce::Justification::centredRight, 1);
+            }
+            else if (pitchClass == 0) // only label C notes, per the mockup
             {
                 const int octave = pitch / 12 - 1; // MIDI convention: pitch 60 == C4
                 g.setColour (juce::Colour (whiteKeyLabel));
