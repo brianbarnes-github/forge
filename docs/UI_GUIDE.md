@@ -134,8 +134,10 @@ When you say…       …I'll know you mean
   wider than the view: the track opens fitted to the width and keeps
   refitting as the window is resized or maximised, until the first
   Ctrl/Cmd+wheel zoom, after which the zoom is kept and the bar appears. A
-  pinned keyboard gutter on the left (C-note labels only) stays put while
-  notes scroll underneath it; row shading follows the real piano
+  pinned keyboard gutter on the left, drawn as a real piano keyboard —
+  full-width white keys, shorter black keys for the sharps/flats, divider
+  lines where keys meet, C-note labels only — stays put while notes scroll
+  underneath it; row shading follows the real piano
   black/white-key pattern, not plain semitone alternation. Vertical
   gridlines mark bar boundaries from the document's meter. Ctrl/Cmd+
   scroll-wheel zooms horizontally; a plain scroll wheel scrolls as usual —
@@ -146,7 +148,9 @@ When you say…       …I'll know you mean
   newly-current track. Note editing (Phase
   7, via `SourceRollEditor`): click to select a note, shift/ctrl/cmd-click to
   add or remove one from the selection, drag on empty canvas to
-  rubber-band-select; drag a selected note's body to move it (and every
+  rubber-band-select; right-click a key, or anywhere in its row, to select
+  every note of that MIDI pitch (replacing the selection; shift/ctrl/cmd+
+  right-click adds to it instead); drag a selected note's body to move it (and every
   other selected note, together) or its left/right edge to resize it;
   double-click empty canvas to create a note there (duration from the Edit
   menu's Grid Size, or a quarter note if the grid is off); Delete/Backspace

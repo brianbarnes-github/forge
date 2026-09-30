@@ -44,6 +44,7 @@ namespace lotro
         static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
         static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
+        static void paintGutter (const PianoRollComponent& c, juce::Graphics& g) { c.paintGutter (g); }
     };
 }
 
@@ -604,4 +605,65 @@ TEST_CASE ("PianoRollComponent: the keyboard gutter stops above the horizontal s
 
     REQUIRE (viewport.getHorizontalScrollBar().isVisible());
     CHECK (Access::gutter (fixture.roll).getBottom() <= viewport.getHorizontalScrollBar().getY());
+}
+
+namespace
+{
+    // Paints the keyboard gutter of `roll` into an image the gutter's size.
+    juce::Image paintKeyboard (PianoRollComponent& roll)
+    {
+        auto& gutter = Access::gutter (roll);
+        juce::Image image (juce::Image::ARGB, gutter.getWidth(), gutter.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        Access::paintGutter (roll, g);
+        return image;
+    }
+
+    // Gutter-space y of `pitch`'s row top, allowing for vertical scroll.
+    int keyTopY (PianoRollComponent& roll, int pitch)
+    {
+        return Access::geometry (roll).yForPitch (pitch) - Access::viewport (roll).getViewPositionY();
+    }
+
+    bool isLight (juce::Colour c) { return c.getBrightness() > 0.8f; }
+    bool isDark (juce::Colour c)  { return c.getBrightness() < 0.2f; }
+}
+
+TEST_CASE ("PianoRollComponent: the keyboard gutter draws white keys full width and shorter black keys for sharps/flats", "[piano-roll][keyboard]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const auto image = paintKeyboard (fixture.roll);
+    const int width = Access::gutter (fixture.roll).getWidth();
+    const int rowMiddle = Access::geometry (fixture.roll).getRowHeight() / 2;
+    const int leftX = 3;
+    const int rightX = width - 4;
+
+    // D4 (62): a white key, light across its whole width.
+    CHECK (isLight (image.getPixelAt (leftX, keyTopY (fixture.roll, 62) + 2)));
+    CHECK (isLight (image.getPixelAt (rightX, keyTopY (fixture.roll, 62) + 2)));
+
+    // C#4 (61) and A#3 (58): black keys on the left, with the white keys
+    // they sit between still showing to their right, like a real keyboard.
+    for (int blackPitch : { 61, 58 })
+    {
+        CHECK (isDark (image.getPixelAt (leftX, keyTopY (fixture.roll, blackPitch) + rowMiddle)));
+        CHECK (isLight (image.getPixelAt (rightX, keyTopY (fixture.roll, blackPitch) + 2)));
+    }
+}
+
+TEST_CASE ("PianoRollComponent: adjacent white keys with no black key between them (B/C, E/F) get a full-width divider", "[piano-roll][keyboard]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const auto image = paintKeyboard (fixture.roll);
+    const int leftX = 3;
+
+    // Top edge of B3 (59) is where it meets C4; top edge of E4 (64) is where it meets F4.
+    for (int lowerWhite : { 59, 64 })
+    {
+        const auto divider = image.getPixelAt (leftX, keyTopY (fixture.roll, lowerWhite));
+        const auto keyFace = image.getPixelAt (leftX, keyTopY (fixture.roll, lowerWhite) + 3);
+        CHECK (divider.getBrightness() < keyFace.getBrightness());
+    }
 }

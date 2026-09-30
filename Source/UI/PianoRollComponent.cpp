@@ -9,13 +9,20 @@ namespace lotro
 
 namespace
 {
-    // Row-band/gutter shades taken verbatim from the Songsmith UI Guide
-    // mockup's piano-roll pane background and keyboard gutter, not part of
-    // the general SongsmithColours palette (those are piano-roll-specific).
+    // Row-band shades taken verbatim from the Songsmith UI Guide mockup's
+    // piano-roll pane background, not part of the general SongsmithColours
+    // palette (those are piano-roll-specific).
     constexpr juce::uint32 rowBandLight = 0xFF252525;
     constexpr juce::uint32 rowBandDark  = 0xFF202020;
-    constexpr juce::uint32 gutterFill   = 0xFF1E1E1E;
     constexpr juce::uint32 gridline     = 0xFF333333;
+
+    // Keyboard gutter, drawn as a real piano keyboard (white keys full
+    // width, black keys shorter and on top) so sharps/flats read at a glance.
+    constexpr juce::uint32 whiteKey        = 0xFFEDEDED;
+    constexpr juce::uint32 blackKey        = 0xFF141414;
+    constexpr juce::uint32 whiteKeyDivider = 0xFF9A9A9A;
+    constexpr juce::uint32 whiteKeyLabel   = 0xFF505050;
+    constexpr float blackKeyWidthRatio = 0.6f;
 
     constexpr int middleC = 60;
     constexpr juce::Range<int> fullMidiPitchRange { 0, 128 }; // half-open, like getPitchRange()
@@ -398,38 +405,61 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
     const int gutterWidth = geometry.getKeyboardGutterWidth();
     const int gutterHeight = gutter.getHeight();
 
-    g.setColour (juce::Colour (gutterFill));
+    g.setColour (juce::Colour (whiteKey));
     g.fillRect (0, 0, gutterWidth, gutterHeight);
-    g.setColour (juce::Colour (SongsmithColours::border));
-    g.drawVerticalLine (gutterWidth - 1, 0.0f, (float) gutterHeight);
 
     const int rowHeight = geometry.getRowHeight();
-    if (rowHeight <= 0)
-        return;
-
-    // The gutter isn't inside the Viewport's scrollable content, so its rows
-    // have to be placed manually at the canvas's current vertical scroll
-    // offset — this is what keeps its key labels in sync with the note rows
-    // scrolling underneath, per the class comment on `visibleAreaChanged`.
-    const int scrollY = viewport.getViewPositionY();
-    const int topPitch = geometry.getTopPitch();
-    const int firstRow = scrollY / rowHeight;
-    const int lastRow = (scrollY + gutterHeight) / rowHeight;
-
-    g.setFont (juce::Font (juce::FontOptions (9.0f)));
-    g.setColour (juce::Colour (SongsmithColours::textMuted));
-
-    for (int row = firstRow; row <= lastRow; ++row)
+    if (rowHeight > 0)
     {
-        const int pitch = topPitch - row;
-        if (((pitch % 12) + 12) % 12 != 0)
-            continue; // only label C notes, per the mockup
+        // The gutter isn't inside the Viewport's scrollable content, so its rows
+        // have to be placed manually at the canvas's current vertical scroll
+        // offset — this is what keeps its keys in sync with the note rows
+        // scrolling underneath, per the class comment on `visibleAreaChanged`.
+        const int scrollY = viewport.getViewPositionY();
+        const int topPitch = geometry.getTopPitch();
+        const int firstRow = scrollY / rowHeight;
+        const int lastRow = (scrollY + gutterHeight) / rowHeight;
+        const int blackKeyWidth = juce::roundToInt ((float) gutterWidth * blackKeyWidthRatio);
 
-        const int octave = pitch / 12 - 1; // MIDI convention: pitch 60 == C4
-        const int y = geometry.yForPitch (pitch) - scrollY;
-        g.drawFittedText ("C" + juce::String (octave), 0, y, gutterWidth - 4, rowHeight,
-                           juce::Justification::centredRight, 1);
+        g.setFont (juce::Font (juce::FontOptions (9.0f)));
+
+        for (int row = firstRow; row <= lastRow; ++row)
+        {
+            const int pitch = topPitch - row;
+            const int pitchClass = ((pitch % 12) + 12) % 12;
+            const int y = geometry.yForPitch (pitch) - scrollY;
+
+            if (PianoRollGeometry::isBlackKey (pitch))
+            {
+                g.setColour (juce::Colour (blackKey));
+                g.fillRect (0, y, blackKeyWidth, rowHeight);
+
+                // The two white keys either side meet behind the black key's middle.
+                g.setColour (juce::Colour (whiteKeyDivider));
+                g.drawHorizontalLine (y + rowHeight / 2, (float) blackKeyWidth, (float) gutterWidth);
+                continue;
+            }
+
+            // C and F have a white key directly beneath them (B, E) with no
+            // black key in between -- a full-width edge, like a real keyboard.
+            if (pitchClass == 0 || pitchClass == 5)
+            {
+                g.setColour (juce::Colour (whiteKeyDivider));
+                g.drawHorizontalLine (y + rowHeight, 0.0f, (float) gutterWidth);
+            }
+
+            if (pitchClass == 0) // only label C notes, per the mockup
+            {
+                const int octave = pitch / 12 - 1; // MIDI convention: pitch 60 == C4
+                g.setColour (juce::Colour (whiteKeyLabel));
+                g.drawFittedText ("C" + juce::String (octave), 0, y, gutterWidth - 4, rowHeight,
+                                   juce::Justification::centredRight, 1);
+            }
+        }
     }
+
+    g.setColour (juce::Colour (SongsmithColours::border));
+    g.drawVerticalLine (gutterWidth - 1, 0.0f, (float) gutterHeight);
 }
 
 void PianoRollComponent::setGhostTracks (std::vector<juce::ValueTree> tracks)
