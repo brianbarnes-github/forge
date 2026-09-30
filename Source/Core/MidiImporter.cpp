@@ -25,6 +25,7 @@ namespace
         // within this MIDI track (note events only, non-notes don't count)
         // so an editor can find the exact source event later.
         int noteOnOrdinal = 0;
+        bool sawProgramChange = false;
 
         for (int eventIndex = 0; eventIndex < source.getNumEvents(); ++eventIndex)
         {
@@ -35,6 +36,18 @@ namespace
             if (message.isTrackNameEvent())
             {
                 track.name = message.getTextFromTextMetaEvent().toStdString();
+                continue;
+            }
+
+            if (message.isProgramChange())
+            {
+                // First one wins: a track keeps one instrument identity even
+                // if it switches programs mid-song.
+                if (! sawProgramChange)
+                {
+                    track.sourceProgram = message.getProgramChangeNumber();
+                    sawProgramChange = true;
+                }
                 continue;
             }
 

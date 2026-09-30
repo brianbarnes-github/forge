@@ -23,6 +23,12 @@ struct Track
     int                           transposeSemitones  = 0;
     int                           sourceMidiChannel   = 0;
 
+    // GM program (0..127) from the track's first Program Change event; 0
+    // (the GM default) when the track has none. Informational only — no
+    // conversion pass reads it; Songsmith uses it to colour tracks by
+    // instrument family.
+    int                           sourceProgram       = 0;
+
     // ABC X: index. 0 means "auto-assign in emission order" (no-config or
     // legacy path); nonzero means the user picked this specific value via
     // Config. Writer sorts tracks ascending by x before emission.

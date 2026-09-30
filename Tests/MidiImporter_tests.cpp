@@ -109,6 +109,35 @@ TEST_CASE ("MidiImporter: channel-10 tracks auto-detect as Drums", "[midi]")
     CHECK (track.notes.front().isDrum);
 }
 
+TEST_CASE ("MidiImporter: records the track's first Program Change as sourceProgram", "[midi]")
+{
+    juce::MidiFile midi;
+    midi.setTicksPerQuarterNote (480);
+    midi.addTrack (makeHeaderSequence (120.0, 4, 4));
+
+    // Violin (GM 40) at tick 0, then a later switch to Cello (42) that must
+    // NOT override the first one — one program per track.
+    auto violin = makeSingleNoteTrack ("Violin", 1, 67, 100, 0, 480);
+    violin.addEvent (juce::MidiMessage::programChange (1, 40));
+    auto laterSwitch = juce::MidiMessage::programChange (1, 42);
+    laterSwitch.setTimeStamp (960);
+    violin.addEvent (laterSwitch);
+    violin.updateMatchedPairs();
+    midi.addTrack (violin);
+
+    // No Program Change at all: stays at the GM default, program 0.
+    midi.addTrack (makeSingleNoteTrack ("Unspecified", 2, 60, 100, 0, 480));
+
+    auto input = serialise (midi);
+
+    lotro::Diagnostics warnings;
+    auto song = lotro::importMidi (input, "programs", warnings);
+
+    REQUIRE (song.tracks.size() == 2);
+    CHECK (song.tracks[0].sourceProgram == 40);
+    CHECK (song.tracks[1].sourceProgram == 0);
+}
+
 TEST_CASE ("MidiImporter: missing tempo/meter get defaults", "[midi]")
 {
     juce::MidiFile midi;
