@@ -85,10 +85,17 @@ When you say…       …I'll know you mean
 - **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — index, name,
   colour swatch, and a `"<n> notes · <lo>–<hi>"` (or `"· ch 10"` for drums)
   second line fill a fixed 180px-wide left column; the inline
-  `TrackNotePreview` (read-only) fills everything to its right — the note
+  `TrackNotePreview` (read-only, notes drawn in the track's colour) fills
+  everything to its right — the note
   data is the primary content, so it grows with the window instead of being
   pinned to a small fixed width — painted directly against the track list's
   shared `TimelineViewState` (#9) — so every row zooms/scrolls in lockstep.
+  A 1px `trackDivider` line along each row's bottom edge separates tracks.
+  Track colour (`colorArgb`) is set on import from the track's GM instrument
+  family — its first Program Change `/ 8`, or Drums for channel 10 — with
+  successive same-family tracks cycling through 4 shades of that family's
+  hue; the swatch, preview notes, assignment chips and ghost overlays all
+  use it.
   On import, the shared zoom auto-fits so the longest track's notes span the
   full preview width (`TrackListComponent::fitTimelineToDocument()`, called
   from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
