@@ -1,0 +1,278 @@
+<div style="background: #2b2b2b; border-radius: var(--border-radius-lg); padding: 0; font-family: var(--font-sans); color: #d0d0d0; overflow: hidden; border: 0.5px solid #1a1a1a;">
+
+  <!-- Menu bar -->
+  <div style="background: #3a3a3a; padding: 6px 12px; display: flex; gap: 18px; font-size: 12px; color: #c0c0c0; border-bottom: 1px solid #1a1a1a;">
+    <span>File</span><span>Edit</span><span>MIDI</span><span>Song</span><span>ABC</span><span>View</span><span>Help</span>
+  </div>
+
+  <!-- Toolbar -->
+  <div style="background: #333333; padding: 8px 12px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1a1a1a; font-size: 11px;">
+    <div style="display: flex; gap: 4px;">
+      <div style="width: 26px; height: 22px; background: #4a4a4a; border: 1px solid #1a1a1a; border-radius: 3px; display: flex; align-items: center; justify-content: center;">▶</div>
+      <div style="width: 26px; height: 22px; background: #4a4a4a; border: 1px solid #1a1a1a; border-radius: 3px; display: flex; align-items: center; justify-content: center;">■</div>
+    </div>
+    <div style="width: 1px; height: 18px; background: #1a1a1a;"></div>
+    <span style="font-family: var(--font-mono); color: #88c088;">001.01.000</span>
+    <span style="color: #888; margin-left: 12px;">Tempo</span>
+    <span style="font-family: var(--font-mono); color: #e0d080;">120.0</span>
+    <div style="flex: 1;"></div>
+    <span style="color: #666; font-size: 10px; margin-right: 8px;">source.mid → song.abc</span>
+    <div style="background: #4a3a2a; border: 1px solid #1a1a1a; border-radius: 3px; padding: 3px 10px; color: #e0b080;">Export ABC</div>
+  </div>
+
+  <!-- ===== TOP HALF: MIDI source ===== -->
+  <div style="background: #2a2a2a; border-bottom: 3px solid #1a1a1a;">
+    <div style="background: #383838; padding: 5px 10px; font-size: 11px; color: #a0a0a0; border-bottom: 1px solid #1a1a1a; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center;">
+      <span style="color: #7fa8d0;">▲ MIDI source</span>
+      <span style="color: #666; margin-left: 10px; text-transform: none; letter-spacing: 0; font-size: 10px;">edit notes · drag tracks down to assign</span>
+      <div style="flex: 1;"></div>
+      <span style="color: #888; text-transform: none; letter-spacing: 0;">Track 1</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 160px 1fr; min-height: 160px;">
+
+      <!-- MIDI track list -->
+      <div style="background: #262626; border-right: 1px solid #1a1a1a;">
+        <div draggable="true" style="background: #3d4a5a; border-left: 3px solid #7fa8d0; padding: 5px 8px; border-bottom: 1px solid #1a1a1a; cursor: grab;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+            <span style="color: #888; font-family: var(--font-mono); width: 12px;">1</span>
+            <span style="color: #e8e8e8; font-weight: 500; flex: 1;">Track 1</span>
+            <span style="background: #7fa8d0; width: 10px; height: 10px; border-radius: 2px;"></span>
+          </div>
+          <div style="font-size: 9px; color: #888; margin-left: 18px;">128 notes · C3–C6</div>
+        </div>
+
+        <div draggable="true" style="padding: 5px 8px; border-bottom: 1px solid #1a1a1a; border-left: 3px solid transparent; cursor: grab;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+            <span style="color: #888; font-family: var(--font-mono); width: 12px;">2</span>
+            <span style="color: #c0c0c0; flex: 1;">Track 2</span>
+            <span style="background: #c89cc0; width: 10px; height: 10px; border-radius: 2px;"></span>
+          </div>
+          <div style="font-size: 9px; color: #888; margin-left: 18px;">96 notes · C2–C5</div>
+        </div>
+
+        <div draggable="true" style="padding: 5px 8px; border-bottom: 1px solid #1a1a1a; border-left: 3px solid transparent; cursor: grab;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+            <span style="color: #888; font-family: var(--font-mono); width: 12px;">3</span>
+            <span style="color: #c0c0c0; flex: 1;">Track 3</span>
+            <span style="background: #9cc09c; width: 10px; height: 10px; border-radius: 2px;"></span>
+          </div>
+          <div style="font-size: 9px; color: #888; margin-left: 18px;">64 notes · C1–C4</div>
+        </div>
+
+        <div draggable="true" style="padding: 5px 8px; border-bottom: 1px solid #1a1a1a; border-left: 3px solid transparent; cursor: grab;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+            <span style="color: #888; font-family: var(--font-mono); width: 12px;">4</span>
+            <span style="color: #c0c0c0; flex: 1;">Track 4</span>
+            <span style="background: #c0c09c; width: 10px; height: 10px; border-radius: 2px;"></span>
+          </div>
+          <div style="font-size: 9px; color: #888; margin-left: 18px;">48 notes · ch 10</div>
+        </div>
+      </div>
+
+      <!-- Source piano roll -->
+      <div style="position: relative; background: repeating-linear-gradient(to bottom, #252525 0px, #252525 8px, #202020 8px, #202020 9px);">
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 30px; background: #1e1e1e; border-right: 1px solid #1a1a1a; font-family: var(--font-mono); font-size: 8px; color: #666;">
+          <div style="padding: 2px 3px; text-align: right;">C6</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C5</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C4</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C3</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C2</div>
+        </div>
+
+        <div style="position: absolute; left: 110px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 190px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 270px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 350px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 430px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+
+        <div style="position: absolute; left: 140px; top: 0; bottom: 0; width: 1px; background: #d08060;"></div>
+
+        <!-- Track 1 source notes (all blue) -->
+        <div style="position: absolute; left: 40px; top: 30px; width: 22px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 64px; top: 38px; width: 14px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 80px; top: 30px; width: 28px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 112px; top: 22px; width: 36px; height: 7px; background: #a0c8e8; border: 1px solid #c0d8f0;"></div>
+        <div style="position: absolute; left: 152px; top: 30px; width: 18px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 172px; top: 38px; width: 18px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 192px; top: 46px; width: 36px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 230px; top: 30px; width: 44px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 276px; top: 22px; width: 28px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 306px; top: 38px; width: 22px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 330px; top: 30px; width: 50px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 382px; top: 14px; width: 20px; height: 7px; background: #a0c8e8; border: 1px solid #c0d8f0;"></div>
+        <div style="position: absolute; left: 404px; top: 38px; width: 30px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MIDDLE: Part slots (assignment bar) ===== -->
+  <div style="background: #252525; border-bottom: 1px solid #1a1a1a;">
+    <div style="background: #383838; padding: 5px 10px; font-size: 11px; color: #a0a0a0; border-bottom: 1px solid #1a1a1a; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center;">
+      <span>Parts · drop tracks to assign</span>
+      <div style="flex: 1;"></div>
+      <span style="color: #666; text-transform: none; letter-spacing: 0; font-size: 10px;">click a part to preview below ↓</span>
+    </div>
+
+    <div style="display: flex; gap: 1px; background: #1a1a1a; padding: 0;">
+
+      <!-- Part 1 (selected) -->
+      <div style="background: #3a3a3a; flex: 1; padding: 6px 8px; border-top: 2px solid #e0b080;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-bottom: 4px;">
+          <span style="color: #888; font-family: var(--font-mono);">1</span>
+          <span style="background: #2a3a4a; color: #9cc0e0; padding: 1px 6px; border-radius: 2px;">Lute</span>
+          <span style="color: #e8e8e8; flex: 1;">Melody</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+          <div style="background: #3d4a5a; border: 1px dashed #7fa8d0; border-radius: 2px; padding: 2px 5px; font-size: 10px; color: #d0d0d0; display: flex; align-items: center; gap: 4px;">
+            <span style="background: #7fa8d0; width: 6px; height: 6px; border-radius: 1px;"></span>
+            <span>Tk1</span>
+            <span style="color: #888; font-family: var(--font-mono);">+0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Part 2 -->
+      <div style="background: #2e2e2e; flex: 1; padding: 6px 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-bottom: 4px;">
+          <span style="color: #888; font-family: var(--font-mono);">2</span>
+          <span style="background: #3a2a3a; color: #c89cc0; padding: 1px 6px; border-radius: 2px;">Harp</span>
+          <span style="color: #c0c0c0; flex: 1;">Harmony</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+          <div style="background: #4a3a4a; border: 1px dashed #c89cc0; border-radius: 2px; padding: 2px 5px; font-size: 10px; color: #d0d0d0; display: flex; align-items: center; gap: 4px;">
+            <span style="background: #c89cc0; width: 6px; height: 6px; border-radius: 1px;"></span>
+            <span>Tk2</span>
+            <span style="color: #888; font-family: var(--font-mono);">+12</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Part 3 with two tracks -->
+      <div style="background: #2e2e2e; flex: 1; padding: 6px 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-bottom: 4px;">
+          <span style="color: #888; font-family: var(--font-mono);">3</span>
+          <span style="background: #2a3a2a; color: #9cc09c; padding: 1px 6px; border-radius: 2px;">Theorbo</span>
+          <span style="color: #c0c0c0; flex: 1;">Bass</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+          <div style="background: #3a4a3a; border: 1px dashed #9cc09c; border-radius: 2px; padding: 2px 5px; font-size: 10px; color: #d0d0d0; display: flex; align-items: center; gap: 4px;">
+            <span style="background: #9cc09c; width: 6px; height: 6px; border-radius: 1px;"></span>
+            <span>Tk3</span>
+            <span style="color: #888; font-family: var(--font-mono);">−12</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Part 4 empty -->
+      <div style="background: #2e2e2e; flex: 1; padding: 6px 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; margin-bottom: 4px;">
+          <span style="color: #888; font-family: var(--font-mono);">4</span>
+          <span style="background: #3a3a2a; color: #c0c09c; padding: 1px 6px; border-radius: 2px;">Drum</span>
+          <span style="color: #c0c0c0; flex: 1;">Percussion</span>
+        </div>
+        <div style="background: #262626; border: 1px dashed #555; border-radius: 2px; padding: 2px 5px; font-size: 10px; color: #666; text-align: center;">
+          drop here
+        </div>
+      </div>
+
+      <!-- Add part -->
+      <div style="background: #2a2a2a; padding: 6px 10px; font-size: 10px; color: #7a7a7a; display: flex; align-items: center; border-left: 1px solid #1a1a1a;">
+        + Add
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BOTTOM HALF: LOTRO preview piano roll ===== -->
+  <div style="background: #2a2a2a;">
+    <div style="background: #383838; padding: 5px 10px; font-size: 11px; color: #a0a0a0; border-bottom: 1px solid #1a1a1a; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center;">
+      <span style="color: #e0b080;">▼ LOTRO preview · Part 1 Lute</span>
+      <span style="color: #666; margin-left: 10px; text-transform: none; letter-spacing: 0; font-size: 10px;">how it will sound in-game · after transpose + range clamp</span>
+      <div style="flex: 1;"></div>
+      <span style="color: #c06060; text-transform: none; letter-spacing: 0;">⚠ 1 out of range</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 160px 1fr; min-height: 180px;">
+
+      <!-- Assigned tracks summary -->
+      <div style="background: #262626; border-right: 1px solid #1a1a1a; padding: 8px;">
+        <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Assigned</div>
+
+        <div style="background: #2e2e2e; border-left: 2px solid #7fa8d0; padding: 4px 6px; margin-bottom: 4px; font-size: 10px;">
+          <div style="color: #d0d0d0;">Track 1</div>
+          <div style="color: #888; font-family: var(--font-mono); font-size: 9px;">+0 semi · 1/16</div>
+        </div>
+
+        <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 10px 0 6px;">Instrument</div>
+        <div style="font-size: 10px; color: #d0d0d0;">Lute</div>
+        <div style="font-size: 9px; color: #888; font-family: var(--font-mono); margin-top: 2px;">Range: C2 – C5</div>
+
+        <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 10px 0 4px;">Range policy</div>
+        <div style="font-size: 10px; color: #d0d0d0;">Octave shift</div>
+
+        <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin: 10px 0 4px;">Output stats</div>
+        <div style="font-size: 10px; color: #d0d0d0; font-family: var(--font-mono);">128 notes</div>
+        <div style="font-size: 10px; color: #c06060; font-family: var(--font-mono);">1 clipped</div>
+      </div>
+
+      <!-- Preview piano roll -->
+      <div style="position: relative; background: repeating-linear-gradient(to bottom, #252525 0px, #252525 8px, #202020 8px, #202020 9px);">
+        <!-- Keyboard -->
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 30px; background: #1e1e1e; border-right: 1px solid #1a1a1a; font-family: var(--font-mono); font-size: 8px; color: #666;">
+          <div style="padding: 2px 3px; text-align: right;">C6</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C5</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C4</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C3</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C2</div>
+          <div style="padding: 10px 3px 2px; text-align: right;">C1</div>
+        </div>
+
+        <!-- RANGE BAND overlay: C2 to C5 for Lute -->
+        <div style="position: absolute; left: 30px; right: 0; top: 18px; height: 60px; background: rgba(127,168,208,0.06); border-top: 1px dashed #5a7a9a; border-bottom: 1px dashed #5a7a9a; pointer-events: none;"></div>
+        <div style="position: absolute; right: 6px; top: 20px; font-size: 8px; color: #5a7a9a; font-family: var(--font-mono);">Lute range</div>
+
+        <!-- OUT OF RANGE zones (shaded red-ish) -->
+        <div style="position: absolute; left: 30px; right: 0; top: 0; height: 18px; background: rgba(192,96,96,0.08); pointer-events: none;"></div>
+        <div style="position: absolute; left: 30px; right: 0; top: 78px; bottom: 0; background: rgba(192,96,96,0.04); pointer-events: none;"></div>
+
+        <div style="position: absolute; left: 110px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 190px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 270px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 350px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+        <div style="position: absolute; left: 430px; top: 0; bottom: 0; width: 1px; background: #333;"></div>
+
+        <div style="position: absolute; left: 140px; top: 0; bottom: 0; width: 1px; background: #d08060;"></div>
+
+        <!-- Preview notes (same positions as Track 1, all blue because Part 1 is the Lute) -->
+        <div style="position: absolute; left: 40px; top: 30px; width: 22px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 64px; top: 38px; width: 14px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 80px; top: 30px; width: 28px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 112px; top: 22px; width: 36px; height: 7px; background: #a0c8e8; border: 1px solid #c0d8f0;"></div>
+        <div style="position: absolute; left: 152px; top: 30px; width: 18px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 172px; top: 38px; width: 18px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 192px; top: 46px; width: 36px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 230px; top: 30px; width: 44px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 276px; top: 22px; width: 28px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 306px; top: 38px; width: 22px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+        <div style="position: absolute; left: 330px; top: 30px; width: 50px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+
+        <!-- Out of range note (red, in the top red zone) -->
+        <div style="position: absolute; left: 382px; top: 10px; width: 20px; height: 7px; background: #c06060; border: 1px solid #e08080;" title="Out of range"></div>
+
+        <div style="position: absolute; left: 404px; top: 38px; width: 30px; height: 7px; background: #7fa8d0; border: 1px solid #a0c0e0;"></div>
+
+        <!-- Ghost of where it WOULD be after octave shift -->
+        <div style="position: absolute; left: 382px; top: 26px; width: 20px; height: 7px; background: transparent; border: 1px dashed #e0b080; opacity: 0.7;" title="After octave shift"></div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div style="background: #333333; padding: 3px 10px; font-size: 10px; color: #888; border-top: 1px solid #1a1a1a; display: flex; gap: 16px; font-family: var(--font-mono);">
+      <span>In-range: 127</span>
+      <span style="color: #c06060;">Out of range: 1 (will octave-shift)</span>
+      <div style="flex: 1;"></div>
+      <span>Zoom: 100%</span>
+    </div>
+  </div>
+
+</div>
