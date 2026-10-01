@@ -23,3 +23,7 @@ transport.zip
 
 # User-dropped test MIDIs (personal scratch; tracked fixtures remain tracked)
 midi/*.mid
+
+# Session handoff notes and ad-hoc screenshots (personal scratch)
+HANDOFF-*.md
+screenshots/

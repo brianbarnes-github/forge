@@ -2,11 +2,17 @@
 
 Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Status: v0.1 CLI complete, editor-ready Core library
+## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish
 
 This repo (**Forge**) is a MIDI → LOTRO ABC converter shipped as a CLI
-(`forge`) and a JUCE GUI (`forge_ui`), both thin wrappers around a
-static library (`forge_core`) that is JUCE-free at its public surface.
+(`forge`) and a JUCE GUI (`forge_ui`, the **Songsmith** MIDI editor —
+binary `song-smith`), both thin wrappers around a static library
+(`forge_core`) that is JUCE-free at its public surface.
+
+**Core/UI boundary:** editing, timing and display logic (quantize, snap,
+selection, layout) lives in `Source/UI/`; `Source/Core/` only gets what
+the conversion pipeline itself needs. Check the `forge-engine-ui-boundary`
+skill before touching `Source/Core/`.
 
 The original spec is `lotro-abc-converter-spec.md` (560 lines). Some of
 its design decisions have been revised in practice — see
@@ -35,6 +41,7 @@ this principle rules out tempting improvements.
 | `docs/DELTAS_FROM_SPEC.md` | Where the implementation intentionally diverges from `lotro-abc-converter-spec.md` |
 | `docs/REFERENCE.md` | Drum-map source data, MIDI/ABC test fixtures, config-schema spec doc |
 | `docs/TESTING.md` | Test count and what the notable test files pin down |
+| `docs/songsmith-ui-map.html`, `docs/Songsmith Arch.md`, `docs/Songsmith UI Guide.html` | Clickable `#N` map companion to `UI_GUIDE.md`; original Songsmith design notes and mock-up |
 
 ## Build / test commands
 
@@ -58,6 +65,17 @@ window. Single test: `ctest --test-dir build -R <name>
 --output-on-failure`. First clone: `git submodule update --init
 --recursive`. Details, toolchain rationale, and Windows CI packaging:
 `docs/BUILD.md`.
+
+**Local Windows cross-compile** (clang-cl + xwin + ciopfs + Wine — for
+Songsmith GUI/pixel-comparison test work that Linux can't verify):
+`./setup-windows-toolchain.sh` once per machine, then
+`./build-windows.sh [forge|forge_ui|forge_tests|all]`. Dev-loop
+accelerant only — `windows-2022` CI (real MSVC) is still the release
+gate. Full details: `docs/BUILD.md`.
+
+**Deploy for the user's manual testing:** `./build-windows.sh forge_ui &&
+cp build-windows/forge_ui_artefacts/Release/song-smith.exe
+/mnt/c/Apps/SongSmith/`.
 
 ## Git
 
