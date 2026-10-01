@@ -82,6 +82,24 @@ target_link_libraries(forge PRIVATE
     juce::juce_recommended_lto_flags)
 
 # ---------------------------------------------------------------------------
+# forge_build_info — regenerates generated/ForgeBuildInfo.h (version, git
+# commit count + short hash, dirty flag) on every build, for the About box.
+# The header is only rewritten when a value changes. Consumers add
+# FORGE_BUILD_INFO_DIR to their include path and depend on this target.
+# ---------------------------------------------------------------------------
+set(FORGE_BUILD_INFO_DIR "${CMAKE_BINARY_DIR}/generated")
+add_custom_target(forge_build_info
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DOUT_FILE=${FORGE_BUILD_INFO_DIR}/ForgeBuildInfo.h
+        -DTEMPLATE_FILE=${CMAKE_SOURCE_DIR}/cmake/ForgeBuildInfo.h.in
+        -DPROJECT_VERSION=${PROJECT_VERSION}
+        -P ${CMAKE_SOURCE_DIR}/cmake/GenerateBuildInfo.cmake
+    BYPRODUCTS ${FORGE_BUILD_INFO_DIR}/ForgeBuildInfo.h
+    COMMENT "Stamping build info"
+    VERBATIM)
+
+# ---------------------------------------------------------------------------
 # forge_ui — JUCE GUI editor for forge config files
 # ---------------------------------------------------------------------------
 juce_add_gui_app(forge_ui
@@ -110,6 +128,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/TrackListComponent.cpp
     Source/UI/TrackEditorWindow.cpp
     Source/UI/WindowPlacement.cpp
+    Source/UI/BuildInfo.cpp
+    Source/UI/AboutBox.cpp
     Source/UI/AssignmentChipComponent.cpp
     Source/UI/PartSlotComponent.cpp
     Source/UI/PartStripComponent.cpp
@@ -125,6 +145,9 @@ target_compile_definitions(forge_ui PRIVATE
     JUCE_USE_DARK_SPLASH_SCREEN=1
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_REPORT_APP_USAGE=0)
+
+target_include_directories(forge_ui PRIVATE ${FORGE_BUILD_INFO_DIR})
+add_dependencies(forge_ui forge_build_info)
 
 target_link_libraries(forge_ui PRIVATE
     forge_core

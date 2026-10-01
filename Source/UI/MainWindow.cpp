@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "AboutBox.h"
 #include "DiagnosticsPane.h"
 #include "GridSize.h"
 #include "SongModelBridge.h"
@@ -134,7 +135,7 @@ void MainWindow::closeButtonPressed()
     juce::JUCEApplication::getInstance()->systemRequestedQuit();
 }
 
-juce::StringArray MainWindow::getMenuBarNames() { return { "File", "Edit", "Song", "View" }; }
+juce::StringArray MainWindow::getMenuBarNames() { return { "File", "Edit", "Song", "View", "Help" }; }
 
 juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::String&)
 {
@@ -186,6 +187,10 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         m.addItem (ViewExportPanelToggle, "Export ABC panel", true, body->isExportPanelVisible());
         m.addItem (ViewDiagnosticsToggle, "Diagnostics list", true, body->getSongsmith().isDiagnosticsVisible());
     }
+    else if (topLevelMenuIndex == 4) // Help
+    {
+        m.addItem (HelpAbout, "About...");
+    }
     return m;
 }
 
@@ -209,6 +214,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
         case EditQuantize:    body->getSongsmith().quantizeActiveEditor();                    return;
+        case HelpAbout:       showAboutDialog (this);                                         return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
         case SongRunConverter:
             runConversion();

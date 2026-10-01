@@ -44,6 +44,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          # Full history: the About box's build number is the commit count
+          # (git rev-list --count HEAD), which a shallow clone reports as 1.
+          fetch-depth: 0
 
       # 2. Configure CMake with the Visual Studio 2022 generator (multi-config).
       - name: Configure

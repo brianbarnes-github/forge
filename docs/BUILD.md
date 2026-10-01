@@ -108,3 +108,15 @@ MSVC, `windows-2022`) via `.github/workflows/windows-build.yml`. The
 also publishes `forge-windows.zip`. This remains the release/CI build —
 real MSVC, no clang-cl/xwin involved — kept separate from the local
 cross-compile path above, which is for dev-loop iteration only.
+
+## Build number (Help → About...)
+
+Every build of `forge_ui`/`forge_tests` first runs the `forge_build_info`
+target, which stamps `<build dir>/generated/ForgeBuildInfo.h` with the
+CMake `PROJECT_VERSION`, the commit count (`git rev-list --count HEAD`),
+the 7-character short hash, and whether tracked files had uncommitted
+changes. The About box shows these as `Version 0.1.0` /
+`Build 201 (eb054de)` (`-dirty` suffix for uncommitted changes, `Build
+unknown` when git isn't available). The count is the same for CI and local
+builds of the same commit, so it's the number to ask testers for. CI
+checks out with `fetch-depth: 0` — a shallow clone would count 1.

@@ -46,6 +46,7 @@ add_executable(forge_tests
     SongsmithColours_tests.cpp
     TrackRowComponent_tests.cpp
     WindowPlacement_tests.cpp
+    AboutBox_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
@@ -59,6 +60,8 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackEditorWindow.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/WindowPlacement.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/BuildInfo.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/AboutBox.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackNotePreview.cpp
@@ -68,6 +71,9 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewAssignedPanel.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/DiagnosticListView.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongsmithMainComponent.cpp)
+
+target_include_directories(forge_tests PRIVATE ${FORGE_BUILD_INFO_DIR})
+add_dependencies(forge_tests forge_build_info)
 
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain

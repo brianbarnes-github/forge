@@ -46,6 +46,7 @@ private:
         ViewExportPanelToggle,
         ViewDiagnosticsToggle,
         EditQuantize,
+        HelpAbout,
 
         // Grid-size submenu items occupy EditGridSizeBase + each GridSize
         // enum value, and menuItemSelected range-checks incoming ids against
