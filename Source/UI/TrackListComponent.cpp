@@ -192,7 +192,7 @@ void TrackListComponent::paint (juce::Graphics& g)
         g.setColour (juce::Colour (SongsmithColours::textMuted));
         g.setFont (juce::Font (juce::FontOptions (11.0f)));
         g.drawFittedText (juce::String::fromUTF8 (
-                               "No MIDI loaded \xe2\x80\x94 File \xe2\x86\x92 Open MIDI\xe2\x80\xa6 or drop a .mid here"),
+                               "No MIDI loaded \xe2\x80\x94 File \xe2\x86\x92 Import \xe2\x96\xb8 MIDI\xe2\x80\xa6 or drop a .mid here"),
                            getLocalBounds().reduced (12), juce::Justification::centred, 4);
     }
 }

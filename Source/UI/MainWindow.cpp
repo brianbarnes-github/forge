@@ -504,7 +504,7 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     const auto cmdShift = juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
     if (key == juce::KeyPress ('n', cmd, 0))      { menuItemSelected (FileNew, 0);      return true; }
     if (key == juce::KeyPress ('o', cmd, 0))      { menuItemSelected (FileOpenSong, 0); return true; }
-    if (key == juce::KeyPress ('s', cmd, 0))      { menuItemSelected (FileSave, 0);     return true; }
+    if (key == juce::KeyPress ('s', cmd, 0))      { if (session.isDirty() || session.isUntitled()) menuItemSelected (FileSave, 0);   return true; }
     if (key == juce::KeyPress ('s', cmdShift, 0)) { menuItemSelected (FileSaveAs, 0);   return true; }
     return false;
 }

@@ -34,7 +34,7 @@ public:
 
     // Opens without asking about unsaved changes -- callers guard.
     void openSongFromPath (const juce::File& file);
-    // Guarded: asks about unsaved changes first (drops, later the command line).
+    // Guarded: asks about unsaved changes first (File > Open, .songsmith drops).
     void requestOpenSong (const juce::File& file);
     // Nothing is open yet at startup, so this skips the guard.
     void openSongOnStartup (const juce::File& file);
