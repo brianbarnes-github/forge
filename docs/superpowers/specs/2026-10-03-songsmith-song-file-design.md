@@ -25,7 +25,7 @@ foreign file is refused with a specific message without touching the open Song.
 - **Standard unsaved-changes prompt** (Save / Don't Save / Cancel).
 - **Config items removed** from the menu (Open Config, Save Config As) along
   with the config drag-and-drop stub. Config import/export may return later.
-- **Integrity via gzip's own CRC32, no SHA-256.** `juce::SHA256` needs the
+- **Integrity via our own CRC-32 plus stored lengths, no SHA-256.** `juce::SHA256` needs the
   `juce_cryptography` module, which no target links; gzip is in `juce_core`.
   No new dependency or module is added.
 - **`nextImportBatch` is persisted** on `SONG` with the other id counters.
@@ -42,6 +42,7 @@ Container (little-endian):
 | magic | 4 | `"SGSM"` |
 | formatVersion | uint32 | starts at 1; one number covers container and tree schema |
 | uncompressedLength | uint64 | bytes of the serialized tree before gzip |
+| crc32 | uint32 | CRC-32 of the uncompressed payload |
 | payloadLength | uint64 | bytes of the gzip payload that follow |
 | payload | n | gzip of `ValueTree::writeToStream(SONG)` |
 
@@ -51,10 +52,10 @@ Read order (nothing is parsed until the bytes are proven intact — Debug
    `UnsupportedVersion`; older → migration chain keyed on `formatVersion`.
 2. `payloadLength` must equal the remaining bytes (shorter → `Truncated`,
    longer → `Corrupt`).
-3. Decompress fully via `GZIPDecompressorInputStream`. zlib verifies CRC32 and
-   ISIZE at stream end but the JUCE stream reports failure as a short read /
-   error flag, not an exception, so check both the error flag and that the
-   decompressed byte count equals `uncompressedLength` → else `ChecksumMismatch`.
+3. Decompress fully via `GZIPDecompressorInputStream` (gzip format). JUCE's
+   stream does not expose a failed zlib trailer check, so integrity is checked
+   by the decompressed byte count (`uncompressedLength`) **and** our own
+   `crc32` of the decompressed bytes → else `ChecksumMismatch`.
 4. Only then `ValueTree::readFromStream`, then the semantic check below.
 
 Any schema change bumps `formatVersion`.

@@ -117,6 +117,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/MidiImportPlan.cpp
     Source/UI/RawMidi.cpp
     Source/UI/SongDocument.cpp
+    Source/UI/SongFile.cpp
     Source/UI/SongModelBridge.cpp
     Source/UI/SourceTrackNoteSource.cpp
     Source/UI/PianoRollGeometry.cpp

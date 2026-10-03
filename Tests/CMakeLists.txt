@@ -26,6 +26,7 @@ add_executable(forge_tests
     InstrumentAssembly_tests.cpp
     Provenance_tests.cpp
     SongDocument_tests.cpp
+    SongFile_tests.cpp
     SongModelBridge_tests.cpp
     SongsmithRoundTrip_tests.cpp
     SourceTrackNoteSource_tests.cpp
@@ -57,6 +58,7 @@ add_executable(forge_tests
     RawMidi_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/RawMidi.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/SongFile.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollGeometry.cpp
