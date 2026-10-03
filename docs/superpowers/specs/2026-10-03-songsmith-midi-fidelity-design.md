@@ -1,6 +1,7 @@
 # Songsmith MIDI fidelity: every MIDI event lives in the song — design
 
-**Status:** Design accepted; implementation pending.
+**Status:** Design accepted; revised after an independent spec review
+(Fable 5.1, 2026-10-03); implementation pending.
 **Author:** Brian Barnes, with Claude, during a 2026-10-02/03 brainstorming session.
 
 ## Summary
@@ -116,9 +117,18 @@ Verified in `JUCE/modules/juce_audio_basics/midi/juce_MidiFile.cpp`:
   `importMidi` uses) inserts a synthetic note-off when a key is re-struck
   before its note-off.
 
-Both are reasonable for playback and wrong for an exact copy. So Core gets
-its own small SMF reader/writer. `importMidi` keeps using JUCE unchanged, so
-conversion can't move.
+Precisely (`juce_MidiFile.cpp` `reorderNoteOnsAfterNoteOffs`): per tick
+group it finds the *first* note-on, finds the *last* note-off of the same
+channel and key later in the group, swaps the two, and continues after the
+first note-on's slot; it stops for that group as soon as a first note-on has
+no matching off. This can move a note-on past other note-ons, so the order
+of note-ons is *not* preserved. `updateMatchedPairs` pairs each note-on with
+the next same-channel/key note-off, or, if a same-channel/key note-on comes
+first, *inserts* a synthetic note-off into the list at that point.
+
+Both are reasonable for playback and wrong for an exact copy. So the project
+gets its own small SMF reader/writer. `importMidi` keeps using JUCE
+unchanged, so conversion can't move.
 
 ## Design
 
@@ -155,16 +165,28 @@ void        writeMidiFile (const RawMidiFile& file, std::ostream& output);
 }
 ```
 
-**Reader**
+**Reader** (track structure matches `juce::MidiFile::readFrom`, so track
+indices line up with `importMidi`'s `sourceTrackIndex`)
 - Resolves running status: stored bytes always carry an explicit status.
+  Meta and SysEx events do *not* cancel running status (JUCE's `readTrack`
+  behaviour; the SMF spec says they should, but matching JUCE matters more
+  here).
 - Keeps note-on at velocity 0 as written.
 - Keeps F0 and F7 SysEx packets, and every meta type, including unknown ones.
-- A track without End-of-Track gets `endTick` = its last event's tick.
+- Reads exactly the header's track count of chunks. A non-`MTrk` chunk
+  consumes one of those slots and is skipped, as in JUCE. A track's index is
+  the ordinal of its `MTrk` chunk.
+- `endTick` is the tick of the track's first End-of-Track; a track without
+  one gets its last event's tick. Events after an End-of-Track are kept in
+  `events` in file order (JUCE keeps reading them too). Such malformed files
+  are not guaranteed to round-trip exactly, because export writes one
+  End-of-Track at the end.
 - SMPTE time division is rejected, as `importMidi` does today.
 - Malformed input throws `MidiImportError`: bad/short `MThd`, a chunk
   running past end of file, an unterminated variable-length number, a data
-  byte with no running status, or truncated event data.
-- Non-`MTrk` chunks are skipped.
+  byte with no running status, or truncated event data. JUCE is more
+  tolerant of some of these (it silently stops reading the track); see
+  Import step 1 for what happens when the two parsers disagree.
 
 **Writer**
 - Writes `MThd` (format, track count, PPQ) and one `MTrk` per track.
@@ -173,6 +195,9 @@ void        writeMidiFile (const RawMidiFile& file, std::ostream& output);
 - Writes every status byte explicitly (no running-status compression).
   Event-level equality is the guarantee, not byte equality of the file.
 - Writes meta and SysEx lengths as variable-length numbers.
+- Checks the output stream's state after writing and throws
+  `MidiExportError` (declared in `RawMidi.h` beside `MidiImportError`) on
+  failure.
 
 ### Document storage (`SongDocument` / `SongIDs`)
 
@@ -183,41 +208,73 @@ SONG
    │  ├─ NOTES   (always empty for the conductor)
    │  └─ EVENTS
    └─ MIDI_TRACK  (trackId, name, colorArgb, sourceMidiChannel, sourceProgram,
-      │            importBatch, + sourceTrackIndex, endTick, isConductor=false)
+      │            importBatch, + sourceTrackIndex, endTick, defaultChannel,
+      │            isConductor=false)
       ├─ NOTES
       │  └─ NOTE  (pitch, startTick, durationTicks, velocity, isDrum,
       │            sourceTrackIndex, sourceEventIndex,
       │            + channel, offVelocity, offIsNoteOnZero,
       │              onOrder?, offOrder?, offSynthesized)
       └─ EVENTS
-         └─ EVENT (tick, order, data: juce::MemoryBlock of RawMidiEvent::bytes)
+         └─ EVENT (tick, order, relocatedFrom?,
+                   data: juce::MemoryBlock of RawMidiEvent::bytes)
 ```
 
 - **New identifiers:** `NOTES`, `EVENTS`, `EVENT`, `data`, `order`,
   `channel`, `offVelocity`, `offIsNoteOnZero`, `onOrder`, `offOrder`,
-  `offSynthesized`, `isConductor`, `endTick`. The existing `sourceTrackIndex`
-  identifier is reused on `MIDI_TRACK`.
+  `offSynthesized`, `isConductor`, `endTick`, `defaultChannel`,
+  `relocatedFrom` (conductor `EVENT`s moved from another track). The existing
+  `sourceTrackIndex` identifier is reused on `MIDI_TRACK`.
+- **`defaultChannel`** (1–16): the channel of the track's first channel
+  event at import, else 1. Used only for notes created in the editor.
+  `sourceMidiChannel` is left exactly as today (`importMidi` sets it only
+  for drum tracks), so nothing that reads it changes.
 - **`order`, `onOrder`, `offOrder`:** the event's index within its *raw*
   source track. `onOrder`/`offOrder` are absent on notes created in the
   editor, and on notes whose timing was edited (see Editing).
 - **`channel`:** 1–16, from the raw note-on. Format-0 and multi-channel
   tracks need this.
 - **`SongDocument` helpers:** `getNotesNode(track)`, `getEventsNode(track)`,
-  `getConductorTrack()`. `SongDocument()` creates the conductor `MIDI_TRACK`
-  (with empty `NOTES`/`EVENTS`) at construction, so it exists before any
-  import. `addTrack`/`addTrackBulk` create both containers.
+  `getConductorTrack()`, `isAssignableTrack(track)` (not the conductor and
+  has at least one `NOTE`), `getNumAssignableTracks()`, and an undoable
+  `removeProperty(tree, id, newTransaction = true)` mirroring `setProperty`.
+  `SongDocument()` creates the conductor `MIDI_TRACK` (with empty
+  `NOTES`/`EVENTS`) at construction, so it exists before any import. It gets
+  a normal minted `trackId` and `importBatch = 0`. `removeTrack` refuses it
+  (no-op, returns without opening a transaction). `addTrack`/`addTrackBulk`
+  create both containers.
 - **Call sites migrated** from `track.getChild(i)`/`getNumChildren()`-as-notes
   to `getNotesNode(track)`: `SourceTrackNoteSource`, `SourceRollEditor`,
   `TrackRowComponent`, `TrackNotePreview`, `TrackListComponent`,
-  `SongModelBridge`, plus any found by a full audit (`grep getChild`).
-  Filtering by node type at each call site was rejected as fragile.
+  `PianoRollComponent` (ghost tracks, and the `getTrackNode().getChild(i)`
+  that ties note-source index to track child index), and `SongModelBridge`
+  (including the LCM-raise loop), plus any found by a full audit
+  (`grep getChild` in `Source/UI` and `Tests`). Three sites already filter
+  `hasType(NOTE)`; they move to `getNotesNode` too, so there is one way to
+  reach notes.
 - **Track-index-based queries** (`getNumTracks`, `getTrack(i)`) keep
   counting every `MIDI_TRACK`, conductor included. Callers that mean
-  "assignable tracks" must check `isConductor` and note count.
-- **`TEMPO_MAP`/`METER_MAP` are unchanged**: derived at first import, still
-  used by conversion and the timeline. The raw tempo/time-signature events
-  also live in the conductor's `EVENTS`. This duplication is accepted
-  because nothing edits tempo yet (see Follow-ups).
+  "assignable tracks" use `isAssignableTrack`/`getNumAssignableTracks`.
+  Known production callers to update:
+  - `TrackListComponent` empty-state message (`getNumTracks() == 0` can
+    never be true again): use "no non-conductor tracks".
+  - Track colour assignment in `SongModelBridge` (family counting): skip the
+    conductor and note-less tracks so existing shades don't shift.
+  - Track numbering: the conductor row is unnumbered; other rows are
+    numbered 1… skipping it (`TrackListComponent` row labels,
+    `AssignmentChipComponent` `Tk<n>`).
+  - `DiagnosticListView` shows `importMidi`'s `trackIndex` (index after
+    empty-track filtering), which no longer matches row numbers once
+    note-less tracks are rows: the bridge remaps it to the document row
+    number at import.
+- **`TEMPO_MAP`/`METER_MAP` are unchanged**: derived at first import from
+  *every* track (as `importMidi` does), still used by conversion and the
+  timeline. The raw tempo/time-signature events live in the conductor's
+  `EVENTS` when they came from the conductor, and in other tracks'
+  `EVENTS` when they came from there (e.g. `right.mid` has a 0x58 in
+  track 1; `Pull The Wires` has a 0x59 in all ten note tracks). This
+  duplication is accepted because nothing edits tempo yet (see
+  Follow-ups).
 - **Scale:** the largest fixture (`land.mid`) produces roughly 9.9k `NOTE`
   and 6.5k `EVENT` nodes. That is the same order of magnitude as today's
   `NOTE` count.
@@ -235,13 +292,13 @@ SONG
 - **First import, file has no conductor** (format 0, or format 1 with notes
   in its first track): every song-wide meta event, from any track, moves
   into the song's conductor at its original tick, keeping its original
-  `order` (sorting is by tick first, so mixed-track origins are fine).
+  `order` plus a `relocatedFrom` source-track index. Conductor sort key for
+  relocated events: (tick, relocatedFrom, order).
   Everything else stays in its own track: SysEx, lyrics, text, track names
   and channel events. One Info diagnostic reports the number of relocated
   events.
-- **Format 2:** treated like format 1 with no conductor (each pattern
-  becomes a track), plus one Warning diagnostic saying format-2 sequencing
-  semantics are not preserved.
+- **Format 2:** rejected: one Error diagnostic, document unchanged. No
+  fixture or user has one; supporting it can come later.
 - **Later imports (rule A, "first import owns the timeline"):**
   - If the file has a conductor, that whole track is dropped.
   - Otherwise its song-wide meta events are dropped from every track.
@@ -250,52 +307,79 @@ SONG
   - The existing tempo/meter-mismatch Warning is unchanged.
 - **The conductor is never part of conversion or arrangement:**
   - It can't be dragged onto a part, renamed or deleted.
-  - `synthesiseDefaultParts` skips it.
-  - `buildConfigAndRawSong` leaves it out of the `Song` given to
-    `forge_core`.
+  - `synthesiseDefaultParts` and `assignTrackToPart` skip it (and skip
+    note-less tracks).
+  - `buildConfigAndRawSong` leaves out the conductor and every track with
+    zero `NOTE`s that has no `ASSIGNMENT`. (A track the user emptied but
+    kept assigned still goes in, as today.) `trackIdToIndex` is assigned
+    from `rawSong.tracks.size()` at push time, not from the document child
+    index, so `midiTrackIndex` stays correct. This keeps both halves of the
+    `SongsmithRoundTrip_tests` pin: ABC bytes, and the diagnostic count
+    (`InstrumentAssembly`'s `emitUnreferencedDiags` would otherwise emit an
+    Info per extra note-less track).
 
 ### Import (`SongModelBridge::importMidiFile`)
 
+`importMidiFile` gains the raw path. `appendImportedSong(doc, Song, …)`
+stays as the raw-less entry point (used by tests with synthetic `Song`s):
+it creates `NOTE`s only, no `EVENT`s, and leaves the conductor untouched.
+New notes it creates have no orders, so they export as new material. A new
+`appendImportedMidi(doc, const Song&, const RawMidiFile&, importBatch,
+diagnostics)` is the raw-aware path; `importMidiFile` calls it.
+
 1. Read the file once into memory. Parse it with `importMidi` (notes and
-   diagnostics exactly as today) and with `readMidiFile` (raw).
+   diagnostics exactly as today) and with `readMidiFile` (raw). If either
+   parser fails, or they disagree on the track count, append one Error
+   diagnostic (source "SongModelBridge") and leave the document unchanged.
+   The same applies to format 2.
 2. Apply the conductor rules.
 3. Every remaining raw track becomes a `MIDI_TRACK` (`sourceTrackIndex` = its
    raw index), including tracks with no notes. For a track `importMidi`
    produced, name, channel, program and notes come from it as today. For a
    note-less track:
-   - name from its first 0x03 meta, else "Track N", matching `importMidi`
+   - name from its *last* 0x03 meta, else "Track N", matching `importMidi`
+     (which overwrites the name on each 0x03)
    - `sourceMidiChannel` from its first channel event (0 if none)
    - `sourceProgram` from its first program change (0 if none)
-4. **Linking notes to raw events.** `importMidi` tags each note with the
-   ordinal of its note-on among the track's note-ons (velocity > 0); JUCE's
-   reordering never changes the relative order of note-ons. The k-th
-   velocity>0 note-on in the raw track is the note-on of the note whose
-   `sourceEventIndex == k`.
-5. **Matching note-offs, replicating JUCE's pairing** (needed to reproduce
-   which notes JUCE ended with an invented note-off):
-   - Scan in JUCE's effective order: within a tick, note-offs (including
-     note-on at velocity 0) come before note-ons.
-   - For each velocity>0 note-on in that order, its off is the first later
-     note-off on the same channel and key not already claimed, unless a
-     note-on of the same channel and key comes first, in which case JUCE
-     invented the off.
-   - This runs over *all* note-ons, including ones `importMidi` later
-     skipped, so claims match JUCE exactly.
-   - For notes that became `NOTE`s: a real matched off sets `offOrder`,
-     `offVelocity` and `offIsNoteOnZero`. An invented off sets
-     `offSynthesized = true`.
-   - **Cross-check:** the matched duration must equal `durationTicks`. On a
-     mismatch, `jassertfalse` plus a Warning diagnostic (this would be a
-     bug).
+
+   Every imported track also gets `defaultChannel` from its first channel
+   event (else 1).
+4. **Linking notes to raw events, via an exact replica of JUCE's note
+   view** (`Source/UI/JuceNoteReplica.{h,cpp}`, a pure function over one
+   `RawMidiTrack`):
+   - Copy the raw events, each tagged with its raw index.
+   - `std::stable_sort` by tick (a no-op for valid files, kept for parity).
+   - Per tick group, run the exact `reorderNoteOnsAfterNoteOffs` loop
+     described above (first note-on, last matching note-off in the group,
+     swap, continue after the first note-on's slot, stop the group when a
+     first note-on has no match).
+   - Run the exact `updateMatchedPairs` loop, including list insertion of a
+     synthetic note-off (tagged "no raw index") before a re-striking
+     note-on.
+   - Use JUCE's predicates: `isNoteOn()` excludes velocity 0; `isNoteOff()`
+     includes note-on at velocity 0; matching is by channel and note number.
+   - Result: in the replica's sequence, the k-th `isNoteOn()` event is the
+     note-on of the note whose `sourceEventIndex == k` (this is exactly how
+     `importMidi` counts). Its paired off is either a raw event (its index
+     becomes `offOrder`, with `offVelocity` and `offIsNoteOnZero`) or
+     synthetic (`offSynthesized = true`). The note-on's raw index becomes
+     `onOrder`; its raw bytes give `channel`.
+5. **Cross-check** every linked `NOTE` against the replica in source-PPQ
+   ticks, *before* any rescale: pitch, channel, velocity, `startTick` and
+   `durationTicks` must all match `importMidi`'s note. On a mismatch,
+   `jassertfalse` plus a Warning diagnostic (this would be a bug in the
+   replica).
 6. **Leftovers:** every raw event not claimed by a `NOTE` (on or off)
-   becomes an `EVENT` with its `order`. That includes notes `importMidi`
-   skipped (unmatched, zero-length) and note-offs nobody claimed, so nothing
-   is lost.
+   becomes an `EVENT` with its `order`. That includes note-ons `importMidi`
+   skipped (unmatched, zero-length), the offs the replica paired with those
+   skipped notes, and note-offs nobody claimed, so nothing is lost.
 7. **PPQ:** the existing rescale (`std::lround`) and LCM-raise rules apply
    to `EVENT.tick` and `MIDI_TRACK.endTick` as well as note ticks, for both
    incoming and (on LCM raise) existing tracks, including the conductor.
    The rescale diagnostics count these values too. Round-trip exactness is
-   guaranteed only for a single import (or same-PPQ imports).
+   guaranteed only for a single import (or same-PPQ imports): after a
+   rescale, `lround(start) + lround(duration)` can differ from
+   `lround(offTick)` by one tick.
 8. Import remains non-undoable (bulk path), as today.
 
 ### Export (`Source/UI/MidiExport.{h,cpp}`)
@@ -313,7 +397,7 @@ SONG
 - **Sort:** stable, by tick, then by group:
   1. note-offs of notes without `offOrder`
   2. everything with an original order (`order`/`onOrder`/`offOrder`),
-     ascending by that order
+     ascending by (`relocatedFrom` if present, else -1; then that order)
   3. note-ons of notes without `onOrder`
 
   This reproduces the original stream exactly for unedited imports, and
@@ -327,19 +411,24 @@ under Export ▸):
 - Enabled when the song has at least one non-conductor track.
 - Uses the `FileChooser` save dialog, defaulting to the
   `SONG.inputMidiPath` stem + `.mid`.
-- Writes via `writeMidiFile`. Failures (unwritable path, stream error) throw
-  a custom `MidiExportError`, shown in an `AlertWindow`.
+- Writes via `writeMidiFile`. Failures (unwritable path, stream error)
+  surface as `MidiExportError`, shown with
+  `NativeMessageBox::showMessageBoxAsync`, matching `MainWindow`'s existing
+  error dialogs.
 
 ### Editing interactions
 
 - **New notes** (`SourceRollEditor` create gesture):
-  - `channel` = the track's `sourceMidiChannel`, or 1 if that is 0
+  - `channel` = the track's `defaultChannel` (1 for a track with none)
   - `offVelocity` = 64, `offIsNoteOnZero` = false
   - no `onOrder`/`offOrder`, `offSynthesized` = false
-- **Move/resize/quantize of a note's timing** removes `onOrder`/`offOrder`
-  and clears `offSynthesized` in the same undo transaction as the edit. The
-  note then sorts as new material and gets a real note-off. Pitch and
-  velocity edits keep them.
+- **Move/resize/quantize of a note's timing**: when `startTick` or
+  `durationTicks` actually changes, remove `onOrder`/`offOrder` (via
+  `SongDocument::removeProperty`) and clear `offSynthesized`, in the same
+  undo transaction as the edit. The note then sorts as new material and
+  gets a real note-off. `offVelocity` and `offIsNoteOnZero` are kept. A drag
+  that changes only pitch (`SourceRollEditor` sets `startTick` and `pitch`
+  in one transaction) keeps the orders, as do velocity edits.
 - **Deleting a note** removes its `NOTE` only. `EVENT`s are untouched.
 - `EVENT`s are not editable in this project.
 
@@ -366,6 +455,17 @@ Strict TDD. Integration tests are preferred for business logic.
   - Malformed inputs throw `MidiImportError`: short header, chunk past end
     of file, unterminated variable-length number, orphan data byte,
     truncated event, SMPTE division.
+- **`JuceNoteReplica_tests.cpp` (differential):**
+  - Seeded random tracks (same-tick on/off mixes in every order, re-struck
+    keys, velocity-0 note-ons, several channels, unmatched on/offs) are
+    written to SMF bytes and read both by `juce::MidiFile::readFrom(…, true)`
+    and by `readMidiFile` + the replica. Every note-on matches: ordinal,
+    pitch, channel, velocity, start, matched-off tick, synthetic-or-not.
+  - Hand-built cases from the review: tick 0 `[on60, on62, off60]` with
+    later `off62@10, off60@20` (JUCE moves on62 ahead of on60); tick 0
+    `[on60 v100, off60, on60 v50, off60]` with later `off60@10` (JUCE puts
+    the v50 on first).
+  - Every fixture in `midi/*.mid` agrees too.
 - **`MidiFidelity_tests.cpp` (import → export integration):**
   - For each fixture: `importMidiFile` into a fresh `SongDocument`, then
     `buildRawMidiFile`, then compare with `readMidiFile` of the original.
@@ -373,14 +473,15 @@ Strict TDD. Integration tests are preferred for business logic.
     the relocation rule, and the test asserts that rule.
   - `blue.mid` and `leah.mid` exercise `offSynthesized`, and their export
     reproduces the original exactly.
-  - Every `NOTE`'s matched duration equals `importMidi`'s `durationTicks`
-    across all fixtures (the cross-check never fires).
+  - The two hand-built review cases above import and export exactly.
+  - The cross-check never fires across all fixtures.
 - **Conductor rules:**
   - Existing conductor kept verbatim.
   - Created for format 0 and for format 1 with notes in track 0.
-  - Format-2 warning.
+  - Format 2 and parser disagreement produce an Error diagnostic and leave
+    the document unchanged.
   - Later import drops song-wide events, with the Info diagnostic count.
-  - Fresh `SongDocument` has an empty conductor.
+  - Fresh `SongDocument` has an empty conductor; `removeTrack` refuses it.
   - The conductor is skipped by `synthesiseDefaultParts`,
     `assignTrackToPart` and `buildConfigAndRawSong`; note-less tracks are
     skipped by `synthesiseDefaultParts` and `assignTrackToPart`.
@@ -393,10 +494,22 @@ Strict TDD. Integration tests are preferred for business logic.
   - Deleting a note leaves `EVENT`s intact.
 - **UI:** conductor and note-less rows refuse drags; conductor row label and
   event count.
-- **Pins:** `SongsmithRoundTrip_tests` (CLI vs Songsmith ABC byte-identical)
-  and the whole existing suite (329) pass unchanged apart from the
-  mechanical `NOTES`-container migration in tests that build `MIDI_TRACK`
-  children directly.
+- **Pins:** `SongsmithRoundTrip_tests` (CLI vs Songsmith ABC
+  byte-identical, and equal post-import diagnostic counts) keeps passing.
+- **Existing tests that must change** (not just the mechanical `NOTES`
+  migration), because the conductor exists from construction and
+  note-less tracks are now kept:
+  - `SongDocument_tests.cpp`: `getNumTracks() == 0` assertions.
+  - `SongModelBridge_tests.cpp`: track counts, and colour-by-index asserts
+    (`colourOf(0)` is now the conductor).
+  - `SongsmithRoundTrip_tests.cpp`: track counts, and the positional
+    alignment `doc.getTrack(tracksAfterFirst + t)` ↔ `directSong.tracks[t]`
+    (note-less tracks now interleave; `angels`, `land` and `tellit` have
+    one at raw index 1). Align by assignable tracks instead.
+  - `TrackListComponent_tests.cpp`: row counts.
+
+  Each change keeps the test's original intent; the plan lists them
+  explicitly.
 
 ## Docs to update
 
@@ -414,14 +527,17 @@ Strict TDD. Integration tests are preferred for business logic.
   `EVENT.data` (MemoryBlock → base64 in XML is JUCE's default).
 - **Playback** (project 3).
 - **Event/controller editor**, including opening the conductor track.
-- **Tempo/meter editing:** must make the conductor's tempo/time-signature
-  `EVENT`s authoritative and rebuild `TEMPO_MAP`/`METER_MAP` from them,
-  removing today's duplication.
+- **Tempo/meter editing:** must make tempo/time-signature `EVENT`s
+  authoritative and rebuild `TEMPO_MAP`/`METER_MAP` from them, removing
+  today's duplication. Note that today's maps are built from *every* track,
+  so "rebuild from the conductor only" would change behaviour for files
+  with tempo/meter events outside the conductor.
 - **Master-track automation** in the conductor: intro/outro volume fades,
   song-wide volume or tempo adjustments over regions.
 - **"Mix timelines" import preference:** default stays "first import keeps
   tempo, meter, etc."; the option would merge later imports' song-wide
   events.
 - **Export of the LOTRO/ABC view as MIDI.**
+- **Format 2 import support.**
 - **Licensing guardrail:** add the bundled `TimGM6mb.sf2` (GPL-2) to
   `CLAUDE.md`'s licensing section when project 3 bundles it.
