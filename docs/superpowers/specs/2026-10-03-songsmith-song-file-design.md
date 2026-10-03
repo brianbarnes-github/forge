@@ -1,6 +1,6 @@
 # Songsmith Song file — design
 
-Status: draft, revised after review, awaiting user review. Project 2 of 3
+Status: Implemented (branch worktree-song-file, 2026-10-03). Project 2 of 3
 (1 = MIDI fidelity, done; 3 = Playback).
 
 ## Intent
@@ -128,7 +128,7 @@ untitled), dirty flag, `displayTitle()`.
   copy handle; same convention as `TrackListComponent.h:120-129`).
 - A listener on the root sets dirty on any change after the last save/load,
   including non-undoable imports (notifications bubble to all ancestors).
-- Save and load clear it; `replaceContents`' own notifications are suppressed.
+- Save and load clear it; the session goes dirty during `replaceContents` and `MainWindow` clears it with `markClean`/`markNew` immediately after.
 - Undoing back to the saved state still reads as dirty (simple, safe).
 - Verified: nothing in `Source/UI` writes to the tree on mere viewing; the only
   writers are user gestures (`PartSlotComponent`, `SourceRollEditor`).
@@ -175,7 +175,7 @@ Provenance and export:
   dirty; `MainWindow` applies it via `setName` on dirty/path changes (the
   window title is currently the hard-coded `"Forge"`, `MainWindow.cpp:76`).
 - Command-line `.songsmith` (`UiApp::initialise` ignores its argument today,
-  `UiMain.cpp:15`): in scope — open it through the guarded path after startup.
+  `UiMain.cpp:15`): in scope — opened unguarded at startup via `MainWindow::openSongOnStartup` (nothing is open yet).
 
 ## Error handling
 

@@ -601,7 +601,7 @@ Everything under `Source/UI/`. Uses JUCE modules `juce_gui_basics`, `juce_gui_ex
 
 ### 9.1 App entry — `UiMain.cpp`
 
-`UiApp : juce::JUCEApplication`. Minimal: create a `MainWindow` on `initialise`, null it on `shutdown`, `allowsMoreThanOneInstance = true`.
+`UiApp : juce::JUCEApplication`. Creates a `MainWindow` on `initialise` and opens the first existing `.songsmith` command-line argument via `openSongOnStartup`; `systemRequestedQuit` routes to `MainWindow::requestQuit()` (guarded); nulls the window on `shutdown`; `moreThanOneInstanceAllowed()` returns true.
 
 ### 9.2 `MainWindow` — `Source/UI/MainWindow.{h,cpp}`
 
@@ -617,7 +617,7 @@ Everything under `Source/UI/`. Uses JUCE modules `juce_gui_basics`, `juce_gui_ex
 - **Drag-drop** — `.mid`/`.midi` routed to Import ▸ MIDI (`openMidiFromPath`), which imports into `songDocument` via `importMidiFile` and shows the returned `Diagnostics` in the Songsmith view's own `DiagnosticListView` (§9.10) — not the export panel's `DiagnosticListView` (§9.9). `.songsmith` routed to `requestOpenSong` (behind the unsaved-changes guard, §9.13). Anything else is not accepted.
 - **Command line** — `UiApp::initialise` opens the first existing `*.songsmith` argument via `MainWindow::openSongOnStartup` (no guard: nothing is open yet). `UiApp::systemRequestedQuit` and the window's close button both call `MainWindow::requestQuit()`, which runs the guard and then `JUCEApplication::quit()`.
 - **Body**: an inner `Body` class holding both `SongsmithMainComponent` and the export panel (`DiagnosticsPane`) as permanent children (`addChildComponent`) — `setExportPanelVisible(bool)` only toggles which one is visible, so toggling never reparents anything. Songsmith is visible by default.
-- **State**: `lastAbc` (populated by Run Converter, consumed by Save ABC).
+- **State**: `lastAbc` (populated by Run Converter, consumed by Export ▸ ABC… (`saveAbcAs`)).
 - **Run**: `runConversion()` builds the full-export `Config` (`buildConfigAndRawSong(songDocument)`, no `partIds` filter), drops any zero-assignment part via `SongModelBridge::dropUnassignedInstruments` (§9.8) — warning once per drop rather than failing the whole export — then runs `validateConfig → assembleInstruments → runPipeline → writeAbc → DiagnosticsPane.show(diags, abc)`. This is the only conversion path; the scoped live-preview path (§9.8/9.12) never calls `validateConfig`.
 
 ### 9.3–9.6 Historical: the deleted classic Config-editing UI

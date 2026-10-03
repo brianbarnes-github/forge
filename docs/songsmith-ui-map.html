@@ -316,7 +316,7 @@
   <div class="diagram-scroll">
     <div class="diagram" id="mainDiagram">
       <div class="marker container" data-id="1" title="Main window" style="top:4px; right:4px; z-index:5;">1</div>
-      <div class="titlebar box">Forge
+      <div class="titlebar box">Untitled — Songsmith
         <div class="marker" data-id="2">2</div>
       </div>
       <div class="menubar box">
@@ -448,7 +448,7 @@ CDEF GABc | c'b agfedc |</div>
   <div class="legend-group">
     <h3>Frame</h3>
     <div class="legend-row" data-id="1"><div class="legend-num container">1</div><div><div class="legend-name">Main window</div><span class="legend-code">MainWindow</span><div class="legend-desc">The whole window — also the drag-drop target for .mid/.midi/.json/.toml/.xml files.</div></div></div>
-    <div class="legend-row" data-id="2"><div class="legend-num">2</div><div><div class="legend-name">Title bar</div><span class="legend-code">MainWindow (JUCE-drawn)</span><div class="legend-desc">Window chrome, reads "Forge".</div></div></div>
+    <div class="legend-row" data-id="2"><div class="legend-num">2</div><div><div class="legend-name">Title bar</div><span class="legend-code">MainWindow (JUCE-drawn)</span><div class="legend-desc">Window chrome, reads "&lt;name&gt;[*] — Songsmith".</div></div></div>
     <div class="legend-row" data-id="3"><div class="legend-num">3</div><div><div class="legend-name">Menu bar</div><span class="legend-code">juce::MenuBarComponent</span><div class="legend-desc">File / Edit / Song / View — see the Menus appendix below.</div></div></div>
     <div class="legend-row" data-id="4"><div class="legend-num container">4</div><div><div class="legend-name">Body</div><span class="legend-code">MainWindow::Body</span><div class="legend-desc">Inner class hosting Songsmith + the toggleable export panel.</div></div></div>
     <div class="legend-row" data-id="5"><div class="legend-num container">5</div><div><div class="legend-name">Songsmith view</div><span class="legend-code">SongsmithMainComponent</span><div class="legend-desc">Everything below the menu bar when the export panel isn't shown.</div></div></div>
@@ -506,10 +506,13 @@ CDEF GABc | c'b agfedc |</div>
   <div class="appendix-block">
     <h4>Menu bar contents</h4>
     <div class="menutree"><span class="item">File</span>
-  Open MIDI…              <span class="arrow">→ FileChooser, .mid/.midi</span>
-  Open Config…             <span class="arrow">→ always "not supported yet" (no Config→ValueTree path)</span>
-  Save Config As… (JSON/TOML/XML)   <span class="arrow">→ disabled, same reason</span>
-  Save ABC As…             <span class="arrow">→ disabled until Run Converter has produced output</span>
+  New (Ctrl+N)             <span class="arrow">→ guarded</span>
+  Open… (Ctrl+O)           <span class="arrow">→ FileChooser, .songsmith; guarded</span>
+  Close                    <span class="arrow">→ guarded</span>
+  Save (Ctrl+S)            <span class="arrow">→ disabled when clean with a path</span>
+  Save As… (Ctrl+Shift+S)
+  Import ▸ MIDI…           <span class="arrow">→ FileChooser, .mid/.midi</span>
+  Export ▸ MIDI… / ABC…
   Quit
 <span class="item">Edit</span>
   Undo / Redo              <span class="arrow">→ songDocument.undo()/redo()</span>
@@ -535,8 +538,8 @@ CDEF GABc | c'b agfedc |</div>
     <h4>Drag-drop targets</h4>
     <table class="ctxmenu">
       <tr><th>Drop</th><th>Target</th><th>Effect</th></tr>
-      <tr><td>.mid / .midi file</td><td>anywhere in the main window (#1)</td><td>Same as File → Open MIDI…</td></tr>
-      <tr><td>.json / .toml / .xml file</td><td>anywhere in the main window (#1)</td><td>Same as File → Open Config… ("not supported yet")</td></tr>
+      <tr><td>.mid / .midi file</td><td>anywhere in the main window (#1)</td><td>Same as File → Import ▸ MIDI…</td></tr>
+      <tr><td>.songsmith file</td><td>anywhere in the main window (#1)</td><td>Same as File → Open… (behind the unsaved-changes guard)</td></tr>
       <tr><td>Track row (#10)</td><td>Part slot (#16)</td><td>Assigns that track to that part; re-drop of an already-assigned track is a no-op</td></tr>
     </table>
   </div>

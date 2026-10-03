@@ -14,7 +14,7 @@ describes the current, Songsmith-only UI only.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Title bar (JUCE-drawn; "Forge")                                      │  #2
+│ Title bar (JUCE-drawn; "<name>[*] — Songsmith")                      │  #2
 ├──────────────────────────────────────────────────────────────────────┤
 │ Menu bar    [File ▾] [Edit ▾] [Song ▾] [View ▾] [Help ▾]             │  #3  (24 px)
 ├──────────────────────────────────────────────────────────────────────┤
@@ -52,7 +52,7 @@ When you say…       …I'll know you mean
 | # | Name in this guide            | Code class / file                                              |
 |---|--------------------------------|------------------------------------------------------------------|
 | 1 | **Main window**                | `MainWindow` (`Source/UI/MainWindow.{h,cpp}`) — reopens where it was closed (position, size, maximised), or centred on the primary monitor if that spot is no longer on any connected monitor (`WindowPlacement`) |
-| 2 | **Title bar**                   | JUCE-drawn window chrome, reads "Forge" |
+| 2 | **Title bar**                   | JUCE-drawn window chrome, reads `<name>[*] — Songsmith` (e.g. "Untitled — Songsmith"; `*` = unsaved changes) |
 | 3 | **Menu bar**                   | `juce::MenuBarComponent` inside `MainWindow`                     |
 | 4 | **Body**                       | `MainWindow::Body` (inner class; hosts Songsmith + the toggleable export panel) |
 | 5 | **Songsmith view**             | `SongsmithMainComponent` (`Source/UI/SongsmithMainComponent.{h,cpp}`) — everything below the menu bar when the export panel isn't shown |
@@ -122,7 +122,7 @@ When you say…       …I'll know you mean
   part slot to assign (the drag payload is the track's synthetic id, not its
   row index); double-click an assignable track to open the Track editor window (#28) on
   it (conductor and note-less rows ignore double-click). An empty document shows a muted placeholder ("No MIDI loaded — File
-  → Open MIDI… or drop a .mid here") instead of a blank panel.
+  → Import ▸ MIDI… or drop a .mid here") instead of a blank panel.
 - **Track editor window** (#28, `TrackEditorWindow`) — a floating,
   single-instance window opened by double-clicking a track row (#10). It
   pops up centred over the main window (kept on that window's monitor), not

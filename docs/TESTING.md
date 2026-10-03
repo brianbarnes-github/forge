@@ -50,7 +50,6 @@
   reproduces each tracked `midi/*.mid` fixture (all 9) event-for-event,
   plus the pairing edge cases, format-0 and conductor-less files, and edited
   songs re-importing as the same notes.
-
 - `SongFile_tests.cpp` pins the `.songsmith` container: byte round trip,
   and every `SongFileError` kind from a specifically damaged buffer (bad
   magic, newer and zero version, truncation and trailing bytes, a damaged
