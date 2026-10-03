@@ -258,6 +258,87 @@ TEST_CASE ("MidiFidelity: relocated conductor events keep their source track's o
                { 0, { 0xFF, 0x58, 0x03, 0x02, 0x18, 0x08 } } });
 }
 
+namespace
+{
+    // Re-struck key: on60@0, on60@10, off60@20, off60@30. JUCE gives A = 0..10
+    // with an invented off (B's on ends it), B = 10..20, and off@30 stays an EVENT.
+    Bytes restruckKeyBytes()
+    {
+        TrackBody body;
+        body.ev (0, { 0x90, 60, 100 }).ev (10, { 0x90, 60, 90 })
+            .ev (10, { 0x80, 60, 0x40 }).ev (10, { 0x80, 60, 0x40 }).eot();
+        return smf (1, 96, { conductorBody(), body });
+    }
+
+    juce::ValueTree noteStartingAt (const juce::ValueTree& notes, int tick)
+    {
+        for (auto n : notes)
+            if ((int) n.getProperty (SongIDs::startTick) == tick)
+                return n;
+        return {};
+    }
+
+    // Imports the re-struck key, applies `edit` to its NOTES, then checks that
+    // export -> re-import gives back exactly the edited notes.
+    template <typename Edit>
+    void checkRestruckEditSurvives (Edit&& edit)
+    {
+        TempMidi source (restruckKeyBytes());
+        SongDocument doc;
+        Diagnostics diags;
+        REQUIRE (importMidiFile (doc, source.file, 1, diags));
+        auto notes = SongDocument::getNotesNode (doc.getTrack (1));
+        REQUIRE (notes.getNumChildren() == 2);
+        auto a = noteStartingAt (notes, 0);
+        auto b = noteStartingAt (notes, 10);
+        REQUIRE ((bool) a.getProperty (SongIDs::offSynthesized));
+        REQUIRE ((int) a.getProperty (SongIDs::durationTicks) == 10);
+        REQUIRE ((int) b.getProperty (SongIDs::durationTicks) == 10);
+
+        edit (doc, notes, a, b);
+
+        TempMidi tmp (writeMidiBytes (buildRawMidiFile (doc)));
+        SongDocument reimported;
+        Diagnostics diags2;
+        REQUIRE (importMidiFile (reimported, tmp.file, 1, diags2));
+        CHECK (allNotes (reimported) == allNotes (doc));
+    }
+}
+
+TEST_CASE ("MidiFidelity: an unedited re-struck key exports exactly", "[midifidelity]")
+{
+    const auto bytes = restruckKeyBytes();
+    TempMidi tmp (bytes);
+    CHECK (importThenExport (tmp.file) == readMidiBytes (bytes, "k"));
+}
+
+TEST_CASE ("MidiFidelity: a note whose off was invented keeps its length when the re-striking note is deleted", "[midifidelity]")
+{
+    checkRestruckEditSurvives ([] (SongDocument& doc, juce::ValueTree notes, juce::ValueTree, juce::ValueTree b)
+    {
+        doc.removeChild (notes, b);
+    });
+}
+
+TEST_CASE ("MidiFidelity: a note whose off was invented keeps its length when the re-striking note moves", "[midifidelity]")
+{
+    checkRestruckEditSurvives ([] (SongDocument& doc, juce::ValueTree, juce::ValueTree, juce::ValueTree b)
+    {
+        doc.setProperty (b, SongIDs::startTick, 15);
+        doc.setProperty (b, SongIDs::durationTicks, 5, false);
+        doc.removeProperty (b, SongIDs::onOrder, false);
+        doc.removeProperty (b, SongIDs::offOrder, false);
+    });
+}
+
+TEST_CASE ("MidiFidelity: a note whose off was invented keeps its length when dragged to another pitch", "[midifidelity]")
+{
+    checkRestruckEditSurvives ([] (SongDocument& doc, juce::ValueTree, juce::ValueTree a, juce::ValueTree)
+    {
+        doc.setProperty (a, SongIDs::pitch, 62);
+    });
+}
+
 TEST_CASE ("MidiFidelity: a mixed-PPQ song exports a readable file that keeps every event", "[midifidelity]")
 {
     SongDocument doc;

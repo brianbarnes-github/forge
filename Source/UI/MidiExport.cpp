@@ -1,6 +1,7 @@
 #include "MidiExport.h"
 
 #include <algorithm>
+#include <set>
 #include <tuple>
 
 namespace lotro
@@ -32,6 +33,11 @@ namespace
         return {};
     }
 
+    bool isNoteOn (const std::vector<std::uint8_t>& bytes)
+    {
+        return bytes.size() >= 3 && (bytes[0] & 0xF0) == 0x90 && bytes[2] > 0;
+    }
+
     RawMidiTrack buildTrack (const juce::ValueTree& track)
     {
         std::vector<Item> items;
@@ -53,7 +59,6 @@ namespace
             const int pitch    = juce::jlimit (0, 127, (int) note.getProperty (SongIDs::pitch));
             const int velocity = juce::jlimit (1, 127, (int) note.getProperty (SongIDs::velocity));
             const int start    = (int) note.getProperty (SongIDs::startTick);
-            const int end      = start + juce::jmax (0, (int) note.getProperty (SongIDs::durationTicks));
 
             Item on;
             on.tick  = start;
@@ -61,8 +66,24 @@ namespace
             if (note.hasProperty (SongIDs::onOrder)) { on.group = 1; on.order = (int) note.getProperty (SongIDs::onOrder); }
             else                                     { on.group = 2; }
             items.push_back (std::move (on));
+        }
 
-            if ((bool) note.getProperty (SongIDs::offSynthesized, false))
+        // Every emitted note-on, so an invented off is only left out while the
+        // note-on that ended it on import still sits at its tick.
+        std::set<std::tuple<int, int, int>> noteOns; // (tick, channel 0-15, pitch)
+        for (const auto& item : items)
+            if (isNoteOn (item.bytes))
+                noteOns.emplace (item.tick, item.bytes[0] & 0x0F, item.bytes[1]);
+
+        for (auto note : SongDocument::getNotesNode (track))
+        {
+            const int channel = juce::jlimit (1, 16, (int) note.getProperty (SongIDs::channel, 1));
+            const int pitch   = juce::jlimit (0, 127, (int) note.getProperty (SongIDs::pitch));
+            const int start   = (int) note.getProperty (SongIDs::startTick);
+            const int end     = start + juce::jmax (0, (int) note.getProperty (SongIDs::durationTicks));
+
+            if ((bool) note.getProperty (SongIDs::offSynthesized, false)
+                && noteOns.count ({ end, channel - 1, pitch }) > 0)
                 continue;
 
             Item off;
@@ -73,7 +94,7 @@ namespace
                 off.bytes = { (std::uint8_t) (0x80 | (channel - 1)), (std::uint8_t) pitch,
                               (std::uint8_t) juce::jlimit (0, 127, (int) note.getProperty (SongIDs::offVelocity, 64)) };
             if (note.hasProperty (SongIDs::offOrder)) { off.group = 1; off.order = (int) note.getProperty (SongIDs::offOrder); }
-            else                                      { off.group = 0; }
+            else                                      { off.group = 0; } // also every off that was invented on import
             items.push_back (std::move (off));
         }
 
