@@ -536,4 +536,25 @@ void SongDocument::appendChildBulk (juce::ValueTree parent, juce::ValueTree chil
     parent.addChild (child, -1, nullptr);
 }
 
+void SongDocument::replaceContents (const juce::ValueTree& loaded)
+{
+    if (auto error = validateLoaded (loaded))
+        throw *error;
+
+    // Deep copy first: `loaded` may be another document's live tree.
+    const auto source = loaded.createCopy();
+
+    tree.copyPropertiesFrom (source, nullptr);
+    for (const auto& id : { SongIDs::SOURCE_MIDI, SongIDs::PARTS, SongIDs::TEMPO_MAP, SongIDs::METER_MAP })
+        tree.getChildWithName (id).copyPropertiesAndChildrenFrom (source.getChildWithName (id), nullptr);
+
+    undoManager.clearUndoHistory();
+}
+
+void SongDocument::resetToEmpty()
+{
+    SongDocument fresh;
+    replaceContents (fresh.getTree());
+}
+
 } // namespace lotro

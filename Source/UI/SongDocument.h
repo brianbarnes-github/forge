@@ -178,6 +178,17 @@ public:
     // "InvalidStructure"). Returns nullopt when valid.
     static std::optional<SongFileError> validateLoaded (const juce::ValueTree& candidate);
 
+    // Restores the document from a loaded Song tree IN PLACE: SONG's
+    // properties and the SOURCE_MIDI / PARTS / TEMPO_MAP / METER_MAP node
+    // objects are kept (components hold listener handles on them) while
+    // their contents are replaced, non-undoably. Validates first and throws
+    // SongFileError (document unchanged) if `loaded` is invalid. Clears the
+    // undo history. Callers reset UI state that lives outside the tree.
+    void replaceContents (const juce::ValueTree& loaded);
+
+    // New / Close: replaceContents of a fresh empty Song (counters reset).
+    void resetToEmpty();
+
     // Non-undoable track creation — for MIDI import (SongModelBridge). Mints
     // a trackId the same way addTrack does, but never touches the
     // UndoManager: bulk import is not a user-undoable "edit" (same rationale

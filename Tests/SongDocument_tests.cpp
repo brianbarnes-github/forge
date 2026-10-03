@@ -710,3 +710,105 @@ TEST_CASE ("SongDocument: validateLoaded rejects structurally invalid trees", "[
         CHECK (isInvalid (t));
     }
 }
+
+namespace
+{
+    struct CountingListener : juce::ValueTree::Listener
+    {
+        int events = 0;
+        void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { ++events; }
+        void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { ++events; }
+        void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { ++events; }
+    };
+}
+
+TEST_CASE ("SongDocument: replaceContents makes the document equivalent to the loaded tree", "[songdocument]")
+{
+    SongDocument source;
+    arrange (source);
+    source.mintImportBatch();
+    source.setProperty (source.getTree(), SongIDs::title, "My Song");
+
+    SongDocument target;
+    target.addPart ("Harp", "stale");   // pre-existing state must be wiped
+    target.replaceContents (source.getTree());
+
+    CHECK (target.getTree().isEquivalentTo (source.getTree()));
+}
+
+TEST_CASE ("SongDocument: replaceContents drops SONG properties absent from the loaded tree", "[songdocument]")
+{
+    SongDocument target;
+    target.setProperty (target.getTree(), SongIDs::title, "Stale Title");
+
+    SongDocument source;   // no title
+    arrange (source);
+    target.replaceContents (source.getTree());
+
+    CHECK_FALSE (target.getTree().hasProperty (SongIDs::title));
+}
+
+TEST_CASE ("SongDocument: replaceContents keeps the long-lived node objects and notifies listeners", "[songdocument]")
+{
+    SongDocument target;
+    auto partsBefore = target.getPartsNode();
+    auto sourceMidiBefore = target.getSourceMidiNode();
+    auto meterBefore = target.getMeterMapNode();
+
+    CountingListener partsListener;
+    partsBefore.addListener (&partsListener);
+
+    SongDocument source;
+    arrange (source);
+    target.replaceContents (source.getTree());
+
+    CHECK (target.getPartsNode() == partsBefore);           // same underlying node object
+    CHECK (target.getSourceMidiNode() == sourceMidiBefore);
+    CHECK (target.getMeterMapNode() == meterBefore);
+    CHECK (partsListener.events > 0);                       // listener on the old handle still hears the change
+    CHECK (target.getNumParts() == 1);
+
+    partsBefore.removeListener (&partsListener);
+}
+
+TEST_CASE ("SongDocument: replaceContents clears undo history and does not record an undo step", "[songdocument]")
+{
+    SongDocument target;
+    target.addPart ("Lute of Ages", "x");
+    REQUIRE (target.canUndo());
+
+    SongDocument source;
+    arrange (source);
+    target.replaceContents (source.getTree());
+
+    CHECK_FALSE (target.canUndo());
+    CHECK_FALSE (target.canRedo());
+}
+
+TEST_CASE ("SongDocument: replaceContents throws on an invalid tree and leaves the document untouched", "[songdocument]")
+{
+    SongDocument target;
+    target.addPart ("Lute of Ages", "keep me");
+    const auto before = target.getTree().createCopy();
+
+    SongDocument source;
+    arrange (source);
+    auto bad = source.getTree().createCopy();
+    bad.setProperty (nextTrackIdId, 1, nullptr);
+
+    CHECK_THROWS_AS (target.replaceContents (bad), SongFileError);
+    CHECK (target.getTree().isEquivalentTo (before));
+}
+
+TEST_CASE ("SongDocument: resetToEmpty returns to a fresh empty Song", "[songdocument]")
+{
+    SongDocument doc;
+    arrange (doc);
+    doc.mintImportBatch();
+    doc.resetToEmpty();
+
+    SongDocument fresh;
+    CHECK (doc.getTree().isEquivalentTo (fresh.getTree()));
+    CHECK (doc.getNumTracks() == 1);
+    CHECK (doc.mintImportBatch() == 1);
+}
