@@ -120,3 +120,13 @@ changes. The About box shows these as `Version 0.1.0` /
 unknown` when git isn't available). The count is the same for CI and local
 builds of the same commit, so it's the number to ask testers for. CI
 checks out with `fetch-depth: 0` — a shallow clone would count 1.
+
+## Playback dependencies
+
+- **TinySoundFont** is vendored (`Source/ThirdParty/tinysoundfont/tsf.h`, MIT; see the README there).
+- **`juce_audio_devices`** is linked into `forge_ui`. On Linux it needs the ALSA dev headers
+  (`libasound2-dev`).
+- **SoundFont**: a local, git-ignored GPL-2 file, never committed or shipped by CI:
+  `mkdir -p resources/soundfonts && cp /mnt/c/Apps/NewPlayer/resources/TimGM6mb.sf2 resources/soundfonts/ && md5sum resources/soundfonts/TimGM6mb.sf2`
+  must print `1f1ad87ae6f87033d9a591eca567d919`. When present, the build copies it next to the
+  `forge_ui` executable.

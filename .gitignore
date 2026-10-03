@@ -27,3 +27,6 @@ midi/*.mid
 # Session handoff notes and ad-hoc screenshots (personal scratch)
 HANDOFF-*.md
 screenshots/
+
+# Local-only GPL-2 SoundFont (never committed; see docs/BUILD.md)
+resources/soundfonts/

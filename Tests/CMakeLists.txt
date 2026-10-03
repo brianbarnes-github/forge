@@ -28,6 +28,7 @@ add_executable(forge_tests
     SongDocument_tests.cpp
     SongFile_tests.cpp
     SongFileRoundTrip_tests.cpp
+    PlaybackError_tests.cpp
     SongSession_tests.cpp
     DiscardGuard_tests.cpp
     SongModelBridge_tests.cpp
@@ -90,6 +91,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/SongsmithMainComponent.cpp)
 
 target_include_directories(forge_tests PRIVATE ${FORGE_BUILD_INFO_DIR})
+target_include_directories(forge_tests SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/Source/ThirdParty/tinysoundfont)
 add_dependencies(forge_tests forge_build_info)
 
 target_link_libraries(forge_tests PRIVATE
