@@ -60,7 +60,7 @@ When you say…       …I'll know you mean
 | 7 | **Upper region**               | `SongsmithMainComponent::UpperRegion` — source header + a full-width `TrackListComponent`; no embedded piano roll (moved to the floating Track editor window, #28) |
 | 8 | **Upper region header**        | The "▲ MIDI SOURCE · drag tracks down to assign" label row only — the grid-size combo and Quantize button that used to sit here moved to the **Edit** menu (see #11/#12) |
 | 9 | **Track list**                  | `TrackListComponent`/`TrackRowComponent` (`Source/UI/TrackListComponent.{h,cpp}`, `TrackRowComponent.{h,cpp}`) — spans the Upper region's full width; owns the shared `TimelineViewState` (`Source/UI/TimelineViewState.{h,cpp}`) that every row's note preview reads |
-| 10 | **Track row**                  | `TrackRowComponent` — one row inside the track list: index/name/note-range text on the left, an inline `TrackNotePreview` (`Source/UI/TrackNotePreview.{h,cpp}`) plus a per-row ghost-visibility toggle on the right; double-click opens the floating Track editor window (#28) on this track |
+| 10 | **Track row**                  | `TrackRowComponent` — one row inside the track list: index/name/note-range text on the left, an inline `TrackNotePreview` (`Source/UI/TrackNotePreview.{h,cpp}`) plus a per-row ghost-visibility toggle on the right; double-click opens the floating Track editor window (#28) on this track (assignable tracks only; conductor and note-less rows ignore double-click) |
 | 11 | **Grid Size menu**              | **Edit → Grid Size** submenu (`Off`/`1/4`/`1/8`/`1/16`) in the main menu bar (`MainWindow`'s `EditGridSizeBase` items) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::setActiveEditorGridSize (GridSize)`, translated to ticks by `GridSize.h`'s `gridSizeToTicks()` |
 | 12 | **Quantize menu item**          | **Edit → Quantize** in the main menu bar (`MainWindow`'s `EditQuantize`) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::quantizeActiveEditor()`, which calls the open editor's `SourceRollEditor::quantizeSelection()` |
 | 13 | **Source piano roll**           | `PianoRollComponent` constructed with `Role::Source` (`Source/UI/PianoRollComponent.{h,cpp}`) — unchanged internally, but no longer embedded in the Upper region; now hosted inside the floating Track editor window (#28) |
@@ -120,8 +120,8 @@ When you say…       …I'll know you mean
   translucent ghost overlays shown in the Track
   editor window (#28), if one is open. Click a row to select it; drag onto a
   part slot to assign (the drag payload is the track's synthetic id, not its
-  row index); double-click to open the Track editor window (#28) on that
-  track. An empty document shows a muted placeholder ("No MIDI loaded — File
+  row index); double-click an assignable track to open the Track editor window (#28) on
+  it (conductor and note-less rows ignore double-click). An empty document shows a muted placeholder ("No MIDI loaded — File
   → Open MIDI… or drop a .mid here") instead of a blank panel.
 - **Track editor window** (#28, `TrackEditorWindow`) — a floating,
   single-instance window opened by double-clicking a track row (#10). It

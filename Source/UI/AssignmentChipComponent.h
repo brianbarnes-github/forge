@@ -5,8 +5,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // Phase 4, component B3 — one assignment chip inside a PartSlotComponent's
-// body: swatch, "Tk<n>" (n = the referenced track's 1-based SOURCE_MIDI
-// position), monospace transpose, and an unassign (x) button.
+// body: swatch, "Tk<n>" (n = the referenced track's 0-based SOURCE_MIDI
+// child index; the conductor is 0, so chips start at Tk1), monospace transpose, and an unassign (x) button.
 namespace lotro
 {
 

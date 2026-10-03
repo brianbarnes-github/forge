@@ -1,7 +1,7 @@
 # Songsmith MIDI fidelity: every MIDI event lives in the song — design
 
 **Status:** Design accepted; revised after an independent spec review
-(Fable 5.1, 2026-10-03); implementation pending.
+(Fable 5.1, 2026-10-03); implemented.
 **Author:** Brian Barnes, with Claude, during a 2026-10-02/03 brainstorming session.
 
 ## Summary
@@ -379,7 +379,8 @@ diagnostics)` is the raw-aware path; `importMidiFile` calls it.
 7. **PPQ:** the existing rescale (`std::lround`) and LCM-raise rules apply
    to `EVENT.tick` and `MIDI_TRACK.endTick` as well as note ticks, for both
    incoming and (on LCM raise) existing tracks, including the conductor.
-   The rescale diagnostics count these values too. Round-trip exactness is
+   The rescale diagnostics fire when any of these values was rescaled, and
+   the LCM-raise Info counts existing *notes* only. Round-trip exactness is
    guaranteed only for a single import (or same-PPQ imports): after a
    rescale, `lround(start) + lround(duration)` can differ from
    `lround(offTick)` by one tick.
@@ -392,7 +393,12 @@ diagnostics)` is the raw-aware path; `importMidiFile` calls it.
 - Format 1; PPQ = `SOURCE_MIDI.ticksPerQuarter`.
 - Track 0 is the conductor; then every other `MIDI_TRACK` in document order.
 - **Per track, emitted items:** each `EVENT`; each `NOTE`'s note-on; each
-  `NOTE`'s note-off unless `offSynthesized`.
+  `NOTE`'s note-off, except that an `offSynthesized` note's off is left out
+  only while an emitted note-on with the same channel and pitch still sits at
+  the note's end tick (`startTick + durationTicks`). If that re-struck partner
+  was deleted, re-timed or pitch-dragged, the real off is written, so lengths
+  stay correct. Channel and pitch are clamped to 1..16 / 0..127 and note-on
+  velocity to 1..127 on export.
   - The note-on is built as `0x90|ch-1, pitch, velocity`.
   - The note-off is built as `0x80|ch-1, pitch, offVelocity` (default 64),
     or `0x90|ch-1, pitch, 0` when `offIsNoteOnZero`.
@@ -414,7 +420,9 @@ under Export ▸):
 - Enabled when the song has at least one non-conductor track.
 - Uses the `FileChooser` save dialog, defaulting to the
   `SONG.inputMidiPath` stem + `.mid`.
-- Writes via `writeMidiFile`. Failures (unwritable path, stream error)
+- The app writes via `writeMidiBytes` + `File::replaceWithData`, so the
+  whole buffer is built before the destination is touched; `writeMidiFile`
+  remains the stream API. Failures (unwritable path, stream error)
   surface as `MidiExportError`, shown with
   `NativeMessageBox::showMessageBoxAsync`, matching `MainWindow`'s existing
   error dialogs.

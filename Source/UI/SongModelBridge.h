@@ -20,7 +20,7 @@ namespace lotro
 //
 // Time-base handling (only relevant once an import has already landed,
 // i.e. TEMPO_MAP is not empty — that emptiness, not track count, is what
-// distinguishes the first import from a later one; see appendImportedSong's
+// distinguishes the first import from a later one; see appendImport's
 // definition of isFirstImport in the .cpp):
 //   * TEMPO_MAP/METER_MAP belong to the FIRST import only. A later
 //     import's tempo/meter map is never appended/concatenated. If the
@@ -38,8 +38,9 @@ namespace lotro
 //     duration to prevent that (a musical decision it isn't allowed to
 //     make), it only reports it; DurationConstraint drops such notes
 //     later in the pipeline. One Diagnostic is appended per rescaled
-//     import that touched at least one note (a trackless import emits
-//     none): Severity::Info if every rescaled value was exact and no
+//     import that rescaled at least one note or one event/endTick tick
+//     (a trackless import emits none; the rounded-value count includes
+//     event ticks, the zeroed-note count is notes only): Severity::Info if every rescaled value was exact and no
 //     note was zeroed; Severity::Warning otherwise, naming the
 //     rounded-value count and, if any, the zeroed-note count. Same-PPQ
 //     imports are not rescaled and emit no rescale Diagnostic.
@@ -57,7 +58,7 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
                          const Diagnostics& importerDiagnostics = {});
 
 // Opens `midiFile` (sourceName = the file's stem, matching the CLI's ad-hoc
-// path in Source/Main.cpp), parses with both importMidi and readMidiFile and
+// path in Source/Main.cpp), parses with both importMidi and readMidiBytes and
 // appends via appendImportedMidi; returns false (Error diagnostic, document
 // unchanged) if either parser fails or they disagree. Sets
 // SONG.inputMidiPath only if it is currently empty (first import's filename
@@ -67,7 +68,7 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
                      Diagnostics& diagnostics);
 
-// A-R1: default-part synthesis. For every MIDI_TRACK not yet referenced by
+// A-R1: default-part synthesis. For every assignable MIDI_TRACK (not the conductor, not note-less) not yet referenced by
 // any ASSIGNMENT on any PART, adds one PART (instrumentName =
 // displayName(LotroInstrument::Drums) when the track's sourceMidiChannel ==
 // 10, else displayName(LotroInstrument::LuteOfAges); empty label) with one
