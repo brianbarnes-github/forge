@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **324/324**.
+- Test count: **390/390**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
@@ -31,6 +31,25 @@
   byte-identical ABC to the direct `importMidi` → `synthesiseConfig` CLI
   path, plus real-file multi-import rescale, malformed-file, and
   first-import-wins cases.
+
+- `RawMidi_tests.cpp` covers the lossless SMF reader/writer: running
+  status, meta/SysEx, End-of-Track handling, format 0, non-`MTrk` chunks,
+  malformed input, writer rejections, and write/read round-trips of every
+  tracked fixture (with JUCE's track count).
+- `JuceNoteReplica_tests.cpp` is a differential test of the JUCE note-pairing
+  replica against `juce::MidiFile` itself (reordering within a tick,
+  invented note-offs) on hand-built cases, 500 seeded random files and every
+  tracked fixture.
+- `MidiImportPlan_tests.cpp` covers `planMidiImport`: conductor rules
+  (own conductor vs relocated song-wide events, later imports dropping
+  theirs), note-to-raw-event links, and which events become `EVENT` nodes.
+- `MidiImport_tests.cpp` covers the document side of a raw-aware import
+  (`appendImportedMidi`): conductor/`EVENTS`/note-link properties written,
+  note-less tracks, PPQ rescale and LCM raise of events and `endTick`.
+- `MidiFidelity_tests.cpp` pins the whole feature: import then export
+  reproduces each tracked `midi/*.mid` fixture (all 9) event-for-event,
+  plus the pairing edge cases, format-0 and conductor-less files, and edited
+  songs re-importing as the same notes.
 
 - `PianoRollGeometry_tests.cpp`/`SourceTrackNoteSource_tests.cpp` cover
   Phase 5's headless piano-roll coordinate math (tick/pitch↔x/y

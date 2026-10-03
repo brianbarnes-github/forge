@@ -97,6 +97,14 @@ When you say…       …I'll know you mean
   successive same-family tracks cycling through 4 shades of that family's
   hue; the swatch, preview notes, assignment chips and ghost overlays all
   use it.
+  The first row is always the song's **conductor** (`isConductor`): no
+  index number, name "Conductor", muted text, and a second line of just
+  `"<N> events"` (the song-wide tempo/meter/key/marker events and anything
+  else it holds). A track with no notes (e.g. only controllers) shows
+  `"0 notes · <N> events"`. Neither kind is draggable onto a part slot or
+  openable in the Track editor window (double-click does nothing) — only
+  tracks with at least one note are assignable. They stay in the document
+  and are written by File → Export MIDI….
   On import, the shared zoom auto-fits so the longest track's notes span the
   full preview width (`TrackListComponent::fitTimelineToDocument()`, called
   from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
@@ -262,6 +270,11 @@ File
   Save ABC As…                         ← writes the last Run Converter's
                                           ABC output (disabled until one
                                           has produced something)
+  Export MIDI…                         ← writes the whole song (conductor +
+                                          every track, all imported events)
+                                          as a format-1 .mid; disabled until
+                                          something besides the conductor
+                                          is imported. Independent of parts.
   ─────────
   Quit                                  ← systemRequestedQuit
 ```
