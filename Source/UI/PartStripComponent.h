@@ -36,7 +36,14 @@ public:
     // "+ Add"), with that part's partId.
     std::function<void (juce::int64)> onPartSelected;
 
+    juce::int64 getSelectedPartId() const noexcept { return selectedPartId; }
+
+    // Forgets the selected slot. Does NOT fire onPartSelected.
+    void clearSelection();
+
 private:
+    friend struct PartStripComponentTestAccess;
+
     void rebuild();
     void selectPart (juce::int64 partId);
     void addPartClicked();

@@ -119,6 +119,11 @@ void TrackListComponent::scrollBarMoved (juce::ScrollBar*, double newRangeStart)
     content.repaint();
 }
 
+void TrackListComponent::clearSelection()
+{
+    selectTrack (-1);
+}
+
 void TrackListComponent::selectTrack (juce::int64 trackId)
 {
     selectedTrackId = trackId;

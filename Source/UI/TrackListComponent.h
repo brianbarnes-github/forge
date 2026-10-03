@@ -37,6 +37,11 @@ public:
     // user's deliberate zoom/scroll back to the fitted default.
     void fitTimelineToDocument();
 
+    juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
+
+    // Forgets the selected row. Fires no callbacks.
+    void clearSelection();
+
     // Fired when a row is double-clicked, with that row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;
 

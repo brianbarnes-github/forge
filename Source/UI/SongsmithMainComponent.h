@@ -66,6 +66,14 @@ public:
     // TimelineViewState's very-zoomed-in initial pixelsPerTick.
     void fitTrackTimelineToDocument() { trackList.fitTimelineToDocument(); }
 
+    // Called by MainWindow after the document's contents were replaced
+    // (New / Open / Close). Resets everything that lives outside the tree:
+    // closes the track editor (its note source holds the OLD MIDI_TRACK
+    // handle), clears ghost / track / part selection and the preview (ids
+    // persist per Song, so a stale id could re-select a different Song's
+    // part), and refits the timeline. Must not write to the tree.
+    void documentReplaced();
+
 private:
     friend struct SongsmithMainComponentTestAccess;
 

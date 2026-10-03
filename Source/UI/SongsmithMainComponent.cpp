@@ -189,6 +189,16 @@ void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
     trackEditorWindow->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
 }
 
+void SongsmithMainComponent::documentReplaced()
+{
+    trackEditorWindow.reset();
+    ghostedTrackIds.clear();
+    trackList.clearSelection();
+    partStrip.clearSelection();
+    selectPartForPreview (-1);
+    trackList.fitTimelineToDocument();
+}
+
 void SongsmithMainComponent::selectPartForPreview (juce::int64 partId)
 {
     if (watchedPartNode.isValid())

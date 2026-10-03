@@ -463,3 +463,17 @@ TEST_CASE ("TrackListComponent: an empty document shows no horizontal scroll bar
 
     CHECK_FALSE (Access::horizontalBar (list).isVisible());
 }
+
+TEST_CASE ("TrackListComponent: clearSelection forgets the selected track", "[session-reset]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("Track 1", (int) 0xFF7FA8D0, 0, 0);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    TrackListComponent list (doc);
+    Access::selectTrack (list, id);
+    REQUIRE (list.getSelectedTrackId() == id);
+
+    list.clearSelection();
+    CHECK (list.getSelectedTrackId() == -1);
+}

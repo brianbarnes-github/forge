@@ -35,6 +35,7 @@ add_executable(forge_tests
     PianoRollGeometry_tests.cpp
     TimelineViewState_tests.cpp
     TrackListComponent_tests.cpp
+    PartStripComponent_tests.cpp
     PreviewPipeline_tests.cpp
     PreviewNoteDiff_tests.cpp
     PreviewNoteSource_tests.cpp

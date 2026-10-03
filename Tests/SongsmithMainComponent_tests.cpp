@@ -4,6 +4,7 @@
 // removed node itself. See juce-valuetree-conventions and the fix in
 // SongsmithMainComponent::valueTreeParentChanged.
 
+#include "PartStripTestAccess.h"
 #include "UI/SongDocument.h"
 #include "UI/SongsmithMainComponent.h"
 
@@ -38,6 +39,10 @@ namespace lotro
         {
             c.trackDoubleClicked (trackId);
         }
+        static PartStripComponent& partStrip (SongsmithMainComponent& c) { return c.partStrip; }
+        static std::size_t ghostedCount (const SongsmithMainComponent& c) { return c.ghostedTrackIds.size(); }
+        static juce::int64 selectedPreviewPartId (const SongsmithMainComponent& c) { return c.selectedPreviewPartId; }
+        static void trackGhostToggled (SongsmithMainComponent& c, juce::int64 id, bool v) { c.trackGhostToggled (id, v); }
         static TrackListComponent& trackList (SongsmithMainComponent& c)
         {
             return c.trackList;
@@ -246,4 +251,70 @@ TEST_CASE ("SongsmithMainComponent: View -> Diagnostics list toggle shows it aga
 
     CHECK_FALSE (main.isDiagnosticsVisible());
     CHECK (Access::previewRegionBottom (main) == Access::lowerRegionHeight (main));
+}
+
+TEST_CASE ("SongsmithMainComponent: documentReplaced closes the editor and clears UI state outside the tree", "[session-reset]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 1, 1);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    auto part = doc.addPart ("Lute of Ages", "Part 1");
+    const auto partId = (juce::int64) part.getProperty (SongIDs::partId);
+
+    SongsmithMainComponent main (doc);
+    Access::trackDoubleClicked (main, trackId);
+    Access::trackGhostToggled (main, trackId, true);
+    PartStripComponentTestAccess::selectPart (Access::partStrip (main), partId);   // also previews it, via onPartSelected
+    REQUIRE (main.isTrackEditorOpen());
+    REQUIRE (Access::ghostedCount (main) == 1);
+    REQUIRE (Access::selectedPreviewPartId (main) == partId);
+    REQUIRE (Access::partStrip (main).getSelectedPartId() == partId);
+
+    main.documentReplaced();
+
+    CHECK_FALSE (main.isTrackEditorOpen());
+    CHECK (Access::ghostedCount (main) == 0);
+    CHECK (Access::selectedPreviewPartId (main) == -1);
+    CHECK_FALSE (Access::hasWatchedPartNode (main));
+    CHECK_FALSE (Access::hasPreviewNoteSource (main));
+    CHECK (Access::partStrip (main).getSelectedPartId() == -1);
+    CHECK (Access::trackList (main).getSelectedTrackId() == -1);
+}
+
+TEST_CASE ("SongsmithMainComponent: after a document swap an old id never re-selects the new Song's part", "[session-reset]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto part = doc.addPart ("Lute of Ages", "Old");
+    SongsmithMainComponent main (doc);
+    PartStripComponentTestAccess::selectPart (Access::partStrip (main), (juce::int64) part.getProperty (SongIDs::partId));
+
+    // A different Song whose first part has the SAME id (ids are per-Song counters).
+    SongDocument other;
+    other.addPart ("Harp", "New");
+
+    doc.replaceContents (other.getTree());
+    main.documentReplaced();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (300);   // let the async listener updates run
+
+    CHECK (Access::selectedPreviewPartId (main) == -1);
+    CHECK_FALSE (Access::hasPreviewNoteSource (main));
+}
+
+TEST_CASE ("SongsmithMainComponent: documentReplaced writes nothing to the tree", "[session-reset]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    doc.addTrack ("Track A", (int) 0xFFAABBCCu, 1, 1);
+    SongsmithMainComponent main (doc);
+
+    const auto before = doc.getTree().createCopy();
+    main.documentReplaced();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (200);
+
+    CHECK (doc.getTree().isEquivalentTo (before));
 }

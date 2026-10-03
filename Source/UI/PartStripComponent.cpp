@@ -60,6 +60,13 @@ void PartStripComponent::rebuild()
     repaint(); // M4: empty-state message visibility may have changed.
 }
 
+void PartStripComponent::clearSelection()
+{
+    selectedPartId = -1;
+    for (auto* slot : row.slots)
+        slot->setSelected (false);
+}
+
 void PartStripComponent::selectPart (juce::int64 partId)
 {
     selectedPartId = partId;
