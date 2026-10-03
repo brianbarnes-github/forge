@@ -42,12 +42,20 @@ namespace
         return readMidiBytes (Bytes (d, d + block.getSize()), "f");
     }
 
-    RawMidiFile importThenExport (const juce::File& f)
+    RawMidiFile importThenExport (const juce::File& f, Diagnostics* diagsOut = nullptr)
     {
         SongDocument doc;
         Diagnostics diags;
         REQUIRE (importMidiFile (doc, f, 1, diags));
+        if (diagsOut != nullptr)
+            *diagsOut = diags;
         return buildRawMidiFile (doc);
+    }
+
+    bool hasNoteLinkMismatch (const Diagnostics& diags)
+    {
+        return std::any_of (diags.begin(), diags.end(), [] (const Diagnostic& d)
+                            { return d.message.rfind ("Note link mismatch", 0) == 0; });
     }
 
     // (pitch, start, duration, velocity, channel), sorted, for every NOTE of every track.
@@ -81,7 +89,10 @@ TEST_CASE ("MidiFidelity: every tracked fixture exports exactly as it was import
     {
         const auto original = readFixture (midiFixture (name));
         REQUIRE (hasConductorTrack (original)); // all fixtures have one
-        CHECK (importThenExport (midiFixture (name)) == original);
+        Diagnostics diags;
+        CHECK (importThenExport (midiFixture (name), &diags) == original);
+        // The plan's note-link cross-check only jassertfalse()s, which Catch2 does not see.
+        CHECK_FALSE (hasNoteLinkMismatch (diags));
     }
 }
 

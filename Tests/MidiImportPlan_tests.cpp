@@ -99,6 +99,33 @@ TEST_CASE ("MidiImportPlan: a later import drops the file's whole conductor trac
     CHECK (diags[0].source == "SongModelBridge");
 }
 
+TEST_CASE ("MidiImportPlan: a later import without a conductor drops its song-wide metas and counts them", "[midiimportplan]")
+{
+    TrackBody first;
+    first.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 })   // tempo     -> dropped
+         .ev (0, { 0xFF, 0x05, 0x02, 'l', 'a' })            // lyric     -> stays
+         .ev (0, { 0x90, 60, 100 })
+         .ev (48, { 0xFF, 0x06, 0x01, 'B' })                // marker    -> dropped
+         .ev (48, { 0x80, 60, 0x40 }).eot();
+    TrackBody second;
+    second.ev (0, { 0xFF, 0x59, 0x02, 0x00, 0x00 })        // key sig   -> dropped
+          .ev (0, { 0x91, 64, 90 }).ev (96, { 0x91, 64, 0 }).eot();
+    const auto p = parse (smf (1, 96, { first, second }));
+
+    Diagnostics diags;
+    const auto plan = planMidiImport (p.song, p.raw, false, diags);
+
+    CHECK (plan.droppedEventCount == 3);
+    CHECK (plan.relocatedEventCount == 0);
+    CHECK (plan.conductorEvents.empty());
+    REQUIRE (plan.tracks.size() == 2);
+    REQUIRE (plan.tracks[0].events.size() == 1);
+    CHECK (plan.tracks[0].events[0].bytes == Bytes { 0xFF, 0x05, 'l', 'a' });
+    CHECK (plan.tracks[1].events.empty());
+    REQUIRE (diags.size() == 1);
+    CHECK (diags[0].severity == Severity::Info);
+}
+
 TEST_CASE ("MidiImportPlan: without a conductor, song-wide metas move into it and everything else stays", "[midiimportplan]")
 {
     // Format 1, notes in the first track -> no conductor.
