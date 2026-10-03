@@ -1,6 +1,10 @@
 #pragma once
 
+#include "SongFileError.h"
+
 #include <juce_data_structures/juce_data_structures.h>
+
+#include <optional>
 
 // Songsmith's editable-document ValueTree schema. See the Songsmith plan's
 // "Data model" section for the full node/property layout; this header owns
@@ -96,7 +100,7 @@ namespace SongIDs
  *
  * Synthetic id minting: trackId/partId are monotonically-increasing
  * juce::int64 counters stored as hidden bookkeeping properties on the root
- * SONG node ("nextTrackId"/"nextPartId", independent of each other).
+ * SONG node ("nextTrackId"/"nextPartId"/"nextImportBatch", independent of each other).
  * Counter increments are deliberately non-undoable (nullptr UndoManager) —
  * undoing an addTrack/addPart must not decrement the counter, so an id is
  * never re-minted even if the action that minted it is later undone and a
@@ -165,6 +169,14 @@ public:
     juce::ValueTree addTrack (const juce::String& trackName, int colorArgb,
                                int sourceMidiChannel, int importBatch);
     void removeTrack (juce::int64 trackIdToRemove);
+
+    // Mints the next import-batch number (starts at 1) and stores the one
+    // after it on SONG.nextImportBatch. Non-undoable, like mintTrackId.
+    int mintImportBatch();
+
+    // Structural check of a loaded Song tree (see the Song file spec,
+    // "InvalidStructure"). Returns nullopt when valid.
+    static std::optional<SongFileError> validateLoaded (const juce::ValueTree& candidate);
 
     // Non-undoable track creation — for MIDI import (SongModelBridge). Mints
     // a trackId the same way addTrack does, but never touches the

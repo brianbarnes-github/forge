@@ -281,7 +281,7 @@ void MainWindow::openMidiViaDialog()
 void MainWindow::openMidiFromPath (const juce::File& file)
 {
     Diagnostics diags;
-    importMidiFile (songDocument, file, nextImportBatch++, diags);
+    importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags);
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
     body->getSongsmith().fitTrackTimelineToDocument();
 }

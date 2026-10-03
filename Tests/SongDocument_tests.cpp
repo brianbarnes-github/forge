@@ -3,10 +3,12 @@
 // helpers, and undo/redo transaction boundaries.
 
 #include "UI/SongDocument.h"
+#include "UI/SongFileError.h"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <optional>
 #include <vector>
 
 using namespace lotro;
@@ -575,4 +577,136 @@ TEST_CASE ("SongDocument: assignTrackToPart refuses the conductor and note-less 
     CHECK_FALSE (doc.assignTrackToPart (partId, (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId)));
     CHECK_FALSE (doc.assignTrackToPart (partId, (juce::int64) noteless.getProperty (SongIDs::trackId)));
     CHECK (SongDocument::getNumAssignments (part) == 0);
+}
+
+namespace
+{
+    const juce::Identifier nextTrackIdId ("nextTrackId");
+    const juce::Identifier nextPartIdId ("nextPartId");
+    const juce::Identifier nextImportBatchId ("nextImportBatch");
+
+    bool isInvalid (const juce::ValueTree& t)
+    {
+        const auto err = SongDocument::validateLoaded (t);
+        return err.has_value() && err->kind() == SongFileErrorKind::InvalidStructure;
+    }
+
+    // A document with one imported-style track (with a note), one part and one assignment.
+    // (SongDocument is not movable, so the caller owns it and we fill it in.)
+    void arrange (SongDocument& doc)
+    {
+        auto track = doc.addTrack ("Lead", 0xFF112233, 1, doc.mintImportBatch());
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, 60, nullptr);
+        note.setProperty (SongIDs::startTick, 0, nullptr);
+        note.setProperty (SongIDs::durationTicks, 120, nullptr);
+        note.setProperty (SongIDs::velocity, 90, nullptr);
+        SongDocument::getNotesNode (track).addChild (note, -1, nullptr);
+        auto part = doc.addPart ("Lute of Ages", "Part 1");
+        doc.addAssignment (part, (juce::int64) track.getProperty (SongIDs::trackId), 0, 0, "octaveShift");
+    }
+}
+
+TEST_CASE ("SongDocument: mintImportBatch counts up from 1 and is persisted on SONG", "[songdocument]")
+{
+    SongDocument doc;
+    CHECK (doc.mintImportBatch() == 1);
+    CHECK (doc.mintImportBatch() == 2);
+    CHECK ((int) doc.getTree().getProperty (nextImportBatchId) == 3);
+}
+
+TEST_CASE ("SongDocument: a freshly constructed and an arranged document pass validateLoaded", "[songdocument]")
+{
+    SongDocument fresh;
+    CHECK_FALSE (SongDocument::validateLoaded (fresh.getTree()).has_value());
+
+    SongDocument arranged;
+    arrange (arranged);
+    CHECK_FALSE (SongDocument::validateLoaded (arranged.getTree()).has_value());
+}
+
+TEST_CASE ("SongDocument: validateLoaded rejects structurally invalid trees", "[songdocument]")
+{
+    SongDocument goodDoc;
+    arrange (goodDoc);
+    const auto good = goodDoc.getTree();
+
+    SECTION ("wrong root type")
+    {
+        CHECK (isInvalid (juce::ValueTree ("NOT_A_SONG")));
+        CHECK (isInvalid ({}));
+    }
+    SECTION ("missing top-level node")
+    {
+        auto t = good.createCopy();
+        t.removeChild (t.getChildWithName (SongIDs::METER_MAP), nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("unexpected extra child of SONG")
+    {
+        auto t = good.createCopy();
+        t.addChild (juce::ValueTree ("SURPRISE"), -1, nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("no conductor at child 0")
+    {
+        auto t = good.createCopy();
+        t.getChildWithName (SongIDs::SOURCE_MIDI).getChild (0).setProperty (SongIDs::isConductor, false, nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("a second conductor")
+    {
+        auto t = good.createCopy();
+        t.getChildWithName (SongIDs::SOURCE_MIDI).getChild (1).setProperty (SongIDs::isConductor, true, nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("a track missing NOTES")
+    {
+        auto t = good.createCopy();
+        auto track = t.getChildWithName (SongIDs::SOURCE_MIDI).getChild (1);
+        track.removeChild (track.getChildWithName (SongIDs::NOTES), nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("a track missing EVENTS")
+    {
+        auto t = good.createCopy();
+        auto track = t.getChildWithName (SongIDs::SOURCE_MIDI).getChild (1);
+        track.removeChild (track.getChildWithName (SongIDs::EVENTS), nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("duplicate trackId")
+    {
+        auto t = good.createCopy();
+        auto sm = t.getChildWithName (SongIDs::SOURCE_MIDI);
+        sm.getChild (1).setProperty (SongIDs::trackId, sm.getChild (0).getProperty (SongIDs::trackId), nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("duplicate partId")
+    {
+        SongDocument doc;
+        arrange (doc);
+        doc.addPart ("Lute of Ages", "Part 2");
+        auto t = doc.getTree().createCopy();
+        auto parts = t.getChildWithName (SongIDs::PARTS);
+        parts.getChild (1).setProperty (SongIDs::partId, parts.getChild (0).getProperty (SongIDs::partId), nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("an assignment pointing at a track that does not exist")
+    {
+        auto t = good.createCopy();
+        t.getChildWithName (SongIDs::PARTS).getChild (0).getChild (0).setProperty (SongIDs::trackId, 9999, nullptr);
+        CHECK (isInvalid (t));
+    }
+    SECTION ("counters that do not exceed the existing ids")
+    {
+        auto a = good.createCopy(); a.setProperty (nextTrackIdId, 1, nullptr);   CHECK (isInvalid (a));
+        auto b = good.createCopy(); b.setProperty (nextPartIdId, 1, nullptr);    CHECK (isInvalid (b));
+        auto c = good.createCopy(); c.setProperty (nextImportBatchId, 1, nullptr); CHECK (isInvalid (c)); // track has importBatch 1
+    }
+    SECTION ("a missing counter")
+    {
+        auto t = good.createCopy();
+        t.removeProperty (nextImportBatchId, nullptr);
+        CHECK (isInvalid (t));
+    }
 }

@@ -1,6 +1,7 @@
 #include "SongDocument.h"
 
 #include <algorithm>
+#include <vector>
 
 namespace lotro
 {
@@ -77,6 +78,7 @@ namespace SongIDs
     // by SongModelBridge or later phases.
     static const juce::Identifier nextTrackId ("nextTrackId");
     static const juce::Identifier nextPartId ("nextPartId");
+    static const juce::Identifier nextImportBatch ("nextImportBatch");
 }
 
 SongDocument::SongDocument()
@@ -88,6 +90,7 @@ SongDocument::SongDocument()
     tree.setProperty (SongIDs::inputMidiPath, juce::String(), nullptr);
     tree.setProperty (SongIDs::nextTrackId, (juce::int64) 1, nullptr);
     tree.setProperty (SongIDs::nextPartId, (juce::int64) 1, nullptr);
+    tree.setProperty (SongIDs::nextImportBatch, 1, nullptr);
 
     juce::ValueTree sourceMidi (SongIDs::SOURCE_MIDI);
     sourceMidi.setProperty (SongIDs::ticksPerQuarter, 480, nullptr);
@@ -240,6 +243,100 @@ juce::int64 SongDocument::mintPartId()
     auto id = (juce::int64) tree.getProperty (SongIDs::nextPartId, 1);
     tree.setProperty (SongIDs::nextPartId, id + 1, nullptr);
     return id;
+}
+
+int SongDocument::mintImportBatch()
+{
+    const int batch = (int) tree.getProperty (SongIDs::nextImportBatch, 1);
+    tree.setProperty (SongIDs::nextImportBatch, batch + 1, nullptr);
+    return batch;
+}
+
+std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree& t)
+{
+    const auto bad = [] (const std::string& why)
+    {
+        return std::optional<SongFileError> (SongFileError (SongFileErrorKind::InvalidStructure,
+                                                            "This Song file is damaged: " + why));
+    };
+
+    if (! t.isValid() || ! t.hasType (SongIDs::SONG))
+        return bad ("it does not contain a Song.");
+
+    for (const auto* counter : { &SongIDs::nextTrackId, &SongIDs::nextPartId, &SongIDs::nextImportBatch })
+        if (! t.hasProperty (*counter))
+            return bad ("a bookkeeping counter is missing.");
+
+    const juce::Identifier topLevel[] = { SongIDs::SOURCE_MIDI, SongIDs::PARTS, SongIDs::TEMPO_MAP, SongIDs::METER_MAP };
+    if (t.getNumChildren() != 4)
+        return bad ("it has unexpected sections.");
+    for (const auto& id : topLevel)
+    {
+        int count = 0;
+        for (int i = 0; i < t.getNumChildren(); ++i)
+            if (t.getChild (i).hasType (id))
+                ++count;
+        if (count != 1)
+            return bad ("a required section is missing or repeated.");
+    }
+
+    const auto sourceMidi = t.getChildWithName (SongIDs::SOURCE_MIDI);
+    if (sourceMidi.getNumChildren() < 1)
+        return bad ("it has no conductor track.");
+
+    const auto nextTrack = (juce::int64) t.getProperty (SongIDs::nextTrackId);
+    const auto nextPart  = (juce::int64) t.getProperty (SongIDs::nextPartId);
+    const auto nextBatch = (juce::int64) t.getProperty (SongIDs::nextImportBatch);
+
+    std::vector<juce::int64> trackIds;
+    for (int i = 0; i < sourceMidi.getNumChildren(); ++i)
+    {
+        const auto track = sourceMidi.getChild (i);
+        if (! track.hasType (SongIDs::MIDI_TRACK))
+            return bad ("a track entry is not a track.");
+        if (((bool) track.getProperty (SongIDs::isConductor, false)) != (i == 0))
+            return bad ("the conductor track is missing, repeated or not first.");
+        if (! getNotesNode (track).isValid() || ! getEventsNode (track).isValid())
+            return bad ("a track is missing its notes or events section.");
+
+        const auto id = (juce::int64) track.getProperty (SongIDs::trackId, -1);
+        if (id < 1 || id >= nextTrack)
+            return bad ("a track id is out of range.");
+        if (std::find (trackIds.begin(), trackIds.end(), id) != trackIds.end())
+            return bad ("two tracks share an id.");
+        trackIds.push_back (id);
+
+        if ((juce::int64) track.getProperty (SongIDs::importBatch, 0) >= nextBatch)
+            return bad ("an import batch number is out of range.");
+    }
+
+    std::vector<juce::int64> partIds;
+    const auto parts = t.getChildWithName (SongIDs::PARTS);
+    for (int i = 0; i < parts.getNumChildren(); ++i)
+    {
+        const auto part = parts.getChild (i);
+        if (! part.hasType (SongIDs::PART))
+            return bad ("a part entry is not a part.");
+
+        const auto id = (juce::int64) part.getProperty (SongIDs::partId, -1);
+        if (id < 1 || id >= nextPart)
+            return bad ("a part id is out of range.");
+        if (std::find (partIds.begin(), partIds.end(), id) != partIds.end())
+            return bad ("two parts share an id.");
+        partIds.push_back (id);
+
+        for (int a = 0; a < part.getNumChildren(); ++a)
+        {
+            const auto assignment = part.getChild (a);
+            if (! assignment.hasType (SongIDs::ASSIGNMENT))
+                continue;
+            const auto ref = (juce::int64) assignment.getProperty (SongIDs::trackId, -1);
+            if (std::find (trackIds.begin(), trackIds.end(), ref) == trackIds.end())
+                return bad ("a part refers to a track that does not exist.");
+        }
+    }
+
+    return std::nullopt;
 }
 
 juce::ValueTree SongDocument::addTrack (const juce::String& trackName, int colorArgb,
