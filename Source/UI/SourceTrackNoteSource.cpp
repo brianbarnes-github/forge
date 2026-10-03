@@ -19,12 +19,12 @@ bool SourceTrackNoteSource::isTrackLive() const
 
 int SourceTrackNoteSource::getNumNotes() const
 {
-    return isTrackLive() ? track.getNumChildren() : 0;
+    return isTrackLive() ? SongDocument::getNotesNode (track).getNumChildren() : 0;
 }
 
 PianoRollNote SourceTrackNoteSource::getNote (int index) const
 {
-    auto noteNode = track.getChild (index);
+    auto noteNode = SongDocument::getNotesNode (track).getChild (index);
 
     PianoRollNote note;
     note.pitch         = (int) noteNode.getProperty (SongIDs::pitch);

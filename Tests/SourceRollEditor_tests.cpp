@@ -40,8 +40,8 @@ namespace
 
         Fixture()
         {
-            track.addChild (noteA, -1, nullptr);
-            track.addChild (noteB, -1, nullptr);
+            SongDocument::getNotesNode (track).addChild (noteA, -1, nullptr);
+            SongDocument::getNotesNode (track).addChild (noteB, -1, nullptr);
             editor.setTrack (track);
             editor.setGeometry (geometry);
         }
@@ -236,18 +236,18 @@ TEST_CASE ("SourceRollEditor: double-clicking an empty cell creates a note there
     Fixture f;
     const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
 
-    REQUIRE (f.track.getNumChildren() == 2);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
     CHECK (f.editor.mouseDown (emptyCell, {}, true));
-    REQUIRE (f.track.getNumChildren() == 3);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 3);
 
-    auto created = f.track.getChild (2);
+    auto created = SongDocument::getNotesNode (f.track).getChild (2);
     CHECK ((int) created.getProperty (SongIDs::pitch) == 72);
     CHECK ((int) created.getProperty (SongIDs::startTick) == f.geometry.tickForX (emptyCell.x));
     CHECK ((int) created.getProperty (SongIDs::durationTicks) == ticksPerQuarter); // grid off -> quarter note fallback
 
     REQUIRE (f.doc.canUndo());
     f.doc.undo();
-    CHECK (f.track.getNumChildren() == 2);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
 }
 
 TEST_CASE ("SourceRollEditor: create uses the current grid size for the new note's duration when grid is on", "[source-roll-editor]")
@@ -258,7 +258,7 @@ TEST_CASE ("SourceRollEditor: create uses the current grid size for the new note
     const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
     f.editor.mouseDown (emptyCell, {}, true);
 
-    auto created = f.track.getChild (2);
+    auto created = SongDocument::getNotesNode (f.track).getChild (2);
     CHECK ((int) created.getProperty (SongIDs::durationTicks) == ticksPerQuarter / 4);
 }
 
@@ -266,7 +266,7 @@ TEST_CASE ("SourceRollEditor: double-clicking an existing note is a no-op", "[so
 {
     Fixture f;
     CHECK_FALSE (f.editor.mouseDown (f.centreOf (f.noteA), {}, true));
-    CHECK (f.track.getNumChildren() == 2);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
 }
 
 TEST_CASE ("SourceRollEditor: deleteSelection removes every selected note in one undo transaction", "[source-roll-editor]")
@@ -278,18 +278,18 @@ TEST_CASE ("SourceRollEditor: deleteSelection removes every selected note in one
     REQUIRE (f.editor.getNumSelected() == 2);
 
     CHECK (f.editor.deleteSelection());
-    CHECK (f.track.getNumChildren() == 0);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 0);
     CHECK (f.editor.getNumSelected() == 0);
 
     f.doc.undo();
-    CHECK (f.track.getNumChildren() == 2); // one undo restores both
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2); // one undo restores both
 }
 
 TEST_CASE ("SourceRollEditor: deleteSelection with nothing selected is a no-op", "[source-roll-editor]")
 {
     Fixture f;
     CHECK_FALSE (f.editor.deleteSelection());
-    CHECK (f.track.getNumChildren() == 2);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
 }
 
 TEST_CASE ("SourceRollEditor: quantizeSelection snaps startTick and durationTicks of every selected note to the grid, one undo transaction", "[source-roll-editor]")
@@ -330,11 +330,11 @@ TEST_CASE ("SourceRollEditor: the delete key removes the selection; backspace do
     Fixture f;
     f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
     CHECK (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
-    CHECK (f.track.getNumChildren() == 1);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 1);
 
     f.editor.mouseDown (f.centreOf (f.noteB), {}, false);
     CHECK (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::backspaceKey)));
-    CHECK (f.track.getNumChildren() == 0);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 0);
 }
 
 TEST_CASE ("SourceRollEditor: the delete key with nothing selected is not handled", "[source-roll-editor]")
@@ -348,15 +348,15 @@ TEST_CASE ("SourceRollEditor: Ctrl+Z undoes and Ctrl+Y redoes the last mutation"
     Fixture f;
     f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
     REQUIRE (f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
-    REQUIRE (f.track.getNumChildren() == 1);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 1);
 
     const auto ctrlZ = juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0);
     CHECK (f.editor.keyPressed (ctrlZ));
-    CHECK (f.track.getNumChildren() == 2);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
 
     const auto ctrlY = juce::KeyPress ('y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0);
     CHECK (f.editor.keyPressed (ctrlY));
-    CHECK (f.track.getNumChildren() == 1);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 1);
 }
 
 TEST_CASE ("SourceRollEditor: Ctrl+Shift+Z also redoes", "[source-roll-editor]")
@@ -365,12 +365,12 @@ TEST_CASE ("SourceRollEditor: Ctrl+Shift+Z also redoes", "[source-roll-editor]")
     f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
     f.editor.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey));
     f.editor.keyPressed (juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0));
-    REQUIRE (f.track.getNumChildren() == 2);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
 
     const auto ctrlShiftZ = juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier
                                                                        | juce::ModifierKeys::shiftModifier), 0);
     CHECK (f.editor.keyPressed (ctrlShiftZ));
-    CHECK (f.track.getNumChildren() == 1);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 1);
 }
 
 namespace
@@ -389,7 +389,7 @@ TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pi
 {
     Fixture f;
     auto laterC = makeNote (60, ticksPerQuarter * 4, ticksPerQuarter);
-    f.track.addChild (laterC, -1, nullptr);
+    SongDocument::getNotesNode (f.track).addChild (laterC, -1, nullptr);
     f.editor.mouseDown (f.centreOf (f.noteB), {}, false); // prior selection is replaced
     f.editor.mouseUp (f.centreOf (f.noteB));
 

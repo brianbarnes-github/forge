@@ -72,7 +72,7 @@ void TrackRowComponent::setGhostVisible (bool shouldBeVisible)
 
 juce::String TrackRowComponent::buildSecondLine() const
 {
-    const int numNotes = track.getNumChildren();
+    const int numNotes = SongDocument::getNotesNode (track).getNumChildren();
     juce::String line = juce::String (numNotes) + " notes";
 
     const int channel = (int) track.getProperty (SongIDs::sourceMidiChannel);
@@ -89,7 +89,7 @@ juce::String TrackRowComponent::buildSecondLine() const
     int highest = std::numeric_limits<int>::min();
     for (int i = 0; i < numNotes; ++i)
     {
-        const int pitch = (int) track.getChild (i).getProperty (SongIDs::pitch);
+        const int pitch = (int) SongDocument::getNotesNode (track).getChild (i).getProperty (SongIDs::pitch);
         lowest  = std::min (lowest, pitch);
         highest = std::max (highest, pitch);
     }

@@ -43,7 +43,7 @@ bool SourceRollEditor::isSelected (const juce::ValueTree& note) const
 void SourceRollEditor::pruneSelection()
 {
     selection.erase (std::remove_if (selection.begin(), selection.end(),
-                                      [this] (const juce::ValueTree& n) { return n.getParent() != track; }),
+                                      [this] (const juce::ValueTree& n) { return n.getParent() != SongDocument::getNotesNode (track); }),
                       selection.end());
 }
 
@@ -61,9 +61,10 @@ void SourceRollEditor::selectPitch (int pitch, bool addToSelection)
     if (! track.isValid())
         return;
 
-    for (int i = 0; i < track.getNumChildren(); ++i)
+    auto notes = SongDocument::getNotesNode (track);
+    for (int i = 0; i < notes.getNumChildren(); ++i)
     {
-        auto noteNode = track.getChild (i);
+        auto noteNode = notes.getChild (i);
         if ((int) noteNode.getProperty (SongIDs::pitch) == pitch && ! isSelected (noteNode))
             selection.push_back (noteNode);
     }
@@ -85,9 +86,10 @@ juce::ValueTree SourceRollEditor::hitTestNote (juce::Point<int> pos) const
 
     // Back-to-front: a later child paints on top, so it should win the hit
     // test for overlapping notes, matching what's visually on top.
-    for (int i = track.getNumChildren(); --i >= 0; )
+    auto notes = SongDocument::getNotesNode (track);
+    for (int i = notes.getNumChildren(); --i >= 0; )
     {
-        auto noteNode = track.getChild (i);
+        auto noteNode = notes.getChild (i);
         if (toRect (geometry.noteBounds (toPianoRollNote (noteNode))).contains (pos))
             return noteNode;
     }
@@ -112,9 +114,10 @@ void SourceRollEditor::updateRubberBandSelection()
     if (! track.isValid())
         return;
 
-    for (int i = 0; i < track.getNumChildren(); ++i)
+    auto notes = SongDocument::getNotesNode (track);
+    for (int i = 0; i < notes.getNumChildren(); ++i)
     {
-        auto noteNode = track.getChild (i);
+        auto noteNode = notes.getChild (i);
         if (toRect (geometry.noteBounds (toPianoRollNote (noteNode))).intersects (rubberBandRect)
             && ! isSelected (noteNode))
             selection.push_back (noteNode);
@@ -286,7 +289,7 @@ bool SourceRollEditor::deleteSelection()
 
     doc.getUndoManager().beginNewTransaction();
     for (auto& note : selection)
-        doc.removeChild (track, note, false);
+        doc.removeChild (SongDocument::getNotesNode (track), note, false);
     selection.clear();
     return true;
 }
@@ -330,7 +333,7 @@ void SourceRollEditor::createNoteAt (juce::Point<int> pos)
     note.setProperty (SongIDs::sourceTrackIndex, -1, nullptr);
     note.setProperty (SongIDs::sourceEventIndex, -1, nullptr);
 
-    doc.addChild (track, note);
+    doc.addChild (SongDocument::getNotesNode (track), note);
     selectOnly (note);
 }
 

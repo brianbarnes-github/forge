@@ -18,6 +18,9 @@ namespace SongIDs
     const juce::Identifier TEMPO_CHANGE ("TEMPO_CHANGE");
     const juce::Identifier METER_MAP ("METER_MAP");
     const juce::Identifier METER_CHANGE ("METER_CHANGE");
+    const juce::Identifier NOTES ("NOTES");
+    const juce::Identifier EVENTS ("EVENTS");
+    const juce::Identifier EVENT ("EVENT");
 
     const juce::Identifier title ("title");
     const juce::Identifier transcriber ("transcriber");
@@ -41,6 +44,19 @@ namespace SongIDs
     const juce::Identifier isDrum ("isDrum");
     const juce::Identifier sourceTrackIndex ("sourceTrackIndex");
     const juce::Identifier sourceEventIndex ("sourceEventIndex");
+
+    const juce::Identifier channel ("channel");
+    const juce::Identifier offVelocity ("offVelocity");
+    const juce::Identifier offIsNoteOnZero ("offIsNoteOnZero");
+    const juce::Identifier onOrder ("onOrder");
+    const juce::Identifier offOrder ("offOrder");
+    const juce::Identifier offSynthesized ("offSynthesized");
+    const juce::Identifier isConductor ("isConductor");
+    const juce::Identifier endTick ("endTick");
+    const juce::Identifier defaultChannel ("defaultChannel");
+    const juce::Identifier data ("data");
+    const juce::Identifier order ("order");
+    const juce::Identifier relocatedFrom ("relocatedFrom");
 
     const juce::Identifier partId ("partId");
     const juce::Identifier x ("x");
@@ -156,6 +172,32 @@ juce::ValueTree SongDocument::findPartById (juce::int64 partIdToFind) const
     return {};
 }
 
+juce::ValueTree SongDocument::getNotesNode (const juce::ValueTree& track)
+{
+    return track.getChildWithName (SongIDs::NOTES);
+}
+
+juce::ValueTree SongDocument::getEventsNode (const juce::ValueTree& track)
+{
+    return track.getChildWithName (SongIDs::EVENTS);
+}
+
+bool SongDocument::isAssignableTrack (const juce::ValueTree& track)
+{
+    return track.hasType (SongIDs::MIDI_TRACK)
+        && ! (bool) track.getProperty (SongIDs::isConductor, false)
+        && getNotesNode (track).getNumChildren() > 0;
+}
+
+int SongDocument::getNumAssignableTracks() const
+{
+    int count = 0;
+    for (auto track : getSourceMidiNode())
+        if (isAssignableTrack (track))
+            ++count;
+    return count;
+}
+
 int SongDocument::getNumAssignments (const juce::ValueTree& part)
 {
     return part.getNumChildren();
@@ -191,6 +233,9 @@ juce::ValueTree SongDocument::addTrack (const juce::String& trackName, int color
     track.setProperty (SongIDs::colorArgb, colorArgb, &undoManager);
     track.setProperty (SongIDs::sourceMidiChannel, sourceMidiChannel, &undoManager);
     track.setProperty (SongIDs::importBatch, importBatch, &undoManager);
+    track.setProperty (SongIDs::endTick, 0, nullptr);
+    track.addChild (juce::ValueTree (SongIDs::NOTES), -1, nullptr);
+    track.addChild (juce::ValueTree (SongIDs::EVENTS), -1, nullptr);
 
     getSourceMidiNode().addChild (track, -1, &undoManager);
     return track;
@@ -205,6 +250,9 @@ juce::ValueTree SongDocument::addTrackBulk (const juce::String& trackName, int c
     track.setProperty (SongIDs::colorArgb, colorArgb, nullptr);
     track.setProperty (SongIDs::sourceMidiChannel, sourceMidiChannel, nullptr);
     track.setProperty (SongIDs::importBatch, importBatch, nullptr);
+    track.setProperty (SongIDs::endTick, 0, nullptr);
+    track.addChild (juce::ValueTree (SongIDs::NOTES), -1, nullptr);
+    track.addChild (juce::ValueTree (SongIDs::EVENTS), -1, nullptr);
 
     getSourceMidiNode().addChild (track, -1, nullptr);
     return track;
@@ -327,6 +375,15 @@ bool SongDocument::assignTrackToPart (juce::int64 partId, juce::int64 trackId)
 
     addAssignment (part, trackId, 0, 0, "octaveShift");
     return true;
+}
+
+void SongDocument::removeProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,
+                                    bool newTransaction)
+{
+    if (newTransaction)
+        undoManager.beginNewTransaction();
+
+    targetTree.removeProperty (propertyId, &undoManager);
 }
 
 void SongDocument::setProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,

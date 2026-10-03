@@ -440,17 +440,17 @@ TEST_CASE ("SongDocument: addChild/removeChild default to opening their own tran
     juce::ValueTree note (SongIDs::NOTE);
     note.setProperty (SongIDs::pitch, 60, nullptr);
 
-    doc.addChild (track, note);
-    REQUIRE (track.getNumChildren() == 1);
+    doc.addChild (SongDocument::getNotesNode (track), note);
+    REQUIRE (SongDocument::getNotesNode (track).getNumChildren() == 1);
 
-    doc.removeChild (track, note);
-    REQUIRE (track.getNumChildren() == 0);
+    doc.removeChild (SongDocument::getNotesNode (track), note);
+    REQUIRE (SongDocument::getNotesNode (track).getNumChildren() == 0);
 
     doc.undo(); // undoes removeChild only (its own transaction)
-    CHECK (track.getNumChildren() == 1);
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 1);
 
     doc.undo(); // undoes addChild (its own, separate, earlier transaction)
-    CHECK (track.getNumChildren() == 0);
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 0);
 }
 
 TEST_CASE ("SongDocument: addChild/removeChild's newTransaction=false batches into the caller's already-open transaction", "[songdocument]")
@@ -464,21 +464,74 @@ TEST_CASE ("SongDocument: addChild/removeChild's newTransaction=false batches in
     noteB.setProperty (SongIDs::pitch, 64, nullptr);
 
     doc.getUndoManager().beginNewTransaction();
-    doc.addChild (track, noteA, false);
-    doc.addChild (track, noteB, false);
-    REQUIRE (track.getNumChildren() == 2);
+    doc.addChild (SongDocument::getNotesNode (track), noteA, false);
+    doc.addChild (SongDocument::getNotesNode (track), noteB, false);
+    REQUIRE (SongDocument::getNotesNode (track).getNumChildren() == 2);
 
     doc.undo();
-    CHECK (track.getNumChildren() == 0); // one undo() reverts BOTH adds
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 0); // one undo() reverts BOTH adds
 
     doc.redo();
-    REQUIRE (track.getNumChildren() == 2);
+    REQUIRE (SongDocument::getNotesNode (track).getNumChildren() == 2);
 
     doc.getUndoManager().beginNewTransaction();
-    doc.removeChild (track, track.getChild (0), false);
-    doc.removeChild (track, track.getChild (0), false);
-    CHECK (track.getNumChildren() == 0);
+    doc.removeChild (SongDocument::getNotesNode (track), SongDocument::getNotesNode (track).getChild (0), false);
+    doc.removeChild (SongDocument::getNotesNode (track), SongDocument::getNotesNode (track).getChild (0), false);
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 0);
 
     doc.undo();
-    CHECK (track.getNumChildren() == 2); // one undo() restores both removed children
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 2); // one undo() restores both removed children
+}
+
+TEST_CASE ("SongDocument: new tracks get empty NOTES and EVENTS containers and endTick 0", "[songdocument][fidelity]")
+{
+    SongDocument doc;
+    auto undoable = doc.addTrack ("A", 0, 0, 1);
+    auto bulk = doc.addTrackBulk ("B", 0, 0, 1);
+
+    for (auto track : { undoable, bulk })
+    {
+        auto notes = SongDocument::getNotesNode (track);
+        auto events = SongDocument::getEventsNode (track);
+        REQUIRE (notes.isValid());
+        REQUIRE (events.isValid());
+        CHECK (notes.hasType (SongIDs::NOTES));
+        CHECK (events.hasType (SongIDs::EVENTS));
+        CHECK (notes.getNumChildren() == 0);
+        CHECK (events.getNumChildren() == 0);
+        CHECK ((int) track.getProperty (SongIDs::endTick) == 0);
+    }
+}
+
+TEST_CASE ("SongDocument: isAssignableTrack needs at least one note and no conductor flag", "[songdocument][fidelity]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", 0, 0, 1);
+    CHECK_FALSE (SongDocument::isAssignableTrack (track));
+    CHECK (doc.getNumAssignableTracks() == 0);
+
+    SongDocument::appendChildBulk (SongDocument::getNotesNode (track), juce::ValueTree (SongIDs::NOTE));
+    CHECK (SongDocument::isAssignableTrack (track));
+    CHECK (doc.getNumAssignableTracks() == 1);
+
+    track.setProperty (SongIDs::isConductor, true, nullptr);
+    CHECK_FALSE (SongDocument::isAssignableTrack (track));
+    CHECK_FALSE (SongDocument::isAssignableTrack ({}));
+}
+
+TEST_CASE ("SongDocument: removeProperty is undoable and joins an open transaction when asked", "[songdocument][fidelity]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", 0, 0, 1);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::onOrder, 3, nullptr);
+    SongDocument::appendChildBulk (SongDocument::getNotesNode (track), note);
+
+    doc.setProperty (note, SongIDs::startTick, 10);
+    doc.removeProperty (note, SongIDs::onOrder, false);
+    CHECK_FALSE (note.hasProperty (SongIDs::onOrder));
+
+    doc.undo(); // one transaction: both the setProperty and the removeProperty
+    CHECK ((int) note.getProperty (SongIDs::onOrder) == 3);
+    CHECK_FALSE (note.hasProperty (SongIDs::startTick));
 }

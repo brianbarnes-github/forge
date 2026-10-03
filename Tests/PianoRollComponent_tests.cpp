@@ -256,7 +256,7 @@ TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDrag/mouseUp reach Sourc
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
-    track.addChild (note, -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (note, -1, nullptr);
 
     SourceTrackNoteSource source (track);
 
@@ -278,11 +278,11 @@ TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDrag/mouseUp reach Sourc
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
     const int expectedDeltaTick = geometry.tickForX (dragPos.x) - geometry.tickForX (clickPos.x);
-    CHECK ((int) track.getChild (0).getProperty (SongIDs::startTick) == expectedDeltaTick);
+    CHECK ((int) SongDocument::getNotesNode (track).getChild (0).getProperty (SongIDs::startTick) == expectedDeltaTick);
     CHECK (doc.canUndo());
 
     doc.undo();
-    CHECK ((int) track.getChild (0).getProperty (SongIDs::startTick) == 0);
+    CHECK ((int) SongDocument::getNotesNode (track).getChild (0).getProperty (SongIDs::startTick) == 0);
 }
 
 TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDoubleClick and keyPressed reach SourceRollEditor end to end", "[piano-roll]")
@@ -295,7 +295,7 @@ TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDoubleClick and keyPress
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
-    track.addChild (note, -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (note, -1, nullptr);
 
     SourceTrackNoteSource source (track);
 
@@ -308,12 +308,12 @@ TEST_CASE ("PianoRollComponent: Canvas's real JUCE mouseDoubleClick and keyPress
     const juce::Point<int> emptyCell (geometry.xForTick (ticksPerQuarter * 3), geometry.yForPitch (72));
 
     auto& canvas = Access::canvas (roll);
-    REQUIRE (track.getNumChildren() == 1);
+    REQUIRE (SongDocument::getNotesNode (track).getNumChildren() == 1);
     canvas.mouseDoubleClick (makeMouseEvent (canvas, emptyCell, emptyCell, 2, false));
-    REQUIRE (track.getNumChildren() == 2); // createNoteAt also selects the new note
+    REQUIRE (SongDocument::getNotesNode (track).getNumChildren() == 2); // createNoteAt also selects the new note
 
     REQUIRE (canvas.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
-    CHECK (track.getNumChildren() == 1);
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 1);
 }
 
 TEST_CASE ("PianoRollComponent: a selected source-role note paints with the selection highlight border", "[piano-roll]")
@@ -326,7 +326,7 @@ TEST_CASE ("PianoRollComponent: a selected source-role note paints with the sele
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
-    track.addChild (note, -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (note, -1, nullptr);
 
     SourceTrackNoteSource source (track);
 
@@ -363,7 +363,7 @@ TEST_CASE ("PianoRollComponent: ghost tracks render translucently and only for R
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, 480, nullptr);
-    track.appendChild (note, nullptr);
+    SongDocument::getNotesNode (track).appendChild (note, nullptr);
 
     // setNoteSource is never called on this roll, so PianoRollComponent's
     // own `geometry` member stays default-constructed -- mirroring that
@@ -416,7 +416,7 @@ TEST_CASE ("PianoRollComponent: Preview role ignores setGhostTracks", "[piano-ro
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, 480, nullptr);
-    track.appendChild (note, nullptr);
+    SongDocument::getNotesNode (track).appendChild (note, nullptr);
 
     PianoRollGeometry defaultGeometry;
     const int ghostX = defaultGeometry.xForTick (0);
@@ -465,7 +465,7 @@ namespace
                 note.setProperty (SongIDs::pitch, pitch, nullptr);
                 note.setProperty (SongIDs::startTick, startTick, nullptr);
                 note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
-                track.addChild (note, -1, nullptr);
+                SongDocument::getNotesNode (track).addChild (note, -1, nullptr);
                 startTick += ticksPerQuarter;
             }
             source = std::make_unique<SourceTrackNoteSource> (track);
@@ -520,9 +520,9 @@ TEST_CASE ("PianoRollComponent: a Source roll can draw a new note at the extreme
     REQUIRE (Access::mouseDown (fixture.roll, { x, geometry.yForPitch (127) + 1 }, {}, true));
     REQUIRE (Access::mouseDown (fixture.roll, { x, geometry.yForPitch (0) + 1 }, {}, true));
 
-    REQUIRE (fixture.track.getNumChildren() == 3);
-    CHECK ((int) fixture.track.getChild (1).getProperty (SongIDs::pitch) == 127);
-    CHECK ((int) fixture.track.getChild (2).getProperty (SongIDs::pitch) == 0);
+    REQUIRE (SongDocument::getNotesNode (fixture.track).getNumChildren() == 3);
+    CHECK ((int) SongDocument::getNotesNode (fixture.track).getChild (1).getProperty (SongIDs::pitch) == 127);
+    CHECK ((int) SongDocument::getNotesNode (fixture.track).getChild (2).getProperty (SongIDs::pitch) == 0);
 }
 
 TEST_CASE ("PianoRollComponent: a Source roll opens scrolled so the track's notes are centred vertically", "[piano-roll][full-range]")
@@ -549,7 +549,7 @@ TEST_CASE ("PianoRollComponent: a Source roll opens scrolled so the track's note
         note.setProperty (SongIDs::pitch, 30, nullptr);
         note.setProperty (SongIDs::startTick, 0, nullptr);
         note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
-        other.addChild (note, -1, nullptr);
+        SongDocument::getNotesNode (other).addChild (note, -1, nullptr);
         SourceTrackNoteSource otherSource (other);
 
         fixture.roll.setNoteSource (&otherSource, ticksPerQuarter, {});

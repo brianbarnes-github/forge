@@ -498,8 +498,8 @@ TEST_CASE ("SongModelBridge: an inexact rescale over the LCM cap emits a Warning
     CHECK (diag2[0].message.find ("1 value(s) rounded") != std::string::npos);
 
     auto secondTrackTree = doc.getTrack (1);
-    REQUIRE (secondTrackTree.getNumChildren() == 1);
-    auto noteTree = secondTrackTree.getChild (0);
+    REQUIRE (SongDocument::getNotesNode (secondTrackTree).getNumChildren() == 1);
+    auto noteTree = SongDocument::getNotesNode (secondTrackTree).getChild (0);
     CHECK ((int) noteTree.getProperty (SongIDs::startTick) == 11);
     CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == 9);
 }
@@ -563,10 +563,10 @@ TEST_CASE ("SongModelBridge: a rescale over the LCM cap that zeroes a note's dur
     // The bridge does NOT delete the zero-duration note itself — that is
     // DurationConstraint's job, downstream in the pipeline.
     auto secondTrackTree = doc.getTrack (1);
-    REQUIRE (secondTrackTree.getNumChildren() == 2);
-    auto zeroedNote = secondTrackTree.getChild (0);
+    REQUIRE (SongDocument::getNotesNode (secondTrackTree).getNumChildren() == 2);
+    auto zeroedNote = SongDocument::getNotesNode (secondTrackTree).getChild (0);
     CHECK ((int) zeroedNote.getProperty (SongIDs::durationTicks) == 0);
-    auto survivingNote = secondTrackTree.getChild (1);
+    auto survivingNote = SongDocument::getNotesNode (secondTrackTree).getChild (1);
     CHECK ((int) survivingNote.getProperty (SongIDs::durationTicks) == 1);
 }
 
@@ -622,23 +622,23 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
 
     // Existing (first import's) notes rescaled ×4, exactly.
     auto existingTrack = doc.getTrack (0);
-    REQUIRE (existingTrack.getNumChildren() == 2);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 40);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 80);
-    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::startTick) == 120);
-    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::durationTicks) == 60);
+    REQUIRE (SongDocument::getNotesNode (existingTrack).getNumChildren() == 2);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 40);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 80);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (1).getProperty (SongIDs::startTick) == 120);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (1).getProperty (SongIDs::durationTicks) == 60);
 
     // Provenance on those same rescaled notes is untouched — the raise only
     // ever multiplies startTick/durationTicks, never pitch/velocity/
     // sourceTrackIndex/sourceEventIndex.
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::pitch) == 60);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::velocity) == 100);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::sourceTrackIndex) == 0);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::sourceEventIndex) == 0);
-    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::pitch) == 62);
-    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::velocity) == 90);
-    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::sourceTrackIndex) == 0);
-    CHECK ((int) existingTrack.getChild (1).getProperty (SongIDs::sourceEventIndex) == 1);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::pitch) == 60);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::velocity) == 100);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::sourceTrackIndex) == 0);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::sourceEventIndex) == 0);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (1).getProperty (SongIDs::pitch) == 62);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (1).getProperty (SongIDs::velocity) == 90);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (1).getProperty (SongIDs::sourceTrackIndex) == 0);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (1).getProperty (SongIDs::sourceEventIndex) == 1);
 
     // Existing tempo/meter map ticks rescaled ×4 too.
     auto tempoMapNode = doc.getTempoMapNode();
@@ -659,9 +659,9 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     // Incoming (second import's) notes verbatim — the raise landed exactly
     // on the incoming PPQ, so no rescale was needed on that side.
     auto incomingTrack = doc.getTrack (1);
-    REQUIRE (incomingTrack.getNumChildren() == 1);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 5);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 3);
+    REQUIRE (SongDocument::getNotesNode (incomingTrack).getNumChildren() == 1);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 5);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 3);
 
     // Exactly one Info diagnostic naming the raise; no Warning is possible on
     // this path (the raise never rounds).
@@ -720,13 +720,13 @@ TEST_CASE ("SongModelBridge: an import whose LCM equals the document's PPQ does 
 
     // Existing notes untouched.
     auto existingTrack = doc.getTrack (0);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 40);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 80);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 40);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 80);
 
     // Incoming notes rescaled ×4 (480/120), exactly.
     auto incomingTrack = doc.getTrack (1);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 20);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 12);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 20);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 12);
 
     REQUIRE (diag2.size() == 1);
     CHECK (diag2[0].severity == Severity::Info);
@@ -772,13 +772,13 @@ TEST_CASE ("SongModelBridge: a later import raises the document's time base to t
 
     // Existing notes ×2 (960/480).
     auto existingTrack = doc.getTrack (0);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 20);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 40);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 20);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 40);
 
     // Incoming notes verbatim (960/960 == 1).
     auto incomingTrack = doc.getTrack (1);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 5);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 3);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 5);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 3);
 
     REQUIRE (diag2.size() == 1);
     CHECK (diag2[0].severity == Severity::Info);
@@ -821,13 +821,13 @@ TEST_CASE ("SongModelBridge: a raise where neither side's PPQ equals the LCM res
 
     // Existing notes ×11 (77/7).
     auto existingTrack = doc.getTrack (0);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::startTick) == 22);
-    CHECK ((int) existingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 33);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 22);
+    CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 33);
 
     // Incoming notes ×7 (77/11), exactly.
     auto incomingTrack = doc.getTrack (1);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::startTick) == 28);
-    CHECK ((int) incomingTrack.getChild (0).getProperty (SongIDs::durationTicks) == 35);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 28);
+    CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 35);
 
     REQUIRE (diag2.size() == 1);
     CHECK (diag2[0].severity == Severity::Info);
@@ -909,10 +909,10 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
     for (size_t t = 0; t < second.tracks.size(); ++t)
     {
         auto trackTree = doc.getTrack ((int) t);
-        REQUIRE (trackTree.getNumChildren() == (int) second.tracks[t].notes.size());
+        REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) second.tracks[t].notes.size());
         for (size_t n = 0; n < second.tracks[t].notes.size(); ++n)
         {
-            auto noteTree = trackTree.getChild ((int) n);
+            auto noteTree = SongDocument::getNotesNode (trackTree).getChild ((int) n);
             const auto& note = second.tracks[t].notes[n];
             CHECK ((int) noteTree.getProperty (SongIDs::startTick) == note.startTick * 2);
             CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == note.durationTicks * 2);

@@ -24,7 +24,9 @@ TEST_CASE ("TrackNotePreview: paints a note as a bar at its mapped tick position
     note.setProperty (SongIDs::pitch, 60, nullptr);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, 480, nullptr);
-    track.appendChild (note, nullptr);
+    juce::ValueTree notes (SongIDs::NOTES);
+    notes.appendChild (note, nullptr);
+    track.appendChild (notes, nullptr);
 
     TimelineViewState viewState;
     viewState.setPixelsPerTick (0.1);

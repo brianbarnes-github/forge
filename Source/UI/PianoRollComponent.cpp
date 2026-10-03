@@ -526,12 +526,10 @@ void PianoRollComponent::drawGhostTracks (juce::Graphics& g, juce::Rectangle<int
 
     for (auto& ghostTrack : ghostTracks)
     {
-        for (int i = 0; i < ghostTrack.getNumChildren(); ++i)
+        auto notes = SongDocument::getNotesNode (ghostTrack);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
         {
-            auto note = ghostTrack.getChild (i);
-            if (! note.hasType (SongIDs::NOTE))
-                continue;
-
+            auto note = notes.getChild (i);
             const int pitch = (int) note.getProperty (SongIDs::pitch);
             const int startTick = (int) note.getProperty (SongIDs::startTick);
             const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);
@@ -592,7 +590,7 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         g.drawRect (rect, 1);
 
         if (role == Role::Source && sourceEditor != nullptr
-            && sourceEditor->isSelected (sourceEditor->getTrackNode().getChild (i)))
+            && sourceEditor->isSelected (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (i)))
         {
             g.setColour (juce::Colour (SongsmithColours::selectionHighlight));
             g.drawRect (rect, 2);

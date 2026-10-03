@@ -228,11 +228,11 @@ TEST_CASE ("SongsmithRoundTrip: a later, lower-PPQ import is upscaled into the d
     {
         auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
         const auto& directTrack = directSong.tracks[t];
-        REQUIRE (trackTree.getNumChildren() == (int) directTrack.notes.size());
+        REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
         {
-            auto noteTree = trackTree.getChild ((int) n);
+            auto noteTree = SongDocument::getNotesNode (trackTree).getChild ((int) n);
             const auto& directNote = directTrack.notes[n];
 
             CHECK ((int) noteTree.getProperty (SongIDs::startTick)
@@ -311,11 +311,11 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's
     {
         auto trackTree = doc.getTrack (t);
         const auto& directTrack = directFirstSong.tracks[(size_t) t];
-        REQUIRE (trackTree.getNumChildren() == (int) directTrack.notes.size());
+        REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
         {
-            auto noteTree = trackTree.getChild ((int) n);
+            auto noteTree = SongDocument::getNotesNode (trackTree).getChild ((int) n);
             const auto& directNote = directTrack.notes[n];
             CHECK ((int) noteTree.getProperty (SongIDs::startTick) == directNote.startTick * raiseFactor);
             CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == directNote.durationTicks * raiseFactor);
@@ -353,11 +353,11 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's
     {
         auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
         const auto& directTrack = directSecondSong.tracks[t];
-        REQUIRE (trackTree.getNumChildren() == (int) directTrack.notes.size());
+        REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
         {
-            auto noteTree = trackTree.getChild ((int) n);
+            auto noteTree = SongDocument::getNotesNode (trackTree).getChild ((int) n);
             const auto& directNote = directTrack.notes[n];
             CHECK ((int) noteTree.getProperty (SongIDs::startTick) == directNote.startTick);
             CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == directNote.durationTicks);
@@ -429,9 +429,9 @@ TEST_CASE ("SongsmithRoundTrip: importing a higher-PPQ file no longer destroys i
     for (int t = tracksAfterFirst; t < doc.getNumTracks(); ++t)
     {
         auto trackTree = doc.getTrack (t);
-        for (int n = 0; n < trackTree.getNumChildren(); ++n)
+        for (int n = 0; n < SongDocument::getNotesNode (trackTree).getNumChildren(); ++n)
         {
-            const int duration = (int) trackTree.getChild (n).getProperty (SongIDs::durationTicks);
+            const int duration = (int) SongDocument::getNotesNode (trackTree).getChild (n).getProperty (SongIDs::durationTicks);
             if (duration == 1) ++oneTickNotesInDocument;
             if (duration == 0) ++zeroTickNotesInDocument;
         }
@@ -477,11 +477,11 @@ TEST_CASE ("SongsmithRoundTrip: a later, same-PPQ import keeps ticks verbatim an
     {
         auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
         const auto& directTrack = directSong.tracks[t];
-        REQUIRE (trackTree.getNumChildren() == (int) directTrack.notes.size());
+        REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
         {
-            auto noteTree = trackTree.getChild ((int) n);
+            auto noteTree = SongDocument::getNotesNode (trackTree).getChild ((int) n);
             CHECK ((int) noteTree.getProperty (SongIDs::startTick) == directTrack.notes[n].startTick);
             CHECK ((int) noteTree.getProperty (SongIDs::durationTicks) == directTrack.notes[n].durationTicks);
         }

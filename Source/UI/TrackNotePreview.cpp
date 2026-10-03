@@ -20,12 +20,10 @@ namespace lotro
         int maxPitch = 0;
         bool anyNotes = false;
 
-        for (int i = 0; i < track.getNumChildren(); ++i)
+        auto notes = SongDocument::getNotesNode (track);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
         {
-            auto note = track.getChild (i);
-            if (! note.hasType (SongIDs::NOTE))
-                continue;
-
+            auto note = notes.getChild (i);
             anyNotes = true;
             const int pitch = (int) note.getProperty (SongIDs::pitch);
             minPitch = juce::jmin (minPitch, pitch);
@@ -37,12 +35,9 @@ namespace lotro
             const int pitchSpan = juce::jmax (1, maxPitch - minPitch);
 
             g.setColour (juce::Colour ((juce::uint32) (int) track.getProperty (SongIDs::colorArgb)));
-            for (int i = 0; i < track.getNumChildren(); ++i)
+            for (int i = 0; i < notes.getNumChildren(); ++i)
             {
-                auto note = track.getChild (i);
-                if (! note.hasType (SongIDs::NOTE))
-                    continue;
-
+                auto note = notes.getChild (i);
                 const int pitch = (int) note.getProperty (SongIDs::pitch);
                 const int startTick = (int) note.getProperty (SongIDs::startTick);
                 const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);

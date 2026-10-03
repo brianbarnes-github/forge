@@ -258,7 +258,7 @@ TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState an
     juce::ValueTree note (SongIDs::NOTE);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, 52000, nullptr);
-    track.appendChild (note, nullptr);
+    SongDocument::getNotesNode (track).appendChild (note, nullptr);
 
     TrackListComponent list (doc);
     list.setBounds (0, 0, 300, 400);
@@ -301,14 +301,14 @@ TEST_CASE ("TrackListComponent: fitTimelineToDocument scales the shared zoom so 
     juce::ValueTree shortNote (SongIDs::NOTE);
     shortNote.setProperty (SongIDs::startTick, 0, nullptr);
     shortNote.setProperty (SongIDs::durationTicks, 480, nullptr);
-    trackA.appendChild (shortNote, nullptr);
+    SongDocument::getNotesNode (trackA).appendChild (shortNote, nullptr);
 
     // Track B has the later-ending note, so it -- not Track A -- should
     // determine the fit.
     juce::ValueTree longNote (SongIDs::NOTE);
     longNote.setProperty (SongIDs::startTick, 50000, nullptr);
     longNote.setProperty (SongIDs::durationTicks, 2000, nullptr);
-    trackB.appendChild (longNote, nullptr);
+    SongDocument::getNotesNode (trackB).appendChild (longNote, nullptr);
 
     TrackListComponent list (doc);
     list.setBounds (0, 0, 900, 700);
@@ -343,7 +343,7 @@ namespace
         juce::ValueTree note (SongIDs::NOTE);
         note.setProperty (SongIDs::startTick, endTick - 1000, nullptr);
         note.setProperty (SongIDs::durationTicks, 1000, nullptr);
-        track.appendChild (note, nullptr);
+        SongDocument::getNotesNode (track).appendChild (note, nullptr);
         return track;
     }
 

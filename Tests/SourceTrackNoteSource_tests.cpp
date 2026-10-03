@@ -19,6 +19,8 @@ namespace
         track.setProperty (SongIDs::colorArgb, colorArgb, nullptr);
         track.setProperty (SongIDs::sourceMidiChannel, 0, nullptr);
         track.setProperty (SongIDs::importBatch, 0, nullptr);
+        track.addChild (juce::ValueTree (SongIDs::NOTES), -1, nullptr);
+        track.addChild (juce::ValueTree (SongIDs::EVENTS), -1, nullptr);
         return track;
     }
 
@@ -53,7 +55,7 @@ TEST_CASE ("SourceTrackNoteSource: reads note fields and the track's colour verb
 {
     juce::ValueTree parent (SongIDs::SOURCE_MIDI);
     auto track = makeTrack (1, (int) 0xFF7FA8D0);
-    track.addChild (makeNote (/*pitch*/ 60, /*start*/ 100, /*dur*/ 240), -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (/*pitch*/ 60, /*start*/ 100, /*dur*/ 240), -1, nullptr);
     parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
@@ -72,9 +74,9 @@ TEST_CASE ("SourceTrackNoteSource: tick/pitch ranges span every note, not just t
     // Deliberately out of order and with the widest span note added in the
     // middle, so a buggy implementation that only looked at getChild(0) and
     // getChild(numNotes-1) would give a wrong answer instead of crashing.
-    track.addChild (makeNote (/*pitch*/ 60, /*start*/ 500, /*dur*/ 100), -1, nullptr);
-    track.addChild (makeNote (/*pitch*/ 72, /*start*/ 0,   /*dur*/ 50),  -1, nullptr);
-    track.addChild (makeNote (/*pitch*/ 48, /*start*/ 900, /*dur*/ 200), -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (/*pitch*/ 60, /*start*/ 500, /*dur*/ 100), -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (/*pitch*/ 72, /*start*/ 0,   /*dur*/ 50),  -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (/*pitch*/ 48, /*start*/ 900, /*dur*/ 200), -1, nullptr);
     parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
@@ -93,7 +95,7 @@ TEST_CASE ("SourceTrackNoteSource: returns empty once its track is removed from 
 {
     juce::ValueTree parent (SongIDs::SOURCE_MIDI);
     auto track = makeTrack (1, (int) 0xFF000000);
-    track.addChild (makeNote (/*pitch*/ 60, /*start*/ 0, /*dur*/ 480), -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (/*pitch*/ 60, /*start*/ 0, /*dur*/ 480), -1, nullptr);
     parent.addChild (track, -1, nullptr);
 
     SourceTrackNoteSource source (track);
@@ -116,7 +118,7 @@ TEST_CASE ("SourceTrackNoteSource: copies sourceTrackIndex/sourceEventIndex verb
     auto track = makeTrack (1, (int) 0xFF000000);
     // Deliberately distinct, non-matching values so a bug that swaps them,
     // zeroes them, or defaults them to the track's own trackId is caught.
-    track.addChild (makeNote (60, 0, 480, /*sourceTrackIndex*/ 3, /*sourceEventIndex*/ 7), -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (60, 0, 480, /*sourceTrackIndex*/ 3, /*sourceEventIndex*/ 7), -1, nullptr);
     parent.addChild (track, -1, nullptr);
     SourceTrackNoteSource source (track);
 
@@ -139,7 +141,7 @@ TEST_CASE ("SourceTrackNoteSource: reads live off the tree, no cache", "[piano-r
 
     // Mutate the tree after construction — a cached implementation would
     // still report 0 notes here.
-    track.addChild (makeNote (64, 0, 480), -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (makeNote (64, 0, 480), -1, nullptr);
 
     CHECK (source.getNumNotes() == 1);
     CHECK (source.getNote (0).pitch == 64);

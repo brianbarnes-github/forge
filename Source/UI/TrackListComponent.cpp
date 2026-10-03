@@ -71,12 +71,10 @@ int TrackListComponent::documentEndTick() const
     for (int t = 0; t < doc.getNumTracks(); ++t)
     {
         auto track = doc.getTrack (t);
-        for (int n = 0; n < track.getNumChildren(); ++n)
+        auto notes = SongDocument::getNotesNode (track);
+        for (int n = 0; n < notes.getNumChildren(); ++n)
         {
-            auto note = track.getChild (n);
-            if (! note.hasType (SongIDs::NOTE))
-                continue;
-
+            auto note = notes.getChild (n);
             const int endTick = (int) note.getProperty (SongIDs::startTick)
                                + (int) note.getProperty (SongIDs::durationTicks);
             lastTick = juce::jmax (lastTick, endTick);

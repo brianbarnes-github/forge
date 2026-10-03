@@ -49,9 +49,9 @@ namespace
         for (int t = 0; t < sourceMidiNode.getNumChildren(); ++t)
         {
             auto trackTree = sourceMidiNode.getChild (t);
-            for (int n = 0; n < trackTree.getNumChildren(); ++n)
+            for (int n = 0; n < SongDocument::getNotesNode (trackTree).getNumChildren(); ++n)
             {
-                auto noteTree = trackTree.getChild (n);
+                auto noteTree = SongDocument::getNotesNode (trackTree).getChild (n);
                 const int startTick     = (int) noteTree.getProperty (SongIDs::startTick);
                 const int durationTicks = (int) noteTree.getProperty (SongIDs::durationTicks);
                 noteTree.setProperty (SongIDs::startTick, startTick * factor, nullptr);
@@ -210,7 +210,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
             noteTree.setProperty (SongIDs::sourceTrackIndex, note.sourceTrackIndex, nullptr);
             noteTree.setProperty (SongIDs::sourceEventIndex, note.sourceEventIndex, nullptr);
 
-            SongDocument::appendChildBulk (trackTree, noteTree);
+            SongDocument::appendChildBulk (SongDocument::getNotesNode (trackTree), noteTree);
         }
     }
 
@@ -449,7 +449,7 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
         track.sourceMidiChannel = (int) trackTree.getProperty (SongIDs::sourceMidiChannel);
         track.sourceProgram     = (int) trackTree.getProperty (SongIDs::sourceProgram);
 
-        for (auto noteTree : trackTree)
+        for (auto noteTree : SongDocument::getNotesNode (trackTree))
         {
             Note note;
             note.pitch            = (int) noteTree.getProperty (SongIDs::pitch);

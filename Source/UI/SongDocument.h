@@ -24,6 +24,9 @@ namespace SongIDs
     extern const juce::Identifier TEMPO_CHANGE;
     extern const juce::Identifier METER_MAP;
     extern const juce::Identifier METER_CHANGE;
+    extern const juce::Identifier NOTES;   // MIDI_TRACK child holding NOTE nodes
+    extern const juce::Identifier EVENTS;  // MIDI_TRACK child holding EVENT nodes
+    extern const juce::Identifier EVENT;   // one non-note raw MIDI event
 
     // SONG properties
     extern const juce::Identifier title;
@@ -53,6 +56,20 @@ namespace SongIDs
     extern const juce::Identifier isDrum;
     extern const juce::Identifier sourceTrackIndex;
     extern const juce::Identifier sourceEventIndex;
+
+    // MIDI-fidelity properties (2026-10-03 spec).
+    extern const juce::Identifier channel;          // NOTE: 1..16
+    extern const juce::Identifier offVelocity;      // NOTE: note-off velocity
+    extern const juce::Identifier offIsNoteOnZero;  // NOTE: off written as note-on velocity 0
+    extern const juce::Identifier onOrder;          // NOTE: raw index of its note-on (imported only)
+    extern const juce::Identifier offOrder;         // NOTE: raw index of its note-off (imported only)
+    extern const juce::Identifier offSynthesized;   // NOTE: JUCE invented its note-off on import
+    extern const juce::Identifier isConductor;      // MIDI_TRACK: the song's conductor track
+    extern const juce::Identifier endTick;          // MIDI_TRACK: End-of-Track tick
+    extern const juce::Identifier defaultChannel;   // MIDI_TRACK: channel for editor-created notes
+    extern const juce::Identifier data;             // EVENT: juce::MemoryBlock of raw bytes
+    extern const juce::Identifier order;            // EVENT: raw index within its source track
+    extern const juce::Identifier relocatedFrom;    // EVENT: raw source track when moved to the conductor
 
     // PART properties
     extern const juce::Identifier partId;
@@ -129,6 +146,15 @@ public:
     juce::ValueTree getPart (int index) const;
     juce::ValueTree findPartById (juce::int64 partIdToFind) const;
 
+    // A MIDI_TRACK's NOTES / EVENTS containers (invalid if `track` is).
+    static juce::ValueTree getNotesNode (const juce::ValueTree& track);
+    static juce::ValueTree getEventsNode (const juce::ValueTree& track);
+
+    // True for a MIDI_TRACK that can be dragged onto a part: not the
+    // conductor, and holding at least one NOTE.
+    static bool isAssignableTrack (const juce::ValueTree& track);
+    int getNumAssignableTracks() const;
+
     static int getNumAssignments (const juce::ValueTree& part);
     static juce::ValueTree getAssignment (const juce::ValueTree& part, int index);
 
@@ -177,6 +203,10 @@ public:
     // changes into the caller's already-open transaction.
     void setProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,
                        const juce::var& newValue, bool newTransaction = true);
+
+    // Undoable property removal; newTransaction mirrors setProperty's.
+    void removeProperty (juce::ValueTree targetTree, const juce::Identifier& propertyId,
+                         bool newTransaction = true);
 
     // Generic undoable child insertion -- e.g. adding a NOTE under a
     // MIDI_TRACK from SourceRollEditor's create gesture. newTransaction
