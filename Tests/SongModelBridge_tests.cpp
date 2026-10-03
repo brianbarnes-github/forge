@@ -16,6 +16,19 @@ using namespace lotro;
 
 namespace
 {
+    // Only tracks holding a note are assignable/synthesised/exported
+    // unassigned, so fixtures that need a "real" track give it one note.
+    juce::ValueTree withOneNote (juce::ValueTree track)
+    {
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, 60, nullptr);
+        note.setProperty (SongIDs::startTick, 0, nullptr);
+        note.setProperty (SongIDs::durationTicks, 480, nullptr);
+        note.setProperty (SongIDs::velocity, 100, nullptr);
+        SongDocument::appendChildBulk (SongDocument::getNotesNode (track), note);
+        return track;
+    }
+
     Note makeNote (int pitch, int startTick, int dur, int velocity, bool isDrum,
                    int sourceTrackIndex, int sourceEventIndex)
     {
@@ -143,9 +156,9 @@ TEST_CASE ("SongModelBridge: appendImportedSong then buildConfigAndRawSong round
 TEST_CASE ("SongModelBridge: ConfigSource.midiTrackIndex resolves trackId to the track's positional index, not its trackId value", "[songmodelbridge]")
 {
     SongDocument doc;
-    auto trackA = doc.addTrackBulk ("A", 0, 0, 0);
-    auto trackB = doc.addTrackBulk ("B", 0, 1, 0);
-    auto trackC = doc.addTrackBulk ("C", 0, 2, 0);
+    auto trackA = withOneNote (doc.addTrackBulk ("A", 0, 0, 0));
+    auto trackB = withOneNote (doc.addTrackBulk ("B", 0, 1, 0));
+    auto trackC = withOneNote (doc.addTrackBulk ("C", 0, 2, 0));
 
     auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
     auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
@@ -155,7 +168,7 @@ TEST_CASE ("SongModelBridge: ConfigSource.midiTrackIndex resolves trackId to the
     // same proof pattern as SongDocument_tests.cpp) — if a bug read
     // trackId as if it were the positional index directly, this would
     // still coincidentally pass unless the ids diverge from 0-based
-    // positions. addTrackBulk mints starting at 1, so idA==1 aligns with
+    // positions. The conductor mints id 1, so idA==2 sits one above
     // position 0 — offset by one from position, catching an "assumed
     // trackId==index" bug.
     REQUIRE (idA != 0);
@@ -242,7 +255,7 @@ TEST_CASE ("SongModelBridge: partIds filter selects only the requested subset", 
 TEST_CASE ("SongModelBridge: an Assignment referencing a removed/dangling trackId is silently omitted from sources", "[songmodelbridge]")
 {
     SongDocument doc;
-    auto track = doc.addTrackBulk ("A", 0, 0, 0);
+    auto track = withOneNote (doc.addTrackBulk ("A", 0, 0, 0));
     auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
 
     auto part = doc.addPart ("LuteOfAges", "Lead");
@@ -292,11 +305,11 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks but 
 
     // Tracks: both imports' tracks present, second import continues after
     // the first rather than replacing it.
-    REQUIRE (doc.getNumTracks() == (int) (firstImport.tracks.size() + secondImport.tracks.size()));
-    CHECK (doc.getTrack (0).getProperty (SongIDs::name).toString() == "Track Zero");
-    CHECK (doc.getTrack (2).getProperty (SongIDs::name).toString() == "Drum Track");
-    CHECK (doc.getTrack (3).getProperty (SongIDs::name).toString() == "Second Import Track Zero");
-    CHECK (doc.getTrack (4).getProperty (SongIDs::name).toString() == "Second Import Track One");
+    REQUIRE (doc.getNumTracks() == 1 + (int) (firstImport.tracks.size() + secondImport.tracks.size()));
+    CHECK (doc.getTrack (1).getProperty (SongIDs::name).toString() == "Track Zero");
+    CHECK (doc.getTrack (3).getProperty (SongIDs::name).toString() == "Drum Track");
+    CHECK (doc.getTrack (4).getProperty (SongIDs::name).toString() == "Second Import Track Zero");
+    CHECK (doc.getTrack (5).getProperty (SongIDs::name).toString() == "Second Import Track One");
 
     // TEMPO_MAP/METER_MAP: only the FIRST import's entries are present — the
     // second import's differing tempo/meter (Ruling 1) never got appended. A
@@ -330,7 +343,7 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks but 
     // applied, proving "first import wins" rather than "last write wins".
     CHECK (built.rawSong.ticksPerQuarter == 960);
 
-    auto secondBatchTrack = doc.getTrack (3);
+    auto secondBatchTrack = doc.getTrack (4);
     auto secondBatchTrackId = (juce::int64) secondBatchTrack.getProperty (SongIDs::trackId);
 
     auto part = doc.addPart ("LuteOfAges", "Lead");
@@ -497,7 +510,7 @@ TEST_CASE ("SongModelBridge: an inexact rescale over the LCM cap emits a Warning
     CHECK (diag2[0].severity == Severity::Warning);
     CHECK (diag2[0].message.find ("1 value(s) rounded") != std::string::npos);
 
-    auto secondTrackTree = doc.getTrack (1);
+    auto secondTrackTree = doc.getTrack (2);
     REQUIRE (SongDocument::getNotesNode (secondTrackTree).getNumChildren() == 1);
     auto noteTree = SongDocument::getNotesNode (secondTrackTree).getChild (0);
     CHECK ((int) noteTree.getProperty (SongIDs::startTick) == 11);
@@ -562,7 +575,7 @@ TEST_CASE ("SongModelBridge: a rescale over the LCM cap that zeroes a note's dur
 
     // The bridge does NOT delete the zero-duration note itself — that is
     // DurationConstraint's job, downstream in the pipeline.
-    auto secondTrackTree = doc.getTrack (1);
+    auto secondTrackTree = doc.getTrack (2);
     REQUIRE (SongDocument::getNotesNode (secondTrackTree).getNumChildren() == 2);
     auto zeroedNote = SongDocument::getNotesNode (secondTrackTree).getChild (0);
     CHECK ((int) zeroedNote.getProperty (SongIDs::durationTicks) == 0);
@@ -621,7 +634,7 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
     CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
 
     // Existing (first import's) notes rescaled ×4, exactly.
-    auto existingTrack = doc.getTrack (0);
+    auto existingTrack = doc.getTrack (1);
     REQUIRE (SongDocument::getNotesNode (existingTrack).getNumChildren() == 2);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 40);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 80);
@@ -658,7 +671,7 @@ TEST_CASE ("SongModelBridge: a later import whose LCM exceeds the document's PPQ
 
     // Incoming (second import's) notes verbatim — the raise landed exactly
     // on the incoming PPQ, so no rescale was needed on that side.
-    auto incomingTrack = doc.getTrack (1);
+    auto incomingTrack = doc.getTrack (2);
     REQUIRE (SongDocument::getNotesNode (incomingTrack).getNumChildren() == 1);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 5);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 3);
@@ -719,12 +732,12 @@ TEST_CASE ("SongModelBridge: an import whose LCM equals the document's PPQ does 
     CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
 
     // Existing notes untouched.
-    auto existingTrack = doc.getTrack (0);
+    auto existingTrack = doc.getTrack (1);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 40);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 80);
 
     // Incoming notes rescaled ×4 (480/120), exactly.
-    auto incomingTrack = doc.getTrack (1);
+    auto incomingTrack = doc.getTrack (2);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 20);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 12);
 
@@ -771,12 +784,12 @@ TEST_CASE ("SongModelBridge: a later import raises the document's time base to t
     CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 960);
 
     // Existing notes ×2 (960/480).
-    auto existingTrack = doc.getTrack (0);
+    auto existingTrack = doc.getTrack (1);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 20);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 40);
 
     // Incoming notes verbatim (960/960 == 1).
-    auto incomingTrack = doc.getTrack (1);
+    auto incomingTrack = doc.getTrack (2);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 5);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 3);
 
@@ -820,12 +833,12 @@ TEST_CASE ("SongModelBridge: a raise where neither side's PPQ equals the LCM res
     CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 77);
 
     // Existing notes ×11 (77/7).
-    auto existingTrack = doc.getTrack (0);
+    auto existingTrack = doc.getTrack (1);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::startTick) == 22);
     CHECK ((int) SongDocument::getNotesNode (existingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 33);
 
     // Incoming notes ×7 (77/11), exactly.
-    auto incomingTrack = doc.getTrack (1);
+    auto incomingTrack = doc.getTrack (2);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::startTick) == 28);
     CHECK ((int) SongDocument::getNotesNode (incomingTrack).getChild (0).getProperty (SongIDs::durationTicks) == 35);
 
@@ -884,7 +897,7 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
     Diagnostics diagnostics;
     appendImportedSong (doc, zeroTrackFirst, 1, diagnostics);
     REQUIRE (diagnostics.empty());
-    REQUIRE (doc.getNumTracks() == 0);
+    REQUIRE (doc.getNumTracks() == 1);
 
     appendImportedSong (doc, second, 2, diagnostics);
 
@@ -905,10 +918,10 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
     CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::denominator) == 4);
 
     // The second import's notes were rescaled 2x (960/480), exactly.
-    REQUIRE (doc.getNumTracks() == (int) second.tracks.size());
+    REQUIRE (doc.getNumTracks() == 1 + (int) second.tracks.size());
     for (size_t t = 0; t < second.tracks.size(); ++t)
     {
-        auto trackTree = doc.getTrack ((int) t);
+        auto trackTree = doc.getTrack ((int) t + 1);
         REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) second.tracks[t].notes.size());
         for (size_t n = 0; n < second.tracks[t].notes.size(); ++n)
         {
@@ -935,9 +948,9 @@ TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' f
 TEST_CASE ("SongModelBridge: synthesiseDefaultParts adds one Part+Assignment per unassigned track, skipping already-assigned tracks", "[songmodelbridge]")
 {
     SongDocument doc;
-    auto melodic = doc.addTrackBulk ("Melodic", 0, 0, 1);
-    auto drum    = doc.addTrackBulk ("Drum", 0, 10, 1);
-    auto already = doc.addTrackBulk ("Already Arranged", 0, 3, 1);
+    auto melodic = withOneNote (doc.addTrackBulk ("Melodic", 0, 0, 1));
+    auto drum    = withOneNote (doc.addTrackBulk ("Drum", 0, 10, 1));
+    auto already = withOneNote (doc.addTrackBulk ("Already Arranged", 0, 3, 1));
 
     auto melodicId = (juce::int64) melodic.getProperty (SongIDs::trackId);
     auto drumId    = (juce::int64) drum.getProperty (SongIDs::trackId);
@@ -989,9 +1002,9 @@ TEST_CASE ("SongModelBridge: synthesiseDefaultParts adds one Part+Assignment per
 TEST_CASE ("SongModelBridge: synthesiseDefaultParts is exactly one undo transaction - one undo() removes every part it added", "[songmodelbridge]")
 {
     SongDocument doc;
-    doc.addTrackBulk ("A", 0, 0, 1);
-    doc.addTrackBulk ("B", 0, 10, 1);
-    doc.addTrackBulk ("C", 0, 1, 1);
+    withOneNote (doc.addTrackBulk ("A", 0, 0, 1));
+    withOneNote (doc.addTrackBulk ("B", 0, 10, 1));
+    withOneNote (doc.addTrackBulk ("C", 0, 1, 1));
 
     REQUIRE_FALSE (doc.canUndo());
 
@@ -1004,7 +1017,7 @@ TEST_CASE ("SongModelBridge: synthesiseDefaultParts is exactly one undo transact
 
     CHECK (doc.getNumParts() == 0);
     // Tracks (added via addTrackBulk, non-undoable) are unaffected.
-    CHECK (doc.getNumTracks() == 3);
+    CHECK (doc.getNumTracks() == 4);
     // The single undo() fully reverted the synthesis — nothing left to undo
     // from it (an earlier state, if any, could still be undoable; here
     // there is none).
@@ -1014,7 +1027,7 @@ TEST_CASE ("SongModelBridge: synthesiseDefaultParts is exactly one undo transact
 TEST_CASE ("SongModelBridge: synthesiseDefaultParts on a document with nothing left to arrange adds no additional part", "[songmodelbridge]")
 {
     SongDocument doc;
-    auto track = doc.addTrackBulk ("A", 0, 0, 1);
+    auto track = withOneNote (doc.addTrackBulk ("A", 0, 0, 1));
     auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
     auto part = doc.addPart ("LuteOfAges", "Lead", false);
     doc.addAssignment (part, trackId, 0, 0, "octaveShift", false);
@@ -1041,6 +1054,7 @@ TEST_CASE ("SongModelBridge: appendImportedSong colours tracks by GM family, sha
         t.name              = name;
         t.sourceProgram     = program;
         t.sourceMidiChannel = channel;
+        t.notes.push_back (makeNote (60, 0, 480, 100, false, 0, 0));
         return t;
     };
 
@@ -1058,17 +1072,17 @@ TEST_CASE ("SongModelBridge: appendImportedSong colours tracks by GM family, sha
     Diagnostics diag1;
     appendImportedSong (doc, first, 1, diag1);
 
-    auto colourOf = [&doc] (int i) { return (juce::uint32) (int) doc.getTrack (i).getProperty (SongIDs::colorArgb); };
+    auto colourOf = [&doc] (int i) { return (juce::uint32) (int) doc.getTrack (i + 1).getProperty (SongIDs::colorArgb); };
 
-    REQUIRE (doc.getNumTracks() == 5);
+    REQUIRE (doc.getNumTracks() == 6);
     CHECK (colourOf (0) == trackColourFor (GmFamily::Strings, 0));
     CHECK (colourOf (1) == trackColourFor (GmFamily::Strings, 1));
     CHECK (colourOf (2) == trackColourFor (GmFamily::Pipe, 0));
     CHECK (colourOf (3) == trackColourFor (GmFamily::Drums, 0));
     CHECK (colourOf (4) == trackColourFor (GmFamily::Piano, 0));
 
-    CHECK ((int) doc.getTrack (0).getProperty (SongIDs::sourceProgram) == 40);
-    CHECK ((int) doc.getTrack (3).getProperty (SongIDs::sourceProgram) == 0);
+    CHECK ((int) doc.getTrack (1).getProperty (SongIDs::sourceProgram) == 40);
+    CHECK ((int) doc.getTrack (4).getProperty (SongIDs::sourceProgram) == 0);
 
     Song second = first;
     second.tracks = { makeTrack ("Viola", 41, 0) };
@@ -1076,7 +1090,7 @@ TEST_CASE ("SongModelBridge: appendImportedSong colours tracks by GM family, sha
     Diagnostics diag2;
     appendImportedSong (doc, second, 2, diag2);
 
-    REQUIRE (doc.getNumTracks() == 6);
+    REQUIRE (doc.getNumTracks() == 7);
     CHECK (colourOf (5) == trackColourFor (GmFamily::Strings, 2));
 }
 
@@ -1089,6 +1103,7 @@ TEST_CASE ("SongModelBridge: buildConfigAndRawSong carries each track's sourcePr
     Track t;
     t.name          = "Trumpet";
     t.sourceProgram = 56;
+    t.notes.push_back (makeNote (60, 0, 480, 100, false, 0, 0));
     imported.tracks.push_back (t);
 
     SongDocument doc;
@@ -1120,7 +1135,7 @@ TEST_CASE ("SongModelBridge: dropUnassignedInstruments drops only the zero-assig
     Diagnostics importDiags;
     appendImportedSong (doc, raw, 1, importDiags);
 
-    const auto trackId = (juce::int64) doc.getTrack (0).getProperty (SongIDs::trackId);
+    const auto trackId = (juce::int64) doc.getTrack (1).getProperty (SongIDs::trackId);
 
     auto assignedPart = doc.addPart ("LuteOfAges", "Lead");
     doc.addAssignment (assignedPart, trackId, 0, 0, "octaveShift");
@@ -1148,4 +1163,41 @@ TEST_CASE ("SongModelBridge: dropUnassignedInstruments drops only the zero-assig
     built.config.input = "test.mid";
     const auto err = validateConfig (built.config, (int) built.rawSong.tracks.size());
     CHECK (err.empty());
+}
+
+TEST_CASE ("SongModelBridge: synthesiseDefaultParts and buildConfigAndRawSong skip the conductor and unassigned note-less tracks", "[songmodelbridge][fidelity]")
+{
+    SongDocument doc;
+    auto noteless = doc.addTrackBulk ("Lyrics", 0, 0, 1);
+    auto withNotes = doc.addTrackBulk ("Melody", 0, 0, 1);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, 480, nullptr);
+    note.setProperty (SongIDs::velocity, 100, nullptr);
+    SongDocument::appendChildBulk (SongDocument::getNotesNode (withNotes), note);
+
+    synthesiseDefaultParts (doc);
+    REQUIRE (doc.getNumParts() == 1);
+    CHECK ((juce::int64) SongDocument::getAssignment (doc.getPart (0), 0).getProperty (SongIDs::trackId)
+           == (juce::int64) withNotes.getProperty (SongIDs::trackId));
+
+    auto built = buildConfigAndRawSong (doc);
+    REQUIRE (built.rawSong.tracks.size() == 1);
+    CHECK (built.rawSong.tracks[0].name == "Melody");
+    REQUIRE (built.config.instruments.size() == 1);
+    CHECK (built.config.instruments[0].sources[0].midiTrackIndex == 0);
+    juce::ignoreUnused (noteless);
+}
+
+TEST_CASE ("SongModelBridge: a track the user emptied but kept assigned still reaches the raw Song", "[songmodelbridge][fidelity]")
+{
+    SongDocument doc;
+    auto track = doc.addTrackBulk ("Emptied", 0, 0, 1);
+    auto part = doc.addPart ("Lute of Ages", "");
+    doc.addAssignment (part, (juce::int64) track.getProperty (SongIDs::trackId), 0, 0, "octaveShift");
+
+    auto built = buildConfigAndRawSong (doc);
+    REQUIRE (built.rawSong.tracks.size() == 1);
+    CHECK (built.config.instruments[0].sources[0].midiTrackIndex == 0);
 }

@@ -127,7 +127,7 @@ TEST_CASE ("TrackListComponent: a real import populates the row list through the
 
     SongDocument doc;
     TrackListComponent list (doc);
-    REQUIRE (Access::numRows (list) == 0);
+    REQUIRE (Access::numRows (list) == 1); // the conductor row
 
     Diagnostics diags;
     // __FILE__-relative, not getCurrentWorkingDirectory()-relative: ctest
@@ -168,7 +168,7 @@ TEST_CASE ("TrackListComponent: double-clicking a row forwards its trackId via o
     juce::int64 firedId = -1;
     list.onTrackDoubleClicked = [&] (juce::int64 id) { firedId = id; };
 
-    auto& row = *TrackListComponentTestAccess::rows (list).getFirst();
+    auto& row = *TrackListComponentTestAccess::rows (list)[1]; // [0] is the conductor
     row.onTrackDoubleClicked (trackId);
 
     CHECK (firedId == trackId);
@@ -190,7 +190,7 @@ TEST_CASE ("TrackListComponent: ghost toggle from a row forwards (trackId, visib
     bool firedVisible = false;
     list.onGhostToggled = [&] (juce::int64 id, bool visible) { firedId = id; firedVisible = visible; };
 
-    auto& row = *TrackListComponentTestAccess::rows (list).getFirst();
+    auto& row = *TrackListComponentTestAccess::rows (list)[1]; // [0] is the conductor
     row.onGhostToggled (trackId, true);
 
     CHECK (firedId == trackId);
@@ -226,7 +226,7 @@ TEST_CASE ("TrackListComponent: a rebuild restores each row's ghost-visible stat
     };
     list.isTrackGhosted = [&] (juce::int64 id) { return ghosted.count (id) > 0; };
 
-    auto& preview = Access::rows (list).getFirst()->notePreviewForTesting();
+    auto& preview = Access::rows (list)[1]->notePreviewForTesting();
     REQUIRE (preview.toggleGhostIfHit (preview.ghostToggleBounds().getCentre()));
     REQUIRE (ghosted.count (idA) == 1);
 
@@ -234,9 +234,9 @@ TEST_CASE ("TrackListComponent: a rebuild restores each row's ghost-visible stat
     Access::rebuild (list);
 
     auto rows = Access::rows (list);
-    REQUIRE (rows.size() == 2);
-    CHECK (rows.getFirst()->notePreviewForTesting().isGhostVisible());
-    CHECK_FALSE (rows[1]->notePreviewForTesting().isGhostVisible());
+    REQUIRE (rows.size() == 3);
+    CHECK (rows[1]->notePreviewForTesting().isGhostVisible());
+    CHECK_FALSE (rows[2]->notePreviewForTesting().isGhostVisible());
 }
 
 TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState and keeps the tick under the cursor", "[track-list]")

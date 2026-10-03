@@ -93,6 +93,21 @@ SongDocument::SongDocument()
     sourceMidi.setProperty (SongIDs::ticksPerQuarter, 480, nullptr);
     tree.addChild (sourceMidi, -1, nullptr);
 
+    // Every song has exactly one conductor track, created before any import
+    // (2026-10-03 MIDI-fidelity spec). Not undoable: it is part of the empty
+    // document, not an edit.
+    juce::ValueTree conductor (SongIDs::MIDI_TRACK);
+    conductor.setProperty (SongIDs::trackId, mintTrackId(), nullptr);
+    conductor.setProperty (SongIDs::name, "Conductor", nullptr);
+    conductor.setProperty (SongIDs::colorArgb, 0, nullptr);
+    conductor.setProperty (SongIDs::sourceMidiChannel, 0, nullptr);
+    conductor.setProperty (SongIDs::importBatch, 0, nullptr);
+    conductor.setProperty (SongIDs::isConductor, true, nullptr);
+    conductor.setProperty (SongIDs::endTick, 0, nullptr);
+    conductor.addChild (juce::ValueTree (SongIDs::NOTES), -1, nullptr);
+    conductor.addChild (juce::ValueTree (SongIDs::EVENTS), -1, nullptr);
+    sourceMidi.addChild (conductor, -1, nullptr);
+
     juce::ValueTree parts (SongIDs::PARTS);
     tree.addChild (parts, -1, nullptr);
 
@@ -198,6 +213,11 @@ int SongDocument::getNumAssignableTracks() const
     return count;
 }
 
+juce::ValueTree SongDocument::getConductorTrack() const
+{
+    return getSourceMidiNode().getChild (0);
+}
+
 int SongDocument::getNumAssignments (const juce::ValueTree& part)
 {
     return part.getNumChildren();
@@ -263,6 +283,9 @@ void SongDocument::removeTrack (juce::int64 trackIdToRemove)
     auto track = findTrackById (trackIdToRemove);
     if (! track.isValid())
         return;
+
+    if ((bool) track.getProperty (SongIDs::isConductor, false))
+        return; // the conductor can't be deleted
 
     undoManager.beginNewTransaction();
 
@@ -367,7 +390,7 @@ bool SongDocument::assignTrackToPart (juce::int64 partId, juce::int64 trackId)
     if (! part.isValid())
         return false;
 
-    if (! findTrackById (trackId).isValid())
+    if (! isAssignableTrack (findTrackById (trackId)))
         return false;
 
     if (findAssignment (part, trackId).isValid())

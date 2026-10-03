@@ -46,13 +46,15 @@ juce::String AssignmentChipComponent::buildLabel() const
     // deliberately allowed — this is display-only label text, re-resolved
     // fresh on every paint, and the resulting int is never used as an index
     // into anything. It exists because B3 requires a "Tk<n>" chip label, and
-    // that number IS the track's current SOURCE_MIDI position.
+    // that number IS the track's current SOURCE_MIDI position. The conductor
+    // occupies position 0 and can never be assigned, so assignable tracks
+    // start at 1.
     juce::String trackLabel = "Tk?";
     if (trackNode.isValid())
     {
         const auto position = doc.getSourceMidiNode().indexOf (trackNode);
         if (position >= 0)
-            trackLabel = "Tk" + juce::String (position + 1);
+            trackLabel = "Tk" + juce::String (position);
     }
 
     return trackLabel;

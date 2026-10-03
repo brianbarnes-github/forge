@@ -32,7 +32,7 @@ TEST_CASE ("SongDocument: constructs an empty SONG tree with sane default proper
     REQUIRE (sourceMidi.isValid());
     CHECK (sourceMidi.hasType (SongIDs::SOURCE_MIDI));
     CHECK ((int) sourceMidi.getProperty (SongIDs::ticksPerQuarter) == 480);
-    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getNumTracks() == 1);
 
     auto parts = doc.getPartsNode();
     REQUIRE (parts.isValid());
@@ -59,11 +59,11 @@ TEST_CASE ("SongDocument: addTrack mints a monotonically increasing trackId that
     // Remove the middle track — a positional-index scheme would now let
     // "position 1" (0-based) silently refer to what was track C.
     doc.removeTrack (idB);
-    REQUIRE (doc.getNumTracks() == 2);
+    REQUIRE (doc.getNumTracks() == 3);
 
     // The track now sitting at position 1 is still identified by idC, not
     // by the stale idB — proves lookups are id-based, not index-based.
-    CHECK (doc.getTrack (1).getProperty (SongIDs::trackId).toString()
+    CHECK (doc.getTrack (2).getProperty (SongIDs::trackId).toString()
            == juce::String (idC));
     CHECK (! doc.findTrackById (idB).isValid());
 
@@ -105,7 +105,7 @@ TEST_CASE ("SongDocument: partId is minted from a counter independent of trackId
     // trackIdVal + 1. Independent counters mean partId starts at its own
     // baseline (1) regardless of how far the trackId counter has moved.
     CHECK (partIdVal == 1);
-    CHECK (trackIdVal == 1);
+    CHECK (trackIdVal == 2);
 }
 
 TEST_CASE ("SongDocument: addPart mints x as a 1-based positional index, matching synthesiseConfig's convention", "[songdocument]")
@@ -144,7 +144,7 @@ TEST_CASE ("SongDocument: undoing a mint does not roll back the id counter, so t
 
     auto idA = (juce::int64) doc.addTrack ("A", 0, 0, 0).getProperty (SongIDs::trackId);
     doc.undo();
-    REQUIRE (doc.getNumTracks() == 0);
+    REQUIRE (doc.getNumTracks() == 1);
 
     auto idB = (juce::int64) doc.addTrack ("B", 0, 0, 0).getProperty (SongIDs::trackId);
     CHECK (idB != idA);
@@ -275,15 +275,15 @@ TEST_CASE ("SongDocument: addTrack is undoable as a single transaction", "[songd
     REQUIRE (! doc.canUndo());
 
     doc.addTrack ("A", 0, 0, 0);
-    REQUIRE (doc.getNumTracks() == 1);
+    REQUIRE (doc.getNumTracks() == 2);
     REQUIRE (doc.canUndo());
 
     doc.undo();
-    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getNumTracks() == 1);
     CHECK (doc.canRedo());
 
     doc.redo();
-    CHECK (doc.getNumTracks() == 1);
+    CHECK (doc.getNumTracks() == 2);
 }
 
 TEST_CASE ("SongDocument: two separate addTrack calls are two separate undo steps", "[songdocument]")
@@ -291,17 +291,17 @@ TEST_CASE ("SongDocument: two separate addTrack calls are two separate undo step
     SongDocument doc;
     doc.addTrack ("A", 0, 0, 0);
     doc.addTrack ("B", 0, 1, 0);
-    REQUIRE (doc.getNumTracks() == 2);
+    REQUIRE (doc.getNumTracks() == 3);
 
     // One undo() call reverts only the most recent gesture (the second
     // addTrack), not both — proves each addTrack begins its own
     // transaction rather than coalescing into the first.
     doc.undo();
-    CHECK (doc.getNumTracks() == 1);
-    CHECK (doc.getTrack (0).getProperty (SongIDs::name).toString() == "A");
+    CHECK (doc.getNumTracks() == 2);
+    CHECK (doc.getTrack (1).getProperty (SongIDs::name).toString() == "A");
 
     doc.undo();
-    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getNumTracks() == 1);
 }
 
 TEST_CASE ("SongDocument: setProperty routes through the UndoManager and is undoable", "[songdocument]")
@@ -326,7 +326,7 @@ TEST_CASE ("SongDocument: appendChildBulk bypasses undo entirely, for future non
 
     SongDocument::appendChildBulk (doc.getSourceMidiNode(), bulkTrack);
 
-    REQUIRE (doc.getNumTracks() == 1);
+    REQUIRE (doc.getNumTracks() == 2);
     CHECK (! doc.canUndo());
     CHECK (doc.findTrackById (42).getProperty (SongIDs::name).toString() == "Imported");
 }
@@ -337,7 +337,7 @@ TEST_CASE ("SongDocument: addTrackBulk bypasses undo entirely, for non-undoable 
 
     doc.addTrackBulk ("Imported", 0, 0, 1);
 
-    REQUIRE (doc.getNumTracks() == 1);
+    REQUIRE (doc.getNumTracks() == 2);
     CHECK (! doc.canUndo());
 }
 
@@ -361,10 +361,10 @@ TEST_CASE ("SongDocument: addPart/addAssignment's newTransaction=false batches i
     // part and its assignment into two separate undo steps instead of one.
     doc.undo();
     CHECK (doc.getNumParts() == 0);
-    CHECK (doc.getNumTracks() == 1);
+    CHECK (doc.getNumTracks() == 2);
 
     doc.undo();
-    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getNumTracks() == 1);
     CHECK (! doc.canUndo());
 }
 
@@ -390,6 +390,10 @@ TEST_CASE ("SongDocument: assignTrackToPart succeeds once, undoably, and rejects
 {
     SongDocument doc;
     auto track = doc.addTrack ("A", 0, 0, 0);
+    // Only tracks holding a note are assignable.
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    SongDocument::appendChildBulk (SongDocument::getNotesNode (track), note);
     auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
     auto part = doc.addPart ("LuteOfAges", "Lead");
     auto partId = (juce::int64) part.getProperty (SongIDs::partId);
@@ -534,4 +538,41 @@ TEST_CASE ("SongDocument: removeProperty is undoable and joins an open transacti
     doc.undo(); // one transaction: both the setProperty and the removeProperty
     CHECK ((int) note.getProperty (SongIDs::onOrder) == 3);
     CHECK_FALSE (note.hasProperty (SongIDs::startTick));
+}
+
+TEST_CASE ("SongDocument: a fresh document has exactly one empty conductor track at child 0", "[songdocument][fidelity]")
+{
+    SongDocument doc;
+    REQUIRE (doc.getNumTracks() == 1);
+    auto conductor = doc.getConductorTrack();
+    REQUIRE (conductor.isValid());
+    CHECK (conductor == doc.getTrack (0));
+    CHECK ((bool) conductor.getProperty (SongIDs::isConductor));
+    CHECK ((int) conductor.getProperty (SongIDs::importBatch) == 0);
+    CHECK ((juce::int64) conductor.getProperty (SongIDs::trackId) > 0);
+    CHECK (SongDocument::getNotesNode (conductor).getNumChildren() == 0);
+    CHECK (SongDocument::getEventsNode (conductor).getNumChildren() == 0);
+    CHECK_FALSE (doc.canUndo());
+    CHECK (doc.getNumAssignableTracks() == 0);
+}
+
+TEST_CASE ("SongDocument: removeTrack refuses the conductor and opens no transaction", "[songdocument][fidelity]")
+{
+    SongDocument doc;
+    const auto conductorId = (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId);
+    doc.removeTrack (conductorId);
+    CHECK (doc.getConductorTrack().isValid());
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("SongDocument: assignTrackToPart refuses the conductor and note-less tracks", "[songdocument][fidelity]")
+{
+    SongDocument doc;
+    auto part = doc.addPart ("Lute of Ages", "");
+    const auto partId = (juce::int64) part.getProperty (SongIDs::partId);
+    auto noteless = doc.addTrack ("Lyrics", 0, 0, 1);
+
+    CHECK_FALSE (doc.assignTrackToPart (partId, (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId)));
+    CHECK_FALSE (doc.assignTrackToPart (partId, (juce::int64) noteless.getProperty (SongIDs::trackId)));
+    CHECK (SongDocument::getNumAssignments (part) == 0);
 }

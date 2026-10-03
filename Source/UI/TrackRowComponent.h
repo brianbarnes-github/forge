@@ -18,8 +18,9 @@ namespace lotro
 class TrackRowComponent : public juce::Component
 {
 public:
-    // trackNode must be a valid MIDI_TRACK node; displayIndex is its 1-based
-    // position in SOURCE_MIDI at construction time (TrackListComponent
+    // trackNode must be a valid MIDI_TRACK node; displayIndex is the row number
+    // shown (the track's SOURCE_MIDI child index; 0 = the conductor, drawn
+    // unnumbered), fixed at construction time (TrackListComponent
     // rebuilds every row from scratch on any SOURCE_MIDI change, so this
     // never goes stale in place). viewState is shared with the embedded
     // TrackNotePreview and must outlive this row.

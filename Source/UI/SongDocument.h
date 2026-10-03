@@ -155,6 +155,9 @@ public:
     static bool isAssignableTrack (const juce::ValueTree& track);
     int getNumAssignableTracks() const;
 
+    // The song's conductor MIDI_TRACK: always SOURCE_MIDI child 0, never assignable or removable.
+    juce::ValueTree getConductorTrack() const;
+
     static int getNumAssignments (const juce::ValueTree& part);
     static juce::ValueTree getAssignment (const juce::ValueTree& part, int index);
 

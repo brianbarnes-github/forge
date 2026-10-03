@@ -44,7 +44,7 @@ void TrackListComponent::rebuild()
 
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
-        auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i + 1, timelineView));
+        auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
         row->setSelected (row->getTrackId() == selectedTrackId);
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTrackSelected = [this] (juce::int64 trackId) { selectTrack (trackId); };
@@ -182,7 +182,7 @@ void TrackListComponent::paint (juce::Graphics& g)
     g.fillAll (juce::Colour (SongsmithColours::background).darker (0.15f));
 
     // M4: first-launch/empty-document affordance.
-    if (doc.getNumTracks() == 0)
+    if (doc.getNumTracks() <= 1) // only the conductor: nothing imported yet
     {
         g.setColour (juce::Colour (SongsmithColours::textMuted));
         g.setFont (juce::Font (juce::FontOptions (11.0f)));

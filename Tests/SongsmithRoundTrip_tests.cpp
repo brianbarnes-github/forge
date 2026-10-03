@@ -306,11 +306,11 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's
     const int raiseFactor = 8; // 960 / 120
 
     // blue.mid's existing notes rescaled ×8, exactly, versus a direct import.
-    REQUIRE (doc.getNumTracks() >= tracksAfterFirst);
-    for (int t = 0; t < tracksAfterFirst; ++t)
+    REQUIRE (doc.getNumTracks() >= tracksAfterFirst); // child 0 is the conductor; imported tracks follow
+    for (int t = 1; t < tracksAfterFirst; ++t)
     {
         auto trackTree = doc.getTrack (t);
-        const auto& directTrack = directFirstSong.tracks[(size_t) t];
+        const auto& directTrack = directFirstSong.tracks[(size_t) t - 1];
         REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
@@ -520,7 +520,7 @@ TEST_CASE ("SongsmithRoundTrip: importMidiFile on an unopenable path fails clean
     REQUIRE (diag.size() == 1);
     CHECK (diag[0].severity == Severity::Error);
     CHECK (diag[0].source == "SongModelBridge");
-    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getNumTracks() == 1);
     CHECK (doc.getTree().getProperty (SongIDs::inputMidiPath).toString().isEmpty());
 }
 
@@ -550,7 +550,7 @@ TEST_CASE ("SongsmithRoundTrip: importMidiFile on a file that opens but doesn't 
     REQUIRE (diag.size() == 1);
     CHECK (diag[0].severity == Severity::Error);
     CHECK (diag[0].source == "SongModelBridge");
-    CHECK (doc.getNumTracks() == 0);
+    CHECK (doc.getNumTracks() == 1);
     CHECK (doc.getTree().getProperty (SongIDs::inputMidiPath).toString().isEmpty());
     CHECK_FALSE (doc.canUndo());
 }

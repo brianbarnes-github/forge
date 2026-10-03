@@ -164,6 +164,8 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
         const auto existing = doc.getTrack (i);
+        if (! SongDocument::isAssignableTrack (existing))
+            continue;
         ++familyCounts[(size_t) SongsmithColours::gmFamilyFor ((int) existing.getProperty (SongIDs::sourceProgram),
                                                              (int) existing.getProperty (SongIDs::sourceMidiChannel))];
     }
@@ -401,6 +403,8 @@ void synthesiseDefaultParts (SongDocument& doc)
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
         auto trackTree = doc.getTrack (i);
+        if (! SongDocument::isAssignableTrack (trackTree))
+            continue;
         const auto trackId = (juce::int64) trackTree.getProperty (SongIDs::trackId);
         if (assignedTrackIds.count (trackId) != 0)
             continue;
@@ -439,10 +443,25 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
                         ? juce::File (inputMidiPath).getFileNameWithoutExtension().toStdString()
                         : Song{}.title;
 
+    std::set<juce::int64> assignedTrackIds;
+    for (auto partTree : doc.getPartsNode())
+        for (int a = 0; a < SongDocument::getNumAssignments (partTree); ++a)
+            assignedTrackIds.insert ((juce::int64) SongDocument::getAssignment (partTree, a).getProperty (SongIDs::trackId));
+
     std::map<juce::int64, int> trackIdToIndex;
     for (int i = 0; i < sourceMidiNode.getNumChildren(); ++i)
     {
         auto trackTree = sourceMidiNode.getChild (i);
+        const auto trackId = (juce::int64) trackTree.getProperty (SongIDs::trackId);
+
+        // The conductor and unassigned note-less tracks never reach forge_core:
+        // the CLI's importMidi drops note-less tracks, and an extra one here
+        // would add an "unreferenced track" diagnostic the CLI never emits.
+        if ((bool) trackTree.getProperty (SongIDs::isConductor, false))
+            continue;
+        if (SongDocument::getNotesNode (trackTree).getNumChildren() == 0
+            && assignedTrackIds.count (trackId) == 0)
+            continue;
 
         Track track;
         track.name              = trackTree.getProperty (SongIDs::name).toString().toStdString();
@@ -462,10 +481,8 @@ BuiltConfigAndSong buildConfigAndRawSong (const SongDocument& doc,
             track.notes.push_back (note);
         }
 
+        trackIdToIndex[trackId] = (int) rawSong.tracks.size();
         rawSong.tracks.push_back (track);
-
-        auto trackId = (juce::int64) trackTree.getProperty (SongIDs::trackId);
-        trackIdToIndex[trackId] = i;
     }
 
     config.input  = doc.getTree().getProperty (SongIDs::inputMidiPath).toString().toStdString();

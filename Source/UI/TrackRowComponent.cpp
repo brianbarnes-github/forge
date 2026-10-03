@@ -129,7 +129,8 @@ void TrackRowComponent::paint (juce::Graphics& g)
     auto indexArea = firstLine.removeFromLeft (16);
     g.setColour (juce::Colour (textMuted));
     g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain)));
-    g.drawText (juce::String (index), indexArea, juce::Justification::centredLeft);
+    if (index > 0)
+        g.drawText (juce::String (index), indexArea, juce::Justification::centredLeft);
 
     auto swatchArea = firstLine.removeFromRight (10).withSizeKeepingCentre (10, 10);
     g.setColour (juce::Colour (swatch));
