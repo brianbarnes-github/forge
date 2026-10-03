@@ -68,6 +68,12 @@ public:
     // API (toggleGhostIfHit/ghostToggleBounds) is already test-safe.
     TrackNotePreview& notePreviewForTesting() { return notePreview; }
 
+    // False for the conductor and note-less tracks: they can't be dragged to
+    // a part or opened in the editor.
+    bool canDrag() const;
+
+    juce::String buildSecondLineForTesting() const { return buildSecondLine(); }
+
 private:
     juce::String buildSecondLine() const;
 

@@ -2,6 +2,8 @@
 #include "AboutBox.h"
 #include "DiagnosticsPane.h"
 #include "GridSize.h"
+#include "MidiExport.h"
+#include "RawMidi.h"
 #include "SongModelBridge.h"
 #include "SongsmithMainComponent.h"
 #include "WindowPlacement.h"
@@ -155,6 +157,8 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
         // disabled until that translation exists.
         m.addSubMenu ("Save Config As", saveAs, false);
         m.addItem (FileSaveAbc, "Save ABC As...", ! lastAbc.empty(), false);
+        // Enabled once the song has anything besides its conductor.
+        m.addItem (FileExportMidi, "Export MIDI...", songDocument.getNumTracks() > 1, false);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
     }
@@ -210,6 +214,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FileSaveAsToml:  saveConfigAs (ConfigFormat::Toml);                              return;
         case FileSaveAsXml:   saveConfigAs (ConfigFormat::Xml);                               return;
         case FileSaveAbc:     saveAbcAs();                                                    return;
+        case FileExportMidi:  exportMidiAs();                                                 return;
         case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
@@ -408,6 +413,53 @@ void MainWindow::saveAbcAs()
                 juce::NativeMessageBox::showMessageBoxAsync (
                     juce::MessageBoxIconType::WarningIcon,
                     "Save ABC failed",
+                    "Could not write: " + file.getFullPathName());
+            }
+        });
+}
+
+void MainWindow::exportMidiAs()
+{
+    // Default to <input-stem>.mid next to the first import; the chooser warns
+    // before overwriting.
+    const auto inputMidiPath = songDocument.getTree().getProperty (SongIDs::inputMidiPath).toString();
+    juce::File defaultPath;
+    if (inputMidiPath.isNotEmpty())
+        defaultPath = juce::File (inputMidiPath).withFileExtension (".mid");
+
+    fileChooser = std::make_unique<juce::FileChooser> ("Export MIDI", defaultPath, "*.mid;*.midi");
+
+    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                            | juce::FileBrowserComponent::canSelectFiles
+                            | juce::FileBrowserComponent::warnAboutOverwriting,
+        [this] (const juce::FileChooser& fc)
+        {
+            auto file = fc.getResult();
+            if (file == juce::File()) return;
+            if (! file.getFileName().endsWithIgnoreCase (".mid") && ! file.getFileName().endsWithIgnoreCase (".midi"))
+                file = file.withFileExtension (".mid");
+
+            // Build the whole byte buffer before touching the destination, so a
+            // MidiExportError leaves any existing file intact.
+            std::vector<std::uint8_t> bytes;
+            try
+            {
+                bytes = writeMidiBytes (buildRawMidiFile (songDocument));
+            }
+            catch (const MidiExportError& e)
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Export MIDI failed",
+                    "Could not export: " + juce::String (e.what()));
+                return;
+            }
+
+            if (! file.replaceWithData (bytes.data(), bytes.size()))
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Export MIDI failed",
                     "Could not write: " + file.getFullPathName());
             }
         });

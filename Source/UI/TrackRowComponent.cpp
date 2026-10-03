@@ -41,9 +41,14 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     };
     notePreview.onNonToggleDoubleClick = [this]
     {
-        if (onTrackDoubleClicked)
+        if (canDrag() && onTrackDoubleClicked)
             onTrackDoubleClicked (getTrackId());
     };
+}
+
+bool TrackRowComponent::canDrag() const
+{
+    return SongDocument::isAssignableTrack (track);
 }
 
 void TrackRowComponent::resized()
@@ -72,7 +77,15 @@ void TrackRowComponent::setGhostVisible (bool shouldBeVisible)
 
 juce::String TrackRowComponent::buildSecondLine() const
 {
+    const int numEvents = SongDocument::getEventsNode (track).getNumChildren();
+    if ((bool) track.getProperty (SongIDs::isConductor, false))
+        return juce::String (numEvents) + " events";
+
     const int numNotes = SongDocument::getNotesNode (track).getNumChildren();
+    if (numNotes == 0)
+        return juce::String (numNotes) + " notes" + juce::String::fromUTF8 (" \xc2\xb7 ")
+             + juce::String (numEvents) + " events";
+
     juce::String line = juce::String (numNotes) + " notes";
 
     const int channel = (int) track.getProperty (SongIDs::sourceMidiChannel);
@@ -81,9 +94,6 @@ juce::String TrackRowComponent::buildSecondLine() const
         line += juce::String (" \xc2\xb7 ch 10"); // " · ch 10"
         return line;
     }
-
-    if (numNotes == 0)
-        return line;
 
     int lowest = std::numeric_limits<int>::max();
     int highest = std::numeric_limits<int>::min();
@@ -136,7 +146,8 @@ void TrackRowComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (swatch));
     g.fillRect (swatchArea);
 
-    g.setColour (juce::Colour (text));
+    const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);
+    g.setColour (juce::Colour (isConductor ? textMuted : text));
     g.setFont (juce::Font (juce::FontOptions (11.0f)));
     g.drawText (track.getProperty (SongIDs::name).toString(), firstLine.withTrimmedRight (4),
                 juce::Justification::centredLeft);
@@ -155,7 +166,7 @@ void TrackRowComponent::mouseDown (const juce::MouseEvent&)
 
 void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)
 {
-    if (onTrackDoubleClicked)
+    if (canDrag() && onTrackDoubleClicked)
         onTrackDoubleClicked (getTrackId());
 }
 
@@ -165,6 +176,9 @@ void TrackRowComponent::mouseDrag (const juce::MouseEvent& e)
     // plain click (already handled in mouseDown) doesn't also fire a
     // zero-distance drag.
     if (e.getDistanceFromDragStart() < 4)
+        return;
+
+    if (! canDrag())
         return;
 
     if (auto* container = juce::DragAndDropContainer::findParentDragContainerFor (this))

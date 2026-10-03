@@ -13,6 +13,8 @@ TEST_CASE ("TrackRowComponent: double-click fires onTrackDoubleClicked with the 
 
     SongDocument doc;
     auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    // Only tracks with notes are assignable, i.e. openable by double-click.
+    SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
     const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
 
     TimelineViewState viewState;
@@ -56,6 +58,7 @@ TEST_CASE ("TrackRowComponent: clicks on the note preview outside its ghost togg
 
     SongDocument doc;
     auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
     const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
 
     TimelineViewState viewState;
@@ -165,4 +168,41 @@ TEST_CASE ("TrackRowComponent: a divider line spans the row's full width along i
     // Only the bottom pixel row — the line is 1px thick.
     CHECK (image.getPixelAt (20, bottom - 1) != divider);
     CHECK (image.getPixelAt (TrackRowComponent::trackInfoWidth + 50, bottom - 1) != divider);
+}
+
+TEST_CASE ("TrackRowComponent: the conductor row reads 'N events' and can't be dragged", "[trackrow][fidelity]")
+{
+    SongDocument doc;
+    auto conductor = doc.getConductorTrack();
+    for (int i = 0; i < 3; ++i)
+        SongDocument::getEventsNode (conductor).addChild (juce::ValueTree (SongIDs::EVENT), -1, nullptr);
+
+    TimelineViewState view;
+    TrackRowComponent row (conductor, 0, view);
+    CHECK (row.buildSecondLineForTesting() == "3 events");
+    CHECK_FALSE (row.canDrag());
+}
+
+TEST_CASE ("TrackRowComponent: a note-less track reads '0 notes · N events' and can't be dragged", "[trackrow][fidelity]")
+{
+    SongDocument doc;
+    auto track = doc.addTrackBulk ("Lyrics", 0, 0, 1);
+    SongDocument::getEventsNode (track).addChild (juce::ValueTree (SongIDs::EVENT), -1, nullptr);
+
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    CHECK (row.buildSecondLineForTesting() == juce::String::fromUTF8 ("0 notes \xc2\xb7 1 events"));
+    CHECK_FALSE (row.canDrag());
+}
+
+TEST_CASE ("TrackRowComponent: double-clicking a non-assignable row does not fire onTrackDoubleClicked", "[trackrow][fidelity]")
+{
+    SongDocument doc;
+    TimelineViewState view;
+    TrackRowComponent row (doc.getConductorTrack(), 0, view);
+    bool fired = false;
+    row.onTrackDoubleClicked = [&] (juce::int64) { fired = true; };
+    row.setBounds (0, 0, 400, TrackRowComponent::rowHeight);
+    row.mouseDoubleClick (eventAt (row, { 5, 5 }, 2));
+    CHECK_FALSE (fired);
 }

@@ -38,6 +38,7 @@ private:
         FileSaveAsToml,
         FileSaveAsXml,
         FileSaveAbc,
+        FileExportMidi,
         FileQuit,
         EditUndo,
         EditRedo,
@@ -77,6 +78,7 @@ private:
     void runConversion();
     void saveConfigAs (ConfigFormat format);
     void saveAbcAs();
+    void exportMidiAs();
 
     std::string lastAbc;   // populated by runConversion(); consumed by saveAbcAs()
 };
