@@ -47,6 +47,8 @@ add_executable(forge_tests
     TrackRowComponent_tests.cpp
     WindowPlacement_tests.cpp
     AboutBox_tests.cpp
+    JuceNoteReplica_tests.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/JuceNoteReplica.cpp
     RawMidi_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/RawMidi.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
