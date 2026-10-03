@@ -40,6 +40,38 @@ namespace
         options.osxLibrarySubFolder = "Application Support";
         return options;
     }
+
+    // Choose a destination, append the extension if missing, then confirm an
+    // overwrite ourselves (the native warning would check the typed name, not
+    // the name with the extension appended). `write` runs only once confirmed,
+    // and only if the window still exists.
+    void chooseAndConfirm (MainWindow* owner, std::unique_ptr<juce::FileChooser>& holder,
+                           const juce::String& title, const juce::File& defaultFile,
+                           const juce::String& wildcard, const juce::StringArray& accepted,
+                           const juce::String& defaultExt, std::function<void (const juce::File&)> write)
+    {
+        holder = std::make_unique<juce::FileChooser> (title, defaultFile, wildcard);
+        holder->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+            [safe = juce::Component::SafePointer<MainWindow> (owner), accepted, defaultExt, write]
+            (const juce::FileChooser& fc)
+            {
+                if (safe == nullptr) return;
+                auto file = fc.getResult();
+                if (file == juce::File()) return;
+                file = withExtensionIfMissing (file, accepted, defaultExt);
+
+                if (! file.existsAsFile()) { write (file); return; }
+
+                juce::NativeMessageBox::showAsync (
+                    juce::MessageBoxOptions()
+                        .withIconType (juce::MessageBoxIconType::WarningIcon)
+                        .withTitle ("Replace file?")
+                        .withMessage (file.getFileName() + " already exists. Replace it?")
+                        .withButton ("Replace").withButton ("Cancel")
+                        .withAssociatedComponent (safe.getComponent()),
+                    [safe, file, write] (int button) { if (button == 0 && safe != nullptr) write (file); });
+            });
+    }
 }
 
 class MainWindow::Body : public juce::Component
@@ -539,26 +571,11 @@ void MainWindow::saveAbcAs()
         return;
     }
 
-    // Default the dialog's initial filename to <input-stem>.abc so a saved
-    // ABC lands next to the MIDI's name by default.
-    const auto inputMidiPath = songDocument.getTree().getProperty (SongIDs::inputMidiPath).toString();
-    juce::File defaultPath;
-    if (inputMidiPath.isNotEmpty())
-        defaultPath = juce::File (inputMidiPath).withFileExtension (".abc");
-
-    fileChooser = std::make_unique<juce::FileChooser> (
-        "Save ABC", defaultPath, "*.abc");
-
-    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
-                            | juce::FileBrowserComponent::canSelectFiles
-                            | juce::FileBrowserComponent::warnAboutOverwriting,
-        [this] (const juce::FileChooser& fc)
+    const auto defaultFile = defaultExportFile (session.getFile(), ".abc",
+                                                juce::File::getSpecialLocation (juce::File::userDocumentsDirectory));
+    chooseAndConfirm (this, fileChooser, "Export ABC", defaultFile, "*.abc", { ".abc" }, ".abc",
+        [this] (const juce::File& file)
         {
-            auto file = fc.getResult();
-            if (file == juce::File()) return;
-            if (! file.getFileName().endsWithIgnoreCase (".abc"))
-                file = file.withFileExtension (".abc");
-
             if (! file.replaceWithText (juce::String (lastAbc)))
             {
                 juce::NativeMessageBox::showMessageBoxAsync (
@@ -571,25 +588,11 @@ void MainWindow::saveAbcAs()
 
 void MainWindow::exportMidiAs()
 {
-    // Default to <input-stem>.mid next to the first import; the chooser warns
-    // before overwriting.
-    const auto inputMidiPath = songDocument.getTree().getProperty (SongIDs::inputMidiPath).toString();
-    juce::File defaultPath;
-    if (inputMidiPath.isNotEmpty())
-        defaultPath = juce::File (inputMidiPath).withFileExtension (".mid");
-
-    fileChooser = std::make_unique<juce::FileChooser> ("Export MIDI", defaultPath, "*.mid;*.midi");
-
-    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
-                            | juce::FileBrowserComponent::canSelectFiles
-                            | juce::FileBrowserComponent::warnAboutOverwriting,
-        [this] (const juce::FileChooser& fc)
+    const auto defaultFile = defaultExportFile (session.getFile(), ".mid",
+                                                juce::File::getSpecialLocation (juce::File::userDocumentsDirectory));
+    chooseAndConfirm (this, fileChooser, "Export MIDI", defaultFile, "*.mid;*.midi", { ".mid", ".midi" }, ".mid",
+        [this] (const juce::File& file)
         {
-            auto file = fc.getResult();
-            if (file == juce::File()) return;
-            if (! file.getFileName().endsWithIgnoreCase (".mid") && ! file.getFileName().endsWithIgnoreCase (".midi"))
-                file = file.withFileExtension (".mid");
-
             // Build the whole byte buffer before touching the destination, so a
             // MidiExportError leaves any existing file intact.
             std::vector<std::uint8_t> bytes;
