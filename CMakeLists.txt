@@ -113,6 +113,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/UiMain.cpp
     Source/UI/MainWindow.cpp
     Source/UI/JuceNoteReplica.cpp
+    Source/UI/MidiImportPlan.cpp
     Source/UI/RawMidi.cpp
     Source/UI/SongDocument.cpp
     Source/UI/SongModelBridge.cpp

@@ -49,6 +49,8 @@ add_executable(forge_tests
     AboutBox_tests.cpp
     JuceNoteReplica_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/JuceNoteReplica.cpp
+    MidiImportPlan_tests.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/MidiImportPlan.cpp
     RawMidi_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/RawMidi.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
