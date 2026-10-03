@@ -2,7 +2,7 @@
 
 Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish
+## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity and the `.songsmith` Song file implemented
 
 This repo (**Forge**) is a MIDI → LOTRO ABC converter shipped as a CLI
 (`forge`) and a JUCE GUI (`forge_ui`, the **Songsmith** MIDI editor —
@@ -41,6 +41,7 @@ this principle rules out tempting improvements.
 | `docs/DELTAS_FROM_SPEC.md` | Where the implementation intentionally diverges from `lotro-abc-converter-spec.md` |
 | `docs/REFERENCE.md` | Drum-map source data, MIDI/ABC test fixtures, config-schema spec doc |
 | `docs/TESTING.md` | Test count and what the notable test files pin down |
+| `docs/superpowers/specs/2026-10-03-songsmith-song-file-design.md` | Design spec for the `.songsmith` Song file, session/dirty tracking and the unsaved-changes guard (code walkthrough: `docs/ARCHITECTURE.md` §9.13) |
 | `docs/songsmith-ui-map.html`, `docs/Songsmith Arch.md`, `docs/Songsmith UI Guide.html` | Clickable `#N` map companion to `UI_GUIDE.md`; original Songsmith design notes and mock-up |
 
 ## Build / test commands
@@ -60,7 +61,9 @@ with range-band/ghost/dropped-note overlays, diagnostics) — the classic
 Config-editing UI (`EditorPane`/`InstrumentsTree`/`PropertyPageHost` +
 property pages) was deleted at the end of Phase 6; `View → Export ABC
 panel` now toggles a separate full-export diagnostics/ABC-preview panel
-instead. Do not launch the GUI from subagents; the user sees every
+instead. The File menu is now New / Open… / Close / Save / Save As… /
+Import ▸ MIDI… / Export ▸ MIDI…, ABC… / Quit over a binary `.songsmith`
+Song file; "Open Config" / "Save Config As" are gone. Do not launch the GUI from subagents; the user sees every
 window. Single test: `ctest --test-dir build -R <name>
 --output-on-failure`. First clone: `git submodule update --init
 --recursive`. Details, toolchain rationale, and Windows CI packaging:

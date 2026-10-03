@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **390/390**.
+- Test count: **433/433**.
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
@@ -50,6 +50,33 @@
   reproduces each tracked `midi/*.mid` fixture (all 9) event-for-event,
   plus the pairing edge cases, format-0 and conductor-less files, and edited
   songs re-importing as the same notes.
+
+- `SongFile_tests.cpp` pins the `.songsmith` container: byte round trip,
+  and every `SongFileError` kind from a specifically damaged buffer (bad
+  magic, newer and zero version, truncation and trailing bytes, a damaged
+  payload re-wrapped as valid gzip, an intact container holding an invalid
+  tree), a real-file save/load, a missing file, and a failed save leaving
+  the existing file intact.
+- `SongSession_tests.cpp` covers dirty tracking (any tree change, including
+  non-undoable ones; undoing back still dirty; `replaceContents` then
+  `markClean` clean), the `<name>*` title, `onChanged` firing only on a
+  flip, `withExtensionIfMissing` and `defaultExportFile`.
+  `DiscardGuard_tests.cpp` drives the Save / Don't Save / Cancel callback
+  chain with fake hooks, including a failed or cancelled save.
+- `SongDocument_tests.cpp` also pins `mintImportBatch`, `validateLoaded`
+  rejections, `replaceContents` (equivalence, dropped `SONG` properties,
+  node identity and listener notification kept, undo cleared, throw leaves
+  the document untouched) and `resetToEmpty`.
+  `SongsmithMainComponent_tests.cpp`, `TrackListComponent_tests.cpp` and
+  `PartStripComponent_tests.cpp` (tag `[session-reset]`) cover the UI state
+  that lives outside the tree being reset when a Song is replaced
+  (`documentReplaced`, `clearSelection`).
+- `SongFileRoundTrip_tests.cpp` imports each of the 9 tracked fixtures,
+  arranges and edits it, saves and loads it and requires an equivalent
+  tree and an identical Export MIDI byte stream; plus importing into a
+  loaded Song (fresh track ids, batch number continues) and undo after a
+  load. MainWindow is not in `forge_tests`, so menu wiring, shortcuts,
+  native dialogs and quit routing are only build-verified.
 
 - `PianoRollGeometry_tests.cpp`/`SourceTrackNoteSource_tests.cpp` cover
   Phase 5's headless piano-roll coordinate math (tick/pitch↔x/y

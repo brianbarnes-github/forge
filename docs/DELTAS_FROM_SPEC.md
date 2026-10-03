@@ -39,6 +39,11 @@ first.
   previously-proposed smoothing/hysteresis/centroid passes are
   retired under the MIDI-is-truth principle (see `CLAUDE.md`'s
   guiding principle).
+- **Songsmith's MIDI reader is strict; the CLI's is not.** Songsmith
+  imports through `RawMidi` as well as `importMidi` and refuses a file
+  if either fails or they disagree, so a truncated file or one with
+  system-common bytes that the CLI still converts is rejected by the GUI
+  with an Error diagnostic. There is no notes-only fallback.
 
 See `docs/ARCHITECTURE.md` for how the current (post-delta) pipeline
 actually works.

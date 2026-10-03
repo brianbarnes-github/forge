@@ -104,7 +104,7 @@ When you say…       …I'll know you mean
   `"0 notes · <N> events"`. Neither kind is draggable onto a part slot or
   openable in the Track editor window (double-click does nothing) — only
   tracks with at least one note are assignable. They stay in the document
-  and are written by File → Export MIDI….
+  and are written by File → Export ▸ MIDI….
   On import, the shared zoom auto-fits so the longest track's notes span the
   full preview width (`TrackListComponent::fitTimelineToDocument()`, called
   from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
@@ -247,37 +247,53 @@ View
                                           space to the preview region)
 ```
 
-**File → Open MIDI…** and dropping a `.mid`/`.midi` file both import into
+**File → Import ▸ MIDI…** and dropping a `.mid`/`.midi` file both import into
 `songDocument` (via `importMidiFile`) and show the result in the Songsmith
-view's own `DiagnosticListView` (#23). **File → Open Config…** and dropping a
-`.json`/`.toml`/`.xml` config file both go through `openConfigFromPath`,
-which always shows a "Config files are not supported yet" message box —
-there is still no path from a loaded Config file into `SongDocument`'s
-`ValueTree`.
+view's own `DiagnosticListView` (#23). Import adds to the open Song (it never
+replaces it). The Song itself is saved and opened as a `.songsmith` file (see
+"Menus"); there is no Config file path in the GUI any more — "Open Config…" and
+"Save Config As…" were removed.
 
 ## Menus
 
 ```
 File
-  Open MIDI…              ← FileChooser, .mid/.midi
-  Open Config…             ← FileChooser, .json/.toml/.xml (always shows
-                              "not supported yet" — see above)
+  New                Ctrl+N          ← empty Song (guarded, see below)
+  Open…              Ctrl+O          ← FileChooser, *.songsmith (guarded)
+  Close                              ← back to an empty Song (guarded)
   ─────────
-  Save Config As…                      ← disabled; no ValueTree → Config
-    JSON (.json)                          translation exists yet
-    TOML (.toml)
-    XML  (.xml)
-  Save ABC As…                         ← writes the last Run Converter's
-                                          ABC output (disabled until one
-                                          has produced something)
-  Export MIDI…                         ← writes the whole song (conductor +
-                                          every track, all imported events)
-                                          as a format-1 .mid; disabled until
-                                          something besides the conductor
-                                          is imported. Independent of parts.
+  Save               Ctrl+S          ← enabled when dirty or untitled;
+                                        untitled → Save As
+  Save As…           Ctrl+Shift+S    ← appends .songsmith if missing, then
+                                        asks before replacing another file
   ─────────
-  Quit                                  ← systemRequestedQuit
+  Import ▸ MIDI…                      ← FileChooser, .mid/.midi
+  Export ▸ MIDI…                      ← the whole song as a format-1 .mid;
+                                        disabled until something besides the
+                                        conductor is imported. Independent
+                                        of parts.
+           ABC…                       ← the last Run Converter's ABC output
+                                        (disabled until one has produced
+                                        something)
+  ─────────
+  Quit                                ← guarded
 ```
+
+Export defaults to the Song's own file name with the extension swapped
+(`<song>.mid` / `<song>.abc`), or `Untitled.*` in the Documents folder for an
+unsaved Song — never the imported MIDI's name. The shortcut hints are
+Windows/Linux-style (`Ctrl`); there are no Mac `Cmd` labels.
+
+**Title bar / unsaved changes.** The window title is
+`<name>[*] — Songsmith` (`Untitled` before the first save). `*` means the Song
+changed since the last save or load; any tree edit counts, including imports,
+and undoing back to the saved state still shows `*`. New, Open, Close, Quit,
+the window's close request and dropping a `.songsmith` file all go through
+the guard: when the Song is dirty a **Save / Don't Save / Cancel** prompt
+appears. Save writes (Save As for an untitled Song) and only then continues;
+a cancelled chooser, a failed write or Cancel stops the action. Opening a
+damaged or unsupported file shows an error and leaves the open Song as it was.
+Passing a `.songsmith` path on the command line opens it at startup.
 
 (Edit/Song/View are covered in "Songsmith view" above.)
 
@@ -291,9 +307,8 @@ File
 
 The whole Main window (#1) is a drag-drop target. Drop:
 
-- `.mid` or `.midi` → same as **File → Open MIDI…**
-- `.json`, `.toml`, or `.xml` → same as **File → Open Config…** (shows the
-  "not supported yet" message box)
+- `.mid` or `.midi` → same as **File → Import ▸ MIDI…**
+- `.songsmith` → same as **File → Open…** (behind the unsaved-changes guard)
 
 Within the Songsmith view itself, dragging a track row (#10) onto a part slot
 (#16) assigns that track to that part (see "Songsmith view" above).
@@ -301,7 +316,7 @@ Within the Songsmith view itself, dragging a track row (#10) onto a part slot
 ## Data flow
 
 ```
-[Open MIDI / drag-drop a .mid]
+[Import ▸ MIDI / drag-drop a .mid]
        │
        ▼
   MidiImporter::importMidi  ──►  raw Song (read-only after this point)
