@@ -119,6 +119,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/SongDocument.cpp
     Source/UI/SongFile.cpp
     Source/UI/SongSession.cpp
+    Source/UI/DiscardGuard.cpp
     Source/UI/SongModelBridge.cpp
     Source/UI/SourceTrackNoteSource.cpp
     Source/UI/PianoRollGeometry.cpp

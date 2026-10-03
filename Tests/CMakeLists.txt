@@ -28,6 +28,7 @@ add_executable(forge_tests
     SongDocument_tests.cpp
     SongFile_tests.cpp
     SongSession_tests.cpp
+    DiscardGuard_tests.cpp
     SongModelBridge_tests.cpp
     SongsmithRoundTrip_tests.cpp
     SourceTrackNoteSource_tests.cpp
@@ -61,6 +62,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongFile.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongSession.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/DiscardGuard.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollGeometry.cpp
