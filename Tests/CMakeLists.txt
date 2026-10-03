@@ -27,6 +27,7 @@ add_executable(forge_tests
     Provenance_tests.cpp
     SongDocument_tests.cpp
     SongFile_tests.cpp
+    SongFileRoundTrip_tests.cpp
     SongSession_tests.cpp
     DiscardGuard_tests.cpp
     SongModelBridge_tests.cpp
