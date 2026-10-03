@@ -442,3 +442,168 @@ TEST_CASE ("SourceRollEditor: right-click selection never starts a drag or moves
     CHECK ((int) f.noteA.getProperty (SongIDs::pitch) == 60);
     CHECK (f.editor.getRubberBandRect().isEmpty());
 }
+
+namespace
+{
+    void markImported (juce::ValueTree note)
+    {
+        note.setProperty (SongIDs::onOrder, 4, nullptr);
+        note.setProperty (SongIDs::offOrder, 9, nullptr);
+        note.setProperty (SongIDs::offSynthesized, true, nullptr);
+    }
+}
+
+TEST_CASE ("SourceRollEditor: a created note takes the track's defaultChannel and standard note-off fields", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    f.track.setProperty (SongIDs::defaultChannel, 7, nullptr);
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+
+    f.editor.mouseDown (emptyCell, {}, true);
+
+    auto notes = SongDocument::getNotesNode (f.track);
+    REQUIRE (notes.getNumChildren() == 3);
+    auto created = notes.getChild (2);
+    CHECK ((int) created.getProperty (SongIDs::channel) == 7);
+    CHECK ((int) created.getProperty (SongIDs::offVelocity) == 64);
+    CHECK (created.hasProperty (SongIDs::offIsNoteOnZero));
+    CHECK_FALSE ((bool) created.getProperty (SongIDs::offIsNoteOnZero));
+    CHECK (created.hasProperty (SongIDs::offSynthesized));
+    CHECK_FALSE ((bool) created.getProperty (SongIDs::offSynthesized));
+    CHECK_FALSE (created.hasProperty (SongIDs::onOrder));
+    CHECK_FALSE (created.hasProperty (SongIDs::offOrder));
+}
+
+TEST_CASE ("SourceRollEditor: a created note on a track with no defaultChannel uses channel 1", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    f.track.removeProperty (SongIDs::defaultChannel, nullptr);
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+    f.editor.mouseDown (emptyCell, {}, true);
+    auto notes = SongDocument::getNotesNode (f.track);
+    CHECK ((int) notes.getChild (notes.getNumChildren() - 1).getProperty (SongIDs::channel, -1) == 1);
+}
+
+TEST_CASE ("SourceRollEditor: moving a note in time clears its import orders in the same undo step", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    markImported (f.noteA);
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (f.geometry.xForTick (ticksPerQuarter) - f.geometry.xForTick (0), 0);
+
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::startTick) == ticksPerQuarter);
+    CHECK_FALSE (f.noteA.hasProperty (SongIDs::onOrder));
+    CHECK_FALSE (f.noteA.hasProperty (SongIDs::offOrder));
+    CHECK_FALSE ((bool) f.noteA.getProperty (SongIDs::offSynthesized));
+
+    f.doc.undo();
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    CHECK ((int) f.noteA.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((int) f.noteA.getProperty (SongIDs::offOrder) == 9);
+    CHECK ((bool) f.noteA.getProperty (SongIDs::offSynthesized));
+}
+
+TEST_CASE ("SourceRollEditor: a pitch-only drag keeps a note's import orders", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    markImported (f.noteA);
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (0, f.geometry.yForPitch (58) - f.geometry.yForPitch (60));
+
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::pitch) == 58);
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    CHECK ((int) f.noteA.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((int) f.noteA.getProperty (SongIDs::offOrder) == 9);
+    CHECK ((bool) f.noteA.getProperty (SongIDs::offSynthesized));
+}
+
+TEST_CASE ("SourceRollEditor: right and left resize clear import orders", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    markImported (f.noteA);
+    markImported (f.noteB);
+
+    auto a = f.geometry.noteBounds (Fixture::toNote (f.noteA));
+    const juce::Point<int> rightEdge (a.x + a.width - 1, a.y + a.height / 2);
+    const auto rightEnd = rightEdge.translated (f.geometry.xForTick (ticksPerQuarter / 2) - f.geometry.xForTick (0), 0);
+    f.editor.mouseDown (rightEdge, {}, false);
+    f.editor.mouseDrag (rightEnd);
+    f.editor.mouseUp (rightEnd);
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::durationTicks) != ticksPerQuarter);
+    CHECK_FALSE (f.noteA.hasProperty (SongIDs::onOrder));
+    CHECK_FALSE (f.noteA.hasProperty (SongIDs::offOrder));
+    CHECK_FALSE ((bool) f.noteA.getProperty (SongIDs::offSynthesized));
+
+    auto b = f.geometry.noteBounds (Fixture::toNote (f.noteB));
+    const juce::Point<int> leftEdge (b.x + 1, b.y + b.height / 2);
+    const auto leftEnd = leftEdge.translated (f.geometry.xForTick (ticksPerQuarter / 2) - f.geometry.xForTick (0), 0);
+    f.editor.mouseDown (leftEdge, {}, false);
+    f.editor.mouseDrag (leftEnd);
+    f.editor.mouseUp (leftEnd);
+    REQUIRE ((int) f.noteB.getProperty (SongIDs::startTick) != ticksPerQuarter);
+    CHECK_FALSE (f.noteB.hasProperty (SongIDs::onOrder));
+    CHECK_FALSE (f.noteB.hasProperty (SongIDs::offOrder));
+    CHECK_FALSE ((bool) f.noteB.getProperty (SongIDs::offSynthesized));
+}
+
+TEST_CASE ("SourceRollEditor: quantize clears import orders only on notes whose timing changed", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    f.noteA.setProperty (SongIDs::startTick, 100, nullptr); // off the 1/4 grid; noteB is on it
+    markImported (f.noteA);
+    markImported (f.noteB);
+    f.editor.setGridTicks (ticksPerQuarter);
+
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteA));
+    f.editor.mouseDown (f.centreOf (f.noteB), juce::ModifierKeys (juce::ModifierKeys::shiftModifier), false);
+    f.editor.mouseUp (f.centreOf (f.noteB));
+    REQUIRE (f.editor.getNumSelected() == 2);
+    REQUIRE (f.editor.quantizeSelection());
+
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    CHECK_FALSE (f.noteA.hasProperty (SongIDs::onOrder));
+    CHECK_FALSE ((bool) f.noteA.getProperty (SongIDs::offSynthesized));
+    CHECK ((int) f.noteB.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((int) f.noteB.getProperty (SongIDs::offOrder) == 9);
+    CHECK ((bool) f.noteB.getProperty (SongIDs::offSynthesized));
+
+    f.doc.undo();
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 100);
+    CHECK ((int) f.noteA.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((int) f.noteA.getProperty (SongIDs::offOrder) == 9);
+    CHECK ((bool) f.noteA.getProperty (SongIDs::offSynthesized));
+}
+
+TEST_CASE ("SourceRollEditor: a quantize that changes nothing keeps import orders", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    markImported (f.noteB);
+    f.editor.setGridTicks (ticksPerQuarter);
+    f.editor.mouseDown (f.centreOf (f.noteB), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteB));
+    REQUIRE (f.editor.quantizeSelection());
+    CHECK ((int) f.noteB.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((bool) f.noteB.getProperty (SongIDs::offSynthesized));
+}
+
+TEST_CASE ("SourceRollEditor: deleting a note leaves the track's events alone", "[source-roll-editor][fidelity]")
+{
+    Fixture f;
+    juce::ValueTree event (SongIDs::EVENT);
+    event.setProperty (SongIDs::tick, 0, nullptr);
+    SongDocument::getEventsNode (f.track).addChild (event, -1, nullptr);
+
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteA));
+    REQUIRE (f.editor.deleteSelection());
+    CHECK (SongDocument::getEventsNode (f.track).getNumChildren() == 1);
+}

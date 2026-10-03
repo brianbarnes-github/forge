@@ -213,7 +213,10 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
             const int newStart = std::max (0, orig.startTick + deltaTick);
             const int newPitch = juce::jlimit (0, 127, orig.pitch + deltaPitch);
             if ((int) orig.note.getProperty (SongIDs::startTick) != newStart)
+            {
                 doc.setProperty (orig.note, SongIDs::startTick, newStart, false);
+                markTimingEdited (orig.note);
+            }
             if ((int) orig.note.getProperty (SongIDs::pitch) != newPitch)
                 doc.setProperty (orig.note, SongIDs::pitch, newPitch, false);
         }
@@ -227,7 +230,10 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
     {
         const int newDuration = std::max (1, orig.durationTicks + deltaTick);
         if ((int) orig.note.getProperty (SongIDs::durationTicks) != newDuration)
+        {
             doc.setProperty (orig.note, SongIDs::durationTicks, newDuration, false);
+            markTimingEdited (orig.note);
+        }
     }
     else // ResizeLeft: end tick (startTick + durationTicks) stays fixed.
     {
@@ -235,9 +241,15 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
         const int newStart = juce::jlimit (0, endTick - 1, orig.startTick + deltaTick);
         const int newDuration = endTick - newStart;
         if ((int) orig.note.getProperty (SongIDs::startTick) != newStart)
+        {
             doc.setProperty (orig.note, SongIDs::startTick, newStart, false);
+            markTimingEdited (orig.note);
+        }
         if ((int) orig.note.getProperty (SongIDs::durationTicks) != newDuration)
+        {
             doc.setProperty (orig.note, SongIDs::durationTicks, newDuration, false);
+            markTimingEdited (orig.note);
+        }
     }
     return true;
 }
@@ -312,12 +324,32 @@ bool SourceRollEditor::quantizeSelection()
                                                  (int) std::lround ((double) origDuration / currentGridTicks) * currentGridTicks);
 
         if (origStart != snappedStart)
+        {
             doc.setProperty (note, SongIDs::startTick, snappedStart, false);
+            markTimingEdited (note);
+        }
         if (origDuration != snappedDuration)
+        {
             doc.setProperty (note, SongIDs::durationTicks, snappedDuration, false);
+            markTimingEdited (note);
+        }
     }
     return true;
 }
+// A note whose timing changed is no longer at its imported position in the
+// file, so it exports as new material with a real note-off (2026-10-03
+// MIDI-fidelity spec, "Editing interactions"). Joins the caller's open
+// transaction.
+void SourceRollEditor::markTimingEdited (juce::ValueTree note)
+{
+    if (note.hasProperty (SongIDs::onOrder))
+        doc.removeProperty (note, SongIDs::onOrder, false);
+    if (note.hasProperty (SongIDs::offOrder))
+        doc.removeProperty (note, SongIDs::offOrder, false);
+    if ((bool) note.getProperty (SongIDs::offSynthesized, false))
+        doc.setProperty (note, SongIDs::offSynthesized, false, false);
+}
+
 void SourceRollEditor::createNoteAt (juce::Point<int> pos)
 {
     if (! track.isValid())
@@ -332,6 +364,10 @@ void SourceRollEditor::createNoteAt (juce::Point<int> pos)
     note.setProperty (SongIDs::isDrum, false, nullptr);
     note.setProperty (SongIDs::sourceTrackIndex, -1, nullptr);
     note.setProperty (SongIDs::sourceEventIndex, -1, nullptr);
+    note.setProperty (SongIDs::channel, (int) track.getProperty (SongIDs::defaultChannel, 1), nullptr);
+    note.setProperty (SongIDs::offVelocity, 64, nullptr);
+    note.setProperty (SongIDs::offIsNoteOnZero, false, nullptr);
+    note.setProperty (SongIDs::offSynthesized, false, nullptr);
 
     doc.addChild (SongDocument::getNotesNode (track), note);
     selectOnly (note);

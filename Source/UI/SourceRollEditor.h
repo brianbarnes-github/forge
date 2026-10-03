@@ -107,6 +107,7 @@ private:
     void pruneSelection();
     void updateRubberBandSelection();
     void createNoteAt (juce::Point<int> pos);
+    void markTimingEdited (juce::ValueTree note);
 
     SongDocument& doc;
     juce::ValueTree track;
