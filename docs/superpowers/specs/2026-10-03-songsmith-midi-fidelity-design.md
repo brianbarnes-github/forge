@@ -78,11 +78,14 @@ Each is listed under Follow-ups:
 - **The MIDI is the source of truth** (`CLAUDE.md`). Nothing is cleaned up,
   merged or dropped at import except what the rules below state explicitly.
   Every drop is reported as a Diagnostic.
-- **Core/UI boundary** (`forge-engine-ui-boundary` skill). The lossless
-  reader/writer is import/export fidelity, not editing, and Core is already
-  the only place that reads MIDI files, so it goes in Core. Conversion types
-  (`Song`, `Track`, `Note`, `Config*`, `Constraints/*`) gain no fields.
-  Conductor rules, document storage and export assembly live in `Source/UI/`.
+- **Core/UI boundary** (`forge-engine-ui-boundary` skill; `CLAUDE.md`:
+  "`Source/Core/` only gets what the conversion pipeline itself needs").
+  Nothing in conversion uses the lossless reader/writer, so it lives in
+  `Source/UI/` (decided after review; it is JUCE-free, so moving it to Core
+  later is trivial if the CLI ever needs it). `forge_core` is not changed at
+  all: conversion types (`Song`, `Track`, `Note`, `Config*`,
+  `Constraints/*`) gain no fields. Conductor rules, document storage and
+  export assembly also live in `Source/UI/`.
 - **ValueTree conventions** (`juce-valuetree-conventions` skill). Synthetic
   ids are used, never positional indices. Import stays non-undoable (bulk
   path); user edits stay one undo transaction per gesture.
@@ -132,7 +135,7 @@ unchanged, so conversion can't move.
 
 ## Design
 
-### Core: `Source/Core/RawMidi.{h,cpp}`
+### `Source/UI/RawMidi.{h,cpp}`
 
 JUCE-free public surface and JUCE-free implementation.
 
@@ -196,7 +199,7 @@ indices line up with `importMidi`'s `sourceTrackIndex`)
   Event-level equality is the guarantee, not byte equality of the file.
 - Writes meta and SysEx lengths as variable-length numbers.
 - Checks the output stream's state after writing and throws
-  `MidiExportError` (declared in `RawMidi.h` beside `MidiImportError`) on
+  `MidiExportError` (declared in `RawMidi.h`; the reader reuses Core's `MidiImportError`) on
   failure.
 
 ### Document storage (`SongDocument` / `SongIDs`)
@@ -446,7 +449,7 @@ under Export ▸):
 
 Strict TDD. Integration tests are preferred for business logic.
 
-- **`RawMidi_tests.cpp` (Core):**
+- **`RawMidi_tests.cpp`:**
   - read → write → read gives equal `RawMidiFile`s for all 12 `midi/*.mid`.
   - Hand-built byte fixtures: running status; note-on velocity 0; F0 and F7
     SysEx; unknown meta type; missing End-of-Track; trailing silence
@@ -513,7 +516,7 @@ Strict TDD. Integration tests are preferred for business logic.
 
 ## Docs to update
 
-- `docs/ARCHITECTURE.md`: RawMidi in the Core section, document schema, the
+- `docs/ARCHITECTURE.md`: RawMidi in the GUI/Songsmith section, document schema, the
   import/export walkthrough. `MidiImporter` is no longer the only MIDI
   reader; update that sentence.
 - `docs/UI_GUIDE.md`: Export MIDI menu item, conductor row.
