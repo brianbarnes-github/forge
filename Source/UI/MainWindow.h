@@ -36,6 +36,8 @@ public:
     void openSongFromPath (const juce::File& file);
     // Guarded: asks about unsaved changes first (drops, later the command line).
     void requestOpenSong (const juce::File& file);
+    // Nothing is open yet at startup, so this skips the guard.
+    void openSongOnStartup (const juce::File& file);
     // Guarded quit.
     void requestQuit();
 

@@ -148,7 +148,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeButtonPressed()
 {
-    juce::JUCEApplication::getInstance()->systemRequestedQuit();
+    requestQuit();
 }
 
 juce::StringArray MainWindow::getMenuBarNames() { return { "File", "Edit", "Song", "View", "Help" }; }
@@ -265,7 +265,7 @@ bool MainWindow::isInterestedInFileDrag (const juce::StringArray& files)
     for (const auto& f : files)
     {
         const auto ext = juce::File (f).getFileExtension().toLowerCase();
-        if (ext == ".mid" || ext == ".midi") return true;
+        if (ext == ".mid" || ext == ".midi" || ext == songExtension) return true;
     }
     return false;
 }
@@ -277,6 +277,7 @@ void MainWindow::filesDropped (const juce::StringArray& files, int, int)
         const auto file = juce::File (f);
         const auto ext = file.getFileExtension().toLowerCase();
         if (ext == ".mid" || ext == ".midi") { openMidiFromPath (file);   return; }
+        if (ext == songExtension)            { requestOpenSong (file);    return; }
     }
 }
 
@@ -311,19 +312,22 @@ void MainWindow::refreshTitle()
 
 DiscardGuardHooks MainWindow::guardHooks()
 {
+    // Quit routes through these hooks, so a callback can outlive the window.
+    const juce::Component::SafePointer<MainWindow> safe (this);
     return {
         // prompt: Save / Don't Save / Cancel
-        [this] (std::function<void (DiscardChoice)> done)
+        [safe] (std::function<void (DiscardChoice)> done)
         {
+            if (safe == nullptr) return;
             juce::NativeMessageBox::showAsync (
                 juce::MessageBoxOptions()
                     .withIconType (juce::MessageBoxIconType::QuestionIcon)
                     .withTitle ("Unsaved changes")
-                    .withMessage ("Save changes to " + session.getName() + " before continuing?")
+                    .withMessage ("Save changes to " + safe->session.getName() + " before continuing?")
                     .withButton ("Save")
                     .withButton ("Don't Save")
                     .withButton ("Cancel")
-                    .withAssociatedComponent (this),
+                    .withAssociatedComponent (safe.getComponent()),
                 [done] (int button)
                 {
                     done (button == 0 ? DiscardChoice::Save
@@ -332,7 +336,10 @@ DiscardGuardHooks MainWindow::guardHooks()
                 });
         },
         // save: Save, or Save As for an untitled Song
-        [this] (std::function<void (bool)> done) { saveSong (std::move (done)); }
+        [safe] (std::function<void (bool)> done)
+        {
+            if (safe != nullptr) safe->saveSong (std::move (done));
+        }
     };
 }
 
@@ -376,6 +383,11 @@ void MainWindow::openSongFromPath (const juce::File& file)
     }
     session.markClean (file);
     afterDocumentReplaced();
+}
+
+void MainWindow::openSongOnStartup (const juce::File& file)
+{
+    openSongFromPath (file);   // nothing is open yet, so no guard
 }
 
 void MainWindow::requestOpenSong (const juce::File& file)
