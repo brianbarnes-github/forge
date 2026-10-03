@@ -47,6 +47,8 @@ add_executable(forge_tests
     TrackRowComponent_tests.cpp
     WindowPlacement_tests.cpp
     AboutBox_tests.cpp
+    RawMidi_tests.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/RawMidi.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongDocument.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
@@ -78,6 +80,7 @@ add_dependencies(forge_tests forge_build_info)
 target_link_libraries(forge_tests PRIVATE
     Catch2::Catch2WithMain
     forge_core
+    juce::juce_audio_basics
     juce::juce_data_structures
     juce::juce_gui_basics)
 
