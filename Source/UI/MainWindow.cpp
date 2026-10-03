@@ -1,16 +1,18 @@
 #include "MainWindow.h"
 #include "AboutBox.h"
 #include "DiagnosticsPane.h"
+#include "DiscardGuard.h"
 #include "GridSize.h"
 #include "MidiExport.h"
 #include "RawMidi.h"
+#include "SongFile.h"
 #include "SongModelBridge.h"
+#include "SongSession.h"
 #include "SongsmithMainComponent.h"
 #include "WindowPlacement.h"
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
-#include "Core/ConfigWriter.h"
 #include "Core/InstrumentAssembly.h"
 #include "Core/Pipeline.h"
 
@@ -22,6 +24,12 @@ namespace lotro
 namespace
 {
     constexpr const char* mainWindowPlacementKey = "mainWindowPlacement";
+    constexpr const char* songExtension = ".songsmith";
+
+    void showError (const juce::String& title, const juce::String& message)
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, title, message);
+    }
 
     juce::PropertiesFile::Options settingsOptions()
     {
@@ -73,7 +81,7 @@ private:
 };
 
 MainWindow::MainWindow()
-    : juce::DocumentWindow ("Forge",
+    : juce::DocumentWindow ("Songsmith",
                             juce::Colours::lightgrey,
                             juce::DocumentWindow::allButtons),
       body (std::make_unique<Body> (songDocument)),
@@ -85,6 +93,7 @@ MainWindow::MainWindow()
     // focus events, causing visible drift when the user first clicks on it.
     setUsingNativeTitleBar (false);
     setResizable (true, true);
+    setWantsKeyboardFocus (true);
 
     // Host component: JUCE calls its resized() whenever the window's content
     // area changes (WM resize, initial mapping, drag-resize). It lays the
@@ -122,6 +131,11 @@ MainWindow::MainWindow()
         centreWithSize (getWidth(), getHeight());
     setVisible (true);
     WindowPlacement::applyMaximised (*settings, mainWindowPlacementKey, *this);
+
+    // Fires synchronously inside ValueTree callbacks, so refreshTitle() must
+    // never touch the tree.
+    session.onChanged = [this] { refreshTitle(); };
+    refreshTitle();
 }
 
 MainWindow::~MainWindow()
@@ -144,21 +158,29 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     juce::PopupMenu m;
     if (topLevelMenuIndex == 0) // File
     {
-        m.addItem (FileOpenMidi,    "Open MIDI...",    true, false);
-        m.addItem (FileOpenConfig,  "Open Config...",  true, false);
+        const auto item = [&m] (int id, const juce::String& text, const juce::String& shortcut, bool enabled)
+        {
+            juce::PopupMenu::Item i (text);
+            i.itemID = id;
+            i.isEnabled = enabled;
+            i.shortcutKeyDescription = shortcut;
+            m.addItem (i);
+        };
+        item (FileNew,      "New",         "Ctrl+N",       true);
+        item (FileOpenSong, "Open...",     "Ctrl+O",       true);
+        item (FileClose,    "Close",       "",             true);
         m.addSeparator();
-        juce::PopupMenu saveAs;
-        saveAs.addItem (FileSaveAsJson, "JSON (.json)", true, false);
-        saveAs.addItem (FileSaveAsToml, "TOML (.toml)", true, false);
-        saveAs.addItem (FileSaveAsXml,  "XML (.xml)",   true, false);
-        // There is still no path from a loaded Config file into
-        // SongDocument's ValueTree (see openConfigFromPath) — kept visible
-        // per the plan's "keep File menu" decision, but permanently
-        // disabled until that translation exists.
-        m.addSubMenu ("Save Config As", saveAs, false);
-        m.addItem (FileSaveAbc, "Save ABC As...", ! lastAbc.empty(), false);
-        // Enabled once the song has anything besides its conductor.
-        m.addItem (FileExportMidi, "Export MIDI...", songDocument.getNumTracks() > 1, false);
+        item (FileSave,     "Save",        "Ctrl+S",       session.isDirty() || session.isUntitled());
+        item (FileSaveAs,   "Save As...",  "Ctrl+Shift+S", true);
+        m.addSeparator();
+        juce::PopupMenu importMenu;
+        importMenu.addItem (FileImportMidi, "MIDI...");
+        m.addSubMenu ("Import", importMenu);
+        juce::PopupMenu exportMenu;
+        // MIDI is enabled once the song has anything besides its conductor.
+        exportMenu.addItem (FileExportMidi, "MIDI...", songDocument.getNumTracks() > 1);
+        exportMenu.addItem (FileExportAbc,  "ABC...",  ! lastAbc.empty());
+        m.addSubMenu ("Export", exportMenu);
         m.addSeparator();
         m.addItem (FileQuit, "Quit");
     }
@@ -208,14 +230,15 @@ void MainWindow::menuItemSelected (int menuItemID, int)
 
     switch (menuItemID)
     {
-        case FileOpenMidi:    openMidiViaDialog();                                           return;
-        case FileOpenConfig:  openConfigViaDialog();                                          return;
-        case FileSaveAsJson:  saveConfigAs (ConfigFormat::Json);                              return;
-        case FileSaveAsToml:  saveConfigAs (ConfigFormat::Toml);                              return;
-        case FileSaveAsXml:   saveConfigAs (ConfigFormat::Xml);                               return;
-        case FileSaveAbc:     saveAbcAs();                                                    return;
+        case FileNew:
+        case FileClose:       guarded ([this] { resetToEmptySong(); });                       return;
+        case FileOpenSong:    guarded ([this] { openSongViaDialog(); });                       return;
+        case FileSave:        saveSong();                                                      return;
+        case FileSaveAs:      saveSongAs();                                                    return;
+        case FileImportMidi:  openMidiViaDialog();                                            return;
+        case FileExportAbc:   saveAbcAs();                                                    return;
         case FileExportMidi:  exportMidiAs();                                                 return;
-        case FileQuit:        juce::JUCEApplication::getInstance()->systemRequestedQuit();   return;
+        case FileQuit:        requestQuit();                                                   return;
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
         case EditQuantize:    body->getSongsmith().quantizeActiveEditor();                    return;
@@ -243,7 +266,6 @@ bool MainWindow::isInterestedInFileDrag (const juce::StringArray& files)
     {
         const auto ext = juce::File (f).getFileExtension().toLowerCase();
         if (ext == ".mid" || ext == ".midi") return true;
-        if (ext == ".json" || ext == ".toml" || ext == ".xml") return true;
     }
     return false;
 }
@@ -255,11 +277,6 @@ void MainWindow::filesDropped (const juce::StringArray& files, int, int)
         const auto file = juce::File (f);
         const auto ext = file.getFileExtension().toLowerCase();
         if (ext == ".mid" || ext == ".midi") { openMidiFromPath (file);   return; }
-        if (ext == ".json" || ext == ".toml" || ext == ".xml")
-        {
-            openConfigFromPath (file);
-            return;
-        }
     }
 }
 
@@ -286,44 +303,166 @@ void MainWindow::openMidiFromPath (const juce::File& file)
     body->getSongsmith().fitTrackTimelineToDocument();
 }
 
-void MainWindow::saveConfigAs (ConfigFormat format)
+void MainWindow::refreshTitle()
 {
-    // Save Config As is disabled in the menu (getMenuForIndex) — there is
-    // still no path from SongDocument's ValueTree into a Config file, so
-    // this early return is defence in depth against reaching it any other
-    // way, matching openConfigFromPath's own guard below.
-    juce::NativeMessageBox::showMessageBoxAsync (
-        juce::MessageBoxIconType::InfoIcon,
-        "Not supported",
-        "Save Config is not supported yet");
-    juce::ignoreUnused (format);
+    setName (session.displayTitle());
+    menuItemsChanged();
 }
 
-void MainWindow::openConfigViaDialog()
+DiscardGuardHooks MainWindow::guardHooks()
 {
-    fileChooser = std::make_unique<juce::FileChooser> (
-        "Choose a Config", juce::File(), "*.json;*.toml;*.xml");
+    return {
+        // prompt: Save / Don't Save / Cancel
+        [this] (std::function<void (DiscardChoice)> done)
+        {
+            juce::NativeMessageBox::showAsync (
+                juce::MessageBoxOptions()
+                    .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                    .withTitle ("Unsaved changes")
+                    .withMessage ("Save changes to " + session.getName() + " before continuing?")
+                    .withButton ("Save")
+                    .withButton ("Don't Save")
+                    .withButton ("Cancel")
+                    .withAssociatedComponent (this),
+                [done] (int button)
+                {
+                    done (button == 0 ? DiscardChoice::Save
+                        : button == 1 ? DiscardChoice::DontSave
+                                      : DiscardChoice::Cancel);
+                });
+        },
+        // save: Save, or Save As for an untitled Song
+        [this] (std::function<void (bool)> done) { saveSong (std::move (done)); }
+    };
+}
 
-    fileChooser->launchAsync (juce::FileBrowserComponent::openMode
-                            | juce::FileBrowserComponent::canSelectFiles,
+void MainWindow::guarded (std::function<void()> action)
+{
+    confirmDiscardChanges (session.isDirty(), guardHooks(), std::move (action));
+}
+
+void MainWindow::requestQuit()
+{
+    guarded ([] { juce::JUCEApplication::quit(); });
+}
+
+void MainWindow::afterDocumentReplaced()
+{
+    body->getSongsmith().documentReplaced();
+    body->getSongsmith().getDiagnostics().setDiagnostics ({});
+    lastAbc.clear();
+    body->getExportPanel().show ({}, {});
+    body->setExportPanelVisible (false);
+    menuItemsChanged();
+}
+
+void MainWindow::resetToEmptySong()
+{
+    songDocument.resetToEmpty();
+    session.markNew();
+    afterDocumentReplaced();
+}
+
+void MainWindow::openSongFromPath (const juce::File& file)
+{
+    try
+    {
+        songDocument.replaceContents (loadSongFile (file));   // validates fully first; document untouched on throw
+    }
+    catch (const SongFileError& e)
+    {
+        showError ("Could not open Song", juce::String (e.what()));
+        return;
+    }
+    session.markClean (file);
+    afterDocumentReplaced();
+}
+
+void MainWindow::requestOpenSong (const juce::File& file)
+{
+    guarded ([this, file] { openSongFromPath (file); });
+}
+
+void MainWindow::openSongViaDialog()
+{
+    fileChooser = std::make_unique<juce::FileChooser> ("Open Song", juce::File(), juce::String ("*") + songExtension);
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
         [this] (const juce::FileChooser& fc)
         {
             const auto file = fc.getResult();
-            if (file == juce::File()) return;
-            openConfigFromPath (file);
+            if (file != juce::File())
+                openSongFromPath (file);   // already behind the guard (File > Open runs guarded() first)
         });
 }
 
-void MainWindow::openConfigFromPath (const juce::File&)
+void MainWindow::writeSongTo (const juce::File& file, std::function<void (bool)> done)
 {
-    // There is still no path from a loaded Config file into SongDocument's
-    // ValueTree — building one is out of scope for this phase. Both the
-    // File -> Open Config... dialog and dropped config files funnel through
-    // here, so this is the single place that early return needs to live.
-    juce::NativeMessageBox::showMessageBoxAsync (
-        juce::MessageBoxIconType::InfoIcon,
-        "Not supported",
-        "Config files are not supported yet");
+    const bool ok = saveSongFile (songDocument, file);
+    if (ok)
+        session.markClean (file);
+    else
+        showError ("Save failed", "Could not write: " + file.getFullPathName());
+    if (done)
+        done (ok);
+}
+
+void MainWindow::saveSong (std::function<void (bool)> done)
+{
+    if (session.isUntitled())
+        saveSongAs (std::move (done));
+    else
+        writeSongTo (session.getFile(), std::move (done));
+}
+
+void MainWindow::saveSongAs (std::function<void (bool)> done)
+{
+    const auto defaultFile = defaultExportFile (session.getFile(), songExtension,
+                                                juce::File::getSpecialLocation (juce::File::userDocumentsDirectory));
+    fileChooser = std::make_unique<juce::FileChooser> ("Save Song", defaultFile, juce::String ("*") + songExtension);
+
+    // No warnAboutOverwriting: the extension is appended AFTER the chooser
+    // returns, so the native warning would check the wrong name. We ask ourselves.
+    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+        [this, done] (const juce::FileChooser& fc)
+        {
+            auto file = fc.getResult();
+            if (file == juce::File())
+            {
+                if (done) done (false);
+                return;
+            }
+            file = withExtensionIfMissing (file, { songExtension }, songExtension);
+
+            if (file.existsAsFile() && file != session.getFile())
+            {
+                juce::NativeMessageBox::showAsync (
+                    juce::MessageBoxOptions()
+                        .withIconType (juce::MessageBoxIconType::WarningIcon)
+                        .withTitle ("Replace file?")
+                        .withMessage (file.getFileName() + " already exists. Replace it?")
+                        .withButton ("Replace")
+                        .withButton ("Cancel")
+                        .withAssociatedComponent (this),
+                    [safe = juce::Component::SafePointer<MainWindow> (this), file, done] (int button)
+                    {
+                        if (button == 0 && safe != nullptr) safe->writeSongTo (file, done);
+                        else if (done)                      done (false);
+                    });
+                return;
+            }
+            writeSongTo (file, done);
+        });
+}
+
+bool MainWindow::keyPressed (const juce::KeyPress& key)
+{
+    const auto cmd = juce::ModifierKeys::commandModifier;
+    const auto cmdShift = juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
+    if (key == juce::KeyPress ('n', cmd, 0))      { menuItemSelected (FileNew, 0);      return true; }
+    if (key == juce::KeyPress ('o', cmd, 0))      { menuItemSelected (FileOpenSong, 0); return true; }
+    if (key == juce::KeyPress ('s', cmd, 0))      { menuItemSelected (FileSave, 0);     return true; }
+    if (key == juce::KeyPress ('s', cmdShift, 0)) { menuItemSelected (FileSaveAs, 0);   return true; }
+    return false;
 }
 
 void MainWindow::runConversion()
