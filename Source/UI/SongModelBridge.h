@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RawMidi.h"
 #include "SongDocument.h"
 #include "Core/Config.h"
 #include "Core/Diagnostics.h"
@@ -45,15 +46,24 @@ namespace lotro
 void appendImportedSong (SongDocument& doc, const Song& imported, int importBatch,
                          Diagnostics& diagnostics);
 
-// Opens `midiFile`, runs forge_core's importMidi (sourceName = the
-// file's stem, matching the CLI's ad-hoc path in Source/Main.cpp), and
-// appends the result via appendImportedSong. Sets SONG.inputMidiPath
-// only if it is currently empty (first import's filename wins). Never
-// touches the UndoManager (bulk import is not a user-undoable edit). On
-// an unopenable or malformed file (including a lotro::MidiImportError
-// thrown by importMidi for content that opens fine but doesn't parse):
-// appends a Severity::Error Diagnostic (source "SongModelBridge"),
-// leaves the document unchanged, and returns false.
+// Raw-aware import. On a planning failure (format 2, parser disagreement)
+// appends one Error diagnostic (source "SongModelBridge"), leaves the
+// document unchanged and returns false. On success, appends
+// `importerDiagnostics` (with trackIndex remapped to the document row --
+// the MIDI_TRACK's SOURCE_MIDI child index), then the plan's diagnostics,
+// then the bridge's own, and returns true.
+bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiFile& raw,
+                         int importBatch, Diagnostics& diagnostics,
+                         const Diagnostics& importerDiagnostics = {});
+
+// Opens `midiFile` (sourceName = the file's stem, matching the CLI's ad-hoc
+// path in Source/Main.cpp), parses with both importMidi and readMidiFile and
+// appends via appendImportedMidi; returns false (Error diagnostic, document
+// unchanged) if either parser fails or they disagree. Sets
+// SONG.inputMidiPath only if it is currently empty (first import's filename
+// wins). Never touches the UndoManager (bulk import is not a user-undoable
+// edit). An unopenable file likewise appends a Severity::Error Diagnostic
+// (source "SongModelBridge") and returns false.
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
                      Diagnostics& diagnostics);
 

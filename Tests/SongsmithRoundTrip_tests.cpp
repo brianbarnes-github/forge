@@ -57,6 +57,15 @@ namespace
         return ((long long) tick * (long long) docPpq) % (long long) importedPpq == 0;
     }
 
+    // A later import keeps the first import's conductor and reports the
+    // song-wide events it dropped in one Info (MidiImportPlan). Every fixture
+    // has a conductor, so each later import below emits exactly one.
+    bool isSongWideDropInfo (const Diagnostic& d)
+    {
+        return d.source == "SongModelBridge" && d.severity == Severity::Info
+            && d.message.find ("song-wide event(s) from a later import") != std::string::npos;
+    }
+
     // Direct (non-bridge) import of a fixture, for building "expected" values.
     Song directImport (const juce::File& file, Diagnostics& diagnostics)
     {
@@ -223,10 +232,15 @@ TEST_CASE ("SongsmithRoundTrip: a later, lower-PPQ import is upscaled into the d
     const int docPpq = 480;
     const int importedPpq = 120;
 
-    REQUIRE (doc.getNumTracks() == tracksAfterFirst + (int) directSong.tracks.size());
+    std::vector<juce::ValueTree> secondImportTracks;
+    for (int t = tracksAfterFirst; t < doc.getNumTracks(); ++t)
+        if (SongDocument::isAssignableTrack (doc.getTrack (t)))
+            secondImportTracks.push_back (doc.getTrack (t));
+
+    REQUIRE (secondImportTracks.size() == directSong.tracks.size());
     for (size_t t = 0; t < directSong.tracks.size(); ++t)
     {
-        auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
+        auto trackTree = secondImportTracks[t];
         const auto& directTrack = directSong.tracks[t];
         REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
@@ -251,16 +265,18 @@ TEST_CASE ("SongsmithRoundTrip: a later, lower-PPQ import is upscaled into the d
         }
     }
 
-    int infoCount = 0, warningCount = 0;
+    int infoCount = 0, warningCount = 0, songWideDropCount = 0;
     for (const auto& d : diag2)
     {
         if (d.source != "SongModelBridge") continue;
+        if (isSongWideDropInfo (d)) { ++songWideDropCount; continue; }
         if (d.severity == Severity::Info) ++infoCount;
         else if (d.severity == Severity::Warning) ++warningCount;
     }
 
     // 4x upscale is always exact -> Info, never Warning, for the rescale diagnostic.
     CHECK (infoCount == 1);
+    CHECK (songWideDropCount == 1);
 
     const bool timelineDiffers = rescaledTimelineDiffers (tempoAfterFirst, meterAfterFirst, directSong, docPpq, importedPpq);
     CHECK (warningCount == (timelineDiffers ? 1 : 0));
@@ -306,11 +322,17 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's
     const int raiseFactor = 8; // 960 / 120
 
     // blue.mid's existing notes rescaled ×8, exactly, versus a direct import.
-    REQUIRE (doc.getNumTracks() >= tracksAfterFirst); // child 0 is the conductor; imported tracks follow
-    for (int t = 1; t < tracksAfterFirst; ++t)
+    // Child 0 is the conductor; imported tracks follow, note-less ones interleaved.
+    std::vector<juce::ValueTree> firstImportTracks;
+    for (int t = 0; t < tracksAfterFirst; ++t)
+        if (SongDocument::isAssignableTrack (doc.getTrack (t)))
+            firstImportTracks.push_back (doc.getTrack (t));
+
+    REQUIRE (firstImportTracks.size() == directFirstSong.tracks.size());
+    for (size_t t = 0; t < directFirstSong.tracks.size(); ++t)
     {
-        auto trackTree = doc.getTrack (t);
-        const auto& directTrack = directFirstSong.tracks[(size_t) t - 1];
+        auto trackTree = firstImportTracks[t];
+        const auto& directTrack = directFirstSong.tracks[t];
         REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
         for (size_t n = 0; n < directTrack.notes.size(); ++n)
@@ -348,10 +370,15 @@ TEST_CASE ("SongsmithRoundTrip: a later, higher-PPQ import raises the document's
     auto directSecondSong = directImport (secondFile, directSecondDiag);
     REQUIRE (directSecondSong.ticksPerQuarter == 960);
 
-    REQUIRE (doc.getNumTracks() == tracksAfterFirst + (int) directSecondSong.tracks.size());
+    std::vector<juce::ValueTree> secondImportTracks;
+    for (int t = tracksAfterFirst; t < doc.getNumTracks(); ++t)
+        if (SongDocument::isAssignableTrack (doc.getTrack (t)))
+            secondImportTracks.push_back (doc.getTrack (t));
+
+    REQUIRE (secondImportTracks.size() == directSecondSong.tracks.size());
     for (size_t t = 0; t < directSecondSong.tracks.size(); ++t)
     {
-        auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
+        auto trackTree = secondImportTracks[t];
         const auto& directTrack = directSecondSong.tracks[t];
         REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
@@ -472,10 +499,15 @@ TEST_CASE ("SongsmithRoundTrip: a later, same-PPQ import keeps ticks verbatim an
     auto directSong = directImport (secondFile, directDiag);
     REQUIRE (directSong.ticksPerQuarter == 480);
 
-    REQUIRE (doc.getNumTracks() == tracksAfterFirst + (int) directSong.tracks.size());
+    std::vector<juce::ValueTree> secondImportTracks;
+    for (int t = tracksAfterFirst; t < doc.getNumTracks(); ++t)
+        if (SongDocument::isAssignableTrack (doc.getTrack (t)))
+            secondImportTracks.push_back (doc.getTrack (t));
+
+    REQUIRE (secondImportTracks.size() == directSong.tracks.size());
     for (size_t t = 0; t < directSong.tracks.size(); ++t)
     {
-        auto trackTree = doc.getTrack (tracksAfterFirst + (int) t);
+        auto trackTree = secondImportTracks[t];
         const auto& directTrack = directSong.tracks[t];
         REQUIRE (SongDocument::getNotesNode (trackTree).getNumChildren() == (int) directTrack.notes.size());
 
@@ -488,22 +520,28 @@ TEST_CASE ("SongsmithRoundTrip: a later, same-PPQ import keeps ticks verbatim an
     }
 
     // Same PPQ -> no rescale, so no rescale diagnostic at all (neither Info
-    // nor Warning) — the only SongModelBridge diagnostic that can appear here
-    // is R1's timeline-diff Warning, and only if the two files' tempo/meter
-    // maps actually differ. Assert the exact count, not just "every one is a
+    // nor Warning) — apart from the song-wide-drop Info every later import
+    // emits, the only SongModelBridge diagnostic that can appear here is R1's
+    // timeline-diff Warning, and only if the two files' tempo/meter maps
+    // actually differ. Assert the exact count, not just "every one is a
     // Warning" (which would also pass if unrelated warnings appeared).
     const int docPpq = 480, importedPpq = 480;
     const bool timelineDiffers = rescaledTimelineDiffers (tempoAfterFirst, meterAfterFirst, directSong, docPpq, importedPpq);
     const int expectedSongModelBridgeDiagnostics = timelineDiffers ? 1 : 0;
 
-    int actualSongModelBridgeDiagnostics = 0;
+    int actualSongModelBridgeDiagnostics = 0, songWideDropCount = 0;
     for (const auto& d : diag2)
-        if (d.source == "SongModelBridge")
+    {
+        if (isSongWideDropInfo (d))
+            ++songWideDropCount;
+        else if (d.source == "SongModelBridge")
             ++actualSongModelBridgeDiagnostics;
+    }
 
+    CHECK (songWideDropCount == 1);
     CHECK (actualSongModelBridgeDiagnostics == expectedSongModelBridgeDiagnostics);
     for (const auto& d : diag2)
-        if (d.source == "SongModelBridge")
+        if (d.source == "SongModelBridge" && ! isSongWideDropInfo (d))
             CHECK (d.severity == Severity::Warning);
 }
 
