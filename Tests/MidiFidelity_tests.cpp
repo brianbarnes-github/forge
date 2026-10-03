@@ -1,0 +1,281 @@
+// MidiFidelity: import -> export reproduces the original MIDI event-for-event
+// (spec "Goals"), including the hard note-pairing cases, and survives edits,
+// mixed PPQ and an empty song.
+
+#include "UI/MidiExport.h"
+#include "UI/MidiImportPlan.h"
+#include "UI/RawMidi.h"
+#include "UI/SongModelBridge.h"
+#include "MidiTestBytes.h"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+
+#include <juce_core/juce_core.h>
+
+#include <algorithm>
+#include <tuple>
+
+using namespace lotro;
+using namespace miditest;
+
+namespace
+{
+    juce::File midiFixture (const std::string& name)
+    {
+        return juce::File (__FILE__).getParentDirectory().getParentDirectory()
+                   .getChildFile ("midi").getChildFile (name);
+    }
+
+    struct TempMidi
+    {
+        juce::File file = juce::File::createTempFile (".mid");
+        explicit TempMidi (const Bytes& bytes) { REQUIRE (file.replaceWithData (bytes.data(), bytes.size())); }
+        ~TempMidi() { file.deleteFile(); }
+    };
+
+    RawMidiFile readFixture (const juce::File& f)
+    {
+        juce::MemoryBlock block;
+        REQUIRE (f.loadFileAsData (block));
+        const auto* d = static_cast<const std::uint8_t*> (block.getData());
+        return readMidiBytes (Bytes (d, d + block.getSize()), "f");
+    }
+
+    RawMidiFile importThenExport (const juce::File& f)
+    {
+        SongDocument doc;
+        Diagnostics diags;
+        REQUIRE (importMidiFile (doc, f, 1, diags));
+        return buildRawMidiFile (doc);
+    }
+
+    // (pitch, start, duration, velocity, channel), sorted, for every NOTE of every track.
+    std::vector<std::tuple<int, int, int, int, int>> allNotes (const SongDocument& doc)
+    {
+        std::vector<std::tuple<int, int, int, int, int>> out;
+        for (auto track : doc.getSourceMidiNode())
+            for (auto n : SongDocument::getNotesNode (track))
+                out.emplace_back ((int) n.getProperty (SongIDs::pitch), (int) n.getProperty (SongIDs::startTick),
+                                  (int) n.getProperty (SongIDs::durationTicks), (int) n.getProperty (SongIDs::velocity),
+                                  (int) n.getProperty (SongIDs::channel, 1));
+        std::sort (out.begin(), out.end());
+        return out;
+    }
+
+    TrackBody conductorBody()
+    {
+        TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).eot (960);
+        return c;
+    }
+}
+
+TEST_CASE ("MidiFidelity: every tracked fixture exports exactly as it was imported", "[midifidelity]")
+{
+    auto name = GENERATE (as<std::string>{},
+        "Barnes Brothers Band - Pull The Wires.mid", "anymore.mid", "blue.mid",
+        "hold.mid", "land.mid", "leah.mid", "nobody.mid", "right.mid", "tellit.mid");
+
+    DYNAMIC_SECTION (name)
+    {
+        const auto original = readFixture (midiFixture (name));
+        REQUIRE (hasConductorTrack (original)); // all fixtures have one
+        CHECK (importThenExport (midiFixture (name)) == original);
+    }
+}
+
+TEST_CASE ("MidiFidelity: the review's note-pairing cases export exactly", "[midifidelity]")
+{
+    TrackBody swapCase;
+    swapCase.ev (0, { 0x90, 60, 100 }).ev (0, { 0x90, 62, 100 }).ev (0, { 0x80, 60, 0x40 })
+            .ev (10, { 0x80, 62, 0x40 }).ev (10, { 0x80, 60, 0x40 }).eot();
+    TrackBody restrikeCase;
+    restrikeCase.ev (0, { 0x90, 60, 100 }).ev (0, { 0x80, 60, 0x40 }).ev (0, { 0x90, 60, 50 }).ev (0, { 0x80, 60, 0x40 })
+                .ev (10, { 0x80, 60, 0x40 }).eot();
+
+    for (const auto& body : { swapCase, restrikeCase })
+    {
+        const auto bytes = smf (1, 96, { conductorBody(), body });
+        TempMidi tmp (bytes);
+        CHECK (importThenExport (tmp.file) == readMidiBytes (bytes, "r"));
+    }
+}
+
+TEST_CASE ("MidiFidelity: a file without a conductor exports with its song-wide metas relocated to track 0", "[midifidelity]")
+{
+    TrackBody first;
+    first.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x05, 0x02, 'l', 'a' })
+         .ev (0, { 0x90, 60, 100 }).ev (48, { 0xFF, 0x06, 0x01, 'B' }).ev (48, { 0x80, 60, 0x40 }).eot();
+    TrackBody second;
+    second.ev (0, { 0xFF, 0x59, 0x02, 0x00, 0x00 }).ev (0, { 0x91, 64, 90 }).ev (96, { 0x91, 64, 0 }).eot();
+    TempMidi tmp (smf (1, 96, { first, second }));
+
+    RawMidiFile expected;
+    expected.format = 1;
+    expected.ticksPerQuarter = 96;
+    RawMidiTrack conductor;
+    conductor.events = { { 0, { 0xFF, 0x51, 0x07, 0xA1, 0x20 } },  // tick 0, from track 0
+                         { 0, { 0xFF, 0x59, 0x00, 0x00 } },        // tick 0, from track 1
+                         { 48, { 0xFF, 0x06, 'B' } } };            // tick 48, from track 0
+    conductor.endTick = 0;   // a created conductor has endTick 0; the writer extends it to the last event
+    RawMidiTrack t0;
+    t0.events = { { 0, { 0xFF, 0x05, 'l', 'a' } }, { 0, { 0x90, 60, 100 } }, { 96, { 0x80, 60, 0x40 } } };
+    t0.endTick = 96;
+    RawMidiTrack t1;
+    t1.events = { { 0, { 0x91, 64, 90 } }, { 96, { 0x91, 64, 0 } } };
+    t1.endTick = 96;
+    expected.tracks = { conductor, t0, t1 };
+
+    // Compare after a write/read cycle so the writer's End-of-Track rule applies to both sides.
+    CHECK (readMidiBytes (writeMidiBytes (importThenExport (tmp.file)), "x")
+           == readMidiBytes (writeMidiBytes (expected), "y"));
+}
+
+TEST_CASE ("MidiFidelity: a format-0 file exports as format 1 with each note on its own channel", "[midifidelity]")
+{
+    TrackBody t;
+    t.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0x94, 64, 80 }).ev (0, { 0x99, 36, 90 })
+     .ev (96, { 0x84, 64, 0 }).ev (0, { 0x89, 36, 0 }).eot();
+    TempMidi tmp (smf (0, 96, { t }));
+
+    const auto exported = importThenExport (tmp.file);
+    REQUIRE (exported.format == 1);
+    REQUIRE (exported.tracks.size() == 2);
+    CHECK (exported.tracks[0].events.size() == 1);
+    REQUIRE (exported.tracks[1].events.size() == 4);
+    CHECK (exported.tracks[1].events[0].bytes == Bytes { 0x94, 64, 80 });
+    CHECK (exported.tracks[1].events[1].bytes == Bytes { 0x99, 36, 90 });
+}
+
+TEST_CASE ("MidiFidelity: an empty song exports one empty conductor track", "[midifidelity]")
+{
+    SongDocument doc;
+    const auto exported = buildRawMidiFile (doc);
+    CHECK (exported.format == 1);
+    CHECK (exported.ticksPerQuarter == 480);
+    REQUIRE (exported.tracks.size() == 1);
+    CHECK (exported.tracks[0].events.empty());
+    CHECK (readMidiBytes (writeMidiBytes (exported), "e") == exported);
+}
+
+TEST_CASE ("MidiFidelity: an edited song exports a file that re-imports as the same notes", "[midifidelity]")
+{
+    // Distinct pitches, no overlaps, so re-import pairing can't legitimately differ.
+    TrackBody melody;
+    melody.ev (0, { 0xB0, 0x07, 0x64 })
+          .ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 })
+          .ev (0, { 0x90, 62, 90 }).ev (96, { 0x90, 62, 0 })
+          .ev (0, { 0x90, 64, 80 }).ev (96, { 0x80, 64, 0x10 }).eot();
+    TempMidi source (smf (1, 96, { conductorBody(), melody }));
+
+    SongDocument doc;
+    Diagnostics diags;
+    REQUIRE (importMidiFile (doc, source.file, 1, diags));
+
+    auto track = doc.getTrack (1);
+    auto notes = SongDocument::getNotesNode (track);
+    REQUIRE (notes.getNumChildren() == 3);
+
+    // Move one note (as the editor does), delete one, add one.
+    auto moved = notes.getChild (0);
+    doc.setProperty (moved, SongIDs::startTick, (int) moved.getProperty (SongIDs::startTick) + 7);
+    doc.removeProperty (moved, SongIDs::onOrder, false);
+    doc.removeProperty (moved, SongIDs::offOrder, false);
+    doc.setProperty (moved, SongIDs::offSynthesized, false, false);
+    doc.removeChild (notes, notes.getChild (1));
+    juce::ValueTree added (SongIDs::NOTE);
+    added.setProperty (SongIDs::pitch, 72, nullptr);
+    added.setProperty (SongIDs::startTick, 0, nullptr);
+    added.setProperty (SongIDs::durationTicks, 120, nullptr);
+    added.setProperty (SongIDs::velocity, 99, nullptr);
+    added.setProperty (SongIDs::channel, 3, nullptr);
+    doc.addChild (notes, added);
+
+    TempMidi tmp (writeMidiBytes (buildRawMidiFile (doc)));
+    SongDocument reimported;
+    Diagnostics diags2;
+    REQUIRE (importMidiFile (reimported, tmp.file, 1, diags2));
+    CHECK (allNotes (reimported) == allNotes (doc));
+}
+
+TEST_CASE ("MidiFidelity: a re-timed note-off and a new note-on sit safely beside same-pitch originals", "[midifidelity]")
+{
+    // A (60, 0..48) and B (60, 96..192). A is stretched to end at 96, where B's
+    // original note-on is; a new C starts at 192, where B's original note-off is.
+    // A new off must come before the tick's originals and a new on after them.
+    // Checked on the exported events: JUCE's re-import puts a tick's note-offs
+    // first anyway, so the re-imported notes alone can't show a wrong order.
+    TrackBody melody;
+    melody.ev (0, { 0x90, 60, 100 }).ev (48, { 0x80, 60, 0x40 })
+          .ev (48, { 0x90, 60, 90 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    TempMidi source (smf (1, 96, { conductorBody(), melody }));
+
+    SongDocument doc;
+    Diagnostics diags;
+    REQUIRE (importMidiFile (doc, source.file, 1, diags));
+    auto notes = SongDocument::getNotesNode (doc.getTrack (1));
+    REQUIRE (notes.getNumChildren() == 2);
+
+    auto stretched = notes.getChild (0);
+    REQUIRE ((int) stretched.getProperty (SongIDs::startTick) == 0);
+    doc.setProperty (stretched, SongIDs::durationTicks, 96);
+    doc.removeProperty (stretched, SongIDs::onOrder, false);
+    doc.removeProperty (stretched, SongIDs::offOrder, false);
+    juce::ValueTree added (SongIDs::NOTE);
+    added.setProperty (SongIDs::pitch, 60, nullptr);
+    added.setProperty (SongIDs::startTick, 192, nullptr);
+    added.setProperty (SongIDs::durationTicks, 48, nullptr);
+    added.setProperty (SongIDs::velocity, 70, nullptr);
+    doc.addChild (notes, added);
+
+    const auto exported = buildRawMidiFile (doc);
+    REQUIRE (exported.tracks.size() == 2);
+    CHECK (exported.tracks[1].events == std::vector<RawMidiEvent> {
+               { 0, { 0x90, 60, 100 } },
+               { 96, { 0x80, 60, 0x40 } },   // A's re-timed off, before ...
+               { 96, { 0x90, 60, 90 } },     // ... B's original on
+               { 192, { 0x80, 60, 0x40 } },  // B's original off, before ...
+               { 192, { 0x90, 60, 70 } },    // ... C's new on
+               { 240, { 0x80, 60, 0x40 } } });
+    CHECK (exported.tracks[1].endTick == 240);
+}
+
+TEST_CASE ("MidiFidelity: relocated conductor events keep their source track's order before their own", "[midifidelity]")
+{
+    // Track 0's tempo is its event 1, track 1's time signature its event 0, both
+    // at tick 0: ordering by raw order alone would put track 1's first.
+    TrackBody first;
+    first.ev (0, { 0x90, 60, 100 }).ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    TrackBody second;
+    second.ev (0, { 0xFF, 0x58, 0x04, 0x03, 0x02, 0x18, 0x08 }).ev (0, { 0x91, 64, 90 }).ev (96, { 0x81, 64, 0x40 }).eot();
+    TempMidi tmp (smf (1, 96, { first, second }));
+
+    const auto exported = importThenExport (tmp.file);
+    REQUIRE (exported.tracks.size() == 3);
+    CHECK (exported.tracks[0].events == std::vector<RawMidiEvent> {
+               { 0, { 0xFF, 0x51, 0x07, 0xA1, 0x20 } },
+               { 0, { 0xFF, 0x58, 0x03, 0x02, 0x18, 0x08 } } });
+}
+
+TEST_CASE ("MidiFidelity: a mixed-PPQ song exports a readable file that keeps every event", "[midifidelity]")
+{
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, midiFixture ("blue.mid"), 1, d1));       // 120 PPQ
+    REQUIRE (importMidiFile (doc, midiFixture ("anymore.mid"), 2, d2));    // 960 PPQ -> LCM raise
+
+    const auto exported = buildRawMidiFile (doc);
+    const auto reread = readMidiBytes (writeMidiBytes (exported), "m");
+    CHECK (reread.ticksPerQuarter == (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter));
+    REQUIRE (reread.tracks.size() == (size_t) doc.getNumTracks());
+
+    for (int t = 0; t < doc.getNumTracks(); ++t)
+    {
+        auto track = doc.getTrack (t);
+        int expected = SongDocument::getEventsNode (track).getNumChildren();
+        for (auto n : SongDocument::getNotesNode (track))
+            expected += (bool) n.getProperty (SongIDs::offSynthesized) ? 1 : 2;
+        CHECK ((int) reread.tracks[(size_t) t].events.size() == expected);
+    }
+}
