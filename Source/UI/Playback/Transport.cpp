@@ -36,16 +36,17 @@ void Transport::seek (double seconds) noexcept
 
 void Transport::advance (double seconds, double endSeconds) noexcept
 {
-    const double next = position.load() + seconds;
+    double current = position.load (std::memory_order_relaxed);
+    const double next = std::min (current + seconds, endSeconds);
+
+    // If the message thread changed position since we loaded it, our update is
+    // a no-op (CAS fails and we drop it).
+    if (! position.compare_exchange_strong (current, next, std::memory_order_release, std::memory_order_relaxed))
+        return;
+
+    // CAS succeeded. If we reached the end, stop playback.
     if (next >= endSeconds)
-    {
-        position.store (endSeconds, std::memory_order_release);
         playing.store (false, std::memory_order_release);
-    }
-    else
-    {
-        position.store (next, std::memory_order_release);
-    }
 }
 
 double previousBarTick (double tick, int ticksPerQuarter, int numerator, int denominator)

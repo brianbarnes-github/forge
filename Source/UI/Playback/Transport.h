@@ -8,6 +8,11 @@ namespace lotro
 // The one playback clock shared by every window. State is atomic so the audio
 // thread can advance it while the message thread reads it. Position is in
 // seconds (see TempoMap).
+//
+// Thread affinity: play(), pause(), stop(), seek(), goToStart(), goToEnd() are
+// message-thread only. advance() is audio-thread only. If the message thread
+// changes position during a block, that block's advance() becomes a no-op
+// (compare_exchange_strong fails, and we drop the update without retrying).
 class Transport
 {
 public:
