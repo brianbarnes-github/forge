@@ -34,6 +34,7 @@ add_executable(forge_tests
     MuteSoloState_tests.cpp
     Transport_tests.cpp
     PlaybackEngine_tests.cpp
+    SynthVoice_tests.cpp
     HandOff_tests.cpp
     SongSession_tests.cpp
     DiscardGuard_tests.cpp
@@ -76,6 +77,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/MuteSoloState.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/Transport.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackEngine.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Playback/SynthVoice.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/DiscardGuard.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongModelBridge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceTrackNoteSource.cpp
