@@ -233,7 +233,7 @@ TEST_CASE ("PlaybackEngine: a seek whose block-end advance is dropped still deli
     CHECK (rig.sink.records.back().event.tick == 1920);
 }
 
-TEST_CASE ("PlaybackEngine: a playhead move without a generation bump is detected and re-chased", "[playback][engine]")
+TEST_CASE ("PlaybackEngine: pause, seek, Play with no block in between still delivers the notes at the target", "[playback][engine]")
 {
     SongDocument doc;
     auto track = addTrack (doc);
@@ -248,4 +248,203 @@ TEST_CASE ("PlaybackEngine: a playhead move without a generation bump is detecte
     rig.transport.play (rig.snapshot->endSeconds());   // no block ran while paused
     rig.render (1);
     CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == onsBefore + 1);
+}
+
+TEST_CASE ("PlaybackEngine: a position move that does not bump the seek generation is detected, re-chased and fires no stale burst", "[playback][engine][chase]")
+{
+    SongDocument doc;
+    auto track = addTrack (doc);
+    addEvent (track, 0, { 0xC0, 9 });
+    addNote (track, 60, 0, 240);
+    addNote (track, 62, 960, 240);               // 1.0 s
+    addNote (track, 64, 1440, 240);              // 1.5 s
+    addNote (track, 65, 2400, 240);              // 2.5 s
+    addNote (track, 67, 5760, 240);              // 6.0 s
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    const unsigned generation = rig.transport.getSeekGeneration();
+    const double position = rig.transport.getPositionSeconds();
+
+    // Transport::advance stores the position without bumping the generation.
+    REQUIRE (rig.transport.advance (position, 3.0, rig.snapshot->endSeconds()));
+    REQUIRE (rig.transport.getSeekGeneration() == generation);
+
+    const int releases = rig.sink.releaseAllCount;
+    const int ons = rig.sink.count (PlaybackEventKind::NoteOn);
+    rig.sink.records.clear();
+    rig.render (1);
+
+    CHECK (rig.sink.releaseAllCount == releases + 1);
+    bool reappliedProgram = false;
+    for (const auto& r : rig.sink.records)
+        reappliedProgram |= r.event.kind == PlaybackEventKind::Program && r.event.data1 == 9;
+    CHECK (reappliedProgram);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 0);   // 1.0, 1.5 and 2.5 s are behind the playhead: no stale burst
+    CHECK (ons == 1);
+
+    rig.render (400);                                          // crosses 6.0 s
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 1);   // only the 6.0 s note
+}
+
+TEST_CASE ("PlaybackEngine: continuous playback does not releaseAll or re-chase every block", "[playback][engine][chase]")
+{
+    SongDocument doc;
+    auto track = addTrack (doc);
+    addEvent (track, 0, { 0xC0, 9 });
+    addNote (track, 60, 0, 9600);                // 0..10 s
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    const int releases = rig.sink.releaseAllCount;
+    const int programs = rig.sink.count (PlaybackEventKind::Program);
+    REQUIRE (programs >= 1);
+    rig.render (20);
+    REQUIRE (rig.transport.isPlaying());
+    CHECK (rig.sink.releaseAllCount == releases);
+    CHECK (rig.sink.count (PlaybackEventKind::Program) == programs);
+}
+
+TEST_CASE ("PlaybackEngine: starting mid-song replays the program and controllers that came before", "[playback][engine][chase]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 0, { 0xC0, 24 });           // program 24 at tick 0
+    addEvent (t, 100, { 0xB0, 7, 50 });      // volume 50
+    addEvent (t, 200, { 0xE0, 0x00, 0x60 }); // bend
+    addNote (t, 60, 4800, 480);              // note at 5 s
+    Rig rig (doc);
+    rig.transport.seek (2.0);                // play from 2 s: all three controllers are in the past
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+
+    CHECK (rig.sink.count (PlaybackEventKind::Program) >= 2);   // setup + the real program-24 change
+    bool sawProgram24 = false, sawVolume = false, sawBend = false;
+    for (const auto& r : rig.sink.records)
+    {
+        sawProgram24 |= r.event.kind == PlaybackEventKind::Program && r.event.data1 == 24;
+        sawVolume |= r.event.kind == PlaybackEventKind::Control && r.event.data1 == 7 && r.event.data2 == 50;
+        sawBend |= r.event.kind == PlaybackEventKind::PitchBend && r.event.data1 == 12288;
+    }
+    CHECK (sawProgram24);
+    CHECK (sawVolume);
+    CHECK (sawBend);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 0);   // chase never retriggers notes
+}
+
+TEST_CASE ("PlaybackEngine: notes already sounding at the playhead are not retriggered", "[playback][engine][chase]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 0, 9600);   // 0..10 s
+    Rig rig (doc);
+    rig.transport.seek (3.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 0);
+}
+
+TEST_CASE ("PlaybackEngine: a seek while playing releases voices and re-chases", "[playback][engine][chase]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 9 });
+    addNote (t, 60, 0, 9600);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    const int releases = rig.sink.releaseAllCount;
+    rig.sink.records.clear();
+    rig.transport.seek (4.0);
+    rig.render (1);
+    CHECK (rig.sink.releaseAllCount == releases + 1);
+    bool reappliedProgram = false;
+    for (const auto& r : rig.sink.records)
+        reappliedProgram |= r.event.kind == PlaybackEventKind::Program && r.event.data1 == 9;
+    CHECK (reappliedProgram);
+}
+
+TEST_CASE ("PlaybackEngine: a snapshot swap mid-play releases voices, re-chases and keeps the playhead", "[playback][engine][swap]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 9 });
+    addNote (t, 60, 0, 9600);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (20);
+    const double before = rig.transport.getPositionSeconds();
+    const int releases = rig.sink.releaseAllCount;
+    rig.sink.records.clear();
+
+    addNote (t, 64, 9600, 480);                      // an edit
+    rig.engine.publishSnapshot (buildSnapshot (doc));
+    rig.render (1);
+
+    CHECK (rig.sink.releaseAllCount == releases + 1);
+    CHECK (rig.transport.getPositionSeconds() > before);   // kept going, not reset
+    bool reappliedProgram = false;
+    for (const auto& r : rig.sink.records)
+        reappliedProgram |= r.event.kind == PlaybackEventKind::Program && r.event.data1 == 9;
+    CHECK (reappliedProgram);
+}
+
+TEST_CASE ("PlaybackEngine: a replaced sink (new SoundFont) triggers the same release and re-chase", "[playback][engine][swap]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 9 });
+    addNote (t, 60, 0, 9600);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    rig.sink.records.clear();
+    const int releases = rig.sink.releaseAllCount;
+    rig.sink.replaced = true;
+    rig.render (1);
+    CHECK (rig.sink.releaseAllCount == releases + 1);
+    CHECK (rig.sink.count (PlaybackEventKind::Program) >= 1);
+}
+
+TEST_CASE ("PlaybackEngine: muted tracks send no NoteOn but still send NoteOff", "[playback][engine][mute]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 480, 480);
+    Rig rig (doc);
+    rig.snapshot->setAudible (1, false);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (100);   // the note spans 0.5..1.0 s; the brief's 80 blocks (0.85 s) stop before its NoteOff
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 0);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOff) == 1);
+}
+
+TEST_CASE ("PlaybackEngine: muting a track mid-play releases exactly that track's channels", "[playback][engine][mute]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc, "A", 1);
+    auto b = addTrack (doc, "B", 2);
+    addNote (a, 60, 0, 9600, 100, 1);
+    addNote (b, 64, 0, 9600, 100, 2);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    CHECK (rig.sink.releasedChannels.empty());
+
+    rig.snapshot->setAudible (1, false);   // mute A
+    rig.render (1);
+    REQUIRE (rig.sink.releasedChannels.size() == 1);
+    CHECK (rig.sink.releasedChannels[0] == rig.snapshot->channelsOfTrack (1)[0]);
+    rig.render (1);
+    CHECK (rig.sink.releasedChannels.size() == 1);   // released once, not every block
+}
+
+TEST_CASE ("PlaybackEngine: starting from the end restarts from the beginning", "[playback][engine]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 0, 480);
+    Rig rig (doc);
+    rig.transport.goToEnd (rig.snapshot->endSeconds());
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 1);
 }
