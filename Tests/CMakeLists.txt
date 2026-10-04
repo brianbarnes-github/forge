@@ -33,6 +33,7 @@ add_executable(forge_tests
     PlaybackSnapshot_tests.cpp
     MuteSoloState_tests.cpp
     Transport_tests.cpp
+    HandOff_tests.cpp
     SongSession_tests.cpp
     DiscardGuard_tests.cpp
     SongModelBridge_tests.cpp
