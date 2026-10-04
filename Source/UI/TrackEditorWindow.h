@@ -42,8 +42,14 @@ namespace lotro
         // non-null controller.
         void setPlayback (PlaybackController* controller);
         bool keyPressed (const juce::KeyPress& key) override;
-        bool hasTransportStripForTesting() const noexcept { return content != nullptr; }
-        bool hasRulerForTesting() const noexcept { return content != nullptr; }
+        bool hasTransportStripForTesting() const noexcept
+        {
+            return content != nullptr && content->strip.getParentComponent() == content.get() && content->strip.isVisible();
+        }
+        bool hasRulerForTesting() const noexcept
+        {
+            return content != nullptr && content->ruler.getParentComponent() == content.get() && content->ruler.isVisible();
+        }
 
         // Fired when the window is closed by the user, so the owner can
         // reset its unique_ptr rather than hold a dangling window.

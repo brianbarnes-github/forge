@@ -53,7 +53,14 @@ namespace lotro
 
         playback = controller;
         roll.setPlayback (controller);
+
+        // setContentNonOwned resizes the window to fit its content, so a
+        // never-sized Content would collapse it. Keep the roll its current
+        // size and let the window grow by the strip and ruler heights.
+        const auto rollBounds = roll.getBounds();
         content = std::make_unique<Content> (roll, *controller);
+        content->setBounds (0, 0, rollBounds.getWidth(),
+                            rollBounds.getHeight() + TransportStrip::height + TimelineRuler::height);
         setContentNonOwned (content.get(), true);
     }
 

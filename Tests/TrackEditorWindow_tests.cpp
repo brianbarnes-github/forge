@@ -125,6 +125,43 @@ TEST_CASE ("TrackEditorWindow: with playback set, the window hosts the transport
     CHECK (ruler.getWidth() == roll.getWidth());
 }
 
+TEST_CASE ("TrackEditorWindow: setPlayback keeps the roll its size and grows the window by the strip and ruler", "[track-editor][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+
+    // Exactly as SongsmithMainComponent::trackDoubleClicked does: build, then setPlayback, then setTrack.
+    TrackEditorWindow window (doc, nullptr);
+    window.setTrack (track);
+    using Access = TrackEditorWindowTestAccess;
+    const auto oldWindowBounds = window.getBounds();
+    const auto oldRollSize = Access::rollBounds (window);
+    REQUIRE (oldWindowBounds.getWidth() > 0);
+    REQUIRE (oldRollSize.getHeight() > 0);
+
+    window.setPlayback (&controller);   // no manual sizing
+
+    const int extra = TransportStrip::height + TimelineRuler::height;
+    CHECK (window.getX() == oldWindowBounds.getX());
+    CHECK (window.getY() == oldWindowBounds.getY());
+    CHECK (window.getWidth() == oldWindowBounds.getWidth());
+    CHECK (window.getHeight() == oldWindowBounds.getHeight() + extra);
+
+    const auto strip = Access::stripBounds (window);
+    const auto ruler = Access::rulerBounds (window);
+    const auto roll = Access::rollBounds (window);
+    CHECK (roll.getWidth() == oldRollSize.getWidth());
+    CHECK (roll.getHeight() == oldRollSize.getHeight());
+    CHECK (! strip.isEmpty());
+    CHECK (! ruler.isEmpty());
+    CHECK (strip.getY() == 0);
+    CHECK (ruler.getY() == strip.getBottom());
+    CHECK (roll.getY() == ruler.getBottom());
+}
+
 TEST_CASE ("TrackEditorWindow: Space toggles playback and other keys are left alone", "[track-editor][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
