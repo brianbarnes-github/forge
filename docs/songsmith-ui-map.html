@@ -177,6 +177,10 @@
   }
   .menubar span { padding: 2px 4px; }
 
+  .transportstrip { height: 28px; display: flex; align-items: center; gap: 8px; padding-left: 40px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; background: var(--surface-2); }
+  .transportstrip span { padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 3px; }
+  .ruler { position: relative; height: 14px; margin: -22px -12px 8px; border-bottom: 1px solid var(--border-strong); background: var(--surface-2); }
+  .playhead { position: absolute; top: 0; bottom: 0; left: 38%; width: 2px; background: var(--accent); pointer-events: none; }
   .upper-region, .lower-region { position: relative; }
   .upper-row { display: flex; }
   .tracklist { width: 26%; min-width: 190px; background: var(--surface); padding: 30px 10px 10px; font-size: 12px; }
@@ -306,7 +310,7 @@
 <div class="page">
   <span class="eyebrow">Forge · forge_ui</span>
   <h1>Songsmith UI Map</h1>
-  <p class="subtitle">Every named region of the current Songsmith GUI, numbered #1–#27 to match <code class="legend-code" style="margin:0;">docs/UI_GUIDE.md</code>'s naming table — so we're pointing at the same thing when you direct changes.</p>
+  <p class="subtitle">Every named region of the current Songsmith GUI, numbered #1–#27 and #30–#33 (playback) to match <code class="legend-code" style="margin:0;">docs/UI_GUIDE.md</code>'s naming table — so we're pointing at the same thing when you direct changes.</p>
 
   <div class="howto"><b>How to use this:</b> click a number on the diagram, or a row in the legend below — the match highlights on both. <span class="dim"><span class="dot"></span> teal markers are whole regions/containers</span>; gold markers are specific controls inside them. Say "#16, the Part slot" and I'll know exactly where you mean.</div>
 
@@ -326,6 +330,11 @@
       <div class="marker container" data-id="4" title="Body" style="top:36px; right:4px; z-index:4;">4</div>
       <div class="marker container" data-id="5" title="Songsmith view" style="top:66px; right:4px; z-index:4;">5</div>
 
+      <div class="transportstrip box">
+        <div class="marker" data-id="30" style="top:3px;">30</div>
+        <span>|&lt;</span><span>&lt;&lt;</span><span>Play</span><span>Stop</span><span>&gt;|</span>
+      </div>
+
       <div class="upper-region box">
         <div class="marker container" data-id="7" title="Upper region">7</div>
         <div class="box labelbox">▲ MIDI SOURCE · drag tracks down to assign
@@ -337,12 +346,15 @@
             <div class="trackrow">
               <div class="marker" data-id="10" style="position:static;width:16px;height:16px;font-size:9px;">10</div>
               <span class="swatch"></span> Piano (melody)
+              <span style="margin-left:auto; display:flex; gap:4px;">M S <div class="marker" data-id="31" style="position:static;width:16px;height:16px;font-size:9px;">31</div></span>
             </div>
             <div class="trackrow"><span class="swatch" style="background:#7a8fa8"></span> Piano (harmony)</div>
             <div class="trackrow"><span class="swatch" style="background:#8a7aa8"></span> Drums · ch 10</div>
           </div>
           <div class="pianoroll box">
             <div class="marker" data-id="13">13</div>
+            <div class="ruler box"><div class="marker" data-id="32" style="position:static; width:14px; height:14px; font-size:8px; margin-left:40px;">32</div></div>
+            <div class="playhead"><div class="marker" data-id="33" style="top:20px; left:-10px;">33</div></div>
             <div style="position:absolute; top:8px; right:10px; display:flex; gap:6px;">
               <div class="marker" data-id="11" style="position:static; font-size:10px;">11</div>
               <div class="marker" data-id="12" style="position:static; font-size:10px;">12</div>
@@ -455,6 +467,14 @@ CDEF GABc | c'b agfedc |</div>
   </div>
 
   <div class="legend-group">
+    <h3>Playback</h3>
+    <div class="legend-row" data-id="30"><div class="legend-num">30</div><div><div class="legend-name">Transport strip</div><span class="legend-code">TransportStrip</span><div class="legend-desc">28 px, above the Songsmith view in the main window and at the top of the Track editor window: |&lt; (go to start), &lt;&lt; (back one bar), Play/Pause, Stop (back to where play started), &gt;| (go to end). Space = Play/Pause.</div></div></div>
+    <div class="legend-row" data-id="31"><div class="legend-num">31</div><div><div class="legend-name">Mute / Solo buttons</div><span class="legend-code">TrackRowComponent (M, S)</span><div class="legend-desc">Right end of each non-conductor track row's info column. Session-only; they also govern what plays while the Track editor window is open.</div></div></div>
+    <div class="legend-row" data-id="32"><div class="legend-num">32</div><div><div class="legend-name">Seek ruler</div><span class="legend-code">TimelineRuler</span><div class="legend-desc">14 px strip above the main track canvas and above the Track editor's roll. Click or drag to move the playhead.</div></div></div>
+    <div class="legend-row" data-id="33"><div class="legend-num">33</div><div><div class="legend-name">Playhead</div><span class="legend-code">PlayheadOverlay</span><div class="legend-desc">Mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor). The view page-flips to follow it while playing.</div></div></div>
+  </div>
+
+  <div class="legend-group">
     <h3>Splitters</h3>
     <div class="legend-row" data-id="6"><div class="legend-num">6</div><div><div class="legend-name">Outer splitter</div><span class="legend-code">SongsmithMainComponent::splitter</span><div class="legend-desc">Drag to resize Upper region vs. everything below.</div></div></div>
     <div class="legend-row" data-id="18"><div class="legend-num">18</div><div><div class="legend-name">Inner splitter</div><span class="legend-code">(inside LowerRegion)</span><div class="legend-desc">Drag to resize Preview region vs. Diagnostics.</div></div></div>
@@ -518,6 +538,7 @@ CDEF GABc | c'b agfedc |</div>
   Undo / Redo              <span class="arrow">→ songDocument.undo()/redo()</span>
 <span class="item">Song</span>
   Default parts from tracks <span class="arrow">→ synthesiseDefaultParts(songDocument)</span>
+  SoundFont…                <span class="arrow">→ FileChooser, *.sf2; path kept in settings</span>
   Run Converter             <span class="arrow">→ runConversion(), shows the export panel</span>
 <span class="item">View</span>
   Export ABC panel          <span class="arrow">→ toggles the export panel (checkbox)</span>
@@ -544,7 +565,7 @@ CDEF GABc | c'b agfedc |</div>
     </table>
   </div>
 
-  <footer>Matches <span class="legend-code" style="margin:0;">docs/UI_GUIDE.md</span> as of 2026-09-16. Schematic, not pixel-accurate — proportions and sample data are illustrative.</footer>
+  <footer>Matches <span class="legend-code" style="margin:0;">docs/UI_GUIDE.md</span> as of 2026-10-03 (playback regions #30–#33 added). Schematic, not pixel-accurate — proportions and sample data are illustrative.</footer>
 </div>
 
 <script>

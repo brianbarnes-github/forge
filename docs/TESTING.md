@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **433/433**.
+- Test count: **546/546** (`ctest --test-dir build -N | tail -1`).
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
@@ -77,6 +77,33 @@
   load. MainWindow is not in `forge_tests`, so menu wiring, shortcuts,
   native dialogs and quit routing are only build-verified.
 
+- Playback (`Source/UI/Playback/`, see `docs/ARCHITECTURE.md` §9.14):
+  `PlaybackError_tests.cpp` (error kinds and messages),
+  `TempoMap_tests.cpp` (tick/seconds conversion, 120 BPM default),
+  `PlaybackSnapshot_tests.cpp` (`buildSnapshot`: seconds timing, event
+  ordering, conductor ignored, per-(track, channel) virtual channels, drum
+  bank, the 64-track and 256-channel caps, degenerate data),
+  `MuteSoloState_tests.cpp` (additive solo, mute beats solo),
+  `Transport_tests.cpp` (play/pause/stop/seek, auto-stop and restart, the
+  dropped stale `advance`, `previousBarTick`), `HandOff_tests.cpp`
+  (publish/acquire/retire, message-thread free, every republish pattern),
+  `PlaybackEngine_tests.cpp` (device-free, through a recording sink: block
+  timing, tempo change, chase, seek / snapshot swap / sink replacement /
+  playhead move without a seek-generation bump, mute release, auto-stop),
+  `PlaybackController_tests.cpp` (real pumped message loop: coalesced
+  rebuilds, cosmetic and parts changes not rebuilding, mid-play swap,
+  mute/solo kept across removal and undo, `documentReplaced`, veto,
+  flush-before-play, rewind), `TransportStrip_tests.cpp` and
+  `PlayheadOverlay_tests.cpp` (the overlay and `TimelineRuler`).
+  `TrackRowComponent_tests.cpp`, `TrackListComponent_tests.cpp`,
+  `PianoRollComponent_tests.cpp` and `TrackEditorWindow_tests.cpp` also gained
+  the M/S buttons, ruler, playhead, follow and editor-window transport
+  cases. `SynthVoice_tests.cpp`: the missing-file, garbage-bytes and no-font
+  cases always run; the three smoke tests that need real audio return early
+  with a `WARN` (and still pass) when the local, untracked
+  `resources/soundfonts/TimGM6mb.sf2` is absent — always the case on CI.
+  `MainWindow`, `AudioOutput`, the Song-menu item and the Space shortcut
+  are build-verified only.
 - `PianoRollGeometry_tests.cpp`/`SourceTrackNoteSource_tests.cpp` cover
   Phase 5's headless piano-roll coordinate math (tick/pitch↔x/y
   round-tripping, `fitToContent`, `isBlackKey`'s real-piano-key pattern)

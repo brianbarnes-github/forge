@@ -2,7 +2,7 @@
 
 Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity and the `.songsmith` Song file implemented
+## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity, the `.songsmith` Song file and source-MIDI playback (TinySoundFont, transport, mute/solo) implemented
 
 This repo (**Forge**) is a MIDI → LOTRO ABC converter shipped as a CLI
 (`forge`) and a JUCE GUI (`forge_ui`, the **Songsmith** MIDI editor —
@@ -42,6 +42,7 @@ this principle rules out tempting improvements.
 | `docs/REFERENCE.md` | Drum-map source data, MIDI/ABC test fixtures, config-schema spec doc |
 | `docs/TESTING.md` | Test count and what the notable test files pin down |
 | `docs/superpowers/specs/2026-10-03-songsmith-song-file-design.md` | Design spec for the `.songsmith` Song file, session/dirty tracking and the unsaved-changes guard (code walkthrough: `docs/ARCHITECTURE.md` §9.13) |
+| `docs/superpowers/specs/2026-10-03-songsmith-playback-design.md`, `docs/superpowers/plans/2026-10-03-songsmith-playback.md` | Design spec and implementation plan for Songsmith playback (source MIDI through a SoundFont, shared transport/playhead, mute/solo); code walkthrough: `docs/ARCHITECTURE.md` §9.14 |
 | `docs/songsmith-ui-map.html`, `docs/Songsmith Arch.md`, `docs/Songsmith UI Guide.html` | Clickable `#N` map companion to `UI_GUIDE.md`; original Songsmith design notes and mock-up |
 
 ## Build / test commands
@@ -78,7 +79,9 @@ gate. Full details: `docs/BUILD.md`.
 
 **Deploy for the user's manual testing:** `./build-windows.sh forge_ui &&
 cp build-windows/forge_ui_artefacts/Release/song-smith.exe
-/mnt/c/Apps/SongSmith/`.
+/mnt/c/Apps/SongSmith/ && cp resources/soundfonts/TimGM6mb.sf2
+/mnt/c/Apps/SongSmith/` (the SoundFont is a local-only file; first-time
+setup is in `docs/BUILD.md`).
 
 ## Git
 
@@ -90,5 +93,9 @@ approval.
 
 - JUCE's license tier depends on distribution; re-check before any
   public release.
+- `TimGM6mb.sf2` is GPL-2 and is never committed or shipped by CI — it is
+  a git-ignored local file under `resources/soundfonts/` copied next to
+  the exe by a CMake post-build step. TinySoundFont (MIT) is vendored at
+  `Source/ThirdParty/tinysoundfont/`.
 - `drummaps/*.txt` are AGPL-licensed reference data only — see
   `docs/REFERENCE.md`.

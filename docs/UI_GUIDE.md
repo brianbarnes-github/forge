@@ -18,9 +18,13 @@ describes the current, Songsmith-only UI only.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Menu bar    [File ▾] [Edit ▾] [Song ▾] [View ▾] [Help ▾]             │  #3  (24 px)
 ├──────────────────────────────────────────────────────────────────────┤
+│ [|<] [<<] [Play] [Stop] [>|]   TransportStrip (28 px)                │  #30
+├──────────────────────────────────────────────────────────────────────┤
 │ ▲ MIDI SOURCE · drag tracks down to assign                           │  #8  UpperRegion header
 ├──────────────────────────────────────────────────────────────────────┤
+│  seek ruler (14 px) above the track canvas; playhead line over rows  │  #32, #33
 │  TrackListComponent — one row per MIDI track, full width             │  #9 (track list, rows #10)
+│  (each non-conductor row ends its info column with [M] [S])          │  #31
 │  index/name/note-range text, inline note-timeline preview            │  (inline preview under #10)
 │  (shared zoom/scroll) + per-row ghost-visibility toggle              │  dbl-click row → editor (#28)
 ├══════════════════════ SplitterComponent (drag to resize, top/bottom) ═╡  #6  outer splitter
@@ -80,6 +84,10 @@ When you say…       …I'll know you mean
 | 27 | **Status line**                 | The grey `juce::Label` at the bottom of `DiagnosticsPane` (`5,824 bytes · 184 bars · 3 parts`) |
 | 28 | **Track editor window**         | `TrackEditorWindow` (`Source/UI/TrackEditorWindow.{h,cpp}`) — floating, single-instance `juce::DocumentWindow` (native title bar with minimise/maximise/close) opened by double-clicking a track row (#10); a second double-click on a different row re-points it (`setTrack`) rather than opening another window. Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, unchanged. Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
+| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); above the Songsmith view in the main window and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
+| 31 | **Mute / Solo buttons**      | `TrackRowComponent`'s `M` / `S` toggle buttons at the right end of the 180 px info column of every non-conductor row (#10); session-only, never saved or undoable |
+| 32 | **Seek ruler**               | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`) — 14 px strip above the main track canvas (#9) and above the Track editor's roll (#13); click or drag to move the playhead |
+| 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
 
 ## Songsmith view
 
@@ -208,6 +216,32 @@ When you say…       …I'll know you mean
   for dropped notes. Recomputes automatically (via `computePartPreview` +
   `diffPreviewNotes`, reusing the real pipeline) whenever the selected
   part or any of its assigned tracks changes.
+- **Playback** (#30–#33) — plays the **source MIDI** (not the LOTRO preview,
+  which has no playback) through a SoundFont. Play starts from the playhead
+  from either window; Pause keeps the position; Stop returns to where play
+  started; `|<` goes to 0; `<<` steps back one bar (to the start of the
+  current bar, or the previous one when exactly on a bar line); `>|` goes to
+  the end. At the last note-off playback stops and the playhead stays at the
+  end; Play there restarts from 0. An empty Song's Play does nothing. Click
+  or drag the seek ruler (#32) to move the playhead; the ruler spans the full
+  width, including the info column, so a click over the info column seeks to
+  a tick that is scrolled out of view. While playing, the view page-flips to
+  keep the playhead visible (it stays in fitted mode when it cannot scroll
+  further). **Space** is Play/Pause in the main window and in the Track editor
+  window. The playhead is kept in seconds, so a tempo edit during playback
+  moves the musical position; before the first tempo change the tempo is
+  120 BPM, `SONG.tempoBpm` and the conductor's events are ignored. **M** mutes
+  a track and **S** solos it (#31): solo is additive, mute beats solo, flags
+  are keyed by track id and survive a track's removal and undo, and New /
+  Open / Close clear them. They are never saved and never undoable. The
+  Track editor window has no M/S controls but plays what they allow. Edits,
+  undo and redo during playback take effect without a restart (a held note is
+  cut). **Song → SoundFont…** chooses a `.sf2`; the path is stored in the
+  app settings. At startup the stored path is tried, then `TimGM6mb.sf2` next
+  to the exe; with neither the app still starts and Play shows a "No
+  SoundFont" dialog. The audio device opens on the first Play, not at
+  startup. The Track editor window is 42 px taller than it was before
+  playback (strip 28 + ruler 14) when playback is attached.
 - **Diagnostics** (#23, `DiagnosticListView`, hosted directly) — the bare list
   only, not the full `DiagnosticsPane`: import diagnostics land here; the
   ABC-preview half only exists in the export panel. Hidden by default;
@@ -235,6 +269,8 @@ Edit
 
 Song
   Default parts from tracks            ← synthesiseDefaultParts(songDocument)
+  SoundFont...                         ← FileChooser, *.sf2; loads it and
+                                           remembers the path (see Playback)
   Run Converter                        ← runConversion(), then shows the
                                            export panel
 

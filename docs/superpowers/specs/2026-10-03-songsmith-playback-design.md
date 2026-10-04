@@ -1,7 +1,8 @@
 # Songsmith Playback — design
 
-Status: Draft r2, awaiting user review (2026-10-03; r2 folds in the
-Fable review). Project 3 of 3 (1 = MIDI fidelity, done; 2 = Song file, done).
+Status: Implemented (2026-10-03). Project 3 of 3.
+(1 = MIDI fidelity, done; 2 = Song file, done.) Code walkthrough:
+`docs/ARCHITECTURE.md` §9.14.
 
 ## Intent
 
@@ -248,11 +249,13 @@ test on Windows. The GUI is never launched from agents.
   Playback keys drums off channel 10, so they sound correct; the flag stays
   inconsistent until a separate fix.
 
-## Open items for the plan
+## Open items for the plan (resolved)
 
-- Confirm "Rewind" = step back one bar.
-- Confirm Stop returns the playhead to the play-start position (proposed; not
-  yet seen by the user).
-- Choose and record the exact TinySoundFont version (must have
-  `tsf_set_max_voices`).
-- Choose the git-ignored local SoundFont path.
+- Rewind = step back one bar (`previousBarTick`): implemented as proposed.
+- Stop returns the playhead to the play-start position: implemented as
+  proposed.
+- TinySoundFont pinned at commit `853a0a1` (has `tsf_set_max_voices`).
+- Local SoundFont path: `resources/soundfonts/TimGM6mb.sf2` (untracked).
+- "SoundFont…" lives in the **Song** menu.
+- The audio device opens lazily on the first Play, so a machine with no
+  audio device can still open and edit Songs.

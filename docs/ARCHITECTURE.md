@@ -730,6 +730,41 @@ A Song (the `SONG` tree: source MIDI tracks, notes, events, conductor, parts, as
 
 After a Song is replaced (`MainWindow::afterDocumentReplaced`): `SongsmithMainComponent::documentReplaced()` closes the Track editor window, clears the ghosted-track set, both selections, the preview-part selection and refits the timeline; then the diagnostics list is cleared, `lastAbc` is dropped, the export panel is emptied and hidden, and the menus are refreshed. Open also does `session.markClean(file)`; New/Close `session.markNew()`. Save As appends `.songsmith` first and then asks before replacing a different existing file (the native chooser's own overwrite warning is off because it would check the pre-extension name).
 
+### 9.14 Playback — `Source/UI/Playback/*` (+ wiring in `MainWindow`, `SongsmithMainComponent`, `TrackListComponent`, `TrackRowComponent`, `TrackEditorWindow`, `PianoRollComponent`)
+
+Playback renders the **source MIDI** (never the LOTRO preview) through a SoundFont (TinySoundFont, vendored at `Source/ThirdParty/tinysoundfont/`, pinned at `853a0a1`). Everything is under `Source/UI/Playback/`; `Source/Core/` is untouched. Design: `docs/superpowers/specs/2026-10-03-songsmith-playback-design.md`.
+
+Units:
+
+- **`PlaybackSnapshot`** (`buildSnapshot(doc)`) — immutable, flattened, **seconds**-timed event list built from the `SONG` tree (plus per-track audible flags, the only mutable part, written by `MuteSoloState::apply`). Conductor events are ignored; `SONG.tempoBpm` (the ABC override) is ignored; the tempo comes from `TEMPO_MAP`, 120 BPM before its first entry. `PlaybackError.h` is the custom error type (`SoundFontMissing`, `SoundFontInvalid`, `AudioDeviceUnavailable`).
+- **`TempoMap`** — tick ↔ seconds over the tempo map; owned by the snapshot.
+- **`Transport`** — the one clock: atomic playhead **in seconds**, play/pause/stop/seek, play-start position, seek generation. `advance(from, seconds, end)` is a CAS from the position the engine's block *started* at and is dropped (returns false) if the message thread moved the playhead meanwhile; reaching `end` clears `playing`. `previousBarTick` (Rewind) is a pure helper beside it.
+- **`MuteSoloState`** — session-only flags keyed by `trackId`: solo additive, mute beats solo. Not in the Song, not undoable.
+- **`HandOff<T>`** — lock-free publication of immutable objects (snapshots, tsf instances) message → audio thread. Ownership is a per-publish multimap, so republishing the same object is safe; retired pointers go through a fixed FIFO and the **message thread** frees them (`collectRetired`). `acquire()` is audio-thread only, and its pointer is valid until the next `acquire()`.
+- **`EventSink`** — the interface the engine drives (`prepare`, `beginBlock`, `handle`, `releaseChannel`, `releaseAll`, `render`); tests substitute a recording sink.
+- **`PlaybackEngine`** — device-free `renderBlock()`. Chases (replays Program/Control/PitchBend before the position) whenever it must resync: a seek-generation change, a snapshot swap, a sink replacement, or **any playhead position it did not itself leave** (`expectedPosition`; `-1` after a dropped advance or while stopped). Releases all voices on those events and on pause; notes of a newly-muted track are released per virtual channel.
+- **`SynthVoice`** — the TinySoundFont `EventSink` (one `TSF_IMPLEMENTATION` TU). 192 voices; every (track, MIDI channel) pair gets its own **virtual channel** (up to `kMaxVirtualChannels` = 256, assigned in `buildSnapshot`; drum channel 10 → the drum bank), so two tracks on the same MIDI channel never share program/controller state and all 256 are pre-initialised on the message thread when a font instance is built, then handed over via `HandOff`. `releaseAll` releases (tails ring out) rather than cutting.
+- **`PlaybackController`** — message-thread owner: `Transport`, `MuteSoloState`, the engine, the current snapshot, a 30 Hz timer that frees retired objects and notifies listeners of position/state changes. It listens on `SOURCE_MIDI` and `TEMPO_MAP` only; changes are coalesced by an `AsyncUpdater` into one `buildSnapshot` + `publishSnapshot`. Cosmetic `name`/`colorArgb` changes and `PARTS`/assignment changes do **not** rebuild (a rebuild cuts held notes). `play`/`seekToTick`/`goToEnd` flush a pending rebuild first (`flushRebuild`) so they never act on a stale snapshot. `documentReplaced()` (New/Open/Close) stops, rewinds, clears mute/solo and rebuilds unconditionally. `onBeforePlay` lets `MainWindow` veto Play.
+- **`AudioOutput`** — `forge_ui` only: `AudioDeviceManager` + `AudioSourcePlayer` pulling `PlaybackEngine::renderBlock`. Opened lazily on the first Play (so a machine with no audio device can still edit) and destroyed before the controller and synth.
+- **`TransportStrip`**, **`TimelineRuler`**, **`PlayheadOverlay`** — the controls (§UI_GUIDE #30, #32, #33). The overlay and ruler take a tick ↔ x function from their owner because the main track canvas and the editor roll zoom/scroll independently; both canvases follow the playhead by page-flipping while playing (without dropping fitted mode when they cannot scroll further).
+
+Data flow: a `SOURCE_MIDI`/`TEMPO_MAP` edit → `AsyncUpdater` (coalesced) → `buildSnapshot` + mute/solo flags → `HandOff` publish → the next block's `acquire()` sees a swap → `releaseAll` + chase to the current position → playback continues. Open/New/Close, Undo/Redo and imports use the same path.
+
+**Why seconds.** The playhead is stored in seconds so it is unambiguous across tempo changes and cheap for the audio thread; ticks are only a view (`getPositionTicks`). The consequence is that a tempo edit during playback moves the musical (tick) position.
+
+**Threading rules.** The audio thread (`PlaybackEngine::renderBlock`, `SynthVoice::beginBlock/handle/releaseChannel/releaseAll/render`, `HandOff::acquire`, `Transport::advance`) never allocates, locks, frees or throws. `SynthVoice::prepare()`, every `HandOff::publish` and `AudioOutput` construction are **message-thread only** (the constructor runs `engine.prepare` synchronously on the calling thread). The audio device must stop before the engine and synth are destroyed.
+
+**Wiring (`MainWindow`).** `MainWindow` owns the `SynthVoice`, the `PlaybackController` and the lazily-created `AudioOutput`; `settings` holds `soundFontPath`. `loadStartupSoundFont` tries the stored path, then `TimGM6mb.sf2` next to the exe; failure is silent and `ensurePlaybackReady` (the `onBeforePlay` hook) shows "No SoundFont" or "Audio unavailable". `Song → SoundFont…` loads a new font (a failed load keeps the old one). `MainWindow::keyPressed` maps plain Space to `togglePlayPause`; `TrackEditorWindow` does the same. The SoundFont itself is a local, git-ignored GPL-2 file (`resources/soundfonts/TimGM6mb.sf2`), copied next to the exe by a CMake post-build step; see `docs/BUILD.md`.
+
+**Known gaps.**
+- Tooltips (`M`/`S`, the ruler) are inert app-wide: the app creates no `juce::TooltipWindow`.
+- Mono output is not downmixed (the engine points both channels at one buffer).
+- No limiter or headroom: up to 192 voices sum at 0 dB.
+- A failed audio-device prepare after the device opened is silent.
+- The ruler spans the full width including the info column; clicks there seek to a tick scrolled out of view.
+- LOTRO preview playback is a later project.
+- Playback tests that need the SoundFont skip when the local file is absent (always on CI).
+
 ---
 
 ## 10. End-to-end data flow
