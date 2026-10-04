@@ -126,6 +126,9 @@ private:
     // or the song's length.
     void syncHorizontalBar();
 
+    // Largest valid scroll offset: end of song minus the visible span (>= 0).
+    double maxScrollOffset() const;
+
     void scrollBarMoved (juce::ScrollBar*, double newRangeStart) override;
 
     // juce::ValueTree::Listener — any of these firing on the SOURCE_MIDI

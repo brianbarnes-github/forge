@@ -1,6 +1,8 @@
 #include "TrackListComponent.h"
 #include "SongsmithColours.h"
 
+#include <cmath>
+
 namespace lotro
 {
 
@@ -81,7 +83,14 @@ void TrackListComponent::followPlayhead (bool playing)
     const int x = timelineView.xForTick ((int) tick);
     if (x >= 0 && x < previewWidth())
         return;
-    timelineView.setScrollOffsetTicks (tick);   // page-flip: the playhead becomes the left edge
+
+    // The same clamp syncHorizontalBar applies. If it leaves the offset where
+    // it is (e.g. the playhead is at the very end of a fitted song), there is
+    // nothing to flip: leave fitted mode and the rows alone.
+    const double target = juce::jlimit (0.0, maxScrollOffset(), tick);
+    if (std::abs (target - timelineView.getScrollOffsetTicks()) < 1.0e-9)
+        return;
+    timelineView.setScrollOffsetTicks (target); // page-flip: the playhead becomes the left edge
     timelineFitted = false;                      // do not let a resize refit fight the follow
     syncHorizontalBar();
     content.repaint();
@@ -163,11 +172,17 @@ void TrackListComponent::fitTimelineToDocument()
     content.repaint();
 }
 
+double TrackListComponent::maxScrollOffset() const
+{
+    const double visibleTicks = (double) previewWidth() / timelineView.getPixelsPerTick();
+    return juce::jmax (0.0, (double) documentEndTick() - visibleTicks);
+}
+
 void TrackListComponent::syncHorizontalBar()
 {
     const double endTick = (double) documentEndTick();
     const double visibleTicks = (double) previewWidth() / timelineView.getPixelsPerTick();
-    const double maxOffset = juce::jmax (0.0, endTick - visibleTicks);
+    const double maxOffset = maxScrollOffset();
 
     if (timelineView.getScrollOffsetTicks() > maxOffset)
         timelineView.setScrollOffsetTicks (maxOffset);

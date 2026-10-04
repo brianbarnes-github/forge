@@ -704,3 +704,28 @@ TEST_CASE ("TrackListComponent: solo on one track dims the other row in place, w
     CHECK (rowB->getAlpha() < 1.0f);
     CHECK (rowA->getAlpha() == Catch::Approx (1.0f));
 }
+
+TEST_CASE ("TrackListComponent: following a playhead at the end of a fitted song keeps fitted mode", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 96000);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+
+    // Within half a pixel of the end: rounds to x == previewWidth(), but the
+    // clamped scroll offset is still 0, so there is nothing to flip.
+    controller.seekToTick (95999.0);
+    list.followPlayheadForTesting (/*playing*/ true);
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (0.0));
+
+    list.setSize (500, 300);
+    CHECK (Access::timelineView (list).getPixelsPerTick()
+           == Catch::Approx ((double) previewWidth (list) / 96000.0));
+}
