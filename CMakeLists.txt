@@ -120,6 +120,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/SongFile.cpp
     Source/UI/SongSession.cpp
     Source/UI/Playback/TempoMap.cpp
+    Source/UI/Playback/PlaybackSnapshot.cpp
     Source/UI/DiscardGuard.cpp
     Source/UI/SongModelBridge.cpp
     Source/UI/SourceTrackNoteSource.cpp
