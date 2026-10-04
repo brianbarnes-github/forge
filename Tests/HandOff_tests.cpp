@@ -81,3 +81,71 @@ TEST_CASE ("HandOff: republishing the still-pending object keeps it owned", "[pl
     REQUIRE (a != nullptr);
     CHECK (a->value == 7);
 }
+
+TEST_CASE ("HandOff: republishing the current object and acquiring it again keeps it alive", "[playback][handoff]")
+{
+    HandOff<Thing> h;
+    std::weak_ptr<Thing> w;
+    bool swapped = false;
+    Thing* x = nullptr;
+    {
+        auto p = std::make_shared<Thing> (Thing { 5 });
+        w = p;
+        h.publish (p);
+        x = h.acquire (swapped);
+        h.publish (p);
+    }
+    CHECK (h.acquire (swapped) == x);   // same object again: pushed to the retire queue, still current
+    h.collectRetired();
+    REQUIRE (! w.expired());            // the audio thread is still using it
+    CHECK (h.acquire (swapped) == x);
+    CHECK (x->value == 5);
+}
+
+TEST_CASE ("HandOff: a current object republished then superseded before pickup is not freed early", "[playback][handoff]")
+{
+    HandOff<Thing> h;
+    std::weak_ptr<Thing> w;
+    bool swapped = false;
+    Thing* x = nullptr;
+    {
+        auto p = std::make_shared<Thing> (Thing { 5 });
+        w = p;
+        h.publish (p);
+        x = h.acquire (swapped);
+        h.publish (p);
+    }
+    h.publish (std::make_shared<Thing> (Thing { 6 }));   // pending X handed back and dropped, X is still current
+    REQUIRE (! w.expired());
+    CHECK (x->value == 5);
+    CHECK (h.acquire (swapped)->value == 6);              // audio moves on, X retired
+    CHECK (! w.expired());                                // not freed on the audio side
+    h.collectRetired();
+    CHECK (w.expired());                                  // now, and only now, freed
+}
+
+TEST_CASE ("HandOff: repeatedly republishing one object cycles without losing or leaking it", "[playback][handoff]")
+{
+    HandOff<Thing> h;
+    std::weak_ptr<Thing> w;
+    bool swapped = false;
+    Thing* x = nullptr;
+    {
+        auto p = std::make_shared<Thing> (Thing { 9 });
+        w = p;
+        for (int i = 0; i < 50; ++i)
+        {
+            h.publish (p);
+            x = h.acquire (swapped);
+        }
+    }
+    h.collectRetired();
+    REQUIRE (! w.expired());
+    CHECK (x->value == 9);
+    CHECK (h.liveCount() == 1);
+    h.publish (std::make_shared<Thing> (Thing { 10 }));
+    h.acquire (swapped);
+    h.collectRetired();
+    CHECK (w.expired());
+    CHECK (h.liveCount() == 1);
+}
