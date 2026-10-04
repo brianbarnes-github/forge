@@ -499,6 +499,9 @@ void MainWindow::saveSongAs (std::function<void (bool)> done)
 
             if (file.existsAsFile() && file != session.getFile())
             {
+                // Built outside the capture list: MSVC resolves `this` in a
+                // nested lambda's init-capture to the closure, not the window.
+                const juce::Component::SafePointer<MainWindow> safe (this);
                 juce::NativeMessageBox::showAsync (
                     juce::MessageBoxOptions()
                         .withIconType (juce::MessageBoxIconType::WarningIcon)
@@ -507,7 +510,7 @@ void MainWindow::saveSongAs (std::function<void (bool)> done)
                         .withButton ("Replace")
                         .withButton ("Cancel")
                         .withAssociatedComponent (this),
-                    [safe = juce::Component::SafePointer<MainWindow> (this), file, done] (int button)
+                    [safe, file, done] (int button)
                     {
                         if (button == 0 && safe != nullptr) safe->writeSongTo (file, done);
                         else if (done)                      done (false);
