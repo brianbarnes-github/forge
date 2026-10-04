@@ -295,7 +295,7 @@ TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState an
     const double pixelsPerTickBefore = view.getPixelsPerTick();
     const int tickUnderCursorBefore = view.tickForX (anchorInPreview);
 
-    juce::MouseWheelDetails wheel;
+    juce::MouseWheelDetails wheel {};
     wheel.deltaY = 1.0f;
     const auto pos = juce::Point<float> ((float) wheelX, 10.0f);
     list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
@@ -369,7 +369,7 @@ namespace
 
     void wheelAt (TrackListComponent& list, int x, float deltaY, juce::ModifierKeys mods)
     {
-        juce::MouseWheelDetails wheel;
+        juce::MouseWheelDetails wheel {};
         wheel.deltaY = deltaY;
         const auto pos = juce::Point<float> ((float) x, 10.0f);
         list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),

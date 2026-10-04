@@ -183,7 +183,7 @@ TEST_CASE ("TrackRowComponent: the conductor row reads 'N events' and can't be d
     CHECK_FALSE (row.canDrag());
 }
 
-TEST_CASE ("TrackRowComponent: a note-less track reads '0 notes · N events' and can't be dragged", "[trackrow][fidelity]")
+TEST_CASE ("TrackRowComponent: a note-less track reads '0 notes, N events' and can't be dragged", "[trackrow][fidelity]")
 {
     SongDocument doc;
     auto track = doc.addTrackBulk ("Lyrics", 0, 0, 1);
