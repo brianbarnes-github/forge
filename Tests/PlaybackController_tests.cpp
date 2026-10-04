@@ -155,6 +155,22 @@ TEST_CASE ("PlaybackController: documentReplaced stops playback, zeroes the play
     CHECK (r.sink.releaseAllCount >= 1);
 }
 
+TEST_CASE ("PlaybackController: Stop in a newly opened song does not jump to the previous song's play-start", "[playback][controller]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.seekToTick (960.0);      // 1 s at the default tempo
+    r.controller.play();                  // the play-start is now 1 s
+    r.render (2);
+    REQUIRE (r.controller.getPositionSeconds() > 1.0);
+
+    r.doc.resetToEmpty();
+    r.controller.documentReplaced();
+    r.controller.stop();                  // before any Play in the new song
+    CHECK (r.controller.getPositionSeconds() == Approx (0.0));
+}
+
 TEST_CASE ("PlaybackController: seekToTick converts through the tempo map", "[playback][controller]")
 {
     Rig r;

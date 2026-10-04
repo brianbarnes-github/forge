@@ -28,6 +28,10 @@ public:
     void seek (double seconds) noexcept;
     void goToStart() noexcept { seek (0.0); }
     void goToEnd (double endSeconds) noexcept { seek (endSeconds); }
+    // Message-thread only. Back to a fresh clock for a different Song: not
+    // playing, position and play-start both 0 (so a later Stop does not jump to
+    // the previous Song's play-start), seek generation bumped.
+    void reset() noexcept;
 
     bool advance (double fromSeconds, double seconds, double endSeconds) noexcept;
 

@@ -142,8 +142,7 @@ void PlaybackController::setSoloed (juce::int64 trackId, bool soloed)
 
 void PlaybackController::documentReplaced()
 {
-    transport.stop();
-    transport.goToStart();
+    transport.reset();   // not stop()+goToStart(): those would leave the old Song's play-start behind
     muteSolo.clear();
     cancelPendingUpdate();
     rebuild();   // unconditional: the whole document changed

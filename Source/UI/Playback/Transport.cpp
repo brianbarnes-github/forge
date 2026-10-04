@@ -34,6 +34,14 @@ void Transport::seek (double seconds) noexcept
     seekGeneration.fetch_add (1);
 }
 
+void Transport::reset() noexcept
+{
+    playing.store (false, std::memory_order_release);
+    playStart.store (0.0, std::memory_order_release);
+    position.store (0.0, std::memory_order_release);
+    seekGeneration.fetch_add (1);
+}
+
 bool Transport::advance (double fromSeconds, double seconds, double endSeconds) noexcept
 {
     const double next = std::min (fromSeconds + seconds, endSeconds);
