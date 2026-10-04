@@ -1,9 +1,19 @@
 #include "UI/Playback/PlaybackEngine.h"
 
+#include <algorithm>
 #include <cmath>
+#include <functional>
 
 namespace lotro
 {
+
+namespace
+{
+    // Exact comparison on purpose: the playhead is stored and loaded unmodified,
+    // so an unchanged position is bit-identical. Going through std::equal_to
+    // keeps -Wfloat-equal quiet without a pragma.
+    bool samePosition (double a, double b) noexcept { return std::equal_to<double>() (a, b); }
+}
 
 void PlaybackEngine::prepare (double sampleRateIn, int maxBlockSize)
 {
@@ -50,8 +60,13 @@ void PlaybackEngine::renderBlock (juce::AudioBuffer<float>& buffer, int startSam
     swapped = swapped || sinkReplaced;
 
     const bool playing = snapshot != nullptr && transport.isPlaying();
+    // Position first, then the generation: a seek that lands between the two
+    // reads shows up as a generation change (or as a position that is not the
+    // one we expected), never as a new position paired with a stale nextEvent.
+    const double position = transport.getPositionSeconds();
     const unsigned seekGeneration = transport.getSeekGeneration();
-    const bool seeked = seekGeneration != seenSeekGeneration;
+    const bool seeked = seekGeneration != seenSeekGeneration
+                        || (playing && ! samePosition (position, expectedPosition));
     seenSeekGeneration = seekGeneration;
 
     if (swapped || seeked || (! playing && wasPlaying))
@@ -62,11 +77,11 @@ void PlaybackEngine::renderBlock (juce::AudioBuffer<float>& buffer, int startSam
     if (! playing)
     {
         wasPlaying = false;
+        expectedPosition = -1.0;   // never a real position: the next Play re-chases
         sink.render (left, right, numSamples);   // lets release tails ring out
         return;
     }
 
-    const double position = transport.getPositionSeconds();
     if (swapped || seeked || ! wasPlaying)
     {
         chase (*snapshot, position);
@@ -93,7 +108,11 @@ void PlaybackEngine::renderBlock (juce::AudioBuffer<float>& buffer, int startSam
     if (rendered < numSamples)
         sink.render (left + rendered, right + rendered, numSamples - rendered);
 
-    transport.advance (blockSeconds, snapshot->endSeconds());
+    const double endSeconds = snapshot->endSeconds();
+    const bool advanced = transport.advance (position, blockSeconds, endSeconds);
+    // If the advance was dropped the message thread moved the playhead: the
+    // sentinel forces a re-chase on the next block.
+    expectedPosition = advanced ? std::min (position + blockSeconds, endSeconds) : -1.0;
 }
 
 } // namespace lotro

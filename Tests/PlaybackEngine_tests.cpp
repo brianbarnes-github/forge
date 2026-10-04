@@ -111,10 +111,11 @@ TEST_CASE ("PlaybackEngine: Stop returns the playhead to the play-start and rele
     Rig rig (doc);
     rig.transport.play (rig.snapshot->endSeconds());
     rig.render (10);
+    const int before = rig.sink.releaseAllCount;
     rig.transport.stop();
     rig.render (1);
     CHECK (rig.transport.getPositionSeconds() == Catch::Approx (0.0));
-    CHECK (rig.sink.releaseAllCount >= 1);
+    CHECK (rig.sink.releaseAllCount == before + 1);
 }
 
 TEST_CASE ("PlaybackEngine: an empty song never plays", "[playback][engine]")
@@ -192,5 +193,59 @@ TEST_CASE ("PlaybackEngine: a snapshot published while paused is picked up on th
     rig.transport.play (newSnapshot->endSeconds());
     const int onsBefore = rig.sink.count (PlaybackEventKind::NoteOn);
     rig.render (60);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == onsBefore + 1);
+}
+
+TEST_CASE ("PlaybackEngine: Play right after an auto-stop (no block in between) replays from the start", "[playback][engine]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 0, 480);        // ends at 0.5 s
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    for (int i = 0; i < 200 && rig.transport.isPlaying(); ++i)
+        rig.render (1);                          // stop exactly on the block that auto-stops
+    REQUIRE (! rig.transport.isPlaying());
+    REQUIRE (rig.sink.count (PlaybackEventKind::NoteOn) == 1);
+
+    rig.transport.play (rig.snapshot->endSeconds());   // before the next audio block
+    rig.render (60);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 2);
+}
+
+TEST_CASE ("PlaybackEngine: a seek whose block-end advance is dropped still delivers the notes at the target", "[playback][engine]")
+{
+    SongDocument doc;
+    auto track = addTrack (doc);
+    addNote (track, 60, 0, 240);
+    addNote (track, 62, 1920, 240);              // 2.0 s, a bar line
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    const double oldPosition = rig.transport.getPositionSeconds();
+
+    rig.transport.seek (2.0);                    // lands "during" the block above
+    CHECK (! rig.transport.advance (oldPosition, 512.0 / sr, rig.snapshot->endSeconds()));   // the late CAS is dropped
+    CHECK (rig.transport.getPositionSeconds() == Catch::Approx (2.0));
+
+    const int onsBefore = rig.sink.count (PlaybackEventKind::NoteOn);
+    rig.render (1);
+    REQUIRE (rig.sink.count (PlaybackEventKind::NoteOn) == onsBefore + 1);
+    CHECK (rig.sink.records.back().event.tick == 1920);
+}
+
+TEST_CASE ("PlaybackEngine: a playhead move without a generation bump is detected and re-chased", "[playback][engine]")
+{
+    SongDocument doc;
+    auto track = addTrack (doc);
+    addNote (track, 60, 0, 240);
+    addNote (track, 62, 1920, 240);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    const int onsBefore = rig.sink.count (PlaybackEventKind::NoteOn);
+    rig.transport.pause();
+    rig.transport.seek (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());   // no block ran while paused
+    rig.render (1);
     CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == onsBefore + 1);
 }

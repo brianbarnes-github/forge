@@ -10,9 +10,10 @@ namespace lotro
 // seconds (see TempoMap).
 //
 // Thread affinity: play(), pause(), stop(), seek(), goToStart(), goToEnd() are
-// message-thread only. advance() is audio-thread only. If the message thread
-// changes position during a block, that block's advance() becomes a no-op
-// (compare_exchange_strong fails, and we drop the update without retrying).
+// message-thread only. advance() is audio-thread only: it moves the playhead
+// from the position the block STARTED at, and is dropped (returns false,
+// touches nothing) when the position is no longer that value, i.e. the message
+// thread moved it during the block.
 class Transport
 {
 public:
@@ -28,7 +29,7 @@ public:
     void goToStart() noexcept { seek (0.0); }
     void goToEnd (double endSeconds) noexcept { seek (endSeconds); }
 
-    void advance (double seconds, double endSeconds) noexcept;
+    bool advance (double fromSeconds, double seconds, double endSeconds) noexcept;
 
 private:
     std::atomic<bool> playing { false };

@@ -20,7 +20,7 @@ TEST_CASE ("Transport: play starts from the current position; pause keeps it", "
     t.seek (2.0);
     t.play (10.0);
     CHECK (t.isPlaying());
-    t.advance (1.5, 10.0);
+    t.advance (t.getPositionSeconds(), 1.5, 10.0);
     CHECK (t.getPositionSeconds() == Approx (3.5));
     t.pause();
     CHECK (! t.isPlaying());
@@ -32,7 +32,7 @@ TEST_CASE ("Transport: stop returns to where play started", "[playback][transpor
     Transport t;
     t.seek (2.0);
     t.play (10.0);
-    t.advance (3.0, 10.0);
+    t.advance (t.getPositionSeconds(), 3.0, 10.0);
     t.stop();
     CHECK (! t.isPlaying());
     CHECK (t.getPositionSeconds() == Approx (2.0));
@@ -42,12 +42,25 @@ TEST_CASE ("Transport: reaching the end auto-stops with the playhead at the end;
 {
     Transport t;
     t.play (4.0);
-    t.advance (5.0, 4.0);
+    t.advance (t.getPositionSeconds(), 5.0, 4.0);
     CHECK (! t.isPlaying());
     CHECK (t.getPositionSeconds() == Approx (4.0));
     t.play (4.0);
     CHECK (t.isPlaying());
     CHECK (t.getPositionSeconds() == Approx (0.0));
+}
+
+TEST_CASE ("Transport: advance from a stale position is dropped after a seek", "[playback][transport]")
+{
+    Transport t;
+    t.play (10.0);
+    const double blockStart = t.getPositionSeconds();
+    t.seek (4.0);
+    CHECK (! t.advance (blockStart, 0.5, 10.0));
+    CHECK (t.getPositionSeconds() == Approx (4.0));
+    CHECK (t.isPlaying());
+    CHECK (t.advance (4.0, 0.5, 10.0));
+    CHECK (t.getPositionSeconds() == Approx (4.5));
 }
 
 TEST_CASE ("Transport: seeks bump the generation and clamp at zero", "[playback][transport]")

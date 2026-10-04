@@ -36,6 +36,7 @@ private:
     size_t nextEvent = 0;
     bool wasPlaying = false;
     unsigned seenSeekGeneration = 0;
+    double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
 };
 
 } // namespace lotro
