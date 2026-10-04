@@ -577,6 +577,33 @@ TEST_CASE ("PlaybackEngine: a replaced sink resets every channel before the chas
     checkResetsBeforeChase (rig);
 }
 
+TEST_CASE ("PlaybackEngine: a bank-select CC reaches the sink before the Program change at the same tick", "[playback][engine]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 40 });
+    addEvent (t, 0, { 0xB0, 0, 3 });
+    addEvent (t, 0, { 0xB0, 32, 9 });
+    addNote (t, 60, 0, 480);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+
+    int firstProgram = -1, lastBankCC = -1, ownProgram = -1;
+    for (size_t i = 0; i < rig.sink.records.size(); ++i)
+    {
+        const auto& e = rig.sink.records[i].event;
+        if (e.kind == PlaybackEventKind::Program && firstProgram < 0) firstProgram = (int) i;
+        if (e.kind == PlaybackEventKind::Program && e.data1 == 40) ownProgram = (int) i;
+        if (e.kind == PlaybackEventKind::Control && (e.data1 == 0 || e.data1 == 32)) lastBankCC = (int) i;
+    }
+    REQUIRE (firstProgram >= 0);
+    REQUIRE (lastBankCC >= 0);
+    REQUIRE (ownProgram >= 0);
+    CHECK (lastBankCC < firstProgram);
+    CHECK (lastBankCC < ownProgram);
+}
+
 TEST_CASE ("PlaybackEngine: continuous playback does not reset channels after the first block", "[playback][engine][chase][reset]")
 {
     SongDocument doc;

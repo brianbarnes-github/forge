@@ -57,7 +57,32 @@ TEST_CASE ("buildSnapshot: a mid-song tempo change is honoured", "[playback][sna
     CHECK (ofKind (*snap, PlaybackEventKind::NoteOn)[0].seconds == Approx (1.5));
 }
 
-TEST_CASE ("buildSnapshot: NoteOff sorts before NoteOn at the same tick, controllers before both", "[playback][snapshot]")
+TEST_CASE ("buildSnapshot: bank-select CCs sort before the Program change at the same tick, in source order", "[playback][snapshot]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 40 });             // the program change is written FIRST in the source
+    addEvent (t, 0, { 0xB0, 0, 3 });           // CC0 bank MSB
+    addEvent (t, 0, { 0xB0, 32, 9 });          // CC32 bank LSB
+    addNote (t, 60, 0, 480);
+
+    const auto snap = buildSnapshot (doc);
+    std::vector<PlaybackEvent> setup;          // everything at tick 0 except the note
+    for (const auto& e : snap->events())
+        if (e.tick == 0 && e.kind != PlaybackEventKind::NoteOn)
+            setup.push_back (e);
+    REQUIRE (setup.size() == 4);               // CC0, CC32, the channel's setup Program, the track's Program
+    CHECK (setup[0].kind == PlaybackEventKind::Control);
+    CHECK (setup[0].data1 == 0);
+    CHECK (setup[1].kind == PlaybackEventKind::Control);
+    CHECK (setup[1].data1 == 32);
+    CHECK (setup[2].kind == PlaybackEventKind::Program);
+    CHECK (setup[2].data1 == 0);               // the prepended setup program stays ahead of the track's own
+    CHECK (setup[3].kind == PlaybackEventKind::Program);
+    CHECK (setup[3].data1 == 40);
+}
+
+TEST_CASE ("buildSnapshot: NoteOff sorts before NoteOn at the same tick, a controller before both", "[playback][snapshot]")
 {
     SongDocument doc;
     auto t = addTrack (doc);

@@ -14,7 +14,11 @@ namespace lotro
 
 class SongDocument;
 
-enum class PlaybackEventKind : std::uint8_t { Program, Control, PitchBend, NoteOff, NoteOn };
+// The enumerator order IS the same-tick firing order. Control precedes Program
+// so a CC0/CC32 bank select lands before the program change that tsf resolves
+// against the channel's current bank; NoteOff precedes NoteOn so a retrigger
+// at a note's own end sounds again.
+enum class PlaybackEventKind : std::uint8_t { Control, Program, PitchBend, NoteOff, NoteOn };
 
 struct PlaybackEvent
 {
