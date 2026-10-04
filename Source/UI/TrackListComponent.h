@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Playback/PlaybackController.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
 #include "TrackRowComponent.h"
@@ -18,7 +19,8 @@ namespace lotro
 class TrackListComponent : public juce::Component,
                             private juce::ValueTree::Listener,
                             private juce::AsyncUpdater,
-                            private juce::ScrollBar::Listener
+                            private juce::ScrollBar::Listener,
+                            private PlaybackController::Listener
 {
 public:
     explicit TrackListComponent (SongDocument& document);
@@ -36,6 +38,10 @@ public:
     // document (dragging a note, renaming a track) don't keep snapping a
     // user's deliberate zoom/scroll back to the fitted default.
     void fitTimelineToDocument();
+
+    // Connects the M / S buttons to `controller` (not owned; must outlive this
+    // list or be replaced by nullptr first). Rows are rebuilt to pick up its state.
+    void setPlayback (PlaybackController* controller);
 
     juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
 
@@ -73,6 +79,7 @@ private:
     };
 
     void rebuild();
+    void muteSoloChanged() override;
     void selectTrack (juce::int64 trackId);
 
     // Content width for `content`, accounting for the viewport's vertical
@@ -146,6 +153,7 @@ private:
     TimelineViewState timelineView;
     ListContent     content;
     juce::int64     selectedTrackId = -1;
+    PlaybackController* playback = nullptr;
 
     // True from fitTimelineToDocument() until the user zooms by hand: while
     // set, resized() refits so the whole song stays visible across window

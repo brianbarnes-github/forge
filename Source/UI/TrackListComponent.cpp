@@ -35,7 +35,30 @@ TrackListComponent::~TrackListComponent()
     // component that is mid-destruction.
     cancelPendingUpdate();
     sourceMidiNode.removeListener (this);
+    if (playback != nullptr)
+        playback->removeListener (this);
     horizontalBar.removeListener (this);
+}
+
+void TrackListComponent::setPlayback (PlaybackController* controller)
+{
+    if (playback != nullptr)
+        playback->removeListener (this);
+    playback = controller;
+    if (playback != nullptr)
+        playback->addListener (this);
+    rebuild();
+}
+
+void TrackListComponent::muteSoloChanged()
+{
+    if (playback == nullptr)
+        return;
+    for (auto* row : content.rows)
+    {
+        const auto id = row->getTrackId();
+        row->setMuteSolo (playback->isMuted (id), playback->isSoloed (id), playback->isSilencedBySolo (id));
+    }
 }
 
 void TrackListComponent::rebuild()
@@ -50,6 +73,13 @@ void TrackListComponent::rebuild()
         row->onTrackSelected = [this] (juce::int64 trackId) { selectTrack (trackId); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
+        row->onMuteToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setMuted (id, s); };
+        row->onSoloToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setSoloed (id, s); };
+        if (playback != nullptr)
+        {
+            const auto id = row->getTrackId();
+            row->setMuteSolo (playback->isMuted (id), playback->isSoloed (id), playback->isSilencedBySolo (id));
+        }
         content.addAndMakeVisible (row);
     }
 

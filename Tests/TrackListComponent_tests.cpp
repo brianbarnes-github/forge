@@ -2,8 +2,10 @@
 // previously-selected track disappears from SOURCE_MIDI — e.g. after
 // SongDocument::removeTrack — without over-pruning one that is still live.
 
+#include "PlaybackTestSupport.h"
 #include "UI/SongDocument.h"
 #include "UI/SongModelBridge.h"
+#include "UI/Playback/PlaybackController.h"
 #include "UI/TrackListComponent.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -29,6 +31,13 @@ namespace lotro
             for (auto* row : c.content.rows)
                 result.add (row);
             return result;
+        }
+        static TrackRowComponent* rowFor (TrackListComponent& c, juce::int64 trackId)
+        {
+            for (auto* row : c.content.rows)
+                if (row->getTrackId() == trackId)
+                    return row;
+            return nullptr;
         }
         static juce::int64 selectedTrackId (const TrackListComponent& c) { return c.selectedTrackId; }
         static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
@@ -476,4 +485,29 @@ TEST_CASE ("TrackListComponent: clearSelection forgets the selected track", "[se
 
     list.clearSelection();
     CHECK (list.getSelectedTrackId() == -1);
+}
+
+TEST_CASE ("TrackListComponent: M/S clicks drive the PlaybackController and rows reflect it after a rebuild", "[track-list][mutesolo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (600, 200);
+    Access::rebuild (list);
+
+    controller.setMuted (trackId, true);
+    Access::rebuild (list);
+    CHECK (Access::rowFor (list, trackId)->muteButtonForTesting().getToggleState());
+
+    auto& solo = Access::rowFor (list, trackId)->soloButtonForTesting();
+    solo.triggerClick();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (controller.isSoloed (trackId));
 }

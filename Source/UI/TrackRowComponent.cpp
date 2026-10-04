@@ -29,6 +29,21 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     setInterceptsMouseClicks (true, false);
 
     addAndMakeVisible (notePreview);
+
+    const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);
+    for (auto* b : { &muteButton, &soloButton })
+    {
+        b->setClickingTogglesState (true);
+        b->setWantsKeyboardFocus (false);
+        addChildComponent (*b);
+        b->setVisible (! isConductor);
+    }
+    muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colours::orangered);
+    soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colours::gold);
+    muteButton.setTooltip ("Mute");
+    soloButton.setTooltip ("Solo");
+    muteButton.onClick = [this] { if (onMuteToggled) onMuteToggled (getTrackId(), muteButton.getToggleState()); };
+    soloButton.onClick = [this] { if (onSoloToggled) onSoloToggled (getTrackId(), soloButton.getToggleState()); };
     notePreview.onGhostToggled = [this] (bool visible)
     {
         if (onGhostToggled)
@@ -54,8 +69,19 @@ bool TrackRowComponent::canDrag() const
 void TrackRowComponent::resized()
 {
     auto area = getLocalBounds().withTrimmedBottom (dividerThickness);
-    area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
+    auto info = area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
+    auto buttons = info.removeFromRight (muteSoloWidth).reduced (1, 8);
+    muteButton.setBounds (buttons.removeFromLeft (buttons.getWidth() / 2));
+    soloButton.setBounds (buttons);
     notePreview.setBounds (area);
+}
+
+void TrackRowComponent::setMuteSolo (bool muted, bool soloed, bool silenced)
+{
+    muteButton.setToggleState (muted, juce::dontSendNotification);
+    soloButton.setToggleState (soloed, juce::dontSendNotification);
+    silencedBySolo = silenced;
+    setAlpha ((muted || silenced) ? 0.5f : 1.0f);
 }
 
 juce::int64 TrackRowComponent::getTrackId() const
@@ -130,8 +156,11 @@ void TrackRowComponent::paint (juce::Graphics& g)
     }
 
     const int textLeft = 8;
+    const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);
+    // Keep the text clear of the M / S buttons (the conductor has none).
     auto row = bounds.withWidth (juce::jmin (trackInfoWidth, bounds.getWidth()))
-                      .withTrimmedLeft (textLeft).withTrimmedRight (6);
+                      .withTrimmedLeft (textLeft).withTrimmedRight (6)
+                      .withTrimmedRight (isConductor ? 0 : muteSoloWidth);
     auto firstLine  = row.removeFromTop (row.getHeight() / 2);
     auto secondLine = row;
 
@@ -146,7 +175,6 @@ void TrackRowComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (swatch));
     g.fillRect (swatchArea);
 
-    const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);
     g.setColour (juce::Colour (isConductor ? textMuted : text));
     g.setFont (juce::Font (juce::FontOptions (11.0f)));
     g.drawText (track.getProperty (SongIDs::name).toString(), firstLine.withTrimmedRight (4),

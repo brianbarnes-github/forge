@@ -63,6 +63,20 @@ public:
     // Fired when this row's ghost toggle is clicked: (trackId, newVisibility).
     std::function<void (juce::int64, bool)> onGhostToggled;
 
+    // Fired when the M / S button is clicked: (trackId, newState).
+    std::function<void (juce::int64, bool)> onMuteToggled;
+    std::function<void (juce::int64, bool)> onSoloToggled;
+
+    // Reflects the playback controller's state on the buttons without firing
+    // callbacks; a muted or solo-silenced row is dimmed.
+    void setMuteSolo (bool muted, bool soloed, bool silencedBySolo);
+
+    // Width reserved at the right end of the info column for the M / S buttons.
+    static constexpr int muteSoloWidth = 40;
+
+    juce::TextButton& muteButtonForTesting() { return muteButton; }
+    juce::TextButton& soloButtonForTesting() { return soloButton; }
+
     // Test-only access to the embedded preview -- avoids needing a separate
     // friend-struct file just for this, since TrackNotePreview's own public
     // API (toggleGhostIfHit/ghostToggleBounds) is already test-safe.
@@ -81,6 +95,8 @@ private:
     int             index;
     bool            selected = false;
     TrackNotePreview notePreview;
+    juce::TextButton muteButton { "M" }, soloButton { "S" };
+    bool             silencedBySolo = false;
 };
 
 } // namespace lotro

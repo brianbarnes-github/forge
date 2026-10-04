@@ -12,7 +12,7 @@ TEST_CASE ("TrackRowComponent: double-click fires onTrackDoubleClicked with the 
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
-    auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
     // Only tracks with notes are assignable, i.e. openable by double-click.
     SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
     const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
@@ -57,7 +57,7 @@ TEST_CASE ("TrackRowComponent: clicks on the note preview outside its ghost togg
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
-    auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
     SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
     const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
 
@@ -92,7 +92,7 @@ TEST_CASE ("TrackRowComponent: a click on the ghost toggle toggles the ghost and
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
-    auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
@@ -120,7 +120,7 @@ TEST_CASE ("TrackRowComponent: ghost-toggle forwarding reports this row's trackI
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
-    auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
     const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
 
     TimelineViewState viewState;
@@ -145,7 +145,7 @@ TEST_CASE ("TrackRowComponent: a divider line spans the row's full width along i
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
-    auto track = doc.addTrack ("Track A", 0xFFAABBCC, 0, 0);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
@@ -205,4 +205,61 @@ TEST_CASE ("TrackRowComponent: double-clicking a non-assignable row does not fir
     row.setBounds (0, 0, 400, TrackRowComponent::rowHeight);
     row.mouseDoubleClick (eventAt (row, { 5, 5 }, 2));
     CHECK_FALSE (fired);
+}
+
+namespace
+{
+    // Button::triggerClick() only posts a command message; pump the loop so the click lands.
+    void click (juce::Button& b)
+    {
+        b.triggerClick();
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    }
+}
+
+TEST_CASE ("TrackRowComponent: M and S buttons fire callbacks with the trackId and toggled state", "[track-row][mutesolo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+
+    juce::int64 mutedId = -1, soloedId = -1;
+    bool mutedState = false, soloedState = false;
+    row.onMuteToggled = [&] (juce::int64 id, bool s) { mutedId = id; mutedState = s; };
+    row.onSoloToggled = [&] (juce::int64 id, bool s) { soloedId = id; soloedState = s; };
+
+    click (row.muteButtonForTesting());
+    click (row.soloButtonForTesting());
+    CHECK (mutedId == trackId);
+    CHECK (mutedState);
+    CHECK (soloedId == trackId);
+    CHECK (soloedState);
+}
+
+TEST_CASE ("TrackRowComponent: the conductor row has no mute/solo buttons", "[track-row][mutesolo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TimelineViewState viewState;
+    TrackRowComponent row (doc.getConductorTrack(), 0, viewState);
+    CHECK (! row.muteButtonForTesting().isVisible());
+    CHECK (! row.soloButtonForTesting().isVisible());
+}
+
+TEST_CASE ("TrackRowComponent: setMuteSolo reflects state on the buttons", "[track-row][mutesolo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+    row.setMuteSolo (true, false, false);
+    CHECK (row.muteButtonForTesting().getToggleState());
+    CHECK (! row.soloButtonForTesting().getToggleState());
+    row.setMuteSolo (false, true, false);
+    CHECK (! row.muteButtonForTesting().getToggleState());
+    CHECK (row.soloButtonForTesting().getToggleState());
 }
