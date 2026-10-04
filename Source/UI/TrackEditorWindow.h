@@ -3,6 +3,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "PianoRollComponent.h"
+#include "Playback/PlaybackController.h"
+#include "Playback/TimelineRuler.h"
+#include "Playback/TransportStrip.h"
 #include "SongDocument.h"
 #include "SourceTrackNoteSource.h"
 
@@ -33,13 +36,43 @@ namespace lotro
 
         void closeButtonPressed() override;
 
+        // Hosts the shared transport strip and seek ruler above the roll and
+        // shows the playhead over its notes; Space toggles play/pause. Not
+        // owned: the controller must outlive this window. Call once, with a
+        // non-null controller.
+        void setPlayback (PlaybackController* controller);
+        bool keyPressed (const juce::KeyPress& key) override;
+        bool hasTransportStripForTesting() const noexcept { return content != nullptr; }
+        bool hasRulerForTesting() const noexcept { return content != nullptr; }
+
         // Fired when the window is closed by the user, so the owner can
         // reset its unique_ptr rather than hold a dangling window.
         std::function<void()> onClosed;
 
     private:
+        friend struct TrackEditorWindowTestAccess;
+
+        // Strip on top, ruler under it (same width as the roll, so a ruler x
+        // is a roll x), then the roll filling the rest.
+        class Content : public juce::Component
+        {
+        public:
+            Content (PianoRollComponent& rollIn, PlaybackController& controller);
+            void resized() override;
+
+            TransportStrip strip;
+            TimelineRuler ruler;
+            PianoRollComponent& roll;
+        };
+
         SongDocument& doc;
         PianoRollComponent roll;
+        // After `roll` (it holds a reference) and destroyed before it; the
+        // destructor detaches it from the window first. Its strip and the
+        // roll's playhead are destroyed before the controller, which the
+        // owner keeps alive for longer than this window.
+        std::unique_ptr<Content> content;
+        PlaybackController* playback = nullptr;
         std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
         juce::int64 currentTrackId = -1;
     };

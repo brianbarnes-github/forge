@@ -2,6 +2,8 @@
 
 #include "PianoRollGeometry.h"
 #include "PianoRollNoteSource.h"
+#include "Playback/PlaybackController.h"
+#include "Playback/PlayheadOverlay.h"
 #include "SourceRollEditor.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -19,12 +21,27 @@
 namespace lotro
 {
 
-class PianoRollComponent : public juce::Component
+class PianoRollComponent : public juce::Component, private PlaybackController::Listener
 {
 public:
     enum class Role { Source, Preview };
 
     explicit PianoRollComponent (Role roleIn = Role::Source, SongDocument* editableDocument = nullptr);
+    ~PianoRollComponent() override;
+
+    // Source role only (a no-op for Preview, whose canvas has no playback):
+    // shows the shared playhead over the notes (beneath the pinned keyboard
+    // gutter) and, while playing, page-scrolls to keep it in view. nullptr
+    // removes the playhead. Not owned: the controller must outlive this roll
+    // or be detached first.
+    void setPlayback (PlaybackController* controller);
+
+    // Scroll-aware tick <-> x in this component's own coordinates (x at the
+    // pinned gutter's right edge is tick == content origin when unscrolled).
+    int xForTickInComponent (double tick) const;
+    double tickForXInComponent (int x) const;
+
+    bool hasPlayheadForTesting() const noexcept { return playhead != nullptr; }
 
     Role getRole() const noexcept { return role; }
 
@@ -125,7 +142,11 @@ private:
     public:
         explicit ScrollAwareViewport (PianoRollComponent& ownerIn) : owner (ownerIn) {}
 
-        void visibleAreaChanged (const juce::Rectangle<int>&) override { owner.gutter.repaint(); }
+        void visibleAreaChanged (const juce::Rectangle<int>&) override
+        {
+            owner.gutter.repaint();
+            owner.refreshPlayhead(); // horizontal scroll moves tick -> x under an unchanged position
+        }
 
     private:
         PianoRollComponent& owner;
@@ -156,6 +177,14 @@ private:
     void layoutGutter();
     void zoom (float wheelDeltaY);
 
+    // PlaybackController::Listener
+    void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
+    void followPlayhead (bool playing);
+    void layoutPlayhead();
+    // The overlay skips repainting when the playhead x is unchanged, so every
+    // change to the tick -> x mapping must force one.
+    void refreshPlayhead();
+
     // The viewport area the canvas can fill without scrolling, once the
     // scroll bars a canvas of `contentSize` would force on are subtracted.
     // viewport.getMaximumVisibleWidth/Height only reflect the bars shown
@@ -183,6 +212,10 @@ private:
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
     bool timelineFitted = false; // Source role only: refit on resize until the user zooms.
+
+    PlaybackController* playback = nullptr; // Source role only; not owned.
+    std::unique_ptr<PlayheadOverlay> playhead;
+    int playheadRepaintCount = 0; // test observability
 
     ScrollAwareViewport viewport { *this };
     Canvas canvas { *this };

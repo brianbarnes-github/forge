@@ -147,6 +147,8 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     if (trackEditorWindow == nullptr)
     {
         trackEditorWindow = std::make_unique<TrackEditorWindow> (doc, getTopLevelComponent());
+        if (playback != nullptr)
+            trackEditorWindow->setPlayback (playback);
         trackEditorWindow->onClosed = [this] { trackEditorWindow.reset(); };
     }
 

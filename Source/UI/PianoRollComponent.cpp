@@ -42,6 +42,87 @@ PianoRollComponent::PianoRollComponent (Role roleIn, SongDocument* editableDocum
     addAndMakeVisible (gutter); // added after viewport so it paints on top, pinned over the left edge
 }
 
+PianoRollComponent::~PianoRollComponent()
+{
+    if (playback != nullptr)
+        playback->removeListener (this);
+    playhead.reset(); // before the viewport: its scroll callbacks touch the playhead
+}
+
+int PianoRollComponent::xForTickInComponent (double tick) const
+{
+    // geometry.xForTick already includes the pinned gutter's width (the canvas
+    // starts at the viewport's x == 0 and notes scroll underneath the gutter),
+    // so only the horizontal scroll offset is subtracted.
+    return geometry.xForTick ((int) tick) - viewport.getViewPositionX();
+}
+
+double PianoRollComponent::tickForXInComponent (int x) const
+{
+    return (double) geometry.tickForX (x + viewport.getViewPositionX());
+}
+
+void PianoRollComponent::setPlayback (PlaybackController* controller)
+{
+    if (role != Role::Source)
+        return;
+
+    if (playback != nullptr)
+        playback->removeListener (this);
+    playhead.reset();
+    playback = controller;
+    if (playback == nullptr)
+        return;
+
+    playback->addListener (this);
+    playhead = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return xForTickInComponent (tick); });
+    addAndMakeVisible (*playhead);
+    gutter.toFront (false); // order: viewport < playhead < gutter, so the line never draws over the keys
+    layoutPlayhead();
+}
+
+void PianoRollComponent::layoutPlayhead()
+{
+    if (playhead == nullptr)
+        return;
+    // Over the scrolling canvas only, not over the scroll bars.
+    playhead->setBounds (viewport.getBounds()
+                             .withTrimmedBottom (viewport.getHorizontalScrollBar().isVisible() ? viewport.getScrollBarThickness() : 0)
+                             .withTrimmedRight (viewport.getVerticalScrollBar().isVisible() ? viewport.getScrollBarThickness() : 0));
+}
+
+void PianoRollComponent::refreshPlayhead()
+{
+    if (playhead == nullptr)
+        return;
+    ++playheadRepaintCount;
+    playhead->repaint();
+}
+
+void PianoRollComponent::followPlayhead (bool playing)
+{
+    if (! playing || playback == nullptr || playhead == nullptr)
+        return;
+
+    const double tick = playback->getPositionTicks();
+    const int visibleWidth = viewport.getMaximumVisibleWidth();
+    const int x = xForTickInComponent (tick);
+    if (x >= geometry.getKeyboardGutterWidth() && x < visibleWidth)
+        return;
+
+    // Clamp exactly as the viewport would. If that leaves the view where it
+    // is (e.g. the playhead is at the very end of a fitted song), there is
+    // nothing to flip: leave fitted mode and the playhead alone.
+    const int maxViewX = juce::jmax (0, canvas.getWidth() - visibleWidth);
+    const int target = juce::jlimit (0, maxViewX, geometry.xForTick ((int) tick) - geometry.getKeyboardGutterWidth());
+    if (target == viewport.getViewPositionX())
+        return;
+
+    viewport.setViewPosition (target, viewport.getViewPositionY()); // page-flip: the playhead lands at the gutter edge
+    timelineFitted = false; // do not let a resize refit fight the follow
+    refreshPlayhead();
+}
+
 void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPerQuarterIn,
                                          juce::ValueTree meterMapNode)
 {
@@ -141,6 +222,11 @@ void PianoRollComponent::layoutGutter()
     if (viewport.getHorizontalScrollBar().isVisible())
         gutterBounds = gutterBounds.withTrimmedBottom (viewport.getScrollBarThickness());
     gutter.setBounds (gutterBounds);
+
+    // Runs on every content resize (zoom, fit, resize, new source), i.e. on
+    // every change of the tick -> x mapping that is not a scroll.
+    layoutPlayhead();
+    refreshPlayhead();
 }
 
 int PianoRollComponent::contentHeight() const

@@ -3,13 +3,16 @@
 // WillFold/Dropped note borders with SongsmithColours::outOfRangeBorder —
 // not the generic fill.brighter(0.4f) used by Role::Source.
 
+#include "PlaybackTestSupport.h"
 #include "UI/PianoRollComponent.h"
+#include "UI/Playback/PlaybackController.h"
 #include "UI/PreviewNoteDiff.h"
 #include "UI/PreviewNoteSource.h"
 #include "UI/SongDocument.h"
 #include "UI/SongsmithColours.h"
 #include "UI/SourceTrackNoteSource.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -46,6 +49,11 @@ namespace lotro
         static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
         static void paintGutter (const PianoRollComponent& c, juce::Graphics& g) { c.paintGutter (g); }
         static int hoveredPitch (const PianoRollComponent& c) { return c.hoveredPitch; }
+        static juce::Component* playhead (PianoRollComponent& c) { return c.playhead.get(); }
+        static int playheadX (const PianoRollComponent& c) { return c.playhead->currentX(); }
+        static int playheadRepaints (const PianoRollComponent& c) { return c.playheadRepaintCount; }
+        static bool timelineFitted (const PianoRollComponent& c) { return c.timelineFitted; }
+        static void follow (PianoRollComponent& c, bool playing) { c.followPlayhead (playing); }
     };
 }
 
@@ -785,4 +793,146 @@ TEST_CASE ("PianoRollComponent: hovering B or E keeps the divider to the white k
         const auto tintedFace = image.getPixelAt (3, keyTopY (fixture.roll, lowerWhite) + 3);
         CHECK (divider.getBrightness() < tintedFace.getBrightness());
     }
+}
+
+namespace
+{
+    using lotro::playbacktest::addNote;
+
+    // A Source roll over one long note, wide enough that zooming in scrolls.
+    struct PlayheadRollFixture
+    {
+        juce::ScopedJuceInitialiser_GUI juceInit;
+        SongDocument doc;
+        juce::ValueTree track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+        lotro::playbacktest::RecordingSink sink;
+        PlaybackController controller { doc, sink };
+        std::unique_ptr<SourceTrackNoteSource> source;
+        PianoRollComponent roll { PianoRollComponent::Role::Source, &doc };
+
+        PlayheadRollFixture()
+        {
+            addNote (track, 60, 0, 9600);
+            addNote (track, 64, 1920, 480);
+            controller.flushRebuild();
+            source = std::make_unique<SourceTrackNoteSource> (track);
+            roll.setSize (800, 400);
+            roll.setNoteSource (source.get(), 480, doc.getMeterMapNode());
+        }
+    };
+}
+
+TEST_CASE ("PianoRollComponent: tick<->x mapping is component-local and scroll-aware", "[piano-roll][playhead]")
+{
+    PlayheadRollFixture f;
+    const int gutterWidth = Access::geometry (f.roll).getKeyboardGutterWidth();
+
+    CHECK (f.roll.xForTickInComponent (0.0) == gutterWidth);   // right of the gutter, never inside it
+    // Fitted, there are more ticks than pixels: a round trip is only good to one pixel.
+    const double ticksPerPixel = 480.0 / Access::geometry (f.roll).getPixelsPerQuarterNote();
+    CHECK (f.roll.tickForXInComponent (f.roll.xForTickInComponent (480.0))
+           == Catch::Approx (480.0).margin (ticksPerPixel + 1.0));
+
+    for (int i = 0; i < 15; ++i)
+        Access::zoom (f.roll, 1.0f);
+    Access::viewport (f.roll).setViewPosition (300, Access::viewport (f.roll).getViewPositionY());
+    const int scrollX = Access::viewport (f.roll).getViewPositionX();
+    REQUIRE (scrollX > 0);
+
+    CHECK (f.roll.xForTickInComponent (1920.0) == Access::geometry (f.roll).xForTick (1920) - scrollX);
+    CHECK (f.roll.tickForXInComponent (f.roll.xForTickInComponent (1920.0)) == Catch::Approx (1920.0).margin (1.0));
+}
+
+TEST_CASE ("PianoRollComponent: the playhead overlay is Source-role only and sits under the gutter", "[piano-roll][playhead]")
+{
+    PlayheadRollFixture f;
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    preview.setPlayback (&f.controller);
+    CHECK (! preview.hasPlayheadForTesting());
+
+    f.roll.setPlayback (&f.controller);
+    REQUIRE (f.roll.hasPlayheadForTesting());
+    auto* playhead = Access::playhead (f.roll);
+    const int viewportIndex = f.roll.getIndexOfChildComponent (&Access::viewport (f.roll));
+    const int playheadIndex = f.roll.getIndexOfChildComponent (playhead);
+    const int gutterIndex = f.roll.getIndexOfChildComponent (&Access::gutter (f.roll));
+    CHECK (viewportIndex < playheadIndex);
+    CHECK (playheadIndex < gutterIndex);
+
+    f.roll.setPlayback (nullptr);
+    CHECK (! f.roll.hasPlayheadForTesting());
+}
+
+TEST_CASE ("PianoRollComponent: the playhead line lands on the x where the note at that tick is drawn", "[piano-roll][playhead]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    f.controller.seekToTick (1920.0);
+
+    const auto noteBounds = Access::geometry (f.roll).noteBounds (f.source->getNote (1));
+    CHECK (Access::playheadX (f.roll) == noteBounds.x);
+}
+
+TEST_CASE ("PianoRollComponent: the playhead repaints when the view changes under an unchanged position", "[piano-roll][playhead]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    f.controller.seekToTick (1920.0);
+
+    int before = Access::playheadRepaints (f.roll);
+    Access::zoom (f.roll, 1.0f);
+    CHECK (Access::playheadRepaints (f.roll) > before);
+
+    for (int i = 0; i < 15; ++i)
+        Access::zoom (f.roll, 1.0f);
+
+    before = Access::playheadRepaints (f.roll);
+    const int xBefore = Access::playheadX (f.roll);
+    Access::viewport (f.roll).setViewPosition (200, Access::viewport (f.roll).getViewPositionY());
+    CHECK (Access::playheadX (f.roll) != xBefore);
+    CHECK (Access::playheadRepaints (f.roll) > before);
+
+    before = Access::playheadRepaints (f.roll);
+    f.roll.setSize (600, 300);
+    CHECK (Access::playheadRepaints (f.roll) > before);
+}
+
+TEST_CASE ("PianoRollComponent: following a playing playhead off-screen scrolls so it sits at the gutter edge", "[piano-roll][playhead]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    for (int i = 0; i < 15; ++i)
+        Access::zoom (f.roll, 1.0f);
+    auto& viewport = Access::viewport (f.roll);
+    viewport.setViewPosition (0, viewport.getViewPositionY());
+
+    f.controller.seekToTick (6000.0);
+    REQUIRE (f.roll.xForTickInComponent (6000.0) >= viewport.getMaximumVisibleWidth());
+
+    Access::follow (f.roll, /*playing*/ false);
+    CHECK (viewport.getViewPositionX() == 0);
+
+    Access::follow (f.roll, /*playing*/ true);
+    const int gutterWidth = Access::geometry (f.roll).getKeyboardGutterWidth();
+    CHECK (viewport.getViewPositionX() > 0);
+    CHECK (f.roll.xForTickInComponent (6000.0) == gutterWidth);
+    CHECK (! Access::timelineFitted (f.roll));
+}
+
+TEST_CASE ("PianoRollComponent: following a playhead at the end of a fitted view keeps fitted mode", "[piano-roll][playhead]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    REQUIRE (Access::timelineFitted (f.roll));
+
+    // The long note ends at tick 9600: the playhead sits on the right edge (so
+    // follow's "off-screen" test fires), but the clamped scroll range is empty,
+    // so there is nothing to flip.
+    f.controller.seekToTick (9600.0);
+    REQUIRE (f.roll.xForTickInComponent (9600.0) >= Access::viewport (f.roll).getMaximumVisibleWidth());
+    const int repaints = Access::playheadRepaints (f.roll);
+    Access::follow (f.roll, /*playing*/ true);
+    CHECK (Access::viewport (f.roll).getViewPositionX() == 0);
+    CHECK (Access::timelineFitted (f.roll));
+    CHECK (Access::playheadRepaints (f.roll) == repaints);
 }
