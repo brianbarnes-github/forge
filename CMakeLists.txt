@@ -127,6 +127,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/Playback/PlaybackController.cpp
     Source/UI/Playback/SynthVoice.cpp
     Source/UI/Playback/TransportStrip.cpp
+    Source/UI/Playback/TimelineRuler.cpp
+    Source/UI/Playback/PlayheadOverlay.cpp
     Source/UI/Playback/AudioOutput.cpp
     Source/UI/DiscardGuard.cpp
     Source/UI/SongModelBridge.cpp
