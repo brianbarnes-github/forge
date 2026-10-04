@@ -1,5 +1,6 @@
 #pragma once
 
+#include "UI/Playback/EventSink.h"
 #include "UI/SongDocument.h"
 
 #include <juce_data_structures/juce_data_structures.h>
@@ -43,5 +44,30 @@ inline juce::ValueTree addTrack (SongDocument& doc, const char* name = "T", int 
 {
     return doc.addTrackBulk (name, static_cast<int> (0xff336699u), channel, 1);
 }
+
+// Test sink that records every event and its frame position.
+struct RecordingSink : EventSink
+{
+    struct Record { long frame; PlaybackEvent event; };
+    std::vector<Record> records;
+    std::vector<int> releasedChannels;
+    long framesRendered = 0;
+    int releaseAllCount = 0;
+    bool replaced = false;      // set true to make the next beginBlock() report a replaced sink
+
+    void prepare (double, int) override {}
+    bool beginBlock() noexcept override { const bool r = replaced; replaced = false; return r; }
+    void handle (const PlaybackEvent& e) noexcept override { records.push_back ({ framesRendered, e }); }
+    void releaseChannel (int c) noexcept override { releasedChannels.push_back (c); }
+    void releaseAll() noexcept override { ++releaseAllCount; }
+    void render (float*, float*, int n) noexcept override { framesRendered += n; }
+
+    int count (PlaybackEventKind k) const
+    {
+        int n = 0;
+        for (const auto& r : records) if (r.event.kind == k) ++n;
+        return n;
+    }
+};
 
 } // namespace lotro::playbacktest
