@@ -119,6 +119,24 @@ void SynthVoice::releaseAll() noexcept
         tsf_note_off_all (current->synth);
 }
 
+// Returns the channel to tsf's own initial state (see tsf_channel_init): volume
+// and expression full, pan centred, pitch wheel centred, no sustain, pitch range
+// 2 semitones, no tuning, no RPN selected. CC121 covers volume, expression, pan,
+// RPN, data entry, pitch range and tuning (and sets bank 0), but not the pitch
+// wheel or sustain, so those are set explicitly. The preset is left alone: the
+// chase replays the Program events. All calls are allocation-free because every
+// channel is allocated when the instance is built.
+void SynthVoice::resetChannel (int virtualChannel) noexcept
+{
+    if (current == nullptr || current->synth == nullptr || virtualChannel < 0 || virtualChannel >= kMaxVirtualChannels)
+        return;
+
+    tsf* f = current->synth;
+    tsf_channel_midi_control (f, virtualChannel, 121, 0);
+    tsf_channel_set_pitchwheel (f, virtualChannel, 8192);
+    tsf_channel_midi_control (f, virtualChannel, 64, 0);   // sustain off (also ends sustain-held voices)
+}
+
 void SynthVoice::render (float* left, float* right, int numFrames) noexcept
 {
     if (current == nullptr || current->synth == nullptr)

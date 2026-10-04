@@ -17,6 +17,12 @@ public:
     virtual void handle (const PlaybackEvent&) noexcept = 0;
     virtual void releaseChannel (int virtualChannel) noexcept = 0;   // note-off with release tails
     virtual void releaseAll() noexcept = 0;
+    // Restores one virtual channel's controller state (volume, expression, pan,
+    // pitch wheel, sustain, pitch range, tuning, RPN) to the synth's initial
+    // values. The engine calls it for every channel of the snapshot after
+    // releaseAll() and before chasing, so a chase never inherits controllers
+    // left over from earlier playback. Does not touch preset/bank.
+    virtual void resetChannel (int virtualChannel) noexcept = 0;
     virtual void render (float* left, float* right, int numFrames) noexcept = 0;   // overwrites
 };
 

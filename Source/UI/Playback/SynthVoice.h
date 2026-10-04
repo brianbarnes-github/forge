@@ -35,6 +35,7 @@ public:
     void handle (const PlaybackEvent& event) noexcept override;
     void releaseChannel (int virtualChannel) noexcept override;
     void releaseAll() noexcept override;
+    void resetChannel (int virtualChannel) noexcept override;
     void render (float* left, float* right, int numFrames) noexcept override;
 
 private:

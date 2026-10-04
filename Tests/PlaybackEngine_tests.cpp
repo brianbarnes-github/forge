@@ -8,6 +8,9 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <algorithm>
+#include <vector>
+
 using namespace lotro;
 using namespace lotro::playbacktest;
 
@@ -447,4 +450,142 @@ TEST_CASE ("PlaybackEngine: starting from the end restarts from the beginning", 
     rig.transport.play (rig.snapshot->endSeconds());
     rig.render (1);
     CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 1);
+}
+
+namespace
+{
+    // Two tracks on two channels, each with a program and a CC in the past of 2 s.
+    void buildResetSong (SongDocument& doc)
+    {
+        auto a = addTrack (doc, "A", 1);
+        auto b = addTrack (doc, "B", 2);
+        addEvent (a, 0, { 0xC0, 24 });
+        addEvent (a, 100, { 0xB0, 7, 50 });
+        addEvent (b, 0, { 0xC1, 40 });
+        addEvent (b, 100, { 0xB1, 11, 30 });
+        addNote (a, 60, 0, 9600, 100, 1);
+        addNote (b, 64, 0, 9600, 100, 2);
+    }
+
+    // Exactly one reset per snapshot channel since the sink log was cleared, all
+    // of them issued before the first event handed to the sink.
+    void checkResetsBeforeChase (const Rig& rig)
+    {
+        const auto& channels = rig.snapshot->channels();
+        REQUIRE (channels.size() == 2);
+        REQUIRE (rig.sink.resets.size() == channels.size());
+        std::vector<int> seen;
+        for (const auto& r : rig.sink.resets)
+        {
+            CHECK (r.recordsBefore == 0);
+            seen.push_back (r.channel);
+        }
+        std::sort (seen.begin(), seen.end());
+        CHECK (seen == std::vector<int> { 0, 1 });
+        CHECK (! rig.sink.records.empty());   // the chase did replay something after the resets
+    }
+
+    void clearSinkLog (Rig& rig)
+    {
+        rig.sink.records.clear();
+        rig.sink.resets.clear();
+    }
+}
+
+TEST_CASE ("PlaybackEngine: Stop then Play resets every channel before the chase replays", "[playback][engine][chase][reset]")
+{
+    SongDocument doc;
+    buildResetSong (doc);
+    Rig rig (doc);
+    rig.transport.seek (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    rig.transport.stop();
+    rig.render (1);
+    clearSinkLog (rig);
+
+    rig.transport.play (rig.snapshot->endSeconds());   // back at the play-start, 2.0 s
+    rig.render (1);
+    checkResetsBeforeChase (rig);
+}
+
+TEST_CASE ("PlaybackEngine: Play again after the song ended resets every channel", "[playback][engine][chase][reset]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc, "A", 1);
+    auto b = addTrack (doc, "B", 2);
+    addEvent (a, 100, { 0xB0, 11, 0 });        // a fade at the end, nothing at tick 0
+    addNote (a, 60, 0, 480, 100, 1);
+    addNote (b, 64, 0, 480, 100, 2);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    for (int i = 0; i < 200 && rig.transport.isPlaying(); ++i)
+        rig.render (1);
+    REQUIRE (! rig.transport.isPlaying());
+    rig.render (1);
+    clearSinkLog (rig);
+
+    rig.transport.play (rig.snapshot->endSeconds());   // restarts from 0
+    rig.render (1);
+    REQUIRE (rig.sink.resets.size() == 2);
+    for (const auto& r : rig.sink.resets)
+        CHECK (r.recordsBefore == 0);
+    CHECK (! rig.sink.records.empty());       // the tick-0 events fire after the resets
+}
+
+TEST_CASE ("PlaybackEngine: a seek while playing resets every channel before the chase", "[playback][engine][chase][reset]")
+{
+    SongDocument doc;
+    buildResetSong (doc);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    clearSinkLog (rig);
+    rig.transport.seek (4.0);
+    rig.render (1);
+    checkResetsBeforeChase (rig);
+}
+
+TEST_CASE ("PlaybackEngine: a snapshot swap mid-play resets every channel before the chase", "[playback][engine][swap][reset]")
+{
+    SongDocument doc;
+    buildResetSong (doc);
+    Rig rig (doc);
+    rig.transport.seek (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    clearSinkLog (rig);
+    rig.engine.publishSnapshot (buildSnapshot (doc));
+    rig.render (1);
+    CHECK (rig.sink.resets.size() == 2);
+    for (const auto& r : rig.sink.resets)
+        CHECK (r.recordsBefore == 0);
+    CHECK (! rig.sink.records.empty());
+}
+
+TEST_CASE ("PlaybackEngine: a replaced sink resets every channel before the chase", "[playback][engine][swap][reset]")
+{
+    SongDocument doc;
+    buildResetSong (doc);
+    Rig rig (doc);
+    rig.transport.seek (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    clearSinkLog (rig);
+    rig.sink.replaced = true;
+    rig.render (1);
+    checkResetsBeforeChase (rig);
+}
+
+TEST_CASE ("PlaybackEngine: continuous playback does not reset channels after the first block", "[playback][engine][chase][reset]")
+{
+    SongDocument doc;
+    buildResetSong (doc);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    REQUIRE (rig.sink.resets.size() == 2);
+    rig.render (20);
+    REQUIRE (rig.transport.isPlaying());
+    CHECK (rig.sink.resets.size() == 2);
 }

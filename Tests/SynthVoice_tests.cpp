@@ -152,3 +152,58 @@ TEST_CASE ("SynthVoice: the highest virtual channel sounds, and a drum Program f
     }
     CHECK (drumPeak > 0.001f);
 }
+
+TEST_CASE ("SynthVoice: resetChannel with no SoundFont, or an out-of-range channel, is harmless", "[playback][synth][reset]")
+{
+    SynthVoice none;
+    none.prepare (48000.0, 256);
+    none.beginBlock();
+    none.resetChannel (0);
+    none.resetChannel (-1);
+    none.resetChannel (kMaxVirtualChannels);
+
+    const auto font = localSoundFont();
+    if (! font.existsAsFile()) { WARN ("skipped the loaded-font half: local SoundFont not present"); return; }
+    SynthVoice synth;
+    synth.prepare (48000.0, 256);
+    synth.loadSoundFont (font);
+    synth.beginBlock();
+    synth.resetChannel (-1);
+    synth.resetChannel (kMaxVirtualChannels);
+    synth.resetChannel (0);
+    SUCCEED();
+}
+
+TEST_CASE ("SynthVoice: resetChannel restores a channel left silent by CC7 = 0", "[playback][synth][reset]")
+{
+    const auto font = localSoundFont();
+    if (! font.existsAsFile()) { WARN ("skipped: local SoundFont not present"); return; }
+
+    SynthVoice synth;
+    synth.prepare (48000.0, 512);
+    synth.loadSoundFont (font);
+    synth.beginBlock();
+
+    std::vector<float> l (512), r (512);
+    const auto peakOfNote = [&] (int vch)
+    {
+        synth.handle (ev (PlaybackEventKind::NoteOn, vch, 60, 110));
+        float peak = 0.0f;
+        for (int i = 0; i < 6; ++i)
+        {
+            synth.render (l.data(), r.data(), 512);
+            for (float s : l) peak = std::max (peak, std::fabs (s));
+        }
+        synth.releaseAll();
+        for (int i = 0; i < 400; ++i)
+            synth.render (l.data(), r.data(), 512);   // let the tail finish
+        return peak;
+    };
+
+    synth.handle (ev (PlaybackEventKind::Program, 5, 0, 0));
+    synth.handle (ev (PlaybackEventKind::Control, 5, 7, 0));   // channel volume to zero
+    CHECK (peakOfNote (5) < 0.001f);                           // the leftover state really silences it
+
+    synth.resetChannel (5);
+    CHECK (peakOfNote (5) > 0.001f);                           // reset restored tsf's full-volume default
+}

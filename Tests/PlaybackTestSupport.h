@@ -49,7 +49,9 @@ inline juce::ValueTree addTrack (SongDocument& doc, const char* name = "T", int 
 struct RecordingSink : EventSink
 {
     struct Record { long frame; PlaybackEvent event; };
+    struct Reset { size_t recordsBefore; int channel; };   // records.size() when resetChannel() was called
     std::vector<Record> records;
+    std::vector<Reset> resets;
     std::vector<int> releasedChannels;
     long framesRendered = 0;
     int releaseAllCount = 0;
@@ -60,6 +62,7 @@ struct RecordingSink : EventSink
     void handle (const PlaybackEvent& e) noexcept override { records.push_back ({ framesRendered, e }); }
     void releaseChannel (int c) noexcept override { releasedChannels.push_back (c); }
     void releaseAll() noexcept override { ++releaseAllCount; }
+    void resetChannel (int c) noexcept override { resets.push_back ({ records.size(), c }); }
     void render (float*, float*, int n) noexcept override { framesRendered += n; }
 
     int count (PlaybackEventKind k) const

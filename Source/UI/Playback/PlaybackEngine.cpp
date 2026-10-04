@@ -23,6 +23,13 @@ void PlaybackEngine::prepare (double sampleRateIn, int maxBlockSize)
 
 void PlaybackEngine::chase (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept
 {
+    // The synth keeps channel state for the whole session, so start from its
+    // defaults: a replay of "the last CC/bend before the playhead" is only
+    // correct if channels begin clean (a CC11 fade or a bend from earlier
+    // playback would otherwise survive a Stop or a seek).
+    for (size_t c = 0; c < snapshot.channels().size(); ++c)
+        sink.resetChannel ((int) c);
+
     for (const auto& e : snapshot.events())
     {
         if (e.seconds >= positionSeconds)
