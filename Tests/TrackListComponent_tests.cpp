@@ -7,6 +7,8 @@
 #include "UI/SongModelBridge.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/TrackListComponent.h"
+#include "UI/Playback/PlayheadOverlay.h"
+#include "UI/Playback/TimelineRuler.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
@@ -44,6 +46,15 @@ namespace lotro
         static int contentWidth (const TrackListComponent& c) { return c.contentWidth(); }
         static int notePreviewOriginX (const TrackListComponent& c) { return c.notePreviewOriginX(); }
         static juce::ScrollBar& horizontalBar (TrackListComponent& c) { return c.horizontalBar; }
+        static double scrollOffsetTicks (TrackListComponent& c) { return c.timelineView.getScrollOffsetTicks(); }
+        static void zoomIn (TrackListComponent& c)
+        {
+            c.timelineView.zoomBy (4.0, 0);
+            c.timelineFitted = false;
+            c.syncHorizontalBar();
+        }
+        static PlayheadOverlay* overlay (TrackListComponent& c) { return c.overlay.get(); }
+        static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
     };
 }
 
@@ -510,4 +521,186 @@ TEST_CASE ("TrackListComponent: M/S clicks drive the PlaybackController and rows
     solo.triggerClick();
     juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
     CHECK (controller.isSoloed (trackId));
+}
+
+TEST_CASE ("TrackListComponent: clicking the ruler moves the shared playhead", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+
+    list.rulerForTesting()->onSeek (960.0);
+    CHECK (controller.getPositionTicks() == Catch::Approx (960.0));
+}
+
+TEST_CASE ("TrackListComponent: the ruler row sits above the viewport and the overlay spans the note-preview strip", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+
+    auto* ruler = list.rulerForTesting();
+    auto* overlay = Access::overlay (list);
+    REQUIRE (ruler != nullptr);
+    REQUIRE (overlay != nullptr);
+    CHECK (ruler->getY() == 0);
+    CHECK (ruler->getHeight() == TimelineRuler::height);
+    CHECK (overlay->getY() == TimelineRuler::height);
+    CHECK (overlay->getX() == Access::notePreviewOriginX (list));
+    CHECK (overlay->getWidth() == previewWidth (list));
+    bool onSelf = true, onChildren = true;
+    overlay->getInterceptsMouseClicks (onSelf, onChildren);
+    CHECK_FALSE (onSelf);
+    CHECK_FALSE (onChildren);
+
+    // A click at ruler-local x (the ruler spans the full list width) maps
+    // through the preview-local frame: tick under (x - preview origin).
+    double seeked = -1.0;
+    ruler->onSeek = [&seeked] (double t) { seeked = t; };
+    const auto pos = juce::Point<float> ((float) Access::notePreviewOriginX (list) + 100.0f, 3.0f);
+    ruler->mouseDown (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                         pos, juce::ModifierKeys(),
+                                         0.0f, 0.0f, 0.0f, 0.0f, 0.0f, ruler, ruler,
+                                         juce::Time::getCurrentTime(), pos,
+                                         juce::Time::getCurrentTime(), 1, false));
+    CHECK (seeked == Catch::Approx ((double) Access::timelineView (list).tickForX (100)));
+}
+
+TEST_CASE ("TrackListComponent: while playing, the view page-flips to keep the playhead visible", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 96000);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+    Access::zoomIn (list);        // so the song is wider than the view
+
+    controller.seekToTick (50000.0);                    // far beyond the visible span
+    list.followPlayheadForTesting (/*playing*/ true);
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (50000.0));
+}
+
+TEST_CASE ("TrackListComponent: when not playing, seeking never scrolls the view", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 96000);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+    Access::zoomIn (list);
+    REQUIRE (Access::scrollOffsetTicks (list) == Catch::Approx (0.0));
+
+    list.rulerForTesting()->onSeek (50000.0);           // user click, off-screen, not playing
+    list.followPlayheadForTesting (/*playing*/ false);
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (0.0));
+    CHECK (controller.getPositionTicks() == Catch::Approx (50000.0));
+}
+
+TEST_CASE ("TrackListComponent: zoom, scroll and resize repaint the playhead overlay and move its x", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 96000);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+    controller.seekToTick (20000.0);
+    auto* overlay = Access::overlay (list);
+    REQUIRE (overlay != nullptr);
+
+    // Zoom (ctrl+wheel): same position, different mapping.
+    int before = Access::overlayRepaints (list);
+    const int xFitted = overlay->currentX();
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, juce::ModifierKeys::ctrlModifier);
+    CHECK (Access::overlayRepaints (list) > before);
+    CHECK (overlay->currentX() != xFitted);
+
+    // Horizontal wheel pan.
+    before = Access::overlayRepaints (list);
+    const int xZoomed = overlay->currentX();
+    wheelAt (list, 300, -1.0f, {});
+    CHECK (Access::overlayRepaints (list) > before);
+    CHECK (overlay->currentX() != xZoomed);
+
+    // Scroll-bar drag.
+    before = Access::overlayRepaints (list);
+    Access::horizontalBar (list).setCurrentRangeStart (10000.0, juce::sendNotificationSync);
+    CHECK (Access::overlayRepaints (list) > before);
+
+    // Resize while fitted (refit changes pixels-per-tick).
+    list.fitTimelineToDocument();
+    before = Access::overlayRepaints (list);
+    list.setSize (500, 300);
+    CHECK (Access::overlayRepaints (list) > before);
+
+    // Fit.
+    before = Access::overlayRepaints (list);
+    list.fitTimelineToDocument();
+    CHECK (Access::overlayRepaints (list) > before);
+}
+
+TEST_CASE ("TrackListComponent: solo on one track dims the other row in place, without a rebuild", "[track-list][mutesolo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    auto b = doc.addTrack ("B", (int) 0xFF112233, 1, 0);
+    lotro::playbacktest::addNote (a, 60, 0, 480);
+    lotro::playbacktest::addNote (b, 62, 0, 480);
+    const auto idA = (juce::int64) a.getProperty (SongIDs::trackId);
+    const auto idB = (juce::int64) b.getProperty (SongIDs::trackId);
+
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (600, 200);
+    auto* rowA = Access::rowFor (list, idA);
+    auto* rowB = Access::rowFor (list, idB);
+    REQUIRE (rowA != nullptr);
+    REQUIRE (rowB != nullptr);
+    CHECK (rowB->getAlpha() == Catch::Approx (1.0f));
+
+    controller.setSoloed (idA, true);                   // no rebuild
+    REQUIRE (Access::rowFor (list, idB) == rowB);       // same row object: the update was in place
+    CHECK (rowA->soloButtonForTesting().getToggleState());
+    CHECK (rowA->getAlpha() == Catch::Approx (1.0f));
+    CHECK (rowB->getAlpha() < 1.0f);
+
+    controller.setSoloed (idA, false);
+    controller.setMuted (idB, true);
+    CHECK (rowB->muteButtonForTesting().getToggleState());
+    CHECK (rowB->getAlpha() < 1.0f);
+    CHECK (rowA->getAlpha() == Catch::Approx (1.0f));
 }

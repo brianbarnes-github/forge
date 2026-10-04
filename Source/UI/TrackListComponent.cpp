@@ -47,7 +47,44 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
     playback = controller;
     if (playback != nullptr)
         playback->addListener (this);
+
+    if (playback == nullptr)
+    {
+        ruler.reset();
+        overlay.reset();
+    }
+    else if (ruler == nullptr)
+    {
+        ruler = std::make_unique<TimelineRuler> ([this] (int x) { return (double) timelineView.tickForX (x - notePreviewOriginX()); });
+        ruler->onSeek = [this] (double tick) { if (playback != nullptr) playback->seekToTick (tick); };
+        addAndMakeVisible (*ruler);
+        overlay = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
+        addAndMakeVisible (*overlay);   // added after the viewport, so it draws on top
+    }
     rebuild();
+    resized();
+}
+
+void TrackListComponent::refreshOverlay()
+{
+    if (overlay == nullptr)
+        return;
+    ++overlayRepaintCount;
+    overlay->repaint();
+}
+
+void TrackListComponent::followPlayhead (bool playing)
+{
+    if (! playing || playback == nullptr)
+        return;
+    const double tick = playback->getPositionTicks();
+    const int x = timelineView.xForTick ((int) tick);
+    if (x >= 0 && x < previewWidth())
+        return;
+    timelineView.setScrollOffsetTicks (tick);   // page-flip: the playhead becomes the left edge
+    timelineFitted = false;                      // do not let a resize refit fight the follow
+    syncHorizontalBar();
+    content.repaint();
 }
 
 void TrackListComponent::muteSoloChanged()
@@ -141,12 +178,14 @@ void TrackListComponent::syncHorizontalBar()
     horizontalBar.setRangeLimits (0.0, juce::jmax (endTick, visibleTicks), juce::dontSendNotification);
     horizontalBar.setCurrentRange (timelineView.getScrollOffsetTicks(), visibleTicks, juce::dontSendNotification);
     horizontalBar.setSingleStepSize (visibleTicks / 20.0);
+    refreshOverlay();
 }
 
 void TrackListComponent::scrollBarMoved (juce::ScrollBar*, double newRangeStart)
 {
     timelineView.setScrollOffsetTicks (newRangeStart);
     content.repaint();
+    refreshOverlay();
 }
 
 void TrackListComponent::clearSelection()
@@ -195,8 +234,12 @@ void TrackListComponent::resized()
     // The horizontal bar's strip is always reserved (even while it
     // auto-hides) so rows don't jump when it appears.
     auto area = getLocalBounds();
+    if (ruler != nullptr)
+        ruler->setBounds (area.removeFromTop (TimelineRuler::height));
     auto barStrip = area.removeFromBottom (viewport.getScrollBarThickness());
     viewport.setBounds (area);
+    if (overlay != nullptr)
+        overlay->setBounds (viewport.getBounds().withTrimmedLeft (notePreviewOriginX()).withWidth (previewWidth()));
 
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
                                      .withWidth (previewWidth()));

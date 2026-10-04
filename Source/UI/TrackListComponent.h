@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Playback/PlaybackController.h"
+#include "Playback/PlayheadOverlay.h"
+#include "Playback/TimelineRuler.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
 #include "TrackRowComponent.h"
@@ -8,6 +10,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <memory>
 
 // Phase 4, component B2 — the vertical, scrollable list of MIDI-track rows
 // (top-left panel of SongsmithMainComponent). Rebuilds itself from
@@ -41,7 +44,12 @@ public:
 
     // Connects the M / S buttons to `controller` (not owned; must outlive this
     // list or be replaced by nullptr first). Rows are rebuilt to pick up its state.
+    // Also creates (non-null) / destroys (null) the seek ruler row above the
+    // viewport and the playhead overlay over the note-preview strip.
     void setPlayback (PlaybackController* controller);
+
+    TimelineRuler* rulerForTesting() noexcept { return ruler.get(); }
+    void followPlayheadForTesting (bool playing) { followPlayhead (playing); }
 
     juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
 
@@ -80,6 +88,15 @@ private:
 
     void rebuild();
     void muteSoloChanged() override;
+    void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
+
+    // While playing, page-flips the shared view so the playhead stays visible.
+    // Does nothing when stopped, so a ruler click never scrolls the view.
+    void followPlayhead (bool playing);
+
+    // The overlay skips repaints when the playhead x is unchanged, so every
+    // change to the tick->x mapping (zoom, scroll, resize, fit) must call this.
+    void refreshOverlay();
     void selectTrack (juce::int64 trackId);
 
     // Content width for `content`, accounting for the viewport's vertical
@@ -154,6 +171,12 @@ private:
     ListContent     content;
     juce::int64     selectedTrackId = -1;
     PlaybackController* playback = nullptr;
+
+    // Declared after `playback`/`content`: destroyed first, before the
+    // controller (which the overlay's listener registration refers to).
+    std::unique_ptr<TimelineRuler>    ruler;
+    std::unique_ptr<PlayheadOverlay>  overlay;
+    int                               overlayRepaintCount = 0;   // test observability
 
     // True from fitTimelineToDocument() until the user zooms by hand: while
     // set, resized() refits so the whole song stays visible across window
