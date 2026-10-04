@@ -65,8 +65,8 @@ jobs:
       - name: Stage tester kit
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path artifact-staging | Out-Null
-          Copy-Item build/forge_artefacts/Release/forge.exe         artifact-staging/
+          New-Item -ItemType Directory -Force -Path artifact-staging/engines | Out-Null
+          Copy-Item build/forge_artefacts/Release/forge.exe         artifact-staging/engines/
           Copy-Item build/forge_ui_artefacts/Release/song-smith.exe artifact-staging/
           Copy-Item drum_map.json                                  artifact-staging/
           Copy-Item docs/UI_GUIDE.md                               artifact-staging/
@@ -78,7 +78,7 @@ jobs:
 
           Files in this folder:
             song-smith.exe     — the GUI; double-click to launch
-            forge.exe          — the command-line tool
+            engines/forge.exe  — the command-line tool
             drum_map.json      — sample / default drum mapping (editable)
             UI_GUIDE.md        — reference for GUI components and field names
             ARCHITECTURE.md    — deep technical doc (optional reading)
@@ -91,8 +91,8 @@ jobs:
             5. File → Save ABC As…
 
           Quick start (CLI):
-            forge.exe yoursong.mid yoursong.abc
-            forge.exe --help    (full options)
+            engines\forge.exe yoursong.mid yoursong.abc
+            engines\forge.exe --help    (full options)
 
           Built from commit ${env:GITHUB_SHA} on ${env:GITHUB_REF_NAME}.
           "@ | Set-Content -Path artifact-staging/README.txt
@@ -129,4 +129,4 @@ jobs:
 
             **Download:** [forge-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/forge-windows.zip)
 
-            Unzip and run `song-smith.exe` (GUI) or `forge.exe` (CLI). See `UI_GUIDE.md` for the GUI walkthrough.
+            Unzip and run `song-smith.exe` (GUI) or `engines/forge.exe` (CLI). See `UI_GUIDE.md` for the GUI walkthrough.

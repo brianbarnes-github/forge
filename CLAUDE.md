@@ -79,8 +79,8 @@ gate. Full details: `docs/BUILD.md`.
 
 **Deploy for the user's manual testing:** `./build-windows.sh forge_ui &&
 cp build-windows/forge_ui_artefacts/Release/song-smith.exe
-/mnt/c/Apps/SongSmith/ && cp resources/soundfonts/TimGM6mb.sf2
-/mnt/c/Apps/SongSmith/` (the SoundFont is a local-only file; first-time
+/mnt/c/Apps/SongSmith/ && mkdir -p /mnt/c/Apps/SongSmith/resources && cp
+resources/soundfonts/TimGM6mb.sf2 /mnt/c/Apps/SongSmith/resources/` (the SoundFont is a local-only file; first-time
 setup is in `docs/BUILD.md`).
 
 ## Git

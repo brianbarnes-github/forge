@@ -38,7 +38,7 @@ point.
 - **The SoundFont is NOT committed to the repo and not shipped by CI.**
   `TimGM6mb.sf2` (GPL-2, about 6 MB, md5 `1f1ad87ae6f87033d9a591eca567d919`;
   the user's copy is in `C:\Apps\NewPlayer\resources`) is kept as a local,
-  git-ignored file and copied next to the executable by a CMake post-build
+  git-ignored file and copied into `resources/` beside the executable by a CMake post-build
   step when present. `LotroInstruments_3b2ef040.sf2` (249 MB) is likewise
   never committed; it is user-supplied via "SoundFont…", in a later pass.
 - **Engine approach A:** live rendering in the audio callback. Rejected: B
@@ -183,7 +183,7 @@ notes on one channel end early.
   track's solo dim.
 - **SoundFont…** menu item: a file chooser; the chosen path is stored in
   `MainWindow::settings` (the `SongSmith.settings` `PropertiesFile`), not in
-  the Song file. Default: `TimGM6mb.sf2` next to the executable
+  the Song file. Default: `resources/TimGM6mb.sf2` beside the executable
   (`juce::File::getSpecialLocation (currentExecutableFile)`), which also covers
   `./run-ui.sh` and `build/forge_ui_artefacts/Debug/` on Linux.
 
@@ -251,7 +251,7 @@ test on Windows. The GUI is never launched from agents.
 - **`TimGM6mb.sf2`**: GPL-2 data, **not in the repo and not in CI artefacts**.
   Kept at a git-ignored local path; a CMake post-build step copies it next to
   each `forge_ui` artefact (and the test binary) when present. Local deploy:
-  copy it to `/mnt/c/Apps/SongSmith/` alongside `song-smith.exe` (the user's
+  copy it to `/mnt/c/Apps/SongSmith/` under `resources/` beside `song-smith.exe` (the user's
   copy is in `C:\Apps\NewPlayer\resources`). `CLAUDE.md`'s licensing guardrails
   and the deploy line are updated; since it is not distributed, no GPL
   redistribution obligation arises from this repo.

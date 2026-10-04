@@ -540,7 +540,7 @@ void MainWindow::loadStartupSoundFont()
 {
     const juce::String configuredPath = settings->getValue ("soundFontPath");
     const juce::File configured = configuredPath.isNotEmpty() ? juce::File (configuredPath) : juce::File();
-    const auto bundled = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getSiblingFile ("TimGM6mb.sf2");
+    const auto bundled = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getSiblingFile ("resources").getChildFile ("TimGM6mb.sf2");
     for (const auto& candidate : { configured, bundled })
     {
         if (candidate == juce::File() || ! candidate.existsAsFile())
