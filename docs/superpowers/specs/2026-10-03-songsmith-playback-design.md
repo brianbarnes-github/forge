@@ -110,11 +110,18 @@ the engine/UI boundary.
 
 ### Chase (starting mid-song)
 
-On Play, seek and every snapshot swap, before firing note-ons the engine scans
-the snapshot up to the playhead and applies, per virtual channel, the last
-program / bank / CC / pitch bend. Starting at bar 20 therefore sounds the same
-as having played to bar 20. Notes already sounding at the playhead are not
-retriggered.
+On Play, seek and every snapshot swap, before firing note-ons the engine first
+resets every virtual channel the snapshot uses to the synth's initial state
+(volume, expression, pan, pitch wheel, sustain, pitch range, tuning; the
+`EventSink::resetChannel` step, so nothing left over from earlier playback
+survives a Stop, seek or restart), then scans the snapshot up to the playhead
+and applies, per virtual channel, the last program / bank / CC / pitch bend.
+Starting at bar 20 therefore sounds the same as having played to bar 20.
+Notes already sounding at the playhead are not retriggered.
+
+Events at the same tick fire in the order Control, Program, PitchBend,
+NoteOff, NoteOn (the `PlaybackEventKind` enumerator order), so a CC0/CC32
+bank select lands before the program change that selects within that bank.
 
 ### Snapshot and synth hand-off
 
@@ -185,12 +192,23 @@ notes on one channel end early.
 A custom `PlaybackError` type with kinds `SoundFontMissing`,
 `SoundFontInvalid` and `AudioDeviceUnavailable`.
 
+As shipped (this amends the original wording, which had Play disabled with a
+visible message): Play stays enabled, and the dialogs are raised lazily, on
+Play, so the app can open and edit Songs on a machine with no audio device or
+no SoundFont.
+
 - No SoundFont found (the normal state on CI and on a fresh clone): the app
-  starts normally, Play is disabled with a visible "No SoundFont — choose one
-  via SoundFont…" message.
-- Chosen SoundFont missing or invalid: message box, fall back to the default
-  file if present, otherwise disabled as above.
-- Device error: message on Play; the transport stays stopped.
+  starts normally. Pressing Play shows a "No SoundFont" dialog (raised by
+  `PlaybackController::onBeforePlay`, i.e. `MainWindow::ensurePlaybackReady`)
+  explaining how to choose one with **Song → SoundFont…**; Play does nothing
+  else.
+- A SoundFont chosen via **Song → SoundFont…** that is missing or fails to
+  load: a dialog is shown and the previously active SoundFont stays in use.
+  At startup an unusable configured or bundled SoundFont is skipped
+  silently (the stored path is tried, then the bundled file; the app starts
+  either way and falls through to the "No SoundFont" dialog on Play).
+- Device error: an "Audio unavailable" dialog on Play; the transport stays
+  stopped.
 
 ## Testing
 

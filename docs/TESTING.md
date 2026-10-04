@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **546/546** (`ctest --test-dir build -N | tail -1`).
+- Test count: **557/557** (`ctest --test-dir build -N | tail -1`).
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
@@ -81,7 +81,8 @@
   `PlaybackError_tests.cpp` (error kinds and messages),
   `TempoMap_tests.cpp` (tick/seconds conversion, 120 BPM default),
   `PlaybackSnapshot_tests.cpp` (`buildSnapshot`: seconds timing, event
-  ordering, conductor ignored, per-(track, channel) virtual channels, drum
+  ordering (Control, Program, PitchBend, NoteOff, NoteOn within a tick),
+  conductor ignored, per-(track, channel) virtual channels, drum
   bank, the 64-track and 256-channel caps, degenerate data),
   `MuteSoloState_tests.cpp` (additive solo, mute beats solo),
   `Transport_tests.cpp` (play/pause/stop/seek, auto-stop and restart, the
@@ -89,10 +90,15 @@
   (publish/acquire/retire, message-thread free, every republish pattern),
   `PlaybackEngine_tests.cpp` (device-free, through a recording sink: block
   timing, tempo change, chase, seek / snapshot swap / sink replacement /
-  playhead move without a seek-generation bump, mute release, auto-stop),
+  playhead move without a seek-generation bump, mute release, auto-stop;
+  `resetChannel` for every snapshot channel before each chase and never
+  during continuous playback; a bank-select CC reaching the sink before the
+  Program at the same tick), `SynthVoice_tests.cpp` (`resetChannel` is
+  harmless without a font and restores a CC7 = 0 channel with the real font),
   `PlaybackController_tests.cpp` (real pumped message loop: coalesced
   rebuilds, cosmetic and parts changes not rebuilding, mid-play swap,
-  mute/solo kept across removal and undo, `documentReplaced`, veto,
+  mute/solo kept across removal and undo, `documentReplaced` including a
+  Stop that does not jump to the previous Song's play-start, veto,
   flush-before-play, rewind), `TransportStrip_tests.cpp` and
   `PlayheadOverlay_tests.cpp` (the overlay and `TimelineRuler`).
   `TrackRowComponent_tests.cpp`, `TrackListComponent_tests.cpp`,

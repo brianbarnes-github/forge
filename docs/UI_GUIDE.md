@@ -82,7 +82,7 @@ When you say…       …I'll know you mean
 | 25 | **Diagnostic List View (export panel)** | `DiagnosticListView` inside `DiagnosticsPane` — the 6-column table |
 | 26 | **ABC Preview View**            | `AbcPreviewView` (`Source/UI/AbcPreviewView.{h,cpp}`) — read-only text editor showing the generated ABC, inside `DiagnosticsPane` |
 | 27 | **Status line**                 | The grey `juce::Label` at the bottom of `DiagnosticsPane` (`5,824 bytes · 184 bars · 3 parts`) |
-| 28 | **Track editor window**         | `TrackEditorWindow` (`Source/UI/TrackEditorWindow.{h,cpp}`) — floating, single-instance `juce::DocumentWindow` (native title bar with minimise/maximise/close) opened by double-clicking a track row (#10); a second double-click on a different row re-points it (`setTrack`) rather than opening another window. Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, unchanged. Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
+| 28 | **Track editor window**         | `TrackEditorWindow` (`Source/UI/TrackEditorWindow.{h,cpp}`) — floating, single-instance `juce::DocumentWindow` (native title bar with minimise/maximise/close) opened by double-clicking a track row (#10); a second double-click on a different row re-points it (`setTrack`) rather than opening another window. Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, plus the playback transport strip (#30), a seek ruler (#32) and the playhead overlay (#33) above/over the roll (the window is 42 px taller than before playback). Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
 | 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); above the Songsmith view in the main window and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | `TrackRowComponent`'s `M` / `S` toggle buttons at the right end of the 180 px info column of every non-conductor row (#10); session-only, never saved or undoable |
@@ -270,10 +270,11 @@ Edit
 
 Song
   Default parts from tracks            ← synthesiseDefaultParts(songDocument)
-  SoundFont...                         ← FileChooser, *.sf2; loads it and
-                                           remembers the path (see Playback)
   Run Converter                        ← runConversion(), then shows the
                                            export panel
+  ────────────────
+  SoundFont...                         ← FileChooser, *.sf2; loads it and
+                                           remembers the path (see Playback)
 
 View
   Export ABC panel                     ← toggles the export panel
