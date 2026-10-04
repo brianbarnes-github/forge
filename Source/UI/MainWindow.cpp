@@ -11,6 +11,9 @@
 #include "SongsmithMainComponent.h"
 #include "WindowPlacement.h"
 
+#include "Playback/PlaybackError.h"
+#include "Playback/TransportStrip.h"
+
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
 #include "Core/InstrumentAssembly.h"
@@ -77,8 +80,9 @@ namespace
 class MainWindow::Body : public juce::Component
 {
 public:
-    explicit Body (SongDocument& doc) : songsmith (doc)
+    Body (SongDocument& doc, PlaybackController& playback) : songsmith (doc, &playback), strip (playback)
     {
+        addAndMakeVisible (strip);
         // Both songsmith and exportPanel are children throughout this Body's
         // lifetime; only one is ever visible (toggled by
         // setExportPanelVisible), so switching never needs to reparent
@@ -93,8 +97,10 @@ public:
 
     void resized() override
     {
-        songsmith.setBounds (getLocalBounds());
-        exportPanel.setBounds (getLocalBounds());
+        auto area = getLocalBounds();
+        strip.setBounds (area.removeFromTop (TransportStrip::height));
+        songsmith.setBounds (area);
+        exportPanel.setBounds (area);
     }
 
     SongsmithMainComponent& getSongsmith()    { return songsmith; }
@@ -109,6 +115,7 @@ public:
 
 private:
     SongsmithMainComponent songsmith;
+    TransportStrip         strip;
     DiagnosticsPane        exportPanel;
 };
 
@@ -116,7 +123,7 @@ MainWindow::MainWindow()
     : juce::DocumentWindow ("Songsmith",
                             juce::Colours::lightgrey,
                             juce::DocumentWindow::allButtons),
-      body (std::make_unique<Body> (songDocument)),
+      body (std::make_unique<Body> (songDocument, playback)),
       menuBar (std::make_unique<juce::MenuBarComponent> (this)),
       settings (std::make_unique<juce::PropertiesFile> (settingsOptions()))
 {
@@ -168,10 +175,19 @@ MainWindow::MainWindow()
     // never touch the tree.
     session.onChanged = [this] { refreshTitle(); };
     refreshTitle();
+
+    playback.onBeforePlay = [this] { return ensurePlaybackReady(); };
+    loadStartupSoundFont();
 }
 
 MainWindow::~MainWindow()
 {
+    // The audio thread must stop before the engine and synth are destroyed.
+    // (Members are destroyed in reverse order, so this is also guaranteed by
+    // declaration order; resetting here makes it explicit.)
+    synthGc.stopTimer();
+    audioOutput.reset();
+
     // Every quit path (close button, File -> Quit, OS shutdown) destroys the
     // window, so saving here covers them all.
     WindowPlacement::saveWindow (*settings, mainWindowPlacementKey, *this);
@@ -239,6 +255,8 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     {
         m.addItem (SongDefaultParts, "Default parts from tracks", true, false);
         m.addItem (SongRunConverter, "Run Converter", true, false);
+        m.addSeparator();
+        m.addItem (SongSoundFont, "SoundFont...");
     }
     else if (topLevelMenuIndex == 3) // View
     {
@@ -275,6 +293,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case EditRedo:        songDocument.redo();                                            return;
         case EditQuantize:    body->getSongsmith().quantizeActiveEditor();                    return;
         case HelpAbout:       showAboutDialog (this);                                         return;
+        case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
         case SongRunConverter:
             runConversion();
@@ -387,6 +406,7 @@ void MainWindow::requestQuit()
 
 void MainWindow::afterDocumentReplaced()
 {
+    playback.documentReplaced();
     body->getSongsmith().documentReplaced();
     body->getSongsmith().getDiagnostics().setDiagnostics ({});
     lastAbc.clear();
@@ -502,11 +522,68 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
 {
     const auto cmd = juce::ModifierKeys::commandModifier;
     const auto cmdShift = juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
+    // Plain Space only (KeyPress equality includes modifiers). Text fields and
+    // other focused children get the key first; the transport buttons are
+    // non-focusable, so Space cannot re-click one.
+    if (key == juce::KeyPress (juce::KeyPress::spaceKey)) { playback.togglePlayPause(); return true; }
     if (key == juce::KeyPress ('n', cmd, 0))      { menuItemSelected (FileNew, 0);      return true; }
     if (key == juce::KeyPress ('o', cmd, 0))      { menuItemSelected (FileOpenSong, 0); return true; }
     if (key == juce::KeyPress ('s', cmd, 0))      { if (session.isDirty() || session.isUntitled()) menuItemSelected (FileSave, 0);   return true; }
     if (key == juce::KeyPress ('s', cmdShift, 0)) { menuItemSelected (FileSaveAs, 0);   return true; }
     return false;
+}
+
+void MainWindow::loadStartupSoundFont()
+{
+    const juce::String configuredPath = settings->getValue ("soundFontPath");
+    const juce::File configured = configuredPath.isNotEmpty() ? juce::File (configuredPath) : juce::File();
+    const auto bundled = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getSiblingFile ("TimGM6mb.sf2");
+    for (const auto& candidate : { configured, bundled })
+    {
+        if (candidate == juce::File() || ! candidate.existsAsFile())
+            continue;
+        try { synth.loadSoundFont (candidate); return; }
+        catch (const PlaybackError&) { /* fall through to the next candidate */ }
+    }
+    // No SoundFont: the app still starts; Play explains (ensurePlaybackReady).
+}
+
+bool MainWindow::ensurePlaybackReady()
+{
+    if (! synth.hasSoundFont())
+    {
+        showError ("No SoundFont", "Choose a SoundFont (.sf2) via Song > SoundFont... to enable playback.");
+        return false;
+    }
+    if (audioOutput == nullptr)
+    {
+        try { audioOutput = std::make_unique<AudioOutput> (playback.engine()); }
+        catch (const PlaybackError& e) { showError ("Audio unavailable", e.what()); return false; }
+        catch (const std::exception& e) { showError ("Audio unavailable", e.what()); return false; }
+    }
+    return true;
+}
+
+void MainWindow::chooseSoundFont()
+{
+    fileChooser = std::make_unique<juce::FileChooser> ("Choose a SoundFont", juce::File(), "*.sf2");
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<MainWindow> (this)] (const juce::FileChooser& fc)
+        {
+            if (safe == nullptr) return;
+            const auto file = fc.getResult();
+            if (file == juce::File()) return;
+            // Message thread. A failed load leaves the previous SoundFont active
+            // (SynthVoice restores its state), and the setting is only written on success.
+            try
+            {
+                safe->synth.loadSoundFont (file);
+                safe->settings->setValue ("soundFontPath", file.getFullPathName());
+                safe->settings->saveIfNeeded();
+            }
+            catch (const PlaybackError& e) { showError ("SoundFont", e.what()); }
+            catch (const std::exception& e) { showError ("SoundFont", e.what()); }
+        });
 }
 
 void MainWindow::runConversion()

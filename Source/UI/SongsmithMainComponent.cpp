@@ -80,8 +80,9 @@ void SongsmithMainComponent::LowerRegion::resized()
     }
 }
 
-SongsmithMainComponent::SongsmithMainComponent (SongDocument& document)
+SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, PlaybackController* playbackIn)
     : doc (document),
+      playback (playbackIn),
       trackList (document),
       partStrip (document),
       upperRegion (sourceHeader, trackList),

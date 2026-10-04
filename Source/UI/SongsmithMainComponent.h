@@ -4,6 +4,7 @@
 #include "GridSize.h"
 #include "PartStripComponent.h"
 #include "PianoRollComponent.h"
+#include "Playback/PlaybackController.h"
 #include "PreviewAssignedPanel.h"
 #include "PreviewNoteSource.h"
 #include "SongDocument.h"
@@ -47,7 +48,7 @@ class SongsmithMainComponent : public juce::Component,
                                 private juce::AsyncUpdater
 {
 public:
-    explicit SongsmithMainComponent (SongDocument& document);
+    explicit SongsmithMainComponent (SongDocument& document, PlaybackController* playbackIn = nullptr);
     ~SongsmithMainComponent() override;
 
     void paint (juce::Graphics& g) override;
@@ -162,6 +163,7 @@ private:
     void handleAsyncUpdate() override;
 
     SongDocument& doc;
+    PlaybackController* playback = nullptr;   // not owned; may be null (tests)
 
     juce::Label              sourceHeader;
     TrackListComponent       trackList;

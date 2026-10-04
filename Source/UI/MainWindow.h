@@ -3,6 +3,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "DiscardGuard.h"
+#include "Playback/AudioOutput.h"
+#include "Playback/PlaybackController.h"
+#include "Playback/SynthVoice.h"
 #include "SongDocument.h"
 #include "SongSession.h"
 
@@ -61,6 +64,7 @@ private:
         ViewDiagnosticsToggle,
         EditQuantize,
         HelpAbout,
+        SongSoundFont,
 
         // Grid-size submenu items occupy EditGridSizeBase + each GridSize
         // enum value, and menuItemSelected range-checks incoming ids against
@@ -77,6 +81,21 @@ private:
     SongDocument                             songDocument;
     // Before `body`; its onChanged is wired in the constructor body.
     SongSession                              session { songDocument };
+    // Playback. Order matters: `synth` and `playback` outlive `body` (the
+    // transport strip talks to the controller) and `audioOutput` (declared
+    // last, so destroyed first: the audio thread must be stopped before the
+    // engine/synth it renders from are destroyed).
+    SynthVoice                               synth;
+    // Frees retired synth instances (message thread, 2 Hz).
+    struct SynthGc : juce::Timer
+    {
+        explicit SynthGc (SynthVoice& s) : voice (s) { startTimerHz (2); }
+        ~SynthGc() override { stopTimer(); }
+        void timerCallback() override { voice.collectGarbage(); }
+        SynthVoice& voice;
+    };
+    SynthGc                                  synthGc { synth };
+    PlaybackController                       playback { songDocument, synth };
     std::unique_ptr<Body>                   body;
     std::unique_ptr<juce::MenuBarComponent> menuBar;
     std::unique_ptr<juce::FileChooser>      fileChooser;
@@ -84,6 +103,14 @@ private:
     // Per-user app settings (window position so far), in the OS's usual
     // per-user settings folder, e.g. %APPDATA%\SongSmith\SongSmith.settings.
     std::unique_ptr<juce::PropertiesFile>   settings;
+
+    // Declared after everything it renders from so it is destroyed first.
+    // Created lazily on the message thread by ensurePlaybackReady().
+    std::unique_ptr<AudioOutput>            audioOutput;
+
+    void chooseSoundFont();
+    void loadStartupSoundFont();
+    bool ensurePlaybackReady();
 
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
