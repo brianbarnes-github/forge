@@ -220,7 +220,8 @@ When you say…       …I'll know you mean
   which has no playback) through a SoundFont. Play starts from the playhead
   from either window; Pause keeps the position; Stop returns to where play
   started; `|<` goes to 0; `<<` steps back one bar (to the start of the
-  current bar, or the previous one when exactly on a bar line); `>|` goes to
+  current bar, or the previous one when exactly on a bar line, using the first meter-map entry only, 4/4 when
+  there is none); `>|` goes to
   the end. At the last note-off playback stops and the playhead stays at the
   end; Play there restarts from 0. An empty Song's Play does nothing. Click
   or drag the seek ruler (#32) to move the playhead; the ruler spans the full

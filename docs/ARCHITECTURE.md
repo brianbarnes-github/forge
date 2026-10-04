@@ -738,9 +738,9 @@ Units:
 
 - **`PlaybackSnapshot`** (`buildSnapshot(doc)`) — immutable, flattened, **seconds**-timed event list built from the `SONG` tree (plus per-track audible flags, the only mutable part, written by `MuteSoloState::apply`). Conductor events are ignored; `SONG.tempoBpm` (the ABC override) is ignored; the tempo comes from `TEMPO_MAP`, 120 BPM before its first entry. `PlaybackError.h` is the custom error type (`SoundFontMissing`, `SoundFontInvalid`, `AudioDeviceUnavailable`).
 - **`TempoMap`** — tick ↔ seconds over the tempo map; owned by the snapshot.
-- **`Transport`** — the one clock: atomic playhead **in seconds**, play/pause/stop/seek, play-start position, seek generation. `advance(from, seconds, end)` is a CAS from the position the engine's block *started* at and is dropped (returns false) if the message thread moved the playhead meanwhile; reaching `end` clears `playing`. `previousBarTick` (Rewind) is a pure helper beside it.
+- **`Transport`** — the one clock: atomic playhead **in seconds**, play/pause/stop/seek, play-start position, seek generation. `advance(from, seconds, end)` is a CAS from the position the engine's block *started* at and is dropped (returns false) if the message thread moved the playhead meanwhile; reaching `end` clears `playing`. `previousBarTick` (Rewind) is a pure helper beside it; Rewind uses the **first** meter-map entry only (the one-meter-timeline convention; 4/4 when there is none).
 - **`MuteSoloState`** — session-only flags keyed by `trackId`: solo additive, mute beats solo. Not in the Song, not undoable.
-- **`HandOff<T>`** — lock-free publication of immutable objects (snapshots, tsf instances) message → audio thread. Ownership is a per-publish multimap, so republishing the same object is safe; retired pointers go through a fixed FIFO and the **message thread** frees them (`collectRetired`). `acquire()` is audio-thread only, and its pointer is valid until the next `acquire()`.
+- **`HandOff<T>`** — lock-free publication of immutable objects (snapshots, tsf instances) message → audio thread. Ownership is a per-publish multimap, so republishing the same object is safe; retired pointers go through a fixed FIFO and the **message thread** frees them (`collectRetired`): retired snapshots by the controller's 30 Hz timer, retired synth instances by `MainWindow`'s 2 Hz `SynthGc` timer. `acquire()` is audio-thread only, and its pointer is valid until the next `acquire()`.
 - **`EventSink`** — the interface the engine drives (`prepare`, `beginBlock`, `handle`, `releaseChannel`, `releaseAll`, `render`); tests substitute a recording sink.
 - **`PlaybackEngine`** — device-free `renderBlock()`. Chases (replays Program/Control/PitchBend before the position) whenever it must resync: a seek-generation change, a snapshot swap, a sink replacement, or **any playhead position it did not itself leave** (`expectedPosition`; `-1` after a dropped advance or while stopped). Releases all voices on those events and on pause; notes of a newly-muted track are released per virtual channel.
 - **`SynthVoice`** — the TinySoundFont `EventSink` (one `TSF_IMPLEMENTATION` TU). 192 voices; every (track, MIDI channel) pair gets its own **virtual channel** (up to `kMaxVirtualChannels` = 256, assigned in `buildSnapshot`; drum channel 10 → the drum bank), so two tracks on the same MIDI channel never share program/controller state and all 256 are pre-initialised on the message thread when a font instance is built, then handed over via `HandOff`. `releaseAll` releases (tails ring out) rather than cutting.
@@ -763,7 +763,7 @@ Data flow: a `SOURCE_MIDI`/`TEMPO_MAP` edit → `AsyncUpdater` (coalesced) → `
 - A failed audio-device prepare after the device opened is silent.
 - The ruler spans the full width including the info column; clicks there seek to a tick scrolled out of view.
 - LOTRO preview playback is a later project.
-- Playback tests that need the SoundFont skip when the local file is absent (always on CI).
+- Playback tests that need the SoundFont return early with a warning (reported as passed) when the local file is absent (always on CI).
 
 ---
 

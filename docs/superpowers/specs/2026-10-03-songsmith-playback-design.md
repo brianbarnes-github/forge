@@ -150,8 +150,8 @@ notes on one channel end early.
   roll with `setContentNonOwned (&roll)`, so the strip and ruler need a new
   container component. Space toggles Play/Pause in both windows; transport
   buttons use `setWantsKeyboardFocus (false)` so Space is never treated as a
-  button click. "Rewind" means step back one bar — *unconfirmed with the
-  user*, to be settled in the plan.
+  button click. "Rewind" (labelled `<<`) steps back one bar (see "Open items
+  (resolved)").
 - **`PlayheadOverlay`**: a mouse-transparent component drawing the playhead
   line. The "main-screen track canvas" is not one component: it is a
   `Viewport` of `TrackRowComponent`s, each with its own preview starting at
@@ -217,7 +217,7 @@ real `SongDocument` from existing fixtures checks:
 
 Unit-level: `buildSnapshot` event ordering, seconds conversion,
 `MuteSoloState`. One smoke test through real TinySoundFont checks non-silence;
-it is skipped when no SoundFont file is present (always the case on CI). Not
+it returns early with a warning (reported as passed) when no SoundFont file is present (always the case on CI). Not
 automated (like `MainWindow` today): the real audio device, the transport
 strip and the space-key wiring; these are build-verified plus the user's manual
 test on Windows. The GUI is never launched from agents.
