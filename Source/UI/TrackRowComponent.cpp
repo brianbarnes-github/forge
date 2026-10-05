@@ -54,6 +54,11 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onTrackSelected)
             onTrackSelected (getTrackId());
     };
+    notePreview.onTimelineClicked = [this] (int tick)
+    {
+        if (onTimelineClicked)
+            onTimelineClicked (tick);
+    };
     notePreview.onNonToggleDoubleClick = [this]
     {
         if (canDrag() && onTrackDoubleClicked)

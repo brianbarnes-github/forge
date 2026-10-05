@@ -46,6 +46,7 @@ PianoRollComponent::~PianoRollComponent()
 {
     if (playback != nullptr)
         playback->removeListener (this);
+    markerOverlay.reset();
     playhead.reset(); // before the viewport: its scroll callbacks touch the playhead
 }
 
@@ -69,6 +70,7 @@ void PianoRollComponent::setPlayback (PlaybackController* controller)
 
     if (playback != nullptr)
         playback->removeListener (this);
+    markerOverlay.reset();
     playhead.reset();
     playback = controller;
     if (playback == nullptr)
@@ -77,7 +79,9 @@ void PianoRollComponent::setPlayback (PlaybackController* controller)
     playback->addListener (this);
     playhead = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return xForTickInComponent (tick); });
     addAndMakeVisible (*playhead);
-    gutter.toFront (false); // order: viewport < playhead < gutter, so the line never draws over the keys
+    markerOverlay = std::make_unique<MarkerOverlay> (*playback, [this] (double tick) { return xForTickInComponent (tick); });
+    addAndMakeVisible (*markerOverlay);
+    gutter.toFront (false); // order: viewport < playhead < marker < gutter, so the lines never draw over the keys
     layoutPlayhead();
 }
 
@@ -89,6 +93,8 @@ void PianoRollComponent::layoutPlayhead()
     playhead->setBounds (viewport.getBounds()
                              .withTrimmedBottom (viewport.getHorizontalScrollBar().isVisible() ? viewport.getScrollBarThickness() : 0)
                              .withTrimmedRight (viewport.getVerticalScrollBar().isVisible() ? viewport.getScrollBarThickness() : 0));
+    if (markerOverlay != nullptr)
+        markerOverlay->setBounds (playhead->getBounds());
 }
 
 void PianoRollComponent::refreshPlayhead()
@@ -97,6 +103,8 @@ void PianoRollComponent::refreshPlayhead()
         return;
     ++playheadRepaintCount;
     playhead->repaint();
+    if (markerOverlay != nullptr)
+        markerOverlay->repaint();
 }
 
 void PianoRollComponent::followPlayhead (bool playing)
@@ -328,6 +336,9 @@ void PianoRollComponent::afterEditorGesture (bool changed)
 
 bool PianoRollComponent::handleEditorMouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick)
 {
+    markerClickCandidate = playback != nullptr && ! isDoubleClick && ! mods.isPopupMenu()
+                           && (sourceEditor == nullptr || ! sourceEditor->isOverNote (pos));
+    markerPressPos = pos;
     if (sourceEditor == nullptr)
         return false;
     const bool changed = sourceEditor->mouseDown (pos, mods, isDoubleClick);
@@ -346,6 +357,9 @@ bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos)
 
 bool PianoRollComponent::handleEditorMouseUp (juce::Point<int> pos)
 {
+    if (markerClickCandidate && playback != nullptr && pos.getDistanceFrom (markerPressPos) < 4)
+        playback->setMarkerTick ((double) geometry.tickForX (pos.x));
+    markerClickCandidate = false;
     if (sourceEditor == nullptr)
         return false;
     const bool changed = sourceEditor->mouseUp (pos);

@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace lotro
 {
@@ -30,6 +31,7 @@ public:
         virtual void playbackPositionChanged() {}
         virtual void playbackStateChanged() {}
         virtual void muteSoloChanged() {}
+        virtual void playbackMarkerChanged() {}
     };
 
     PlaybackController (SongDocument& document, EventSink& sink);
@@ -51,6 +53,13 @@ public:
     void goToEnd();
     void rewindOneBar();
     void seekToTick (double tick);
+
+    // The start marker: where Play begins (after Pause or Stop too), whatever
+    // the playhead is doing. Session-only; held in ticks so it follows tempo
+    // edits. With no marker, Play starts from the playhead.
+    void setMarkerTick (double tick);
+    void clearMarker();
+    std::optional<double> getMarkerTick() const { return markerTick; }
 
     bool isPlaying() const { return transport.isPlaying(); }
     double getPositionSeconds() const { return transport.getPositionSeconds(); }
@@ -92,6 +101,7 @@ private:
     std::shared_ptr<PlaybackSnapshot> snapshot;
     juce::ListenerList<Listener> listeners;
 
+    std::optional<double> markerTick;
     double lastReportedPosition = -1.0;
     bool lastReportedPlaying = false;
 };

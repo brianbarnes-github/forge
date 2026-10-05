@@ -50,6 +50,7 @@ namespace lotro
         static void paintGutter (const PianoRollComponent& c, juce::Graphics& g) { c.paintGutter (g); }
         static int hoveredPitch (const PianoRollComponent& c) { return c.hoveredPitch; }
         static juce::Component* playhead (PianoRollComponent& c) { return c.playhead.get(); }
+        static MarkerOverlay* markerOverlay (PianoRollComponent& c) { return c.markerOverlay.get(); }
         static int playheadX (const PianoRollComponent& c) { return c.playhead->currentX(); }
         static int playheadRepaints (const PianoRollComponent& c) { return c.playheadRepaintCount; }
         static bool timelineFitted (const PianoRollComponent& c) { return c.timelineFitted; }
@@ -935,4 +936,63 @@ TEST_CASE ("PianoRollComponent: following a playhead at the end of a fitted view
     CHECK (Access::viewport (f.roll).getViewPositionX() == 0);
     CHECK (Access::timelineFitted (f.roll));
     CHECK (Access::playheadRepaints (f.roll) == repaints);
+}
+
+TEST_CASE ("PianoRollComponent: a plain click on empty canvas sets the shared start marker; notes, drags, double-clicks and right-clicks do not", "[piano-roll][marker]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    f.roll.setPlayback (&f.controller);
+    const auto& geometry = Access::geometry (f.roll);
+    const int emptyY = geometry.yForPitch (40) + geometry.getRowHeight() / 2;   // no note at pitch 40
+    const int noteY = geometry.yForPitch (60) + geometry.getRowHeight() / 2;    // inside the long note
+
+    // Empty space: press and release in place.
+    const juce::Point<int> empty { geometry.xForTick (2400), emptyY };
+    Access::mouseDown (f.roll, empty, {}, false);
+    Access::mouseUp (f.roll, empty);
+    REQUIRE (f.controller.getMarkerTick().has_value());
+    CHECK (*f.controller.getMarkerTick() == Catch::Approx ((double) geometry.tickForX (empty.x)));
+
+    f.controller.clearMarker();
+
+    // On a note: selects it, no marker.
+    const juce::Point<int> onNote { geometry.xForTick (2400), noteY };
+    Access::mouseDown (f.roll, onNote, {}, false);
+    Access::mouseUp (f.roll, onNote);
+    CHECK (! f.controller.getMarkerTick().has_value());
+
+    // A drag (rubber band across empty space): no marker.
+    Access::mouseDown (f.roll, empty, {}, false);
+    Access::mouseDrag (f.roll, empty.translated (60, 0));
+    Access::mouseUp (f.roll, empty.translated (60, 0));
+    CHECK (! f.controller.getMarkerTick().has_value());
+
+    // A double-click creates a note: no marker.
+    Access::mouseDown (f.roll, empty, {}, true);
+    Access::mouseUp (f.roll, empty);
+    CHECK (! f.controller.getMarkerTick().has_value());
+
+    // A right-click picks a pitch: no marker.
+    Access::mouseDown (f.roll, empty, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier), false);
+    Access::mouseUp (f.roll, empty);
+    CHECK (! f.controller.getMarkerTick().has_value());
+}
+
+TEST_CASE ("PianoRollComponent: the start marker is drawn by an overlay between the canvas and the gutter", "[piano-roll][marker]")
+{
+    PlayheadRollFixture f;
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    preview.setPlayback (&f.controller);
+    CHECK (! preview.hasMarkerOverlayForTesting());
+
+    f.roll.setPlayback (&f.controller);
+    REQUIRE (f.roll.hasMarkerOverlayForTesting());
+    f.controller.setMarkerTick (1920.0);
+    CHECK (Access::markerOverlay (f.roll)->currentX() == f.roll.xForTickInComponent (1920.0));
+    CHECK (f.roll.getIndexOfChildComponent (Access::markerOverlay (f.roll))
+           < f.roll.getIndexOfChildComponent (&Access::gutter (f.roll)));
+
+    f.roll.setPlayback (nullptr);
+    CHECK (! f.roll.hasMarkerOverlayForTesting());
 }

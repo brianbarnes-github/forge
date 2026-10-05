@@ -68,3 +68,26 @@ TEST_CASE ("TimelineRuler: click and drag report the tick under the pointer, cla
     ruler.mouseDrag (mouseAt (ruler, -30));
     CHECK (lastTick == Catch::Approx (0.0).margin (1e-9));
 }
+
+TEST_CASE ("MarkerOverlay: ignores mouse clicks and shows nothing until a marker is set", "[playback][overlay][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    MarkerOverlay overlay (controller, [] (double tick) { return (int) (tick * 0.1); });
+    overlay.setSize (500, 100);
+
+    bool onThis = true;
+    bool onChildren = true;
+    overlay.getInterceptsMouseClicks (onThis, onChildren);
+    CHECK (! onThis);
+    CHECK (! onChildren);
+
+    CHECK (! overlay.currentX().has_value());
+    controller.setMarkerTick (1000.0);
+    REQUIRE (overlay.currentX().has_value());
+    CHECK (*overlay.currentX() == 100);
+    controller.clearMarker();
+    CHECK (! overlay.currentX().has_value());
+}

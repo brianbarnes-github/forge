@@ -54,6 +54,7 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
     {
         ruler.reset();
         overlay.reset();
+        markerOverlay.reset();
     }
     else if (ruler == nullptr)
     {
@@ -62,6 +63,8 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
         addAndMakeVisible (*ruler);
         overlay = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
         addAndMakeVisible (*overlay);   // added after the viewport, so it draws on top
+        markerOverlay = std::make_unique<MarkerOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
+        addAndMakeVisible (*markerOverlay);
     }
     rebuild();
     resized();
@@ -73,6 +76,8 @@ void TrackListComponent::refreshOverlay()
         return;
     ++overlayRepaintCount;
     overlay->repaint();
+    if (markerOverlay != nullptr)
+        markerOverlay->repaint();
 }
 
 void TrackListComponent::followPlayhead (bool playing)
@@ -116,6 +121,7 @@ void TrackListComponent::rebuild()
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
         row->setSelected (row->getTrackId() == selectedTrackId);
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
+        row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId) { selectTrack (trackId); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
@@ -255,6 +261,8 @@ void TrackListComponent::resized()
     viewport.setBounds (area);
     if (overlay != nullptr)
         overlay->setBounds (viewport.getBounds().withTrimmedLeft (notePreviewOriginX()).withWidth (previewWidth()));
+    if (markerOverlay != nullptr)
+        markerOverlay->setBounds (overlay->getBounds());
 
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
                                      .withWidth (previewWidth()));

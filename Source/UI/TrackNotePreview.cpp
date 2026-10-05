@@ -71,8 +71,12 @@ namespace lotro
 
     void TrackNotePreview::mouseDown (const juce::MouseEvent& e)
     {
-        if (! toggleGhostIfHit (e.getPosition()) && onNonToggleClick)
+        if (toggleGhostIfHit (e.getPosition()))
+            return;
+        if (onNonToggleClick)
             onNonToggleClick();
+        if (onTimelineClicked)
+            onTimelineClicked (viewState.tickForX (e.getPosition().x));
     }
 
     void TrackNotePreview::mouseDoubleClick (const juce::MouseEvent& e)

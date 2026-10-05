@@ -54,6 +54,9 @@ public:
     // separate rows.
     static constexpr int dividerThickness = 1;
 
+    // Fired with the tick under a click in the note preview (not on the ghost toggle).
+    std::function<void (int tick)> onTimelineClicked;
+
     // Fired on a plain (non-drag) click, with this row's trackId.
     std::function<void (juce::int64)> onTrackSelected;
 

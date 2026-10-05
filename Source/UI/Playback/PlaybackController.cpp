@@ -73,8 +73,10 @@ void PlaybackController::play()
         return;
     if (onBeforePlay && ! onBeforePlay())
         return;
+    if (markerTick.has_value())
+        transport.seek (snapshot->tempo().ticksToSeconds (*markerTick));
     transport.play (snapshot->endSeconds());
-    listeners.call ([] (Listener& l) { l.playbackStateChanged(); });
+    listeners.call ([] (Listener& l) { l.playbackStateChanged(); l.playbackPositionChanged(); });
 }
 
 void PlaybackController::pause()
@@ -126,6 +128,20 @@ void PlaybackController::seekToTick (double tick)
     listeners.call ([] (Listener& l) { l.playbackPositionChanged(); });
 }
 
+void PlaybackController::setMarkerTick (double tick)
+{
+    markerTick = std::max (0.0, tick);
+    listeners.call ([] (Listener& l) { l.playbackMarkerChanged(); });
+}
+
+void PlaybackController::clearMarker()
+{
+    if (! markerTick.has_value())
+        return;
+    markerTick.reset();
+    listeners.call ([] (Listener& l) { l.playbackMarkerChanged(); });
+}
+
 void PlaybackController::setMuted (juce::int64 trackId, bool muted)
 {
     muteSolo.setMuted (trackId, muted);
@@ -144,9 +160,10 @@ void PlaybackController::documentReplaced()
 {
     transport.reset();   // not stop()+goToStart(): those would leave the old Song's play-start behind
     muteSolo.clear();
+    markerTick.reset();
     cancelPendingUpdate();
     rebuild();   // unconditional: the whole document changed
-    listeners.call ([] (Listener& l) { l.playbackStateChanged(); l.playbackPositionChanged(); l.muteSoloChanged(); });
+    listeners.call ([] (Listener& l) { l.playbackStateChanged(); l.playbackPositionChanged(); l.muteSoloChanged(); l.playbackMarkerChanged(); });
 }
 
 void PlaybackController::timerCallback()

@@ -276,3 +276,74 @@ TEST_CASE ("PlaybackController: destroying the document-side controller first is
     pumpMessages();
     SUCCEED();
 }
+
+TEST_CASE ("PlaybackController: with no marker, Play starts where the playhead is", "[playback][controller][marker]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    CHECK (! r.controller.getMarkerTick().has_value());
+    r.controller.seekToTick (960.0);      // 1 s at the default tempo
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (1.0));
+}
+
+TEST_CASE ("PlaybackController: Play starts from the marker, wherever the playhead is, even after Pause or Stop", "[playback][controller][marker]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.setMarkerTick (960.0);   // 1 s
+    CHECK (r.controller.getMarkerTick().value() == Approx (960.0));
+    // Setting the marker does not move the playhead.
+    CHECK (r.controller.getPositionSeconds() == Approx (0.0));
+
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (1.0));
+    r.render (20);
+    REQUIRE (r.controller.getPositionSeconds() > 1.0);
+
+    r.controller.pause();
+    r.controller.play();                  // not a resume: back to the marker
+    CHECK (r.controller.getPositionSeconds() == Approx (1.0));
+
+    r.render (20);
+    r.controller.stop();
+    CHECK (r.controller.getPositionSeconds() == Approx (1.0));
+
+    r.controller.seekToTick (1920.0);     // a ruler seek does not override the marker either
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (1.0));
+}
+
+TEST_CASE ("PlaybackController: the marker is announced to listeners and survives edits but not a new document", "[playback][controller][marker]")
+{
+    struct Counter : PlaybackController::Listener
+    {
+        int markerChanges = 0;
+        void playbackMarkerChanged() override { ++markerChanges; }
+    };
+
+    Rig r;
+    auto t = addTrack (r.doc);
+    addNote (t, 60, 0, 9600);
+    r.controller.flushRebuild();
+    Counter counter;
+    r.controller.addListener (&counter);
+
+    r.controller.setMarkerTick (480.0);
+    CHECK (counter.markerChanges == 1);
+
+    addNote (t, 62, 960, 480);            // an edit rebuilds the snapshot; the marker stays
+    r.controller.flushRebuild();
+    CHECK (r.controller.getMarkerTick().value() == Approx (480.0));
+
+    r.doc.resetToEmpty();
+    r.controller.documentReplaced();
+    CHECK (! r.controller.getMarkerTick().has_value());
+    CHECK (counter.markerChanges == 2);
+
+    r.controller.clearMarker();           // already clear: no spurious notification
+    CHECK (counter.markerChanges == 2);
+    r.controller.removeListener (&counter);
+}

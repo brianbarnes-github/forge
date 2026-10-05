@@ -88,6 +88,10 @@ public:
     // ("off" -- there is no implicit grid to snap to).
     bool quantizeSelection();
 
+    // Whether a press at pos would land on a note (used by the owner to tell
+    // an empty-space click from a note gesture).
+    bool isOverNote (juce::Point<int> pos) const { return hitTestNote (pos).isValid(); }
+
 private:
     enum class DragMode { None, Move, ResizeLeft, ResizeRight, RubberBand };
 

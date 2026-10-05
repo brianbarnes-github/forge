@@ -179,6 +179,7 @@ private:
     // controller (which the overlay's listener registration refers to).
     std::unique_ptr<TimelineRuler>    ruler;
     std::unique_ptr<PlayheadOverlay>  overlay;
+    std::unique_ptr<MarkerOverlay>    markerOverlay;
     int                               overlayRepaintCount = 0;   // test observability
 
     // True from fitTimelineToDocument() until the user zooms by hand: while

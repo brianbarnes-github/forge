@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <optional>
 
 namespace lotro
 {
@@ -28,6 +29,25 @@ private:
     PlaybackController& controller;
     std::function<int (double)> tickToX;
     int lastX = -1;
+};
+
+// A mouse-transparent amber line (with a flag at the top) at the shared start
+// marker. Draws nothing while no marker is set. Same ownership and mapping
+// contract as PlayheadOverlay; owners repaint() it when zoom/scroll change.
+class MarkerOverlay : public juce::Component, private PlaybackController::Listener
+{
+public:
+    MarkerOverlay (PlaybackController& controllerIn, std::function<int (double tick)> tickToXIn);
+    ~MarkerOverlay() override;
+
+    void paint (juce::Graphics& g) override;
+    std::optional<int> currentX() const;
+
+private:
+    void playbackMarkerChanged() override { repaint(); }
+
+    PlaybackController& controller;
+    std::function<int (double)> tickToX;
 };
 
 } // namespace lotro

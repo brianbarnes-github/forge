@@ -263,3 +263,25 @@ TEST_CASE ("TrackRowComponent: setMuteSolo reflects state on the buttons", "[tra
     CHECK (! row.muteButtonForTesting().getToggleState());
     CHECK (row.soloButtonForTesting().getToggleState());
 }
+
+TEST_CASE ("TrackRowComponent: a click in the note preview reports the tick under it, but not on the ghost toggle", "[track-row][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+    row.setBounds (0, 0, 300, TrackRowComponent::rowHeight);
+    auto& preview = row.notePreviewForTesting();
+
+    std::vector<int> ticks;
+    row.onTimelineClicked = [&] (int tick) { ticks.push_back (tick); };
+
+    const juce::Point<int> awayFromToggle { 20, 20 };
+    preview.mouseDown (eventAt (preview, awayFromToggle, 1));
+    REQUIRE (ticks.size() == 1);
+    CHECK (ticks[0] == viewState.tickForX (20));
+
+    preview.mouseDown (eventAt (preview, preview.ghostToggleBounds().getCentre(), 1));
+    CHECK (ticks.size() == 1);
+}

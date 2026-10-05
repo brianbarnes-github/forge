@@ -55,6 +55,7 @@ namespace lotro
         }
         static PlayheadOverlay* overlay (TrackListComponent& c) { return c.overlay.get(); }
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
+        static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
     };
 }
 
@@ -728,4 +729,35 @@ TEST_CASE ("TrackListComponent: following a playhead at the end of a fitted song
     list.setSize (500, 300);
     CHECK (Access::timelineView (list).getPixelsPerTick()
            == Catch::Approx ((double) previewWidth (list) / 96000.0));
+}
+
+TEST_CASE ("TrackListComponent: clicking a row's note preview sets the shared start marker and shows it", "[track-list][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+
+    auto* markerOverlay = Access::markerOverlay (list);
+    REQUIRE (markerOverlay != nullptr);
+    CHECK (! markerOverlay->currentX().has_value());
+
+    auto* row = Access::rowFor (list, (juce::int64) track.getProperty (SongIDs::trackId));
+    REQUIRE (row != nullptr);
+    auto& preview = row->notePreviewForTesting();
+    const juce::Point<float> pos { 60.0f, 20.0f };
+    preview.mouseDown (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos,
+                                         juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &preview, &preview,
+                                         juce::Time::getCurrentTime(), pos, juce::Time::getCurrentTime(), 1, false));
+
+    REQUIRE (controller.getMarkerTick().has_value());
+    CHECK (*controller.getMarkerTick() == Catch::Approx ((double) Access::timelineView (list).tickForX (60)));
+    CHECK (markerOverlay->currentX().has_value());
 }

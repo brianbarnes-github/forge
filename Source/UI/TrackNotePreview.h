@@ -47,6 +47,10 @@ namespace lotro
         // its visible area. Same up-the-chain callback shape as
         // onGhostToggled.
         std::function<void()> onNonToggleClick;
+
+        // Fired with the tick under the pointer for the same clicks, so the
+        // list can drop the start marker there.
+        std::function<void (int tick)> onTimelineClicked;
         std::function<void()> onNonToggleDoubleClick;
 
     private:

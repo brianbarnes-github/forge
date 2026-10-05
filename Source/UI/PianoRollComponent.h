@@ -42,6 +42,7 @@ public:
     double tickForXInComponent (int x) const;
 
     bool hasPlayheadForTesting() const noexcept { return playhead != nullptr; }
+    bool hasMarkerOverlayForTesting() const noexcept { return markerOverlay != nullptr; }
 
     Role getRole() const noexcept { return role; }
 
@@ -215,6 +216,11 @@ private:
 
     PlaybackController* playback = nullptr; // Source role only; not owned.
     std::unique_ptr<PlayheadOverlay> playhead;
+    std::unique_ptr<MarkerOverlay> markerOverlay;
+    // A plain left click on empty canvas (no drag) drops the start marker; the
+    // press decides eligibility, the release (still near the press) commits.
+    bool markerClickCandidate = false;
+    juce::Point<int> markerPressPos;
     int playheadRepaintCount = 0; // test observability
 
     ScrollAwareViewport viewport { *this };
