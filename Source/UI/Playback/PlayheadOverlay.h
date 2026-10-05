@@ -31,9 +31,11 @@ private:
     int lastX = -1;
 };
 
-// A mouse-transparent amber line (with a flag at the top) at the shared start
-// marker. Draws nothing while no marker is set. Same ownership and mapping
-// contract as PlayheadOverlay; owners repaint() it when zoom/scroll change.
+// An amber line at the shared start marker, topped by a down-pointing handle.
+// Clicking the handle clears the marker; everywhere else the overlay is
+// mouse-transparent (hitTest), so it never blocks editing. Draws nothing while
+// no marker is set. Same ownership and mapping contract as PlayheadOverlay;
+// owners repaint() it when zoom/scroll change.
 class MarkerOverlay : public juce::Component, private PlaybackController::Listener
 {
 public:
@@ -42,6 +44,11 @@ public:
 
     void paint (juce::Graphics& g) override;
     std::optional<int> currentX() const;
+
+    // The clickable handle, in this component's coordinates; none while no marker is set.
+    std::optional<juce::Rectangle<int>> handleBounds() const;
+    bool hitTest (int x, int y) override;
+    void mouseDown (const juce::MouseEvent& e) override;
 
 private:
     void playbackMarkerChanged() override { repaint(); }

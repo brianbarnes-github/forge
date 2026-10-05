@@ -42,7 +42,7 @@ void PlayheadOverlay::playbackPositionChanged()
 MarkerOverlay::MarkerOverlay (PlaybackController& controllerIn, std::function<int (double)> tickToXIn)
     : controller (controllerIn), tickToX (std::move (tickToXIn))
 {
-    setInterceptsMouseClicks (false, false);
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
     controller.addListener (this);
 }
 
@@ -59,15 +59,38 @@ std::optional<int> MarkerOverlay::currentX() const
     return tickToX (*tick);
 }
 
-void MarkerOverlay::paint (juce::Graphics& g)
+std::optional<juce::Rectangle<int>> MarkerOverlay::handleBounds() const
 {
     const auto x = currentX();
-    if (! x.has_value() || *x < 0 || *x >= getWidth())
+    if (! x.has_value())
+        return std::nullopt;
+    constexpr int handleWidth = 16, handleHeight = 12;
+    return juce::Rectangle<int> (*x - handleWidth / 2, 0, handleWidth, handleHeight);
+}
+
+bool MarkerOverlay::hitTest (int x, int y)
+{
+    const auto handle = handleBounds();
+    return handle.has_value() && handle->contains (x, y);
+}
+
+void MarkerOverlay::mouseDown (const juce::MouseEvent&)
+{
+    controller.clearMarker();
+}
+
+void MarkerOverlay::paint (juce::Graphics& g)
+{
+    const auto handle = handleBounds();
+    const auto x = currentX();
+    if (! handle.has_value() || *x + handle->getWidth() / 2 < 0 || *x - handle->getWidth() / 2 >= getWidth())
         return;
     g.setColour (juce::Colour (SongsmithColours::accentAmber));
-    g.fillRect (*x, 0, 1, getHeight());
+    if (*x >= 0 && *x < getWidth())
+        g.fillRect (*x, handle->getBottom(), 1, getHeight() - handle->getBottom());
     juce::Path flag;
-    flag.addTriangle ((float) *x, 0.0f, (float) *x + 9.0f, 0.0f, (float) *x, 9.0f);
+    flag.addTriangle ((float) handle->getX(), 0.0f, (float) handle->getRight(), 0.0f,
+                      (float) *x + 0.5f, (float) handle->getBottom());
     g.fillPath (flag);
 }
 

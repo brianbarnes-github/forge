@@ -69,7 +69,7 @@ TEST_CASE ("TimelineRuler: click and drag report the tick under the pointer, cla
     CHECK (lastTick == Catch::Approx (0.0).margin (1e-9));
 }
 
-TEST_CASE ("MarkerOverlay: ignores mouse clicks and shows nothing until a marker is set", "[playback][overlay][marker]")
+TEST_CASE ("MarkerOverlay: shows nothing until a marker is set", "[playback][overlay][marker]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -78,16 +78,39 @@ TEST_CASE ("MarkerOverlay: ignores mouse clicks and shows nothing until a marker
     MarkerOverlay overlay (controller, [] (double tick) { return (int) (tick * 0.1); });
     overlay.setSize (500, 100);
 
-    bool onThis = true;
-    bool onChildren = true;
-    overlay.getInterceptsMouseClicks (onThis, onChildren);
-    CHECK (! onThis);
-    CHECK (! onChildren);
-
     CHECK (! overlay.currentX().has_value());
+    CHECK (! overlay.handleBounds().has_value());
     controller.setMarkerTick (1000.0);
     REQUIRE (overlay.currentX().has_value());
     CHECK (*overlay.currentX() == 100);
     controller.clearMarker();
     CHECK (! overlay.currentX().has_value());
+}
+
+TEST_CASE ("MarkerOverlay: only the handle at the top of the line takes clicks, and clicking it clears the marker", "[playback][overlay][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    MarkerOverlay overlay (controller, [] (double tick) { return (int) (tick * 0.1); });
+    overlay.setSize (500, 100);
+
+    // No marker: nothing to hit, so clicks fall through to the canvas.
+    CHECK (! overlay.hitTest (100, 3));
+
+    controller.setMarkerTick (1000.0);   // x = 100
+    const auto handle = overlay.handleBounds();
+    REQUIRE (handle.has_value());
+    CHECK (handle->getCentreX() == 100);
+    CHECK (handle->getY() == 0);
+    CHECK (handle->getWidth() >= 12);    // big enough to click
+    CHECK (handle->getHeight() >= 8);
+
+    CHECK (overlay.hitTest (100, 3));                       // on the handle
+    CHECK (! overlay.hitTest (100, handle->getBottom() + 10));   // the line below it is not clickable
+    CHECK (! overlay.hitTest (300, 3));                     // elsewhere on the canvas
+
+    overlay.mouseDown (mouseAt (overlay, 100));
+    CHECK (! controller.getMarkerTick().has_value());
 }
