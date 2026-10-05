@@ -18,8 +18,6 @@ describes the current, Songsmith-only UI only.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Menu bar    [File ▾] [Edit ▾] [Song ▾] [View ▾] [Help ▾]             │  #3  (24 px)
 ├──────────────────────────────────────────────────────────────────────┤
-│ [|<] [<<] [Play] [Stop] [>|]   TransportStrip (28 px)                │  #30
-├──────────────────────────────────────────────────────────────────────┤
 │ ▲ MIDI SOURCE · drag tracks down to assign                           │  #8  UpperRegion header
 ├──────────────────────────────────────────────────────────────────────┤
 │  seek ruler (14 px) above the track canvas; playhead line over rows  │  #32, #33
@@ -28,6 +26,7 @@ describes the current, Songsmith-only UI only.
 │  index/name/note-range text, inline note-timeline preview            │  (inline preview under #10)
 │  (shared zoom/scroll) + per-row ghost-visibility toggle              │  dbl-click row → editor (#28)
 ├══════════════════════ SplitterComponent (drag to resize, top/bottom) ═╡  #6  outer splitter
+│            [|<] [<<] [Play] [Stop] [>|]   TransportStrip (28 px, centred) │  #30  top row of the lower region
 │ PARTS · DROP TRACKS TO ASSIGN                                         │  #15  PartStripComponent
 │  [x:1 Lute "Lead"] [x:2 Drums ""] [+ Add]                             │  (slots are #16, chips #17)
 ├──────────────────────┬────────────────────────────────────────────────┤
@@ -84,7 +83,7 @@ When you say…       …I'll know you mean
 | 27 | **Status line**                 | The grey `juce::Label` at the bottom of `DiagnosticsPane` (`5,824 bytes · 184 bars · 3 parts`) |
 | 28 | **Track editor window**         | `TrackEditorWindow` (`Source/UI/TrackEditorWindow.{h,cpp}`) — floating, single-instance `juce::DocumentWindow` (native title bar with minimise/maximise/close) opened by double-clicking a track row (#10); a second double-click on a different row re-points it (`setTrack`) rather than opening another window. Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, plus the playback transport strip (#30), a seek ruler (#32) and the playhead overlay (#33) above/over the roll (the window is 42 px taller than before playback). Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
-| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); above the Songsmith view in the main window and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
+| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | `TrackRowComponent`'s `M` / `S` toggle buttons at the right end of the 180 px info column of every non-conductor row (#10); session-only, never saved or undoable |
 | 32 | **Seek ruler**               | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`) — 14 px strip above the main track canvas (#9) and above the Track editor's roll (#13); click or drag to move the playhead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |

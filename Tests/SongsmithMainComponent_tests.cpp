@@ -6,6 +6,9 @@
 
 #include "PartStripTestAccess.h"
 #include "UI/SongDocument.h"
+#include "PlaybackTestSupport.h"
+#include "UI/Playback/PlaybackController.h"
+#include "UI/Playback/TransportStrip.h"
 #include "UI/SongsmithMainComponent.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -40,6 +43,10 @@ namespace lotro
             c.trackDoubleClicked (trackId);
         }
         static PartStripComponent& partStrip (SongsmithMainComponent& c) { return c.partStrip; }
+        static TransportStrip* transportStrip (SongsmithMainComponent& c) { return c.transportStrip.get(); }
+        static juce::Component& upperRegion (SongsmithMainComponent& c) { return c.upperRegion; }
+        static juce::Component& lowerRegion (SongsmithMainComponent& c) { return c.lowerRegion; }
+        static SplitterComponent& splitter (SongsmithMainComponent& c) { return c.splitter; }
         static std::size_t ghostedCount (const SongsmithMainComponent& c) { return c.ghostedTrackIds.size(); }
         static juce::int64 selectedPreviewPartId (const SongsmithMainComponent& c) { return c.selectedPreviewPartId; }
         static void trackGhostToggled (SongsmithMainComponent& c, juce::int64 id, bool v) { c.trackGhostToggled (id, v); }
@@ -317,4 +324,40 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced writes nothing to the tree"
     juce::MessageManager::getInstance()->runDispatchLoopUntil (200);
 
     CHECK (doc.getTree().isEquivalentTo (before));
+}
+
+TEST_CASE ("SongsmithMainComponent: the transport strip heads the lower region, between the MIDI canvas and the part strip, and moves with the splitter", "[songsmith][transport]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 800);
+
+    using Access = SongsmithMainComponentTestAccess;
+    auto* strip = Access::transportStrip (view);
+    REQUIRE (strip != nullptr);
+
+    auto stripTopInView = [&] { return view.getLocalArea (strip, strip->getLocalBounds()).getY(); };
+    auto partTopInView  = [&] { return view.getLocalArea (&Access::partStrip (view), Access::partStrip (view).getLocalBounds()).getY(); };
+
+    CHECK (stripTopInView() >= Access::upperRegion (view).getBottom());
+    CHECK (strip->getHeight() == TransportStrip::height);
+    CHECK (partTopInView() == stripTopInView() + TransportStrip::height);
+
+    const int before = stripTopInView();
+    Access::splitter (view).setFraction (0.3f);
+    view.resized();
+    CHECK (stripTopInView() < before);
+    CHECK (partTopInView() == stripTopInView() + TransportStrip::height);
+}
+
+TEST_CASE ("SongsmithMainComponent: without a playback controller there is no transport strip", "[songsmith][transport]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 800);
+    CHECK (SongsmithMainComponentTestAccess::transportStrip (view) == nullptr);
 }

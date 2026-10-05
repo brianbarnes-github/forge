@@ -79,3 +79,23 @@ TEST_CASE ("TransportStrip: stop and go-to buttons drive the controller", "[play
     click (*strip.buttonsForTesting()[0]);           // go to start
     CHECK (controller.getPositionSeconds() == Approx (0.0));
 }
+
+TEST_CASE ("TransportStrip: the buttons are centred in the bar", "[playback][strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller);
+
+    for (const int width : { 300, 641, 1200 })
+    {
+        strip.setSize (width, TransportStrip::height);
+        const auto buttons = strip.buttonsForTesting();
+        const int left = buttons.front()->getX();
+        const int right = buttons.back()->getRight();
+        CHECK (std::abs ((left + right) / 2 - width / 2) <= 1);
+        CHECK (left >= 0);
+        CHECK (right <= width);
+    }
+}

@@ -12,7 +12,6 @@
 #include "WindowPlacement.h"
 
 #include "Playback/PlaybackError.h"
-#include "Playback/TransportStrip.h"
 
 #include "Core/AbcWriter.h"
 #include "Core/Config.h"
@@ -80,9 +79,8 @@ namespace
 class MainWindow::Body : public juce::Component
 {
 public:
-    Body (SongDocument& doc, PlaybackController& playback) : songsmith (doc, &playback), strip (playback)
+    Body (SongDocument& doc, PlaybackController& playback) : songsmith (doc, &playback)
     {
-        addAndMakeVisible (strip);
         // Both songsmith and exportPanel are children throughout this Body's
         // lifetime; only one is ever visible (toggled by
         // setExportPanelVisible), so switching never needs to reparent
@@ -98,7 +96,6 @@ public:
     void resized() override
     {
         auto area = getLocalBounds();
-        strip.setBounds (area.removeFromTop (TransportStrip::height));
         songsmith.setBounds (area);
         exportPanel.setBounds (area);
     }
@@ -115,7 +112,6 @@ public:
 
 private:
     SongsmithMainComponent songsmith;
-    TransportStrip         strip;
     DiagnosticsPane        exportPanel;
 };
 

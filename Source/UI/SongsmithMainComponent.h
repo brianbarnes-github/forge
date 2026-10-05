@@ -12,6 +12,8 @@
 #include "TrackEditorWindow.h"
 #include "TrackListComponent.h"
 
+#include "Playback/TransportStrip.h"
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
@@ -110,14 +112,17 @@ private:
     class LowerRegion : public juce::Component
     {
     public:
-        LowerRegion (PartStripComponent& partStripIn, PreviewRegion& previewRegionIn,
-                     DiagnosticListView& diagnosticsIn);
+        // `transportIn` (null when there is no playback) is the bar across the
+        // top of the region; it rides along when the splitter above is dragged.
+        LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
+                     PreviewRegion& previewRegionIn, DiagnosticListView& diagnosticsIn);
         void resized() override;
 
         void setDiagnosticsVisible (bool shouldShow);
         bool isDiagnosticsVisible() const noexcept { return diagnostics.isVisible(); }
 
     private:
+        juce::Component* transport;
         PartStripComponent& partStrip;
         PreviewRegion& previewRegion;
         DiagnosticListView& diagnostics;
@@ -188,6 +193,7 @@ private:
 
     DiagnosticListView         diagnostics;
 
+    std::unique_ptr<TransportStrip> transportStrip;   // before lowerRegion, which lays it out
     UpperRegion   upperRegion;
     PreviewRegion previewRegion;
     LowerRegion   lowerRegion;

@@ -86,12 +86,15 @@ void TransportStrip::paint (juce::Graphics& g)
 
 void TransportStrip::resized()
 {
-    auto area = getLocalBounds().reduced (4, 3);
-    const int w = 36;
-    for (auto* b : buttonsForTesting())
+    // The row of buttons, centred in the bar.
+    const int w = 36, gap = 4;
+    const auto buttons = buttonsForTesting();
+    const int count = (int) buttons.size();
+    auto row = getLocalBounds().reduced (0, 3).withSizeKeepingCentre (count * w + (count - 1) * gap, getHeight() - 6);
+    for (auto* b : buttons)
     {
-        b->setBounds (area.removeFromLeft (w));
-        area.removeFromLeft (4);
+        b->setBounds (row.removeFromLeft (w));
+        row.removeFromLeft (gap);
     }
 }
 

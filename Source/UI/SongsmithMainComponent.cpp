@@ -39,10 +39,12 @@ void SongsmithMainComponent::PreviewRegion::resized()
     roll.setBounds (area);
 }
 
-SongsmithMainComponent::LowerRegion::LowerRegion (PartStripComponent& partStripIn, PreviewRegion& previewRegionIn,
-                                                   DiagnosticListView& diagnosticsIn)
-    : partStrip (partStripIn), previewRegion (previewRegionIn), diagnostics (diagnosticsIn)
+SongsmithMainComponent::LowerRegion::LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
+                                                   PreviewRegion& previewRegionIn, DiagnosticListView& diagnosticsIn)
+    : transport (transportIn), partStrip (partStripIn), previewRegion (previewRegionIn), diagnostics (diagnosticsIn)
 {
+    if (transport != nullptr)
+        addAndMakeVisible (*transport);
     addAndMakeVisible (partStrip);
     addAndMakeVisible (previewRegion);
 
@@ -63,6 +65,8 @@ void SongsmithMainComponent::LowerRegion::setDiagnosticsVisible (bool shouldShow
 void SongsmithMainComponent::LowerRegion::resized()
 {
     auto area = getLocalBounds();
+    if (transport != nullptr)
+        transport->setBounds (area.removeFromTop (TransportStrip::height));
     partStrip.setBounds (area.removeFromTop (partStripHeight));
 
     if (diagnostics.isVisible())
@@ -87,7 +91,8 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       partStrip (document),
       upperRegion (sourceHeader, trackList),
       previewRegion (previewHeader, previewAssignedPanel, previewRoll),
-      lowerRegion (partStrip, previewRegion, diagnostics),
+      transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
+      lowerRegion (transportStrip.get(), partStrip, previewRegion, diagnostics),
       splitter (SplitterComponent::Orientation::topBottom)
 {
     sourceHeader.setText (
