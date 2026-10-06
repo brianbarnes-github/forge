@@ -170,6 +170,36 @@ TEST_CASE ("TrackRowComponent: a divider line spans the row's full width along i
     CHECK (image.getPixelAt (TrackRowComponent::trackInfoWidth + 50, bottom - 1) != divider);
 }
 
+TEST_CASE ("TrackRowComponent: a vertical divider separates the info column from the note preview", "[track-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+    constexpr int width = 600;
+    row.setBounds (0, 0, width, TrackRowComponent::rowHeight);
+
+    juce::Image image (juce::Image::ARGB, width, TrackRowComponent::rowHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    row.paintEntireComponent (g, false);
+
+    const auto line = juce::Colour (SongsmithColours::columnDivider);
+    const int edge = TrackRowComponent::trackInfoWidth;
+
+    // The line sits at the info column's right edge, over the full row height
+    // (above the bottom divider), including where the M / S buttons are.
+    for (int y : { 0, TrackRowComponent::rowHeight / 2, TrackRowComponent::rowHeight - 2 })
+        for (int t = 1; t <= TrackRowComponent::columnDividerThickness; ++t)
+            CHECK (image.getPixelAt (edge - t, y) == line);
+
+    // Not wider than that, and the preview starts right after it.
+    CHECK (image.getPixelAt (edge - TrackRowComponent::columnDividerThickness - 1, 4) != line);
+    CHECK (image.getPixelAt (edge, 4) != line);
+}
+
 TEST_CASE ("TrackRowComponent: the conductor row reads 'N events' and can't be dragged", "[trackrow][fidelity]")
 {
     SongDocument doc;

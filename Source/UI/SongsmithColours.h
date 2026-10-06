@@ -22,6 +22,7 @@ namespace lotro::SongsmithColours
     // 1px line between MIDI-source track rows — lighter than `background`
     // (unlike `border`, which is darker and vanishes against it).
     constexpr juce::uint32 trackDivider = 0xFF484848;
+    constexpr juce::uint32 columnDivider = 0xFF6A6A6A;
 
     // Phase 7 -- source-role selection highlight (roll editing).
     constexpr juce::uint32 selectionHighlight = 0xFFFFFFFF;

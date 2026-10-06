@@ -75,6 +75,7 @@ void TrackRowComponent::resized()
 {
     auto area = getLocalBounds().withTrimmedBottom (dividerThickness);
     auto info = area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
+    info.removeFromRight (columnDividerThickness);
     auto buttons = info.removeFromRight (muteSoloWidth).reduced (1, 8);
     muteButton.setBounds (buttons.removeFromLeft (buttons.getWidth() / 2));
     soloButton.setBounds (buttons);
@@ -159,6 +160,11 @@ void TrackRowComponent::paint (juce::Graphics& g)
         g.setColour (juce::Colour (swatch));
         g.fillRect (bounds.withWidth (3));
     }
+
+    // Vertical line between the label column and the note preview.
+    g.setColour (juce::Colour (columnDivider));
+    g.fillRect (bounds.withWidth (juce::jmin (trackInfoWidth, bounds.getWidth()))
+                      .removeFromRight (columnDividerThickness));
 
     const int textLeft = 8;
     const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);

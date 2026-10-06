@@ -54,6 +54,11 @@ public:
     // separate rows.
     static constexpr int dividerThickness = 1;
 
+    // Width of the vertical line painted at the info column's right edge
+    // (inside it, so the note preview still starts at trackInfoWidth),
+    // separating the label from the notes.
+    static constexpr int columnDividerThickness = 2;
+
     // Fired with the tick under a click in the note preview (not on the ghost toggle).
     std::function<void (int tick)> onTimelineClicked;
 
