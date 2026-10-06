@@ -43,6 +43,7 @@ namespace lotro
         }
         static juce::int64 selectedTrackId (const TrackListComponent& c) { return c.selectedTrackId; }
         static const TimelineViewState& timelineView (const TrackListComponent& c) { return c.timelineView; }
+        static TimelineViewState& timelineViewMut (TrackListComponent& c) { return c.timelineView; }
         static int contentWidth (const TrackListComponent& c) { return c.contentWidth(); }
         static int notePreviewOriginX (const TrackListComponent& c) { return c.notePreviewOriginX(); }
         static juce::ScrollBar& horizontalBar (TrackListComponent& c) { return c.horizontalBar; }
@@ -53,6 +54,7 @@ namespace lotro
             c.timelineFitted = false;
             c.syncHorizontalBar();
         }
+        static juce::Viewport& viewport (TrackListComponent& c) { return c.viewport; }
         static PlayheadOverlay* overlay (TrackListComponent& c) { return c.overlay.get(); }
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
         static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
@@ -63,6 +65,39 @@ namespace
 {
     using Access = TrackListComponentTestAccess;
 }
+
+namespace
+{
+    // One track, one note ending at `endTick` — the document's timeline end.
+    juce::ValueTree addTrackEndingAt (SongDocument& doc, int endTick)
+    {
+        auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::startTick, endTick - 1000, nullptr);
+        note.setProperty (SongIDs::durationTicks, 1000, nullptr);
+        SongDocument::getNotesNode (track).appendChild (note, nullptr);
+        return track;
+    }
+
+    void wheelAt (TrackListComponent& list, int x, float deltaY, juce::ModifierKeys mods)
+    {
+        juce::MouseWheelDetails wheel {};
+        wheel.deltaY = deltaY;
+        const auto pos = juce::Point<float> ((float) x, 10.0f);
+        list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                pos, mods,
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
+                                                juce::Time::getCurrentTime(), pos,
+                                                juce::Time::getCurrentTime(), 1, false),
+                              wheel);
+    }
+
+    int previewWidth (const TrackListComponent& list)
+    {
+        return Access::contentWidth (list) - Access::notePreviewOriginX (list);
+    }
+}
+
 
 TEST_CASE ("TrackListComponent: rebuild() clears a selection whose track was removed", "[piano-roll]")
 {
@@ -260,22 +295,12 @@ TEST_CASE ("TrackListComponent: a rebuild restores each row's ghost-visible stat
     CHECK_FALSE (rows[2]->notePreviewForTesting().isGhostVisible());
 }
 
-TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState and keeps the tick under the cursor", "[track-list]")
+TEST_CASE ("TrackListComponent: plain wheel zooms the shared TimelineViewState about the view centre when there is no marker", "[track-list]")
 {
-    // TimelineViewState's coordinate frame is TrackNotePreview-LOCAL: that is
-    // the frame TrackNotePreview::paint() calls xForTick/tickForX in. The
-    // preview sits at the right edge of each row, so a wheel position in this
-    // component's own local space has to be shifted by that origin before it
-    // can serve as a zoom anchor. Checking only that pixelsPerTick grew would
-    // pass with the anchor in the wrong frame entirely.
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
     auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
-
-    // A song long enough that the zoomed view stays inside it — scrolling is
-    // clamped to the song's extent, which would otherwise pin the offset to 0
-    // and move the anchor for a reason unrelated to the frame under test.
     juce::ValueTree note (SongIDs::NOTE);
     note.setProperty (SongIDs::startTick, 0, nullptr);
     note.setProperty (SongIDs::durationTicks, 52000, nullptr);
@@ -285,29 +310,77 @@ TEST_CASE ("TrackListComponent: ctrl+wheel zooms the shared TimelineViewState an
     list.setBounds (0, 0, 300, 400);
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
-    const auto& view = Access::timelineView (list);
-    const int originX = Access::notePreviewOriginX (list);
-    REQUIRE (originX > 0); // otherwise the frames coincide and prove nothing
-
-    // 40px into the preview strip, expressed in both frames.
-    const int anchorInPreview = 40;
-    const int wheelX = originX + anchorInPreview;
-
+    auto& view = Access::timelineViewMut (list);
+    const int centreX = (Access::contentWidth (list) - Access::notePreviewOriginX (list)) / 2;
+    view.setScrollOffsetTicks (20000.0);
     const double pixelsPerTickBefore = view.getPixelsPerTick();
-    const int tickUnderCursorBefore = view.tickForX (anchorInPreview);
+    const int centreTickBefore = view.tickForX (centreX);
 
-    juce::MouseWheelDetails wheel {};
-    wheel.deltaY = 1.0f;
-    const auto pos = juce::Point<float> ((float) wheelX, 10.0f);
-    list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
-                                            pos, juce::ModifierKeys::ctrlModifier,
-                                            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
-                                            juce::Time::getCurrentTime(), pos,
-                                            juce::Time::getCurrentTime(), 1, false),
-                          wheel);
+    // The pointer position is irrelevant: zoom is anchored on the view, not the cursor.
+    wheelAt (list, Access::notePreviewOriginX (list) + 10, 1.0f, {});
 
     CHECK (view.getPixelsPerTick() > pixelsPerTickBefore);
-    CHECK (view.tickForX (anchorInPreview) == tickUnderCursorBefore);
+    CHECK (std::abs (view.tickForX (centreX) - centreTickBefore) <= 1);
+
+    const double zoomedIn = view.getPixelsPerTick();
+    wheelAt (list, Access::notePreviewOriginX (list) + 10, -1.0f, {});
+    CHECK (view.getPixelsPerTick() < zoomedIn);
+}
+
+TEST_CASE ("TrackListComponent: plain wheel centres the start marker and zooms about it", "[track-list][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 96000);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+
+    const auto& view = Access::timelineView (list);
+    const int centreX = (Access::contentWidth (list) - Access::notePreviewOriginX (list)) / 2;
+    const double markerTick = 60000.0;
+    controller.setMarkerTick (markerTick);
+    // Zoomed in enough that the marker can reach the centre (scroll is clamped to the song).
+    Access::timelineViewMut (list).setPixelsPerTick (0.05);
+    const double pixelsPerTickBefore = view.getPixelsPerTick();
+
+    wheelAt (list, Access::notePreviewOriginX (list) + 5, 1.0f, {});
+
+    CHECK (view.getPixelsPerTick() > pixelsPerTickBefore);
+    CHECK (std::abs (view.xForTick ((int) markerTick) - centreX) <= 1);
+
+    // Scroll away: the next notch jumps back to the marker.
+    Access::timelineViewMut (list).setScrollOffsetTicks (0.0);
+    wheelAt (list, Access::notePreviewOriginX (list) + 5, 1.0f, {});
+    CHECK (std::abs (view.xForTick ((int) markerTick) - centreX) <= 1);
+}
+
+TEST_CASE ("TrackListComponent: ctrl+wheel scrolls the track list vertically and leaves the zoom alone", "[track-list]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    for (int i = 0; i < 12; ++i)
+        addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 200);   // far shorter than 12+ rows
+
+    auto& viewport = Access::viewport (list);
+    REQUIRE (viewport.getViewPositionY() == 0);
+    const double zoomBefore = Access::timelineView (list).getPixelsPerTick();
+
+    wheelAt (list, 300, -1.0f, juce::ModifierKeys::ctrlModifier);   // wheel down
+    const int scrolledDown = viewport.getViewPositionY();
+    CHECK (scrolledDown > 0);
+
+    wheelAt (list, 300, 1.0f, juce::ModifierKeys::ctrlModifier);    // wheel up
+    CHECK (viewport.getViewPositionY() < scrolledDown);
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoomBefore));
 }
 
 TEST_CASE ("TrackListComponent: fitTimelineToDocument scales the shared zoom so the longest track fits the preview width",
@@ -355,38 +428,6 @@ TEST_CASE ("TrackListComponent: fitTimelineToDocument is a no-op when no track h
     CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (before));
 }
 
-namespace
-{
-    // One track, one note ending at `endTick` — the document's timeline end.
-    juce::ValueTree addTrackEndingAt (SongDocument& doc, int endTick)
-    {
-        auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
-        juce::ValueTree note (SongIDs::NOTE);
-        note.setProperty (SongIDs::startTick, endTick - 1000, nullptr);
-        note.setProperty (SongIDs::durationTicks, 1000, nullptr);
-        SongDocument::getNotesNode (track).appendChild (note, nullptr);
-        return track;
-    }
-
-    void wheelAt (TrackListComponent& list, int x, float deltaY, juce::ModifierKeys mods)
-    {
-        juce::MouseWheelDetails wheel {};
-        wheel.deltaY = deltaY;
-        const auto pos = juce::Point<float> ((float) x, 10.0f);
-        list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
-                                                pos, mods,
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
-                                                juce::Time::getCurrentTime(), pos,
-                                                juce::Time::getCurrentTime(), 1, false),
-                              wheel);
-    }
-
-    int previewWidth (const TrackListComponent& list)
-    {
-        return Access::contentWidth (list) - Access::notePreviewOriginX (list);
-    }
-}
-
 TEST_CASE ("TrackListComponent: a fitted timeline refits when the list is resized, and needs no scroll bar", "[track-list]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -405,7 +446,7 @@ TEST_CASE ("TrackListComponent: a fitted timeline refits when the list is resize
     CHECK_FALSE (Access::horizontalBar (list).isVisible());
 }
 
-TEST_CASE ("TrackListComponent: after a manual ctrl+wheel zoom, resizing keeps the zoom and shows a scroll bar over the whole song", "[track-list]")
+TEST_CASE ("TrackListComponent: after a manual wheel zoom, resizing keeps the zoom and shows a scroll bar over the whole song", "[track-list]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -416,7 +457,7 @@ TEST_CASE ("TrackListComponent: after a manual ctrl+wheel zoom, resizing keeps t
     list.setBounds (0, 0, 1400, 400);
     list.fitTimelineToDocument();
 
-    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, juce::ModifierKeys::ctrlModifier); // zoom in
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, {}); // zoom in
     const double zoomed = Access::timelineView (list).getPixelsPerTick();
 
     list.setBounds (0, 0, 600, 400);
@@ -452,7 +493,7 @@ TEST_CASE ("TrackListComponent: dragging the scroll bar scrolls the shared timel
     CHECK (Access::timelineView (list).getScrollOffsetTicks() == Catch::Approx (10000.0));
 }
 
-TEST_CASE ("TrackListComponent: wheel panning moves the scroll bar and stops at the end of the song", "[track-list]")
+TEST_CASE ("TrackListComponent: shift+wheel panning moves the scroll bar and stops at the end of the song", "[track-list]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -462,13 +503,13 @@ TEST_CASE ("TrackListComponent: wheel panning moves the scroll bar and stops at 
     TrackListComponent list (doc);
     list.setBounds (0, 0, 600, 400);
 
-    wheelAt (list, 300, -1.0f, {});
+    wheelAt (list, 300, -1.0f, juce::ModifierKeys::shiftModifier);
     const auto& view = Access::timelineView (list);
     REQUIRE (view.getScrollOffsetTicks() > 0.0);
     CHECK (Access::horizontalBar (list).getCurrentRangeStart() == Catch::Approx (view.getScrollOffsetTicks()));
 
     for (int i = 0; i < 500; ++i)
-        wheelAt (list, 300, -1.0f, {});
+        wheelAt (list, 300, -1.0f, juce::ModifierKeys::shiftModifier);
 
     const double visibleTicks = (double) previewWidth (list) / view.getPixelsPerTick();
     CHECK (view.getScrollOffsetTicks() == Catch::Approx (52000.0 - visibleTicks));
@@ -640,23 +681,23 @@ TEST_CASE ("TrackListComponent: zoom, scroll and resize repaint the playhead ove
     auto* overlay = Access::overlay (list);
     REQUIRE (overlay != nullptr);
 
-    // Zoom (ctrl+wheel): same position, different mapping.
+    // Zoom (plain wheel): same position, different mapping.
     int before = Access::overlayRepaints (list);
     const int xFitted = overlay->currentX();
-    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, juce::ModifierKeys::ctrlModifier);
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, {});
     CHECK (Access::overlayRepaints (list) > before);
     CHECK (overlay->currentX() != xFitted);
 
     // Horizontal wheel pan.
     before = Access::overlayRepaints (list);
     const int xZoomed = overlay->currentX();
-    wheelAt (list, 300, -1.0f, {});
+    wheelAt (list, 300, -1.0f, juce::ModifierKeys::shiftModifier);
     CHECK (Access::overlayRepaints (list) > before);
     CHECK (overlay->currentX() != xZoomed);
 
     // Scroll-bar drag.
     before = Access::overlayRepaints (list);
-    Access::horizontalBar (list).setCurrentRangeStart (10000.0, juce::sendNotificationSync);
+    Access::horizontalBar (list).setCurrentRangeStart (0.0, juce::sendNotificationSync); // the pan above may have reached the far end
     CHECK (Access::overlayRepaints (list) > before);
 
     // Resize while fitted (refit changes pixels-per-tick).

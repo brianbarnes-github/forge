@@ -115,9 +115,12 @@ When you say…       …I'll know you mean
   On import, the shared zoom auto-fits so the longest track's notes span the
   full preview width (`TrackListComponent::fitTimelineToDocument()`, called
   from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
-  so a deliberate zoom/scroll survives routine note edits. Ctrl/Cmd+scroll-wheel
-  over any row zooms all rows horizontally around that point; a plain scroll
-  wheel pans all rows, stopping at the song's end. Until you zoom by hand,
+  so a deliberate zoom/scroll survives routine note edits. Mouse wheel (shared
+  with the track editor, #28): a plain wheel zooms all rows horizontally —
+  first bringing the start marker to the middle of the preview strip and
+  zooming about it (with no marker, about the middle of the view);
+  Ctrl/Cmd+wheel scrolls the track list vertically; Shift+wheel pans all
+  rows horizontally, stopping at the song's end. Until you zoom by hand,
   resizing the window refits so the whole song stays visible; after a manual
   zoom, resizing keeps the zoom. A horizontal scroll bar under the note
   previews (spanning only the preview column) scrolls all rows together and
@@ -151,7 +154,7 @@ When you say…       …I'll know you mean
   empty track). The horizontal scroll bar appears only while the timeline is
   wider than the view: the track opens fitted to the width and keeps
   refitting as the window is resized or maximised, until the first
-  Ctrl/Cmd+wheel zoom, after which the zoom is kept and the bar appears. A
+  wheel zoom, after which the zoom is kept and the bar appears. A
   pinned keyboard gutter on the left, drawn as a real piano keyboard —
   full-width white keys, shorter black keys for the sharps/flats, divider
   lines where keys meet, C-note labels only — stays put while notes scroll
@@ -160,9 +163,11 @@ When you say…       …I'll know you mean
   `F#4`, sharps only, pitch 60 = C4), so a row can be identified without
   counting from the nearest C; row shading follows the real piano
   black/white-key pattern, not plain semitone alternation. Vertical
-  gridlines mark bar boundaries from the document's meter. Ctrl/Cmd+
-  scroll-wheel zooms horizontally; a plain scroll wheel scrolls as usual —
-  this zoom/scroll state belongs to the editor window and is independent of
+  gridlines mark bar boundaries from the document's meter. Mouse
+  wheel, same mapping as the main track list: a plain wheel zooms
+  horizontally (centring the start marker first, or zooming about the middle
+  of the view with no marker); Ctrl/Cmd+wheel scrolls vertically;
+  Shift+wheel pans horizontally. This zoom/scroll state belongs to the editor window and is independent of
   the track list's shared `TimelineViewState` (#9). Re-pointing the window
   at a different track, or any change to `SOURCE_MIDI` (e.g. a second MIDI
   import), re-fits the view (and re-arms refit-on-resize) for the

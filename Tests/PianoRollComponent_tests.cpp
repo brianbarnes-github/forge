@@ -47,6 +47,18 @@ namespace lotro
         static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
         static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
+        static void wheel (PianoRollComponent& c, float deltaY, juce::ModifierKeys mods)
+        {
+            juce::MouseWheelDetails details {};
+            details.deltaY = deltaY;
+            const auto pos = juce::Point<float> (200.0f, 100.0f);
+            auto& canvas = c.canvas;
+            canvas.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos, mods,
+                                                     0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &canvas, &canvas,
+                                                     juce::Time::getCurrentTime(), pos,
+                                                     juce::Time::getCurrentTime(), 1, false),
+                                   details);
+        }
         static void paintGutter (const PianoRollComponent& c, juce::Graphics& g) { c.paintGutter (g); }
         static int hoveredPitch (const PianoRollComponent& c) { return c.hoveredPitch; }
         static juce::Component* playhead (PianoRollComponent& c) { return c.playhead.get(); }
@@ -995,4 +1007,80 @@ TEST_CASE ("PianoRollComponent: the start marker is drawn by an overlay between 
 
     f.roll.setPlayback (nullptr);
     CHECK (! f.roll.hasMarkerOverlayForTesting());
+}
+
+namespace
+{
+    // x (component-local) of the middle of the area the notes are visible in:
+    // the keyboard gutter hides the left of the viewport.
+    int notesCentreX (PianoRollComponent& roll)
+    {
+        const int gutter = Access::geometry (roll).getKeyboardGutterWidth();
+        return gutter + (Access::viewport (roll).getMaximumVisibleWidth() - gutter) / 2;
+    }
+}
+
+TEST_CASE ("PianoRollComponent: plain wheel zooms about the start marker, centring it first", "[piano-roll][wheel]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    for (int i = 0; i < 5; ++i)
+        Access::wheel (f.roll, 1.0f, {});   // zoomed in enough for the marker to be able to reach the centre
+
+    f.controller.setMarkerTick (4800.0);
+    const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
+
+    Access::wheel (f.roll, 1.0f, {});
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() > zoomBefore);
+    CHECK (std::abs (f.roll.xForTickInComponent (4800.0) - notesCentreX (f.roll)) <= 2);
+
+    // Scrolled away, the next notch jumps back to the marker.
+    Access::viewport (f.roll).setViewPosition (0, Access::viewport (f.roll).getViewPositionY());
+    Access::wheel (f.roll, -1.0f, {});
+    CHECK (std::abs (f.roll.xForTickInComponent (4800.0) - notesCentreX (f.roll)) <= 2);
+}
+
+TEST_CASE ("PianoRollComponent: with no marker, plain wheel zooms about the middle of the view", "[piano-roll][wheel]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    for (int i = 0; i < 5; ++i)
+        Access::wheel (f.roll, 1.0f, {});
+
+    const int centreX = notesCentreX (f.roll);
+    const double centreTick = f.roll.tickForXInComponent (centreX);
+    Access::wheel (f.roll, 1.0f, {});
+    CHECK (std::abs (f.roll.tickForXInComponent (centreX) - centreTick) <= 20.0);
+}
+
+TEST_CASE ("PianoRollComponent: ctrl+wheel scrolls the roll vertically and leaves the zoom alone", "[piano-roll][wheel]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    auto& viewport = Access::viewport (f.roll);
+    REQUIRE (viewport.getVerticalScrollBar().isVisible());
+    const int before = viewport.getViewPositionY();
+    const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
+
+    Access::wheel (f.roll, -1.0f, juce::ModifierKeys::ctrlModifier);   // wheel down
+    const int down = viewport.getViewPositionY();
+    CHECK (down > before);
+
+    Access::wheel (f.roll, 1.0f, juce::ModifierKeys::ctrlModifier);    // wheel up
+    CHECK (viewport.getViewPositionY() < down);
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomBefore));
+}
+
+TEST_CASE ("PianoRollComponent: shift+wheel pans horizontally", "[piano-roll][wheel]")
+{
+    PlayheadRollFixture f;
+    for (int i = 0; i < 10; ++i)
+        Access::wheel (f.roll, 1.0f, {});
+    auto& viewport = Access::viewport (f.roll);
+    viewport.setViewPosition (0, viewport.getViewPositionY());
+    const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
+
+    Access::wheel (f.roll, -1.0f, juce::ModifierKeys::shiftModifier);
+    CHECK (viewport.getViewPositionX() > 0);
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomBefore));
 }

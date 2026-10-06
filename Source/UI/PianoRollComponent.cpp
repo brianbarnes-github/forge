@@ -283,6 +283,15 @@ void PianoRollComponent::zoom (float wheelDeltaY)
     if (noteSource == nullptr)
         return;
 
+    // Zoom closes in on the start marker (brought to the middle of the visible
+    // notes first); with no marker, on whatever is already at the middle.
+    const int centreX = geometry.getKeyboardGutterWidth()
+                        + (viewport.getMaximumVisibleWidth() - geometry.getKeyboardGutterWidth()) / 2;
+    double anchorTick = tickForXInComponent (centreX);
+    if (playback != nullptr)
+        if (const auto marker = playback->getMarkerTick())
+            anchorTick = *marker;
+
     timelineFitted = false;
 
     const double factor = wheelDeltaY > 0.0f ? 1.1 : (1.0 / 1.1);
@@ -292,7 +301,43 @@ void PianoRollComponent::zoom (float wheelDeltaY)
         sourceEditor->setGeometry (geometry);
 
     rebuildContentSize();
+    viewport.setViewPosition (geometry.xForTick ((int) anchorTick) - centreX, viewport.getViewPositionY());
+    refreshPlayhead();
     canvas.repaint();
+}
+
+void PianoRollComponent::wheelScroll (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    // The LOTRO preview canvas keeps its original wheel mapping for now
+    // (ctrl+wheel zooms, plain wheel scrolls); only the source editor follows
+    // the shared main-view mapping.
+    if (role == Role::Preview)
+    {
+        if (e.mods.isCtrlDown() || e.mods.isCommandDown())
+            zoom (wheel.deltaY);
+        else
+            canvas.Component::mouseWheelMove (e, wheel);
+        return;
+    }
+
+    constexpr float pixelsPerNotch = 50.0f;
+
+    if (e.mods.isCtrlDown() || e.mods.isCommandDown())
+    {
+        // Wheel up = towards the higher pitches at the top.
+        viewport.setViewPosition (viewport.getViewPositionX(),
+                                  viewport.getViewPositionY() - juce::roundToInt (wheel.deltaY * pixelsPerNotch));
+    }
+    else if (e.mods.isShiftDown())
+    {
+        viewport.setViewPosition (viewport.getViewPositionX()
+                                      + juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * pixelsPerNotch),
+                                  viewport.getViewPositionY());
+    }
+    else
+    {
+        zoom (wheel.deltaY);
+    }
 }
 
 void PianoRollComponent::setEditableTrack (juce::ValueTree trackNode)
@@ -433,10 +478,7 @@ bool PianoRollComponent::Canvas::keyPressed (const juce::KeyPress& key)
 
 void PianoRollComponent::Canvas::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
-    if (e.mods.isCtrlDown() || e.mods.isCommandDown())
-        owner.zoom (wheel.deltaY);
-    else
-        Component::mouseWheelMove (e, wheel);
+    owner.wheelScroll (e, wheel);
 }
 
 void PianoRollComponent::paintCanvas (juce::Graphics& g, juce::Rectangle<int> clip) const

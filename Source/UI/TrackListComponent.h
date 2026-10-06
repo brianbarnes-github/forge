@@ -92,6 +92,7 @@ private:
 
     // While playing, page-flips the shared view so the playhead stays visible.
     // Does nothing when stopped, so a ruler click never scrolls the view.
+    void zoomAboutMarker (double factor);
     void followPlayhead (bool playing);
 
     // The overlay skips repaints when the playhead x is unchanged, so every

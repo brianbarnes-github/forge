@@ -235,19 +235,37 @@ int TrackListComponent::notePreviewOriginX() const
 
 void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
+    constexpr float pixelsPerNotch = 50.0f;
+
     if (e.mods.isCtrlDown() || e.mods.isCommandDown())
     {
-        timelineView.zoomBy (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1,
-                              e.getPosition().getX() - notePreviewOriginX());
-        timelineFitted = false;
+        // Ctrl/Cmd+wheel: the track rows' vertical scroll. Wheel up = towards the first row.
+        viewport.setViewPosition (viewport.getViewPositionX(),
+                                  viewport.getViewPositionY() - juce::roundToInt (wheel.deltaY * pixelsPerNotch));
+        return;
     }
+
+    if (e.mods.isShiftDown())
+        timelineView.scrollByPixels (juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * pixelsPerNotch));
     else
-    {
-        timelineView.scrollByPixels (juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * 50.0f));
-    }
+        zoomAboutMarker (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1);
 
     syncHorizontalBar();
     content.repaint();
+}
+
+void TrackListComponent::zoomAboutMarker (double factor)
+{
+    // The start marker (when set) is first brought to the middle of the
+    // preview strip, so zooming closes in on the spot the user chose; with no
+    // marker the zoom is about whatever is already at the middle.
+    const int centreX = previewWidth() / 2;
+    if (playback != nullptr)
+        if (const auto marker = playback->getMarkerTick())
+            timelineView.setScrollOffsetTicks (*marker - (double) centreX / timelineView.getPixelsPerTick());
+
+    timelineView.zoomBy (factor, centreX);
+    timelineFitted = false;
 }
 
 void TrackListComponent::resized()

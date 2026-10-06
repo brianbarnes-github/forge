@@ -177,6 +177,7 @@ private:
     void centreOnTrackPitches();
     void layoutGutter();
     void zoom (float wheelDeltaY);
+    void wheelScroll (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel);
 
     // PlaybackController::Listener
     void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
