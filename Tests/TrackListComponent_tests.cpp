@@ -1,3 +1,4 @@
+#include "UI/SongsmithColours.h"
 // Verifies TrackListComponent::rebuild() clears a stale selection once the
 // previously-selected track disappears from SOURCE_MIDI — e.g. after
 // SongDocument::removeTrack — without over-pruning one that is still live.
@@ -615,11 +616,47 @@ TEST_CASE ("TrackListComponent: the ruler row sits above the viewport and the ov
     ruler->onSeek = [&seeked] (double t) { seeked = t; };
     const auto pos = juce::Point<float> ((float) Access::notePreviewOriginX (list) + 100.0f, 3.0f);
     ruler->mouseDown (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
-                                         pos, juce::ModifierKeys(),
+                                         pos, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier),
                                          0.0f, 0.0f, 0.0f, 0.0f, 0.0f, ruler, ruler,
                                          juce::Time::getCurrentTime(), pos,
                                          juce::Time::getCurrentTime(), 1, false));
     CHECK (seeked == Catch::Approx ((double) Access::timelineView (list).tickForX (100)));
+}
+
+TEST_CASE ("TrackListComponent: a left click in the timing bar sets the start marker; its triangle clears it", "[track-list][ruler][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+    auto* ruler = list.rulerForTesting();
+    REQUIRE (ruler != nullptr);
+
+    auto press = [&] (int x, int y)
+    {
+        const auto pos = juce::Point<float> ((float) x, (float) y);
+        ruler->mouseDown (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos,
+                                             juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, ruler, ruler,
+                                             juce::Time::getCurrentTime(), pos, juce::Time::getCurrentTime(), 1, false));
+    };
+
+    const double playheadBefore = controller.getPositionTicks();
+    press (Access::notePreviewOriginX (list) + 100, TimelineRuler::height - 4);
+    REQUIRE (controller.getMarkerTick().has_value());
+    CHECK (*controller.getMarkerTick() == Catch::Approx ((double) Access::timelineView (list).tickForX (100)));
+    CHECK (controller.getPositionTicks() == Catch::Approx (playheadBefore));   // the playhead stays put
+
+    const auto handle = ruler->markerHandleBounds();
+    REQUIRE (handle.has_value());
+    press (handle->getCentreX(), 3);
+    CHECK (! controller.getMarkerTick().has_value());
 }
 
 TEST_CASE ("TrackListComponent: while playing, the view page-flips to keep the playhead visible", "[track-list][playhead]")
@@ -801,4 +838,37 @@ TEST_CASE ("TrackListComponent: clicking a row's note preview sets the shared st
     REQUIRE (controller.getMarkerTick().has_value());
     CHECK (*controller.getMarkerTick() == Catch::Approx ((double) Access::timelineView (list).tickForX (60)));
     CHECK (markerOverlay->currentX().has_value());
+}
+
+TEST_CASE ("TrackListComponent: the timing bar draws bar lines over the note previews, not over the info column", "[track-list][ruler]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+
+    auto* ruler = list.rulerForTesting();
+    REQUIRE (ruler != nullptr);
+    REQUIRE (ruler->getHeight() == TimelineRuler::height);
+
+    juce::Image image (juce::Image::ARGB, ruler->getWidth(), ruler->getHeight(), true, juce::SoftwareImageType());
+    {
+        juce::Graphics g (image);
+        ruler->paintEntireComponent (g, false);
+    }
+
+    const auto background = juce::Colour (SongsmithColours::background).brighter (0.1f);
+    const int origin = Access::notePreviewOriginX (list);
+    const int lowerRow = TimelineRuler::height - 4;
+
+    CHECK (image.getPixelAt (origin, lowerRow) != background);        // bar 1's line, at the preview's left edge
+    for (int x = 0; x < origin; ++x)
+        CHECK (image.getPixelAt (x, lowerRow) == background);         // the info column stays clear
 }

@@ -103,6 +103,8 @@ void PianoRollComponent::refreshPlayhead()
         return;
     ++playheadRepaintCount;
     playhead->repaint();
+    if (onViewChanged)
+        onViewChanged();
     if (markerOverlay != nullptr)
         markerOverlay->repaint();
 }

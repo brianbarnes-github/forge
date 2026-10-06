@@ -100,7 +100,7 @@
   mute/solo kept across removal and undo, `documentReplaced` including a
   Stop that does not jump to the previous Song's play-start, veto,
   flush-before-play, rewind), `TransportStrip_tests.cpp` and
-  `PlayheadOverlay_tests.cpp` (the overlay and `TimelineRuler`).
+  `PlayheadOverlay_tests.cpp` (the overlay and `TimelineRuler` seek), `TimelineRulerMarks_tests.cpp` (the pure bar/beat/clock mark computation, `formatClock`, and the ruler's two-row paint).
   `TrackRowComponent_tests.cpp`, `TrackListComponent_tests.cpp`,
   `PianoRollComponent_tests.cpp` and `TrackEditorWindow_tests.cpp` also gained
   the M/S buttons, ruler, playhead, follow and editor-window transport

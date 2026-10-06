@@ -130,6 +130,11 @@ void PlaybackController::seekToTick (double tick)
 
 void PlaybackController::setMarkerTick (double tick)
 {
+    // Same "nothing to play" test as play(): with no MIDI open there is no
+    // timeline to mark.
+    flushRebuild();
+    if (snapshot == nullptr || ! (snapshot->endSeconds() > 0.0))
+        return;
     markerTick = std::max (0.0, tick);
     listeners.call ([] (Listener& l) { l.playbackMarkerChanged(); });
 }

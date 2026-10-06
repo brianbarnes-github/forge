@@ -64,6 +64,7 @@ namespace lotro
         {
         public:
             Content (PianoRollComponent& rollIn, PlaybackController& controller);
+            ~Content() override;
             void resized() override;
 
             TransportStrip strip;

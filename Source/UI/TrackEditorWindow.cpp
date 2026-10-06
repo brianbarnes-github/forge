@@ -33,9 +33,21 @@ namespace lotro
         // Clicks over the keyboard gutter map to ticks before the visible start
         // (and clamp at 0 in the ruler).
         ruler.onSeek = [&controller] (double tick) { controller.seekToTick (tick); };
+        ruler.setMarks ([&rollIn] (double tick) { return rollIn.xForTickInComponent (tick); },
+                        [&controller] { return rulerGridFromDocument (controller.document()); });
+        ruler.setContentLeft (rollIn.getGutterWidth());
+        ruler.setMarker ([&controller] { return controller.getMarkerTick(); });
+        ruler.onSetMarker = [&controller] (double tick) { controller.setMarkerTick (tick); };
+        ruler.onClearMarker = [&controller] { controller.clearMarker(); };
+        rollIn.onViewChanged = [this] { ruler.repaint(); };
         addAndMakeVisible (strip);
         addAndMakeVisible (ruler);
         addAndMakeVisible (roll);
+    }
+
+    TrackEditorWindow::Content::~Content()
+    {
+        roll.onViewChanged = nullptr;
     }
 
     void TrackEditorWindow::Content::resized()

@@ -60,6 +60,12 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
     {
         ruler = std::make_unique<TimelineRuler> ([this] (int x) { return (double) timelineView.tickForX (x - notePreviewOriginX()); });
         ruler->onSeek = [this] (double tick) { if (playback != nullptr) playback->seekToTick (tick); };
+        ruler->setMarks ([this] (double tick) { return timelineView.xForTick ((int) tick) + notePreviewOriginX(); },
+                         [this] { return rulerGridFromDocument (doc); });
+        ruler->setContentLeft (notePreviewOriginX());
+        ruler->setMarker ([this] { return playback != nullptr ? playback->getMarkerTick() : std::nullopt; });
+        ruler->onSetMarker = [this] (double tick) { if (playback != nullptr) playback->setMarkerTick (tick); };
+        ruler->onClearMarker = [this] { if (playback != nullptr) playback->clearMarker(); };
         addAndMakeVisible (*ruler);
         overlay = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
         addAndMakeVisible (*overlay);   // added after the viewport, so it draws on top
@@ -76,6 +82,8 @@ void TrackListComponent::refreshOverlay()
         return;
     ++overlayRepaintCount;
     overlay->repaint();
+    if (ruler != nullptr)
+        ruler->repaint();
     if (markerOverlay != nullptr)
         markerOverlay->repaint();
 }
@@ -274,7 +282,10 @@ void TrackListComponent::resized()
     // auto-hides) so rows don't jump when it appears.
     auto area = getLocalBounds();
     if (ruler != nullptr)
+    {
         ruler->setBounds (area.removeFromTop (TimelineRuler::height));
+        ruler->setContentLeft (notePreviewOriginX());
+    }
     auto barStrip = area.removeFromBottom (viewport.getScrollBarThickness());
     viewport.setBounds (area);
     if (overlay != nullptr)

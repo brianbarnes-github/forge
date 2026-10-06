@@ -88,6 +88,7 @@ private:
 
     void rebuild();
     void muteSoloChanged() override;
+    void playbackMarkerChanged() override { if (ruler != nullptr) ruler->repaint(); }
     void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
 
     // While playing, page-flips the shared view so the playhead stays visible.

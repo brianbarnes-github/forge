@@ -71,6 +71,8 @@ public:
     bool isSoloed (juce::int64 trackId) const { return muteSolo.isSoloed (trackId); }
     bool isSilencedBySolo (juce::int64 trackId) const { return muteSolo.isSilencedBySolo (trackId); }
 
+    const SongDocument& document() const noexcept { return doc; }
+
     void documentReplaced();
     void flushRebuild();
     std::shared_ptr<PlaybackSnapshot> currentSnapshot() const { return snapshot; }

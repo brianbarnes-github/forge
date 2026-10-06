@@ -20,7 +20,7 @@ describes the current, Songsmith-only UI only.
 ├──────────────────────────────────────────────────────────────────────┤
 │ ▲ MIDI SOURCE · drag tracks down to assign                           │  #8  UpperRegion header
 ├──────────────────────────────────────────────────────────────────────┤
-│  seek ruler (14 px) above the track canvas; playhead line over rows  │  #32, #33
+│  timing bar (28 px) above the track canvas; playhead line over rows  │  #32, #33
 │  TrackListComponent — one row per MIDI track, full width             │  #9 (track list, rows #10)
 │  (each non-conductor row ends its info column with [M] [S])          │  #31
 │  index/name/note-range text, inline note-timeline preview            │  (inline preview under #10)
@@ -85,7 +85,7 @@ When you say…       …I'll know you mean
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
 | 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | `TrackRowComponent`'s `M` / `S` toggle buttons at the right end of the 180 px info column of every non-conductor row (#10); session-only, never saved or undoable |
-| 32 | **Seek ruler**               | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`) — 14 px strip above the main track canvas (#9) and above the Track editor's roll (#13); click or drag to move the playhead |
+| 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the first meter entry's denominator (6/8 = six eighth-note beats); clock times follow the tempo map. Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
 
 ## Songsmith view
@@ -245,8 +245,8 @@ When you say…       …I'll know you mean
   app settings. At startup the stored path is tried, then `TimGM6mb.sf2` next
   to the exe; with neither the app still starts and Play shows a "No
   SoundFont" dialog. The audio device opens on the first Play, not at
-  startup. The Track editor window is 42 px taller than it was before
-  playback (strip 28 + ruler 14) when playback is attached.
+  startup. The Track editor window is 56 px taller than it was before
+  playback (strip 28 + timing bar 28) when playback is attached.
 - **Diagnostics** (#23, `DiagnosticListView`, hosted directly) — the bare list
   only, not the full `DiagnosticsPane`: import diagnostics land here; the
   ABC-preview half only exists in the export panel. Hidden by default;

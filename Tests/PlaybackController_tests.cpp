@@ -347,3 +347,28 @@ TEST_CASE ("PlaybackController: the marker is announced to listeners and survive
     CHECK (counter.markerChanges == 2);
     r.controller.removeListener (&counter);
 }
+
+TEST_CASE ("PlaybackController: with no MIDI open (nothing to play) a marker cannot be set", "[playback][controller][marker]")
+{
+    struct Counter : PlaybackController::Listener
+    {
+        int markerChanges = 0;
+        void playbackMarkerChanged() override { ++markerChanges; }
+    };
+
+    Rig r;                                   // a new, empty Song
+    Counter counter;
+    r.controller.addListener (&counter);
+
+    r.controller.setMarkerTick (480.0);
+    CHECK (! r.controller.getMarkerTick().has_value());
+    CHECK (counter.markerChanges == 0);
+
+    // Once a MIDI is open (here: a track with a note), the same call works --
+    // without waiting for the debounced snapshot rebuild.
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.setMarkerTick (480.0);
+    REQUIRE (r.controller.getMarkerTick().has_value());
+    CHECK (*r.controller.getMarkerTick() == Approx (480.0));
+    CHECK (counter.markerChanges == 1);
+}

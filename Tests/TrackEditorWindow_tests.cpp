@@ -1,3 +1,4 @@
+#include "UI/SongsmithColours.h"
 #include "PlaybackTestSupport.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/SongDocument.h"
@@ -183,7 +184,7 @@ TEST_CASE ("TrackEditorWindow: Space toggles playback and other keys are left al
     CHECK (! window.keyPressed (juce::KeyPress ('x')));
 }
 
-TEST_CASE ("TrackEditorWindow: clicking the ruler seeks to the tick under that x of the roll", "[track-editor][playhead]")
+TEST_CASE ("TrackEditorWindow: right-click in the ruler seeks and left-click sets the marker, at the tick under that x of the roll", "[track-editor][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -204,8 +205,46 @@ TEST_CASE ("TrackEditorWindow: clicking the ruler seeks to the tick under that x
     auto* source = juce::Desktop::getInstance().getMouseSource (0);
     const auto now = juce::Time::getCurrentTime();
     const juce::Point<float> pos ((float) x, 3.0f);
-    ruler.mouseDown (juce::MouseEvent (*source, pos, juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                       &ruler, &ruler, now, pos, now, 1, false));
-
+    // Right-click moves the playhead...
+    ruler.mouseDown (juce::MouseEvent (*source, pos, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier),
+                                       0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &ruler, &ruler, now, pos, now, 1, false));
     CHECK (controller.getPositionTicks() == Catch::Approx (4800.0).margin (30.0));
+    CHECK (! controller.getMarkerTick().has_value());
+
+    // ...a left click sets the marker and leaves the playhead where it was.
+    const juce::Point<float> pos2 ((float) Access::roll (window).xForTickInComponent (2400.0), 20.0f);
+    ruler.mouseDown (juce::MouseEvent (*source, pos2, juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                       &ruler, &ruler, now, pos2, now, 1, false));
+    REQUIRE (controller.getMarkerTick().has_value());
+    CHECK (*controller.getMarkerTick() == Catch::Approx (2400.0).margin (30.0));
+    CHECK (controller.getPositionTicks() == Catch::Approx (4800.0).margin (30.0));
+}
+
+TEST_CASE ("TrackEditorWindow: the timing bar draws bar lines from the keyboard gutter's edge, not under the gutter", "[track-editor][ruler]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackEditorWindow window (doc, nullptr);
+    window.setPlayback (&controller);
+
+    using Access = TrackEditorWindowTestAccess;
+    Access::content (window).setSize (700, 400);
+    REQUIRE (Access::roll (window).onViewChanged != nullptr);   // the roll tells the ruler to repaint
+
+    auto& ruler = Access::ruler (window);
+    juce::Image image (juce::Image::ARGB, ruler.getWidth(), ruler.getHeight(), true, juce::SoftwareImageType());
+    {
+        juce::Graphics g (image);
+        ruler.paintEntireComponent (g, false);
+    }
+
+    const auto background = juce::Colour (SongsmithColours::background).brighter (0.1f);
+    const int gutter = Access::roll (window).getGutterWidth();
+    const int lowerRow = TimelineRuler::height - 4;
+
+    CHECK (image.getPixelAt (gutter, lowerRow) != background);   // bar 1's line (tick 0, unscrolled)
+    for (int x = 0; x < gutter; ++x)
+        CHECK (image.getPixelAt (x, lowerRow) == background);
 }

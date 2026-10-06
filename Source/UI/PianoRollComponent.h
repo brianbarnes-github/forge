@@ -41,6 +41,13 @@ public:
     int xForTickInComponent (double tick) const;
     double tickForXInComponent (int x) const;
 
+    // Width of the pinned keyboard gutter: x positions left of it are covered.
+    int getGutterWidth() const noexcept { return geometry.getKeyboardGutterWidth(); }
+
+    // Fired whenever the tick -> x mapping changes (zoom, scroll, resize), so a
+    // timing bar above the roll can repaint. Source role with playback only.
+    std::function<void()> onViewChanged;
+
     bool hasPlayheadForTesting() const noexcept { return playhead != nullptr; }
     bool hasMarkerOverlayForTesting() const noexcept { return markerOverlay != nullptr; }
 
@@ -180,6 +187,7 @@ private:
     void wheelScroll (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel);
 
     // PlaybackController::Listener
+    void playbackMarkerChanged() override { if (onViewChanged) onViewChanged(); }
     void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
     void followPlayhead (bool playing);
     void layoutPlayhead();
