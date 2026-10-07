@@ -59,7 +59,7 @@ TEST_CASE ("sections: stored sections are returned in stored order and ignore th
     REQUIRE (sections.size() == 2);
     CHECK (sections[0].id == (juce::int64) s1.getProperty (SongIDs::sectionId));
     CHECK (sections[1].endTick == 960);
-    (void) s2;
+    CHECK (sections[1].id == (juce::int64) s2.getProperty (SongIDs::sectionId));
 }
 
 TEST_CASE ("sections: a note's section is its tag, else the first section containing its start, else the first", "[sections]")
@@ -122,4 +122,33 @@ TEST_CASE ("sections: companions are the sections starting at the same tick on t
 
     // A clicked track outside the selection acts alone.
     CHECK (withCompanions (doc, { idB, idC }, clicked).size() == 1);
+}
+
+TEST_CASE ("sections: at a boundary shared by two sections the pointer side picks the edge", "[sections]")
+{
+    const std::vector<SectionRange> sections { { 1, 0, 100 }, { 2, 100, 200 } };
+    constexpr double ppt = 0.1;   // 5 px of slop = 50 ticks
+
+    CHECK (hitTestSection (sections, 90, ppt, 5).sectionId == 1);
+    CHECK (hitTestSection (sections, 90, ppt, 5).zone == SectionZone::RightEdge);
+    CHECK (hitTestSection (sections, 99, ppt, 5).sectionId == 1);
+    CHECK (hitTestSection (sections, 100, ppt, 5).sectionId == 2);
+    CHECK (hitTestSection (sections, 100, ppt, 5).zone == SectionZone::LeftEdge);
+    CHECK (hitTestSection (sections, 130, ppt, 5).sectionId == 2);
+    CHECK (hitTestSection (sections, 130, ppt, 5).zone == SectionZone::LeftEdge);
+}
+
+TEST_CASE ("sections: the nearest edge wins and an edge is only offered on its own side", "[sections]")
+{
+    constexpr double ppt = 0.1;
+
+    const std::vector<SectionRange> nested { { 1, 0, 1000 }, { 2, 30, 500 } };
+    const auto near = hitTestSection (nested, 20, ppt, 5);   // 20 from 1's start, 10 from 2's
+    CHECK (near.sectionId == 2);
+    CHECK (near.zone == SectionZone::LeftEdge);
+
+    const std::vector<SectionRange> narrow { { 7, 100, 110 } };
+    CHECK (hitTestSection (narrow, 60, ppt, 5).zone == SectionZone::LeftEdge);    // 40 ticks before
+    CHECK (hitTestSection (narrow, 150, ppt, 5).zone == SectionZone::RightEdge);  // 40 ticks after
+    CHECK (hitTestSection (narrow, 40, ppt, 5).zone == SectionZone::None);        // beyond the slop
 }

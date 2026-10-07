@@ -66,21 +66,29 @@ SectionHit hitTestSection (const std::vector<SectionRange>& sections, int tick, 
 {
     SectionHit best;
     double bestDistance = 1.0e300;
+    bool bestContains = false;
+
+    // Nearer wins; at equal distance (abutting sections share a boundary) the edge
+    // of the section whose half-open body holds the tick wins, else the first.
+    auto consider = [&] (const SectionRange& s, double distance, SectionZone zone)
+    {
+        const bool contains = s.startTick <= tick && tick < s.endTick;
+        if (distance < bestDistance || (distance == bestDistance && contains && ! bestContains))
+        {
+            best = { s.id, zone };
+            bestDistance = distance;
+            bestContains = contains;
+        }
+    };
 
     for (const auto& s : sections)
     {
         const double toStart = std::abs ((double) (tick - s.startTick)) * pixelsPerTick;
         const double toEnd = std::abs ((double) (tick - s.endTick)) * pixelsPerTick;
-        if (toStart <= edgeSlopPixels && toStart < bestDistance && tick <= s.endTick)
-        {
-            best = { s.id, SectionZone::LeftEdge };
-            bestDistance = toStart;
-        }
-        if (toEnd <= edgeSlopPixels && toEnd < bestDistance && tick >= s.startTick)
-        {
-            best = { s.id, SectionZone::RightEdge };
-            bestDistance = toEnd;
-        }
+        if (toStart <= edgeSlopPixels && tick <= s.endTick)
+            consider (s, toStart, SectionZone::LeftEdge);
+        if (toEnd <= edgeSlopPixels && tick >= s.startTick)
+            consider (s, toEnd, SectionZone::RightEdge);
     }
     if (best.zone != SectionZone::None)
         return best;
