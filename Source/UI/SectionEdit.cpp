@@ -165,11 +165,18 @@ juce::int64 sectionIdOfNote (const juce::ValueTree& note, const std::vector<Sect
     if (std::any_of (sections.begin(), sections.end(), [tag] (const SectionRange& s) { return tag != 0 && s.id == tag; }))
         return tag;
 
+    // Nearest section by distance from the note's start to [startTick, endTick)
+    // (0 inside); ties go to the earlier startTick, then stored order.
     const int start = (int) note.getProperty (SongIDs::startTick, 0);
+    auto distance = [start] (const SectionRange& s)
+    {
+        return start < s.startTick ? s.startTick - start : (start >= s.endTick ? start - s.endTick + 1 : 0);
+    };
+    const SectionRange* best = &sections.front();
     for (const auto& s : sections)
-        if (s.startTick <= start && start < s.endTick)
-            return s.id;
-    return sections.front().id;
+        if (distance (s) < distance (*best) || (distance (s) == distance (*best) && s.startTick < best->startTick))
+            best = &s;
+    return best->id;
 }
 
 SectionHit hitTestSection (const std::vector<SectionRange>& sections, int tick, double pixelsPerTick, int edgeSlopPixels)
@@ -316,7 +323,7 @@ void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int t
 
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks)
 {
-    // The clamp covers member notes too: a note before every section belongs to the first.
+    // The clamp covers member notes too: a note outside every section belongs to the nearest.
     const auto before = targetsOf (doc, refs);
     int lowest = std::numeric_limits<int>::max();
     for (const auto& t : before)

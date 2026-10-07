@@ -66,7 +66,7 @@ TEST_CASE ("sections: stored sections are returned in stored order and ignore th
     CHECK (sections[1].id == (juce::int64) s2.getProperty (SongIDs::sectionId));
 }
 
-TEST_CASE ("sections: a note's section is its tag, else the first section containing its start, else the first", "[sections]")
+TEST_CASE ("sections: a note's section is its tag, else the nearest section", "[sections]")
 {
     const std::vector<SectionRange> sections { { 5, 0, 480 }, { 6, 480, 960 } };
 
@@ -82,8 +82,18 @@ TEST_CASE ("sections: a note's section is its tag, else the first section contai
     CHECK (sectionIdOfNote (note (0, 6), sections) == 6);     // tag wins over position
     CHECK (sectionIdOfNote (note (500, 0), sections) == 6);   // untagged: by position
     CHECK (sectionIdOfNote (note (500, 99), sections) == 6);  // dangling tag: by position
-    CHECK (sectionIdOfNote (note (5000, 0), sections) == 5);  // outside everything: the first
+    CHECK (sectionIdOfNote (note (5000, 0), sections) == 6);  // outside everything: the nearest (was: the first stored)
+    CHECK (sectionIdOfNote (note (-30, 0), sections) == 5);
+    CHECK (sectionIdOfNote (note (480, 0), sections) == 6);   // end is exclusive: 480 is inside the second
     CHECK (sectionIdOfNote (note (0, 0), {}) == 0);
+
+    // In a gap the nearer section wins whatever the stored order; a tie goes to the earlier start.
+    // Distance counts the exclusive end as one past the last tick, so abutting sections never tie a note inside one.
+    const std::vector<SectionRange> gapped { { 7, 3000, 4000 }, { 8, 0, 1000 }, { 9, 1501, 2000 } };
+    CHECK (sectionIdOfNote (note (1400, 0), gapped) == 9);
+    CHECK (sectionIdOfNote (note (1250, 0), gapped) == 8);   // 251 from each: the earlier start wins
+    CHECK (sectionIdOfNote (note (2700, 0), gapped) == 7);
+    CHECK (sectionIdOfNote (note (1000, 0), { { 1, 0, 1000 }, { 2, 1000, 2000 } }) == 2);   // abutting: inside the second
 }
 
 TEST_CASE ("sections: hit testing finds edges within the slop, then the narrowest body", "[sections]")
@@ -542,6 +552,38 @@ TEST_CASE ("moveSections: the clamp also keeps a note tagged to a later section 
     CHECK (notes[0].start == 0);                  // 100 - 100
     CHECK (notes[1].start == 380);                // 480 - 100
     CHECK (sectionsOf (t)[0].startTick == 380);
+}
+
+TEST_CASE ("sections: a note drawn in a gap is not carried away by a distant section", "[sections]")
+{
+    // Stored order A[0,1000), B[2000,2480), C[1000,2000); C is deleted, leaving a gap [1000,2000).
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 2480);
+    splitAt (doc, { idOf (t) }, 2000);
+    splitAt (doc, { idOf (t) }, 1000);
+    const auto s = sectionsOf (t);
+    REQUIRE (s.size() == 3);
+    deleteSections (doc, { { idOf (t), s[2].id } });
+    addNote (t, 64, 1900, 50);   // untagged, in the gap, right next to B
+
+    SECTION ("deleting the far first section leaves it alone")
+    {
+        deleteSections (doc, { { idOf (t), s[0].id } });
+        bool found = false;
+        for (const auto& n : notesOf (t))
+            found = found || n.start == 1900;
+        CHECK (found);
+    }
+
+    SECTION ("moving the far first section does not move it")
+    {
+        moveSections (doc, { { idOf (t), s[0].id } }, 1000);
+        bool found = false;
+        for (const auto& n : notesOf (t))
+            found = found || n.start == 1900;
+        CHECK (found);
+    }
 }
 
 TEST_CASE ("moveSections: non-note events stay where they are", "[sections][move]")

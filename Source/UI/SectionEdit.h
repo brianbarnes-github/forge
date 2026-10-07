@@ -42,8 +42,9 @@ enum class SectionEdge { Left, Right };
 // notes (and the conductor) has none. Never mutates.
 std::vector<SectionRange> sectionsOf (const juce::ValueTree& track);
 
-// The note's section: its tag if that names a section, else the first section
-// containing its startTick, else the first section, else 0.
+// The note's section: its tag if that names a section, else the nearest section
+// to its startTick (distance 0 inside [startTick, endTick); ties go to the earlier
+// startTick, then stored order), else 0.
 juce::int64 sectionIdOfNote (const juce::ValueTree& note, const std::vector<SectionRange>& sections);
 
 // The section under `tick`: an edge when within edgeSlopPixels of a section's
