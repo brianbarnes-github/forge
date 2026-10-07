@@ -2,7 +2,7 @@
 
 Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity, the `.songsmith` Song file and source-MIDI playback (TinySoundFont, transport, mute/solo) implemented
+## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity, the `.songsmith` Song file, source-MIDI playback (TinySoundFont, transport, mute/solo) and track sections (split/move/resize/delete, `S`/`Delete`/Ctrl+A, multi-track selection) implemented
 
 This repo (**Forge**) is a MIDI → LOTRO ABC converter shipped as a CLI
 (`forge`) and a JUCE GUI (`forge_ui`, the **Songsmith** MIDI editor —
@@ -43,6 +43,7 @@ this principle rules out tempting improvements.
 | `docs/TESTING.md` | Test count and what the notable test files pin down |
 | `docs/superpowers/specs/2026-10-03-songsmith-song-file-design.md` | Design spec for the `.songsmith` Song file, session/dirty tracking and the unsaved-changes guard (code walkthrough: `docs/ARCHITECTURE.md` §9.13) |
 | `docs/superpowers/specs/2026-10-03-songsmith-playback-design.md`, `docs/superpowers/plans/2026-10-03-songsmith-playback.md` | Design spec and implementation plan for Songsmith playback (source MIDI through a SoundFont, shared transport/playhead, mute/solo); code walkthrough: `docs/ARCHITECTURE.md` §9.14 |
+| `docs/superpowers/specs/2026-10-06-songsmith-sections-design.md`, `docs/superpowers/plans/2026-10-06-songsmith-sections.md` | Design spec and implementation plan for track sections (split/move/resize/delete, multi-track selection); code walkthrough: `docs/ARCHITECTURE.md` §9.15 |
 | `docs/songsmith-ui-map.html`, `docs/Songsmith Arch.md`, `docs/Songsmith UI Guide.html` | Clickable `#N` map companion to `UI_GUIDE.md`; original Songsmith design notes and mock-up |
 
 ## Build / test commands

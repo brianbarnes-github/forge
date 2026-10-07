@@ -139,9 +139,9 @@ When you say…       …I'll know you mean
   replacing), and Ctrl/Cmd+A selects every non-conductor track. Pressing a
   selected track's strip keeps a multi-selection. Each note-bearing track is
   divided into **sections** (initially one, from tick 0 to its last note end):
-  click a section body to select it (the same section of every other selected
-  track is selected with it); drag the body to move the selected sections and
-  their notes (clamped at tick 0); drag a section's left or right edge (5 px
+  click a section body to select it (the section starting at the same tick on every
+  other selected track is selected with it); drag the body to move the selected sections and
+  their notes (clamped at tick 0, counting member notes that lie outside the block); drag a section's left or right edge (5 px
   grab zone) to resize them — each edge moves by the dragged delta, shrinking
   deletes or trims the notes it gives up, growing touches no note. A few
   pixels of jitter is a click. The drag is a preview only and commits once on
@@ -152,6 +152,8 @@ When you say…       …I'll know you mean
   consumed) on the selected tracks, or just the pointer's track when none is
   selected; **Delete**/**Backspace** removes the selected sections and their
   notes (nothing when none is selected); **Ctrl/Cmd+A** selects all tracks.
+  A note drawn in the Track editor far from every section still belongs to the
+  nearest section and moves or deletes with it.
   The conductor and note-less tracks have no sections. Each of these is one
   undo step, and a press that changes nothing opens none.
 

@@ -1,6 +1,6 @@
 # Songsmith sections: split, move, resize and delete parts of a track
 
-Date: 2026-10-06. Status: design, awaiting review.
+Date: 2026-10-06. Status: approved and implemented.
 
 ## Goal
 
@@ -21,10 +21,11 @@ together); a note under a split is **cut in two**.
 - A split cuts a straddling note into two notes (same pitch and velocity).
 - A move onto another section keeps both sections' notes (overlap allowed).
 - Edits apply to the **selected tracks**; with no track selected, to the track
-  under the pointer [tentative, my default].
-- `S` splits at the start marker, or at the pointer when it is over a section.
-  With the pointer over nothing and no marker set, `S` does nothing at all
-  (user decision).
+  under the pointer.
+- `S` splits at the pointer when it is over a track's note strip, else at the
+  start marker. A pointer over a strip but outside every section does nothing
+  and does not fall through to the marker. With the pointer over nothing and no
+  marker set, `S` does nothing at all (user decision).
 - Non-note `EVENTS` (controllers, pitch bend, tempo) stay where they are when a
   section moves or is cut; only notes follow sections.
 - Out of scope: moving a section to another track, copy/paste/duplicate of
@@ -53,8 +54,14 @@ MIDI_TRACK
   (nothing to edit). The first edit on a track *materialises* it
   (non-undoable): it writes the `SECTIONS` child with a real minted id for the
   virtual section and tags every untagged or dangling note. A note with a
-  missing or dangling `sectionId` belongs to the first section containing its
-  `startTick`, else the first section. A selection that names id 0 is resolved
+  missing or dangling `sectionId` belongs to the **nearest** section: distance
+  is measured from its `startTick` to the section's `[startTick, endTick)` (0
+  inside; otherwise to the nearer edge, the exclusive end counting as one past
+  the last tick so abutting sections never tie a note inside one); ties go to
+  the earlier `startTick`, then stored order. Documented residual: a note drawn
+  in the Track editor far from every section still belongs to the nearest
+  section and moves or deletes with it (the editor roll does not tag notes; that
+  is a non-goal). A selection that names id 0 is resolved
   to the track's first section after materialising. Existing `.songsmith` files
   and fresh imports therefore need no migration.
 - `Source/Core` is untouched. `SongModelBridge`, playback, export and the
@@ -77,15 +84,24 @@ Pure functions over `SongDocument`; no JUCE UI, no `Source/Core`. All take an
   new section) runs from `tick` to the old end. A tick on an edge or outside every
   section changes nothing.
 - `moveSections (sections, deltaTicks)`: shifts each range and each of its notes'
-  `startTick` by the same delta. The delta is clamped so no range starts below 0.
-  Overlap is allowed.
-- `resizeSection (section, edge, tick)`: moves the left or right edge. A section
-  keeps at least 1 tick. Only a shrinking edge touches notes: it deletes the
-  section's notes that lie wholly in the band given up and trims one that crosses
-  the new edge (on the left, its start moves up to the edge; on the right, its end
-  is cut at the edge). Growing only extends the range and never touches a note,
-  including a member that lies outside the section. Notes are never shifted by a
-  resize.
+  `startTick` by the same delta. The delta is clamped so no range or member note
+  starts below 0, including member notes that lie outside the block (drawn in a
+  gap). Overlap is allowed.
+- `resizeSectionsBy (sections, edge, deltaTicks)` is the gesture path: each
+  section's edge moves by the same **delta** as the clicked edge, from where that
+  section's edge is; each is clamped on its own to at least 1 tick wide, and the
+  whole gesture is one transaction. (`resizeSections (sections, edge, tick)`, an
+  absolute tick for every section, remains as a single-target helper; with
+  companions of different lengths it would shrink the longer ones, so the gesture
+  does not use it.) Only a shrinking edge touches notes. On the left, a member
+  that starts in the band given up is deleted if it ends inside the band, else
+  its start moves up to the new edge (its end is unchanged). On the right, a
+  member that starts in the band given up (at or after the new edge, even if it
+  runs past the old end) is deleted; a member that starts in the kept range and
+  crosses the new edge has its end cut at the edge; a member that starts before
+  the old start and crosses the new right edge is not touched. Growing only
+  extends the range and never touches a note, including a member that lies
+  outside the section. Notes are never shifted by a resize.
 - `deleteSections (sections)`: removes the sections and their notes.
 - A section that ends up with no notes stays (an empty section is still an
   editable block).
@@ -111,8 +127,8 @@ Pure functions over `SongDocument`; no JUCE UI, no `Source/Core`. All take an
 
 ## Canvas UI
 
-- `TrackNotePreview` paints each section of its track as a translucent block over
-  the notes, with a visible edge at each end; selected sections are highlighted.
+- `TrackNotePreview` paints each section of its track as a translucent block under
+  the note bars, with a visible edge at each end; selected sections are highlighted.
   Painting uses the shared `TimelineViewState`, as the notes and grid do.
 - Keys (handled by the main window): `S` splits at the tick under the pointer
   when the pointer is over a track's note strip, else at the start marker, else
