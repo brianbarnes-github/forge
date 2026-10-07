@@ -1,4 +1,5 @@
 #include "TrackNotePreview.h"
+#include "GridLinePaint.h"
 #include "SongsmithColours.h"
 
 namespace lotro
@@ -8,6 +9,27 @@ namespace lotro
     {
     }
 
+    void TrackNotePreview::paintGrid (juce::Graphics& g) const
+    {
+        // The meter and PPQ live beside the tracks under the document root.
+        const auto root = track.getRoot();
+        const int ticksPerQuarter = (int) root.getChildWithName (SongIDs::SOURCE_MIDI)
+                                         .getProperty (SongIDs::ticksPerQuarter, 480);
+
+        RulerMeter meter;
+        const auto meterMap = root.getChildWithName (SongIDs::METER_MAP);
+        if (meterMap.getNumChildren() > 0)
+        {
+            meter.numerator = (int) meterMap.getChild (0).getProperty (SongIDs::numerator, 4);
+            meter.denominator = (int) meterMap.getChild (0).getProperty (SongIDs::denominator, 4);
+        }
+
+        paintGridLines (g, g.getClipBounds().withY (0).withHeight (getHeight()), viewState.getPixelsPerTick(),
+                        ticksPerQuarter, meter,
+                        [this] (int tick) { return viewState.xForTick (tick); },
+                        [this] (int x) { return viewState.tickForX (x); });
+    }
+
     void TrackNotePreview::paint (juce::Graphics& g)
     {
         using namespace SongsmithColours;
@@ -15,6 +37,8 @@ namespace lotro
         auto bounds = getLocalBounds();
         g.setColour (juce::Colour (background));
         g.fillRect (bounds);
+
+        paintGrid (g);
 
         int minPitch = 127;
         int maxPitch = 0;

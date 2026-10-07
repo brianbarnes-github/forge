@@ -116,3 +116,73 @@ TEST_CASE ("TrackNotePreview: draws ghost toggle as filled amber when visible, o
     auto pixelAtCentreVisible = imageVisible.getPixelAt (toggleCentre.x, toggleCentre.y);
     CHECK (pixelAtCentreVisible == juce::Colour (SongsmithColours::accentAmber));
 }
+
+namespace
+{
+    // The pixel at the grid line for `tick` differs from the empty pixel beside it.
+    bool gridLineDrawnAt (juce::Image& image, const TimelineViewState& viewState, int tick)
+    {
+        const int x = viewState.xForTick (tick);
+        return image.getPixelAt (x, previewHeight / 2) != image.getPixelAt (x + 1, previewHeight / 2);
+    }
+}
+
+TEST_CASE ("TrackNotePreview: grid lines appear for each note value once it is at least 8 px wide", "[track-note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);   // 480-tick quarter = 48 px; 1/16 = 12 px; 1/32 = 6 px
+
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    preview.paint (g);
+
+    CHECK (gridLineDrawnAt (image, viewState, 480));        // quarter
+    CHECK (gridLineDrawnAt (image, viewState, 240));        // eighth
+    CHECK (gridLineDrawnAt (image, viewState, 120));        // sixteenth
+    CHECK_FALSE (gridLineDrawnAt (image, viewState, 60));   // thirty-second: too close
+}
+
+TEST_CASE ("TrackNotePreview: zoomed far in the grid goes down to 1/64", "[track-note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (1.0);   // 1/64 = 30 ticks = 30 px
+
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    preview.paint (g);
+
+    CHECK (gridLineDrawnAt (image, viewState, 30));
+    CHECK (gridLineDrawnAt (image, viewState, 60));
+}
+
+TEST_CASE ("TrackNotePreview: a finer division is fainter than a bar line", "[track-note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    preview.paint (g);
+
+    const auto barPixel = image.getPixelAt (viewState.xForTick (1920), previewHeight / 2);
+    const auto sixteenthPixel = image.getPixelAt (viewState.xForTick (120), previewHeight / 2);
+    CHECK (barPixel.getBrightness() > sixteenthPixel.getBrightness());
+}

@@ -1084,3 +1084,33 @@ TEST_CASE ("PianoRollComponent: shift+wheel pans horizontally", "[piano-roll][wh
     CHECK (viewport.getViewPositionX() > 0);
     CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomBefore));
 }
+
+TEST_CASE ("PianoRollComponent: grid lines run from the bar down to the note values at least 8 px wide", "[piano-roll][grid-lines]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    constexpr int width = 400;
+    constexpr int height = 100;
+    roll.setBounds (0, 0, width, height);
+
+    // Default geometry: 480 PPQ at 40 px per quarter, so a 1/16 note is 10 px and a 1/32 is 5 px.
+    PianoRollGeometry geometry;
+
+    juce::Image image (juce::Image::ARGB, width, height, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    Access::paintCanvas (roll, g, { 0, 0, width, height });
+
+    auto lineAt = [&] (int tick)
+    {
+        const int x = geometry.xForTick (tick);
+        return image.getPixelAt (x, 5) != image.getPixelAt (x + 1, 5);
+    };
+
+    CHECK (lineAt (1920));          // bar
+    CHECK (lineAt (480));           // quarter
+    CHECK (lineAt (240));           // eighth
+    CHECK (lineAt (120));           // sixteenth
+    CHECK_FALSE (lineAt (60));      // thirty-second: only 5 px
+}

@@ -54,6 +54,8 @@ namespace lotro
         std::function<void()> onNonToggleDoubleClick;
 
     private:
+        void paintGrid (juce::Graphics& g) const;
+
         juce::ValueTree track;
         const TimelineViewState& viewState;
         bool ghostVisible = false;

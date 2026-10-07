@@ -163,7 +163,7 @@ When you say…       …I'll know you mean
   `F#4`, sharps only, pitch 60 = C4), so a row can be identified without
   counting from the nearest C; row shading follows the real piano
   black/white-key pattern, not plain semitone alternation. Vertical
-  gridlines mark bar boundaries from the document's meter. Mouse
+  gridlines mark bar boundaries from the document's meter, plus whole-note down to 1/64-note divisions (each appears once its lines are ≥ 8 px apart, fainter the finer it is; same grid on the main-view track strips and the LOTRO preview roll). Mouse
   wheel, same mapping as the main track list: a plain wheel zooms
   horizontally (centring the start marker first, or zooming about the middle
   of the view with no marker); Ctrl/Cmd+wheel scrolls vertically;

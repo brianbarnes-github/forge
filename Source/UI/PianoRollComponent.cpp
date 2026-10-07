@@ -1,4 +1,5 @@
 #include "PianoRollComponent.h"
+#include "GridLinePaint.h"
 #include "SongDocument.h"
 #include "SongsmithColours.h"
 
@@ -14,7 +15,6 @@ namespace
     // palette (those are piano-roll-specific).
     constexpr juce::uint32 rowBandLight = 0xFF252525;
     constexpr juce::uint32 rowBandDark  = 0xFF202020;
-    constexpr juce::uint32 gridline     = 0xFF333333;
 
     // Keyboard gutter, drawn as a real piano keyboard (white keys full
     // width, black keys shorter and on top) so sharps/flats read at a glance.
@@ -545,27 +545,11 @@ void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> 
         numerator = (int) first.getProperty (SongIDs::numerator, 4);
         denominator = (int) first.getProperty (SongIDs::denominator, 4);
     }
-    if (numerator <= 0 || denominator <= 0)
-    {
-        numerator = 4;
-        denominator = 4;
-    }
 
-    const int barTicks = (int) std::lround ((double) ticksPerQuarter * numerator * 4.0 / (double) denominator);
-    if (barTicks <= 0 || clip.isEmpty())
-        return;
-
-    g.setColour (juce::Colour (gridline));
-
-    const int firstBarTick = juce::jmax (0, (geometry.tickForX (clip.getX()) / barTicks) * barTicks);
-    for (int tick = firstBarTick; ; tick += barTicks)
-    {
-        const int x = geometry.xForTick (tick);
-        if (x > clip.getRight())
-            break;
-        if (x >= clip.getX())
-            g.drawVerticalLine (x, (float) clip.getY(), (float) clip.getBottom());
-    }
+    paintGridLines (g, clip, geometry.getPixelsPerQuarterNote() / (double) ticksPerQuarter, ticksPerQuarter,
+                    { numerator, denominator },
+                    [this] (int tick) { return geometry.xForTick (tick); },
+                    [this] (int x) { return geometry.tickForX (x); });
 }
 
 void PianoRollComponent::paintGutter (juce::Graphics& g) const
