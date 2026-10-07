@@ -228,3 +228,98 @@ TEST_CASE ("PreviewNoteDiff: empty tracks yield an empty diff", "[previewnotedif
     result.pipelined.tracks.push_back (Track {});
     CHECK (diffPreviewNotes (result).empty());
 }
+
+TEST_CASE ("PreviewNoteDiff: when the second half survives, the first half is the one reported Dropped", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    a.notes.push_back (makeNote (60, 0, 400, 100, 2, 7));
+    a.notes.push_back (makeNote (60, 400, 560, 100, 2, 7));
+    result.assembled.tracks.push_back (a);
+    Track p;
+    p.notes.push_back (makeNote (72, 400, 560, 100, 2, 7));   // survivor, folded
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 2);
+    CHECK (diff[0].startTick == 0);
+    CHECK (diff[0].state == NoteState::Dropped);
+    CHECK (diff[1].startTick == 400);
+    CHECK (diff[1].state == NoteState::WillFold);
+    REQUIRE (diff[1].postPitch.has_value());
+    CHECK (*diff[1].postPitch == 72);
+}
+
+TEST_CASE ("PreviewNoteDiff: a same-tick chord of editor-created notes pairs each note with its own counterpart", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    a.notes.push_back (makeNote (64, 0, 100, 100, -1, -1));
+    a.notes.push_back (makeNote (60, 0, 100, 100, -1, -1));
+    a.notes.push_back (makeNote (20, 0, 100, 100, -1, -1));
+    result.assembled.tracks.push_back (a);
+    Track p;
+    p.notes.push_back (makeNote (64, 0, 100, 100, -1, -1));
+    p.notes.push_back (makeNote (60, 0, 100, 100, -1, -1));
+    p.notes.push_back (makeNote (44, 0, 100, 100, -1, -1));   // 20 folded up
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 3);
+    int folded = 0;
+    for (const auto& n : diff)
+    {
+        if (n.prePitch == 20)
+        {
+            CHECK (n.state == NoteState::WillFold);
+            REQUIRE (n.postPitch.has_value());
+            CHECK (*n.postPitch == 44);
+            ++folded;
+        }
+        else
+        {
+            CHECK (n.state == NoteState::Normal);
+        }
+    }
+    CHECK (folded == 1);
+}
+
+TEST_CASE ("PreviewNoteDiff: a dropped early editor-created note does not shift later pairings", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    a.notes.push_back (makeNote (60, 0, 100, 100, -1, -1));     // dropped
+    a.notes.push_back (makeNote (20, 200, 100, 100, -1, -1));   // folds
+    a.notes.push_back (makeNote (62, 400, 100, 100, -1, -1));
+    result.assembled.tracks.push_back (a);
+    Track p;
+    p.notes.push_back (makeNote (44, 200, 100, 100, -1, -1));
+    p.notes.push_back (makeNote (62, 400, 100, 100, -1, -1));
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 3);
+    CHECK (diff[0].state == NoteState::Dropped);
+    CHECK (diff[1].state == NoteState::WillFold);
+    REQUIRE (diff[1].postPitch.has_value());
+    CHECK (*diff[1].postPitch == 44);
+    CHECK (diff[2].state == NoteState::Normal);
+}
+
+TEST_CASE ("PreviewNoteDiff: rescaled start ticks fall back to start order", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    a.notes.push_back (makeNote (60, 0, 400, 100, 2, 7));
+    a.notes.push_back (makeNote (60, 400, 560, 100, 2, 7));
+    result.assembled.tracks.push_back (a);
+    Track p;
+    p.notes.push_back (makeNote (60, 0, 200, 100, 2, 7));
+    p.notes.push_back (makeNote (72, 200, 280, 100, 2, 7));   // tempo-collapsed to half the ticks
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 2);
+    CHECK (diff[0].state == NoteState::Normal);
+    CHECK (diff[1].state == NoteState::WillFold);
+}
