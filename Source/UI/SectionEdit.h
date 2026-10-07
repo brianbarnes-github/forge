@@ -78,6 +78,11 @@ void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int d
 // the new edge; growing only extends the range and never touches a note.
 void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int tick);
 
+// As resizeSections, but each section's edge moves by deltaTicks from where it is
+// (still at least 1 tick wide, each clamped on its own), so sections with
+// different ends all move by the same amount.
+void resizeSectionsBy (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int deltaTicks);
+
 // Removes the sections and their notes.
 void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs);
 

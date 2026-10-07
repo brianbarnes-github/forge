@@ -67,6 +67,8 @@ namespace lotro
         // A left press on the strip (after onNonToggleClick/onTimelineClicked) with
         // the section under it (zone None when there is none), then the tick under
         // the pointer while dragging and on release. Only fired with a section view.
+        // Dragging starts once the pointer has moved sectionDragThresholdPixels;
+        // a release before that reports the press tick.
         std::function<void (const SectionHit&, int tick)> onSectionPressed;
         std::function<void (int tick)> onSectionDragged;
         std::function<void (int tick)> onSectionReleased;
@@ -74,6 +76,9 @@ namespace lotro
     private:
         void paintGrid (juce::Graphics& g) const;
         void paintSections (juce::Graphics& g) const;
+        int sectionDragTick (const juce::MouseEvent& e);
+
+        static constexpr int sectionDragThresholdPixels = 3;
 
         juce::ValueTree track;
         const TimelineViewState& viewState;
@@ -81,5 +86,8 @@ namespace lotro
         const SectionViewState* sectionView = nullptr;
         juce::int64 trackId = 0;
         bool sectionPressActive = false;
+        bool sectionDragStarted = false;
+        int sectionPressX = 0;
+        int sectionPressTick = 0;
     };
 }

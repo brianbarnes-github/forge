@@ -3,6 +3,7 @@
 #include "SongsmithColours.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace lotro
 {
@@ -44,7 +45,7 @@ namespace lotro
             const bool selected = sectionView->selected.count ({ trackId, s.id }) > 0;
             if (selected && sectionView->drag)
             {
-                // Clamped as moveSections/resizeSections will, so the preview is the result.
+                // Clamped as moveSections/resizeSectionsBy will, so the preview is the result.
                 const auto& d = *sectionView->drag;
                 if (d.kind == SectionDragPreview::Kind::Move)
                 {
@@ -52,9 +53,9 @@ namespace lotro
                     end += d.deltaTicks;
                 }
                 else if (d.kind == SectionDragPreview::Kind::ResizeLeft)
-                    start = std::clamp (d.edgeTick, 0, end - 1);
+                    start = std::clamp (start + d.deltaTicks, 0, end - 1);
                 else
-                    end = std::max (d.edgeTick, start + 1);
+                    end = std::max (end + d.deltaTicks, start + 1);
             }
 
             const int x0 = viewState.xForTick (start);
@@ -147,14 +148,29 @@ namespace lotro
         {
             const auto hit = hitTestSection (sectionsOf (track), tick, viewState.getPixelsPerTick(), 5);
             sectionPressActive = true;
+            sectionDragStarted = false;
+            sectionPressX = e.getPosition().x;
+            sectionPressTick = tick;
             onSectionPressed (hit, tick);
         }
     }
 
+    int TrackNotePreview::sectionDragTick (const juce::MouseEvent& e)
+    {
+        // Until the pointer has moved a few pixels the press is a click: report the
+        // press tick, so a little jitter neither moves the preview nor commits.
+        if (std::abs (e.getPosition().x - sectionPressX) >= sectionDragThresholdPixels)
+            sectionDragStarted = true;
+        return sectionDragStarted ? viewState.tickForX (e.getPosition().x) : sectionPressTick;
+    }
+
     void TrackNotePreview::mouseDrag (const juce::MouseEvent& e)
     {
-        if (sectionPressActive && onSectionDragged)
-            onSectionDragged (viewState.tickForX (e.getPosition().x));
+        if (! sectionPressActive)
+            return;
+        const int tick = sectionDragTick (e);
+        if (sectionDragStarted && onSectionDragged)
+            onSectionDragged (tick);
     }
 
     void TrackNotePreview::mouseUp (const juce::MouseEvent& e)
@@ -162,8 +178,9 @@ namespace lotro
         if (! sectionPressActive)
             return;
         sectionPressActive = false;
+        const int tick = sectionDragTick (e);
         if (onSectionReleased)
-            onSectionReleased (viewState.tickForX (e.getPosition().x));
+            onSectionReleased (tick);
     }
 
     void TrackNotePreview::mouseDoubleClick (const juce::MouseEvent& e)

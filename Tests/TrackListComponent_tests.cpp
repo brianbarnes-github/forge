@@ -1434,3 +1434,114 @@ TEST_CASE ("TrackListComponent: a real strip drag moves the companions of every 
     CHECK (sectionsOf (doc.findTrackById (ids[0]))[1].startTick == 480);
     CHECK (sectionsOf (doc.findTrackById (ids[2]))[1].startTick == 480);
 }
+
+namespace
+{
+    // A [0, 960) and B [0, 5000) (notes at 0 and 3000), both selected, viewed at 0.1 px/tick.
+    struct CompanionResizeFixture
+    {
+        SongDocument doc;
+        juce::ValueTree a, b;
+        TrackListComponent list { doc };
+
+        CompanionResizeFixture()
+        {
+            a = playbacktest::addTrack (doc, "A");
+            b = playbacktest::addTrack (doc, "B");
+            playbacktest::addNote (a, 60, 0, 960);
+            playbacktest::addNote (b, 60, 0, 1000);
+            playbacktest::addNote (b, 62, 3000, 2000);
+            list.setBounds (0, 0, 600, 300);
+            TrackListComponentTestAccess::rebuild (list);
+            TrackListComponentTestAccess::timelineViewMut (list).setPixelsPerTick (0.1);
+            TrackListComponentTestAccess::timelineViewMut (list).setScrollOffsetTicks (0.0);
+            list.selectAllTracks();
+        }
+
+        TrackNotePreview& strip (const juce::ValueTree& t) { return TrackListComponentTestAccess::rowFor (list, idOf (t))->notePreviewForTesting(); }
+        int x (int tick) { return TrackListComponentTestAccess::timelineView (list).xForTick (tick); }
+    };
+}
+
+TEST_CASE ("TrackListComponent: growing an edge grows every companion by the same delta and deletes nothing", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CompanionResizeFixture f;
+    auto& strip = f.strip (f.a);
+
+    strip.mouseDown (stripMouseAt (strip, f.x (960)));   // A's right edge
+    strip.mouseDrag (stripMouseAt (strip, f.x (1000)));
+    strip.mouseUp (stripMouseAt (strip, f.x (1000)));
+
+    CHECK (sectionsOf (f.a)[0].endTick == 1000);
+    CHECK (sectionsOf (f.b)[0].endTick == 5040);
+    REQUIRE (SongDocument::getNotesNode (f.b).getNumChildren() == 2);
+    CHECK ((int) SongDocument::getNotesNode (f.b).getChild (1).getProperty (SongIDs::durationTicks) == 2000);
+
+    f.doc.undo();   // one step for the whole gesture
+    CHECK (sectionsOf (f.a)[0].endTick == 960);
+    CHECK (sectionsOf (f.b)[0].endTick == 5000);
+}
+
+TEST_CASE ("TrackListComponent: a left-edge drag moves every companion's start by the same delta", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CompanionResizeFixture f;
+    auto& strip = f.strip (f.b);
+
+    strip.mouseDown (stripMouseAt (strip, f.x (0)));   // B's left edge
+    strip.mouseDrag (stripMouseAt (strip, f.x (1500)));
+    strip.mouseUp (stripMouseAt (strip, f.x (1500)));
+
+    CHECK (sectionsOf (f.a)[0].startTick == 959);    // clamped: one tick left
+    CHECK (sectionsOf (f.a)[0].endTick == 960);
+    CHECK (sectionsOf (f.b)[0].startTick == 1500);
+    CHECK (sectionsOf (f.b)[0].endTick == 5000);
+
+    f.doc.undo();
+    CHECK (sectionsOf (f.a)[0].startTick == 0);
+    CHECK (sectionsOf (f.b)[0].startTick == 0);
+}
+
+TEST_CASE ("TrackListComponent: shrinking past a companion's start clamps only that companion, in preview and commit", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CompanionResizeFixture f;
+
+    TrackListComponentTestAccess::press (f.list, idOf (f.a), { 0, SectionZone::RightEdge }, 960);
+    TrackListComponentTestAccess::drag (f.list, -1040);
+    REQUIRE (TrackListComponentTestAccess::sectionView (f.list).drag.has_value());
+    CHECK (TrackListComponentTestAccess::sectionView (f.list).drag->deltaTicks == -2000);
+    TrackListComponentTestAccess::release (f.list, -1040);
+
+    CHECK (sectionsOf (f.a)[0].endTick == 1);
+    CHECK (sectionsOf (f.b)[0].endTick == 3000);
+    f.doc.undo();
+    CHECK (sectionsOf (f.a)[0].endTick == 960);
+    CHECK (sectionsOf (f.b)[0].endTick == 5000);
+    CHECK (SongDocument::getNotesNode (f.a).getNumChildren() == 1);
+    CHECK (SongDocument::getNotesNode (f.b).getNumChildren() == 2);
+}
+
+TEST_CASE ("TrackListComponent: a pixel or two of jitter on an edge is still a click", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CompanionResizeFixture f;
+    auto& strip = f.strip (f.a);
+    REQUIRE_FALSE (f.doc.canUndo());
+
+    strip.mouseDown (stripMouseAt (strip, f.x (960)));
+    strip.mouseDrag (stripMouseAt (strip, f.x (960) - 1));
+    strip.mouseDrag (stripMouseAt (strip, f.x (960) - 2));
+    CHECK_FALSE (TrackListComponentTestAccess::sectionView (f.list).drag.has_value());
+    strip.mouseUp (stripMouseAt (strip, f.x (960) - 2));
+
+    CHECK (sectionsOf (f.a)[0].endTick == 960);
+    CHECK_FALSE (f.doc.canUndo());
+    CHECK (f.a.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
+
+    strip.mouseDown (stripMouseAt (strip, f.x (960)));
+    strip.mouseDrag (stripMouseAt (strip, f.x (960) - 10));
+    strip.mouseUp (stripMouseAt (strip, f.x (960) - 10));
+    CHECK (sectionsOf (f.a)[0].endTick == 860);
+}

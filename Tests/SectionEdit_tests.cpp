@@ -774,3 +774,41 @@ TEST_CASE ("sections: a moved section exports at its new position", "[sections][
             latestOn = std::max (latestOn, e.tick);
     CHECK (latestOn == 1200);   // the second half: 240 + 960
 }
+
+TEST_CASE ("resizeSectionsBy: each section's edge moves by the same delta, clamped per section", "[sections][resize]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc);
+    auto b = addTrack (doc);
+    addNote (a, 60, 0, 960);
+    addNote (b, 60, 0, 1000);
+    addNote (b, 62, 3000, 2000);   // B: [0, 5000)
+    const std::vector<SectionRef> refs { { idOf (a), 0 }, { idOf (b), 0 } };
+
+    resizeSectionsBy (doc, refs, SectionEdge::Right, 40);
+    CHECK (sectionsOf (a)[0].endTick == 1000);
+    CHECK (sectionsOf (b)[0].endTick == 5040);
+    CHECK (notesOf (b).size() == 2);
+
+    resizeSectionsBy (doc, { { idOf (a), sectionsOf (a)[0].id }, { idOf (b), sectionsOf (b)[0].id } }, SectionEdge::Right, -2000);
+    CHECK (sectionsOf (a)[0].endTick == 1);      // clamped to one tick
+    CHECK (sectionsOf (b)[0].endTick == 3040);   // moved by the full delta
+    CHECK (notesOf (b).size() == 2);             // the 3000 note is trimmed, not deleted
+    CHECK (notesOf (b)[1].dur == 40);
+
+    doc.undo();   // one step per call
+    CHECK (sectionsOf (a)[0].endTick == 1000);
+    CHECK (sectionsOf (b)[0].endTick == 5040);
+    CHECK (notesOf (b)[1].dur == 2000);
+}
+
+TEST_CASE ("resizeSectionsBy: a zero delta or one every section already clamps away changes nothing", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    resizeSectionsBy (doc, { { idOf (t), 0 } }, SectionEdge::Right, 0);
+    resizeSectionsBy (doc, { { idOf (t), 0 } }, SectionEdge::Left, -100);   // already at 0
+    CHECK (t.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);   // not materialised
+    CHECK_FALSE (doc.canUndo());
+}

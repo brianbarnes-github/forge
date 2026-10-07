@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 
 namespace lotro
@@ -347,71 +348,89 @@ void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int d
     }
 }
 
-void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int tick)
+namespace
 {
-    auto resized = [edge, tick] (const SectionRange& r)
+    // Moves `edge` of each section to targetTick (its range), at least 1 tick wide.
+    void resizeEachTo (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge,
+                       const std::function<int (const SectionRange&)>& targetTick)
     {
-        SectionRange out = r;
-        if (edge == SectionEdge::Left)
-            out.startTick = std::clamp (tick, 0, r.endTick - 1);
-        else
-            out.endTick = std::max (tick, r.startTick + 1);
-        return out;
-    };
-    std::vector<Target> changed;
-    for (const auto& t : targetsOf (doc, refs))
-    {
-        const auto r = resized (t.range);
-        if (r.startTick != t.range.startTick || r.endTick != t.range.endTick)
-            changed.push_back (t);
-    }
-    if (changed.empty())
-        return;
-
-    const auto targets = resolve (doc, changed);
-    doc.getUndoManager().beginNewTransaction();
-    for (const auto& t : targets)
-    {
-        const auto old = t.range;
-        const auto r = resized (old);
-        const auto members = membersOf (t.track, old.id);
-        auto notesNode = SongDocument::getNotesNode (t.track);
-        auto node = findSectionNode (t.track, old.id);
-        doc.setProperty (node, SongIDs::startTick, r.startTick, false);
-        doc.setProperty (node, SongIDs::endTick, r.endTick, false);
-
-        // Only a shrinking edge touches notes, and only those starting in the band
-        // it gives up (or, on the right, crossing into it). Growing only extends the
-        // range: a member lying outside it (drawn in a gap) is never touched.
-        for (auto note : members)
+        auto resized = [edge, &targetTick] (const SectionRange& r)
         {
-            const int start = (int) note.getProperty (SongIDs::startTick);
-            const int end = start + (int) note.getProperty (SongIDs::durationTicks);
+            SectionRange out = r;
+            if (edge == SectionEdge::Left)
+                out.startTick = std::clamp (targetTick (r), 0, r.endTick - 1);
+            else
+                out.endTick = std::max (targetTick (r), r.startTick + 1);
+            return out;
+        };
+        std::vector<Target> changed;
+        for (const auto& t : targetsOf (doc, refs))
+        {
+            const auto r = resized (t.range);
+            if (r.startTick != t.range.startTick || r.endTick != t.range.endTick)
+                changed.push_back (t);
+        }
+        if (changed.empty())
+            return;
 
-            if (r.startTick > old.startTick && old.startTick <= start && start < r.startTick)
+        const auto targets = resolve (doc, changed);
+        doc.getUndoManager().beginNewTransaction();
+        for (const auto& t : targets)
+        {
+            const auto old = t.range;
+            const auto r = resized (old);
+            const auto members = membersOf (t.track, old.id);
+            auto notesNode = SongDocument::getNotesNode (t.track);
+            auto node = findSectionNode (t.track, old.id);
+            doc.setProperty (node, SongIDs::startTick, r.startTick, false);
+            doc.setProperty (node, SongIDs::endTick, r.endTick, false);
+
+            // Only a shrinking edge touches notes, and only those starting in the band
+            // it gives up (or, on the right, crossing into it). Growing only extends the
+            // range: a member lying outside it (drawn in a gap) is never touched.
+            for (auto note : members)
             {
-                if (end <= r.startTick)
+                const int start = (int) note.getProperty (SongIDs::startTick);
+                const int end = start + (int) note.getProperty (SongIDs::durationTicks);
+
+                if (r.startTick > old.startTick && old.startTick <= start && start < r.startTick)
+                {
+                    if (end <= r.startTick)
+                    {
+                        doc.removeChild (notesNode, note, false);
+                    }
+                    else
+                    {
+                        doc.setProperty (note, SongIDs::startTick, r.startTick, false);
+                        doc.setProperty (note, SongIDs::durationTicks, end - r.startTick, false);
+                        markNoteTimingEdited (doc, note);
+                    }
+                }
+                else if (r.endTick < old.endTick && r.endTick <= start && start < old.endTick)
                 {
                     doc.removeChild (notesNode, note, false);
                 }
-                else
+                else if (r.endTick < old.endTick && old.startTick <= start && start < r.endTick && end > r.endTick)
                 {
-                    doc.setProperty (note, SongIDs::startTick, r.startTick, false);
-                    doc.setProperty (note, SongIDs::durationTicks, end - r.startTick, false);
+                    doc.setProperty (note, SongIDs::durationTicks, r.endTick - start, false);
                     markNoteTimingEdited (doc, note);
                 }
             }
-            else if (r.endTick < old.endTick && r.endTick <= start && start < old.endTick)
-            {
-                doc.removeChild (notesNode, note, false);
-            }
-            else if (r.endTick < old.endTick && old.startTick <= start && start < r.endTick && end > r.endTick)
-            {
-                doc.setProperty (note, SongIDs::durationTicks, r.endTick - start, false);
-                markNoteTimingEdited (doc, note);
-            }
         }
     }
+}
+
+void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int tick)
+{
+    resizeEachTo (doc, refs, edge, [tick] (const SectionRange&) { return tick; });
+}
+
+void resizeSectionsBy (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int deltaTicks)
+{
+    resizeEachTo (doc, refs, edge, [edge, deltaTicks] (const SectionRange& r)
+    {
+        return (edge == SectionEdge::Left ? r.startTick : r.endTick) + deltaTicks;
+    });
 }
 
 void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs)

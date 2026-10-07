@@ -396,24 +396,27 @@ void TrackListComponent::sectionReleased (int tick)
     if (tick == g.pressTick)
         return;
 
+    // Every edge moves by the same delta (never to one shared tick), so a
+    // companion with a different end grows or shrinks by what the user dragged.
     const auto d = previewFor (g, tick);
     if (d.kind == SectionDragPreview::Kind::Move)
         moveSections (doc, g.refs, d.deltaTicks);
     else
-        resizeSections (doc, g.refs, d.kind == SectionDragPreview::Kind::ResizeLeft ? SectionEdge::Left : SectionEdge::Right,
-                        d.edgeTick);
+        resizeSectionsBy (doc, g.refs, d.kind == SectionDragPreview::Kind::ResizeLeft ? SectionEdge::Left : SectionEdge::Right,
+                          d.deltaTicks);
 }
 
 SectionDragPreview TrackListComponent::previewFor (const SectionGesture& g, int tick)
 {
     // The move is clamped here so the preview shows what moveSections will do; an
     // edge follows the pointer's movement from where it was grabbed, so grabbing
-    // it a few pixels off does not make it jump.
+    // it a few pixels off does not make it jump (resizeSectionsBy clamps each
+    // section to at least one tick, and paintSections mirrors that).
     const int delta = tick - g.pressTick;
     if (g.zone == SectionZone::Body)
         return { SectionDragPreview::Kind::Move, std::max (delta, -g.minStart), 0 };
     return { g.zone == SectionZone::LeftEdge ? SectionDragPreview::Kind::ResizeLeft : SectionDragPreview::Kind::ResizeRight,
-             0, g.edgeTick + delta };
+             delta, g.edgeTick + delta };
 }
 
 int TrackListComponent::contentWidth() const

@@ -337,11 +337,11 @@ TEST_CASE ("TrackNotePreview: a drag preview moves only the selected block, clam
     CHECK (paintAt (77) == selectedFill);
     CHECK (paintAt (26) == plainFill);       // the unselected block stays put
 
-    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, 0, 100 };   // past the start: 1 tick
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, -1400, 100 };   // past the start: 1 tick
     CHECK (paintAt (63) == background);
     CHECK (paintAt (100) == background);
 
-    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeLeft, 0, 2000 };   // past the end: [1499, 1500)
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeLeft, 1470, 2000 };   // past the end: [1499, 1500)
     CHECK (paintAt (100) == background);
     CHECK (paintAt (200) == background);   // nothing drawn out at the pointer
 }
@@ -415,4 +415,32 @@ TEST_CASE ("TrackNotePreview: an empty track and the conductor paint no sections
         preview.mouseDown (previewMouseAt (preview, 96));
         CHECK (hit.zone == SectionZone::None);
     }
+}
+
+TEST_CASE ("TrackNotePreview: a resize preview moves each selected edge by the delta, not to one tick", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+    playbacktest::addNote (track, 60, 0, 5000);   // virtual [0, 5000)
+
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.05);   // 5000 ticks = 250 px
+    SectionViewState sectionView;
+    sectionView.selected.insert ({ id, 0 });
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, id);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    // Dragged from another track's edge at 960 to -1040: this section ends at 3000.
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, -2000, -1040 };
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    {
+        juce::Graphics g (image);
+        preview.paint (g);
+    }
+    const auto background = juce::Colour (SongsmithColours::background);
+    CHECK (image.getPixelAt (101, previewHeight - 4) != background);   // tick 2020: still inside
+    CHECK (image.getPixelAt (171, previewHeight - 4) == background);   // tick 3420: given up
 }
