@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "SectionViewState.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
 
@@ -33,7 +34,17 @@ namespace lotro
         // full juce::MouseEvent.
         bool toggleGhostIfHit (juce::Point<int> pos);
 
+        // Paints this track's sections from `state` (not owned; must outlive this
+        // preview) and enables the section gestures. Null paints none.
+        void setSectionView (const SectionViewState* state, juce::int64 trackIdIn) noexcept
+        {
+            sectionView = state;
+            trackId = trackIdIn;
+        }
+
         void mouseDown (const juce::MouseEvent& e) override;
+        void mouseDrag (const juce::MouseEvent& e) override;
+        void mouseUp (const juce::MouseEvent& e) override;
         void mouseDoubleClick (const juce::MouseEvent& e) override;
 
         // Fired when the ghost toggle is clicked, with the new state.
@@ -53,11 +64,22 @@ namespace lotro
         std::function<void (int tick)> onTimelineClicked;
         std::function<void()> onNonToggleDoubleClick;
 
+        // A left press on the strip (after onNonToggleClick/onTimelineClicked) with
+        // the section under it (zone None when there is none), then the tick under
+        // the pointer while dragging and on release. Only fired with a section view.
+        std::function<void (const SectionHit&, int tick)> onSectionPressed;
+        std::function<void (int tick)> onSectionDragged;
+        std::function<void (int tick)> onSectionReleased;
+
     private:
         void paintGrid (juce::Graphics& g) const;
+        void paintSections (juce::Graphics& g) const;
 
         juce::ValueTree track;
         const TimelineViewState& viewState;
         bool ghostVisible = false;
+        const SectionViewState* sectionView = nullptr;
+        juce::int64 trackId = 0;
+        bool sectionPressActive = false;
     };
 }

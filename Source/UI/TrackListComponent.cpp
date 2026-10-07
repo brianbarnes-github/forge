@@ -1,10 +1,37 @@
 #include "TrackListComponent.h"
 #include "SongsmithColours.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace lotro
 {
+
+namespace
+{
+    // The earliest start among the sections `refs` name and their member notes:
+    // the same bound moveSections clamps a move by (a note lying before every
+    // section belongs to the first, so it can start before its section).
+    int earliestStart (const SongDocument& doc, const std::vector<SectionRef>& refs)
+    {
+        int lowest = std::numeric_limits<int>::max();
+        for (const auto& r : refs)
+        {
+            const auto track = doc.findTrackById (r.trackId);
+            const auto sections = sectionsOf (track);
+            for (const auto& s : sections)
+                if (s.id == r.sectionId)
+                    lowest = std::min (lowest, s.startTick);
+
+            const auto notes = SongDocument::getNotesNode (track);
+            for (int i = 0; i < notes.getNumChildren(); ++i)
+                if (sectionIdOfNote (notes.getChild (i), sections) == r.sectionId)
+                    lowest = std::min (lowest, (int) notes.getChild (i).getProperty (SongIDs::startTick));
+        }
+        return lowest == std::numeric_limits<int>::max() ? 0 : std::max (0, lowest);
+    }
+}
 
 void TrackListComponent::ListContent::resized()
 {
@@ -122,6 +149,10 @@ void TrackListComponent::muteSoloChanged()
 
 void TrackListComponent::rebuild()
 {
+    // The strip holding the mouse is about to be destroyed, so no release will
+    // arrive: drop any section drag uncommitted.
+    gesture.reset();
+    sectionView.drag.reset();
     content.rows.clear();
 
     for (int i = 0; i < doc.getNumTracks(); ++i)
@@ -132,6 +163,10 @@ void TrackListComponent::rebuild()
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m, false); };
         row->onStripSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m, true); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
+        row->setSectionView (&sectionView);
+        row->onSectionPressed = [this] (juce::int64 trackId, const SectionHit& hit, int tick) { sectionPressed (trackId, hit, tick); };
+        row->onSectionDragged = [this] (int tick) { sectionDragged (tick); };
+        row->onSectionReleased = [this] (int tick) { sectionReleased (tick); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
         row->onMuteToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setMuted (id, s); };
         row->onSoloToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setSoloed (id, s); };
@@ -151,6 +186,22 @@ void TrackListComponent::rebuild()
     if (selectedTrackId != -1 && ! doc.findTrackById (selectedTrackId).isValid())
         selectedTrackId = -1;
     applySelectionToRows();
+
+    // Sections that no longer exist drop out of the selection. A virtual default
+    // section (id 0) that an edit materialised becomes the track's first section,
+    // as the mutations resolve it, so it stays selected.
+    std::set<SectionRef> stillSelected;
+    for (const auto& r : sectionView.selected)
+    {
+        const auto sections = sectionsOf (doc.findTrackById (r.trackId));
+        const auto id = r.sectionId;
+        if (std::any_of (sections.begin(), sections.end(), [id] (const SectionRange& s) { return s.id == id; }))
+            stillSelected.insert (r);
+        else if (id == 0 && ! sections.empty())
+            stillSelected.insert ({ r.trackId, sections.front().id });
+    }
+    sectionView.selected = std::move (stillSelected);
+    content.repaint();
 
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
@@ -298,6 +349,71 @@ void TrackListComponent::selectAllTracks()
             selectedTrackIds.insert ((juce::int64) t.getProperty (SongIDs::trackId));
     }
     applySelectionToRows();
+}
+
+void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick)
+{
+    gesture.reset();
+    sectionView.drag.reset();
+    if (hit.zone == SectionZone::None)
+    {
+        sectionView.selected.clear();
+        content.repaint();
+        return;
+    }
+
+    // Track toggling/range selection already ran in selectTrack (the preview calls
+    // onNonToggleClick first), so selectedTrackIds is up to date here.
+    const auto refs = withCompanions (doc, selectedTrackIds, { trackId, hit.sectionId });
+    sectionView.selected = std::set<SectionRef> (refs.begin(), refs.end());
+
+    int edgeTick = tick;
+    for (const auto& s : sectionsOf (doc.findTrackById (trackId)))
+        if (s.id == hit.sectionId)
+            edgeTick = hit.zone == SectionZone::LeftEdge ? s.startTick : s.endTick;
+    gesture = SectionGesture { hit.zone, refs, tick, earliestStart (doc, refs), edgeTick };
+    content.repaint();
+}
+
+void TrackListComponent::sectionDragged (int tick)
+{
+    if (! gesture)
+        return;
+    sectionView.drag = previewFor (*gesture, tick);
+    content.repaint();
+}
+
+void TrackListComponent::sectionReleased (int tick)
+{
+    if (! gesture)
+        return;
+    const auto g = *gesture;
+    gesture.reset();
+    sectionView.drag.reset();
+    content.repaint();
+
+    // A press released where it started is a click: it only selects.
+    if (tick == g.pressTick)
+        return;
+
+    const auto d = previewFor (g, tick);
+    if (d.kind == SectionDragPreview::Kind::Move)
+        moveSections (doc, g.refs, d.deltaTicks);
+    else
+        resizeSections (doc, g.refs, d.kind == SectionDragPreview::Kind::ResizeLeft ? SectionEdge::Left : SectionEdge::Right,
+                        d.edgeTick);
+}
+
+SectionDragPreview TrackListComponent::previewFor (const SectionGesture& g, int tick)
+{
+    // The move is clamped here so the preview shows what moveSections will do; an
+    // edge follows the pointer's movement from where it was grabbed, so grabbing
+    // it a few pixels off does not make it jump.
+    const int delta = tick - g.pressTick;
+    if (g.zone == SectionZone::Body)
+        return { SectionDragPreview::Kind::Move, std::max (delta, -g.minStart), 0 };
+    return { g.zone == SectionZone::LeftEdge ? SectionDragPreview::Kind::ResizeLeft : SectionDragPreview::Kind::ResizeRight,
+             0, g.edgeTick + delta };
 }
 
 int TrackListComponent::contentWidth() const

@@ -8,6 +8,8 @@
 #include "UI/SongModelBridge.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/TrackListComponent.h"
+#include "UI/SectionEdit.h"
+#include "UI/SectionViewState.h"
 #include "UI/Playback/PlayheadOverlay.h"
 #include "UI/Playback/TimelineRuler.h"
 
@@ -61,6 +63,10 @@ namespace lotro
         static PlayheadOverlay* overlay (TrackListComponent& c) { return c.overlay.get(); }
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
         static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
+        static SectionViewState& sectionView (TrackListComponent& c) { return c.sectionView; }
+        static void press (TrackListComponent& c, juce::int64 trackId, SectionHit hit, int tick) { c.sectionPressed (trackId, hit, tick); }
+        static void drag (TrackListComponent& c, int tick) { c.sectionDragged (tick); }
+        static void release (TrackListComponent& c, int tick) { c.sectionReleased (tick); }
     };
 }
 
@@ -1095,4 +1101,336 @@ TEST_CASE ("TrackListComponent: a plain strip click outside a multi-selection se
     TrackListComponentTestAccess::click (*f.list, f.ids[1], kCtrl, false);
     TrackListComponentTestAccess::click (*f.list, f.ids[3], kNone, true);
     CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[3] });
+}
+
+TEST_CASE ("TrackListComponent: selecting a section also selects its companions on the other selected tracks", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    std::vector<juce::int64> ids;
+    for (int i = 0; i < 2; ++i)
+    {
+        auto t = playbacktest::addTrack (doc, "T");
+        playbacktest::addNote (t, 60, 0, 960);
+        ids.push_back ((juce::int64) t.getProperty (SongIDs::trackId));
+    }
+    splitAt (doc, ids, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+
+    const auto first = sectionsOf (doc.findTrackById (ids[0]))[1];
+    TrackListComponentTestAccess::press (list, ids[0], { first.id, SectionZone::Body }, 700);
+
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.size() == 2);
+}
+
+TEST_CASE ("TrackListComponent: a section drag changes nothing in the document until release", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    splitAt (doc, { id }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const auto second = sectionsOf (t)[1];
+    TrackListComponentTestAccess::press (list, id, { second.id, SectionZone::Body }, 700);
+    TrackListComponentTestAccess::drag (list, 900);
+
+    CHECK (sectionsOf (t)[1].startTick == 480);   // untouched mid-drag
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+    CHECK (TrackListComponentTestAccess::sectionView (list).drag->deltaTicks == 200);
+
+    TrackListComponentTestAccess::release (list, 900);
+    CHECK (sectionsOf (t)[1].startTick == 680);
+    CHECK_FALSE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+
+    doc.undo();
+    CHECK (sectionsOf (t)[1].startTick == 480);   // one undo step for the whole drag
+}
+
+TEST_CASE ("TrackListComponent: dragging an edge resizes, a press on empty strip selects no section", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const auto sec = sectionsOf (t)[0];
+    TrackListComponentTestAccess::press (list, id, { sec.id, SectionZone::RightEdge }, 960);
+    TrackListComponentTestAccess::drag (list, 600);
+    TrackListComponentTestAccess::release (list, 600);
+    CHECK (sectionsOf (t)[0].endTick == 600);
+
+    TrackListComponentTestAccess::press (list, id, {}, 5000);   // SectionHit{} has zone None
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.empty());
+}
+
+TEST_CASE ("TrackListComponent: rebuild forgets selected sections that no longer exist", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    splitAt (doc, { id }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const auto second = sectionsOf (t)[1];
+    TrackListComponentTestAccess::press (list, id, { second.id, SectionZone::Body }, 700);
+    deleteSections (doc, { { id, second.id } });
+    TrackListComponentTestAccess::rebuild (list);
+
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.empty());
+}
+
+namespace
+{
+    juce::MouseEvent stripMouseAt (juce::Component& c, int x, juce::ModifierKeys mods = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier))
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                 juce::Point<float> ((float) x, 20.0f), mods,
+                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &c, &c, juce::Time::getCurrentTime(),
+                                 juce::Point<float> ((float) x, 20.0f), juce::Time::getCurrentTime(), 1, false);
+    }
+
+    juce::int64 idOf (const juce::ValueTree& t) { return (juce::int64) t.getProperty (SongIDs::trackId); }
+}
+
+TEST_CASE ("TrackListComponent: a click on a section edge with no movement changes nothing and opens no undo step", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    REQUIRE_FALSE (doc.canUndo());
+
+    // 30 ticks inside the right edge: within the hit slop, but not on the edge itself.
+    TrackListComponentTestAccess::press (list, idOf (t), { 0, SectionZone::RightEdge }, 930);
+    TrackListComponentTestAccess::release (list, 930);
+    TrackListComponentTestAccess::press (list, idOf (t), { 0, SectionZone::LeftEdge }, 25);
+    TrackListComponentTestAccess::release (list, 25);
+    TrackListComponentTestAccess::press (list, idOf (t), { 0, SectionZone::Body }, 400);
+    TrackListComponentTestAccess::release (list, 400);
+
+    CHECK (sectionsOf (t)[0].startTick == 0);
+    CHECK (sectionsOf (t)[0].endTick == 960);
+    CHECK (SongDocument::getNotesNode (t).getChild (0).getProperty (SongIDs::durationTicks) == juce::var (960));
+    CHECK (t.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);   // not materialised
+    CHECK_FALSE (doc.canUndo());
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.size() == 1);   // still selected
+}
+
+TEST_CASE ("TrackListComponent: an edge drag moves the edge by the pointer's movement", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    TrackListComponentTestAccess::press (list, idOf (t), { 0, SectionZone::RightEdge }, 930);
+    TrackListComponentTestAccess::drag (list, 630);
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+    CHECK (TrackListComponentTestAccess::sectionView (list).drag->kind == SectionDragPreview::Kind::ResizeRight);
+    CHECK (TrackListComponentTestAccess::sectionView (list).drag->edgeTick == 660);
+    TrackListComponentTestAccess::release (list, 630);
+    CHECK (sectionsOf (t)[0].endTick == 660);
+}
+
+TEST_CASE ("TrackListComponent: a resize past the opposite edge leaves the section one tick wide", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    splitAt (doc, { idOf (t) }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const auto second = sectionsOf (t)[1];
+    TrackListComponentTestAccess::press (list, idOf (t), { second.id, SectionZone::RightEdge }, 960);
+    TrackListComponentTestAccess::drag (list, 100);
+    TrackListComponentTestAccess::release (list, 100);
+    CHECK (sectionsOf (t)[1].startTick == 480);
+    CHECK (sectionsOf (t)[1].endTick == 481);
+
+    TrackListComponentTestAccess::press (list, idOf (t), { second.id, SectionZone::LeftEdge }, 480);
+    TrackListComponentTestAccess::drag (list, 5000);
+    TrackListComponentTestAccess::release (list, 5000);
+    CHECK (sectionsOf (t)[1].startTick == 480);   // already as narrow as it can be: left edge stays below the end
+    CHECK (sectionsOf (t)[1].endTick == 481);
+}
+
+TEST_CASE ("TrackListComponent: companion sections clamp together at tick 0, in the preview and the commit", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    std::vector<juce::int64> ids;
+    for (int i = 0; i < 2; ++i)
+    {
+        auto t = playbacktest::addTrack (doc, "T");
+        playbacktest::addNote (t, 60, 480, 480);
+        ids.push_back (idOf (t));
+    }
+    splitAt (doc, ids, 700);   // [0, 700) and [700, 960) on both
+    resizeSections (doc, { { ids[0], sectionsOf (doc.findTrackById (ids[0]))[0].id },
+                           { ids[1], sectionsOf (doc.findTrackById (ids[1]))[0].id } }, SectionEdge::Left, 300);
+    auto a = doc.findTrackById (ids[0]);
+    auto b = doc.findTrackById (ids[1]);
+    playbacktest::addNote (a, 64, 100, 50);   // before every section: a member of the first
+    REQUIRE (sectionsOf (a)[0].startTick == 300);
+    REQUIRE (sectionsOf (b)[0].startTick == 300);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+
+    // Press on B's section: A's stray note at 100 is what limits the shared move.
+    TrackListComponentTestAccess::press (list, ids[1], { sectionsOf (b)[0].id, SectionZone::Body }, 500);
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).selected.size() == 2);
+    TrackListComponentTestAccess::drag (list, -200);
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+    CHECK (TrackListComponentTestAccess::sectionView (list).drag->deltaTicks == -100);
+
+    TrackListComponentTestAccess::release (list, -200);
+    CHECK (sectionsOf (a)[0].startTick == 200);
+    CHECK (sectionsOf (b)[0].startTick == 200);
+    int lowest = std::numeric_limits<int>::max();
+    for (int i = 0; i < SongDocument::getNotesNode (a).getNumChildren(); ++i)
+        lowest = std::min (lowest, (int) SongDocument::getNotesNode (a).getChild (i).getProperty (SongIDs::startTick));
+    CHECK (lowest == 0);
+}
+
+TEST_CASE ("TrackListComponent: a rebuild mid-drag cancels the gesture without committing", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    splitAt (doc, { idOf (t) }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const auto second = sectionsOf (t)[1];
+    TrackListComponentTestAccess::press (list, idOf (t), { second.id, SectionZone::Body }, 700);
+    TrackListComponentTestAccess::drag (list, 900);
+    TrackListComponentTestAccess::rebuild (list);   // the strip holding the mouse is gone: no mouse-up will come
+
+    CHECK_FALSE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+    TrackListComponentTestAccess::release (list, 900);
+    CHECK (sectionsOf (t)[1].startTick == 480);
+}
+
+TEST_CASE ("TrackListComponent: a virtual section stays selected after its first edit mints it an id", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    TrackListComponentTestAccess::press (list, idOf (t), { 0, SectionZone::Body }, 400);
+    TrackListComponentTestAccess::drag (list, 600);
+    TrackListComponentTestAccess::release (list, 600);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const auto sections = sectionsOf (t);
+    REQUIRE (sections.size() == 1);
+    REQUIRE (sections[0].id != 0);
+    CHECK (sections[0].startTick == 200);
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected == std::set<SectionRef> { { idOf (t), sections[0].id } });
+}
+
+TEST_CASE ("TrackListComponent: a press on the conductor or an empty track starts no gesture", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto empty = playbacktest::addTrack (doc, "E");
+    auto t = playbacktest::addTrack (doc, "T");
+    playbacktest::addNote (t, 60, 0, 960);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    TrackListComponentTestAccess::timelineViewMut (list).setPixelsPerTick (0.1);
+    TrackListComponentTestAccess::timelineViewMut (list).setScrollOffsetTicks (0.0);
+
+    TrackListComponentTestAccess::press (list, idOf (t), { 0, SectionZone::Body }, 400);
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).selected.size() == 1);
+
+    // Through the real strips: the conductor (row 0) and the note-less track.
+    for (auto* row : TrackListComponentTestAccess::rows (list))
+    {
+        if (row->getTrackId() == idOf (t))
+            continue;
+        auto& preview = row->notePreviewForTesting();
+        const int x = TrackListComponentTestAccess::timelineView (list).xForTick (400);
+        preview.mouseDown (stripMouseAt (preview, x));
+        CHECK (TrackListComponentTestAccess::sectionView (list).selected.empty());
+        preview.mouseDrag (stripMouseAt (preview, x + 30));
+        CHECK_FALSE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+        preview.mouseUp (stripMouseAt (preview, x + 30));
+    }
+    CHECK (sectionsOf (t)[0].startTick == 0);
+    CHECK (sectionsOf (empty).empty());
+}
+
+TEST_CASE ("TrackListComponent: a real strip drag moves the companions of every selected track as one undo step", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    std::vector<juce::int64> ids;
+    for (int i = 0; i < 3; ++i)
+    {
+        auto t = playbacktest::addTrack (doc, "T");
+        playbacktest::addNote (t, 60, 0, 960);
+        ids.push_back (idOf (t));
+    }
+    splitAt (doc, ids, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    TrackListComponentTestAccess::timelineViewMut (list).setPixelsPerTick (0.1);
+    TrackListComponentTestAccess::timelineViewMut (list).setScrollOffsetTicks (0.0);
+
+    // Select tracks 0 and 2 only, then press on track 2's strip inside the second section.
+    TrackListComponentTestAccess::click (list, ids[0], {}, false);
+    TrackListComponentTestAccess::click (list, ids[2], juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), false);
+    auto& preview = TrackListComponentTestAccess::rowFor (list, ids[2])->notePreviewForTesting();
+    const auto& view = TrackListComponentTestAccess::timelineView (list);
+    preview.mouseDown (stripMouseAt (preview, view.xForTick (700)));
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[0], ids[2] });   // plain strip click kept it
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.size() == 2);
+
+    preview.mouseDrag (stripMouseAt (preview, view.xForTick (900)));
+    CHECK (sectionsOf (doc.findTrackById (ids[2]))[1].startTick == 480);   // nothing yet
+    preview.mouseUp (stripMouseAt (preview, view.xForTick (900)));
+
+    CHECK (sectionsOf (doc.findTrackById (ids[0]))[1].startTick == 680);
+    CHECK (sectionsOf (doc.findTrackById (ids[1]))[1].startTick == 480);   // not selected
+    CHECK (sectionsOf (doc.findTrackById (ids[2]))[1].startTick == 680);
+    doc.undo();
+    CHECK (sectionsOf (doc.findTrackById (ids[0]))[1].startTick == 480);
+    CHECK (sectionsOf (doc.findTrackById (ids[2]))[1].startTick == 480);
 }

@@ -2,6 +2,8 @@
 #include "GridLinePaint.h"
 #include "SongsmithColours.h"
 
+#include <algorithm>
+
 namespace lotro
 {
     TrackNotePreview::TrackNotePreview (juce::ValueTree trackNodeIn, const TimelineViewState& viewStateIn)
@@ -30,6 +32,41 @@ namespace lotro
                         [this] (int x) { return viewState.tickForX (x); });
     }
 
+    void TrackNotePreview::paintSections (juce::Graphics& g) const
+    {
+        if (sectionView == nullptr)
+            return;
+
+        const auto bounds = getLocalBounds();
+        for (const auto& s : sectionsOf (track))
+        {
+            int start = s.startTick, end = s.endTick;
+            const bool selected = sectionView->selected.count ({ trackId, s.id }) > 0;
+            if (selected && sectionView->drag)
+            {
+                // Clamped as moveSections/resizeSections will, so the preview is the result.
+                const auto& d = *sectionView->drag;
+                if (d.kind == SectionDragPreview::Kind::Move)
+                {
+                    start += d.deltaTicks;   // the list already clamped the shared delta
+                    end += d.deltaTicks;
+                }
+                else if (d.kind == SectionDragPreview::Kind::ResizeLeft)
+                    start = std::clamp (d.edgeTick, 0, end - 1);
+                else
+                    end = std::max (d.edgeTick, start + 1);
+            }
+
+            const int x0 = viewState.xForTick (start);
+            const int x1 = std::max (x0 + 1, viewState.xForTick (end));
+            g.setColour (juce::Colour (selected ? SongsmithColours::sectionSelectedFill : SongsmithColours::sectionFill));
+            g.fillRect (x0, bounds.getY(), x1 - x0, bounds.getHeight());
+            g.setColour (juce::Colour (selected ? SongsmithColours::sectionSelectedEdge : SongsmithColours::sectionEdge));
+            g.drawVerticalLine (x0, (float) bounds.getY(), (float) bounds.getBottom());
+            g.drawVerticalLine (x1 - 1, (float) bounds.getY(), (float) bounds.getBottom());
+        }
+    }
+
     void TrackNotePreview::paint (juce::Graphics& g)
     {
         using namespace SongsmithColours;
@@ -39,6 +76,7 @@ namespace lotro
         g.fillRect (bounds);
 
         paintGrid (g);
+        paintSections (g);
 
         int minPitch = 127;
         int maxPitch = 0;
@@ -99,8 +137,33 @@ namespace lotro
             return;
         if (onNonToggleClick)
             onNonToggleClick (e.mods);
+        const int tick = viewState.tickForX (e.getPosition().x);
         if (onTimelineClicked)
-            onTimelineClicked (viewState.tickForX (e.getPosition().x));
+            onTimelineClicked (tick);
+
+        // Only the left button picks up a section, so another button can never drag one.
+        sectionPressActive = false;
+        if (sectionView != nullptr && onSectionPressed && e.mods.isLeftButtonDown())
+        {
+            const auto hit = hitTestSection (sectionsOf (track), tick, viewState.getPixelsPerTick(), 5);
+            sectionPressActive = true;
+            onSectionPressed (hit, tick);
+        }
+    }
+
+    void TrackNotePreview::mouseDrag (const juce::MouseEvent& e)
+    {
+        if (sectionPressActive && onSectionDragged)
+            onSectionDragged (viewState.tickForX (e.getPosition().x));
+    }
+
+    void TrackNotePreview::mouseUp (const juce::MouseEvent& e)
+    {
+        if (! sectionPressActive)
+            return;
+        sectionPressActive = false;
+        if (onSectionReleased)
+            onSectionReleased (viewState.tickForX (e.getPosition().x));
     }
 
     void TrackNotePreview::mouseDoubleClick (const juce::MouseEvent& e)

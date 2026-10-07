@@ -59,6 +59,21 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onTimelineClicked)
             onTimelineClicked (tick);
     };
+    notePreview.onSectionPressed = [this] (const SectionHit& hit, int tick)
+    {
+        if (onSectionPressed)
+            onSectionPressed (getTrackId(), hit, tick);
+    };
+    notePreview.onSectionDragged = [this] (int tick)
+    {
+        if (onSectionDragged)
+            onSectionDragged (tick);
+    };
+    notePreview.onSectionReleased = [this] (int tick)
+    {
+        if (onSectionReleased)
+            onSectionReleased (tick);
+    };
     notePreview.onNonToggleDoubleClick = [this]
     {
         if (canDrag() && onTrackDoubleClicked)
@@ -100,6 +115,11 @@ void TrackRowComponent::setSelected (bool shouldBeSelected)
     if (selected == shouldBeSelected) return;
     selected = shouldBeSelected;
     repaint();
+}
+
+void TrackRowComponent::setSectionView (const SectionViewState* state)
+{
+    notePreview.setSectionView (state, getTrackId());
 }
 
 void TrackRowComponent::setGhostVisible (bool shouldBeVisible)

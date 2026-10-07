@@ -43,6 +43,12 @@ namespace lotro::SongsmithColours
     constexpr juce::uint32 outOfRangeZoneFillHi = 0x14C06060;
     constexpr juce::uint32 outOfRangeZoneFillLo = 0x0AC06060;
 
+    // Track sections on the main canvas's note strips.
+    constexpr juce::uint32 sectionFill          = 0x22FFFFFF;
+    constexpr juce::uint32 sectionSelectedFill  = 0x44FFD27F;
+    constexpr juce::uint32 sectionEdge          = 0xAAFFFFFF;
+    constexpr juce::uint32 sectionSelectedEdge  = 0xFFFFD27F;
+
     // Track colour by instrument family. The 16 General MIDI families are
     // the 8-program blocks of the GM program table (program / 8); Drums is a
     // 17th, keyed off channel 10 rather than the program number.

@@ -3,6 +3,7 @@
 #include "Playback/PlaybackController.h"
 #include "Playback/PlayheadOverlay.h"
 #include "Playback/TimelineRuler.h"
+#include "SectionViewState.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
 #include "TrackRowComponent.h"
@@ -11,7 +12,9 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <set>
+#include <vector>
 
 // Phase 4, component B2 — the vertical, scrollable list of MIDI-track rows
 // (top-left panel of SongsmithMainComponent). Rebuilds itself from
@@ -105,6 +108,15 @@ private:
     void selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods, bool fromStrip);
     void applySelectionToRows();
 
+    // Section gestures from a row's note strip. A press selects the section (and
+    // its companions) and starts a gesture; a drag only updates sectionView.drag;
+    // the release commits once through moveSections/resizeSections. The document
+    // is never touched before the release: any change rebuilds the rows, which
+    // would destroy the strip holding the mouse.
+    void sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick);
+    void sectionDragged (int tick);
+    void sectionReleased (int tick);
+
     // Content width for `content`, accounting for the viewport's vertical
     // scrollbar (M2: rebuild() used to set the un-subtracted viewport width,
     // clipping rows under the scrollbar until the next resize; both call
@@ -177,10 +189,24 @@ private:
     // reverse declaration order — declaring this after `content` would
     // destroy it first, leaving those references dangling during teardown.
     TimelineViewState timelineView;
+    // Must outlive `content` too: every row's preview holds a pointer to it.
+    SectionViewState sectionView;
     ListContent     content;
     juce::int64     selectedTrackId = -1;
     std::set<juce::int64> selectedTrackIds;
     PlaybackController* playback = nullptr;
+
+    struct SectionGesture
+    {
+        SectionZone zone = SectionZone::None;
+        std::vector<SectionRef> refs;
+        int pressTick = 0;
+        int minStart = 0;   // earliest start among refs and their notes, for clamping the move
+        int edgeTick = 0;   // the pressed section's grabbed edge (resize only)
+    };
+    std::optional<SectionGesture> gesture;
+
+    static SectionDragPreview previewFor (const SectionGesture& g, int tick);
 
     // Declared after `playback`/`content`: destroyed first, before the
     // controller (which the overlay's listener registration refers to).

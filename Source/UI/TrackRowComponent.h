@@ -35,6 +35,10 @@ public:
 
     juce::int64 getTrackId() const;
 
+    // Hands the list's shared section state to the embedded preview (see
+    // TrackNotePreview::setSectionView); must outlive this row.
+    void setSectionView (const SectionViewState* state);
+
     void paint (juce::Graphics& g) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent& e) override;
@@ -68,6 +72,11 @@ public:
 
     // Fired on a click in the note-preview strip, with this row's trackId and the click's modifiers.
     std::function<void (juce::int64, const juce::ModifierKeys&)> onStripSelected;
+
+    // The preview's section gestures, the press with this row's trackId first.
+    std::function<void (juce::int64, const SectionHit&, int)> onSectionPressed;
+    std::function<void (int)> onSectionDragged;
+    std::function<void (int)> onSectionReleased;
 
     // Fired on a double-click, with this row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;

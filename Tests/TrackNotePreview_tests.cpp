@@ -2,6 +2,9 @@
 #include "UI/TrackNotePreview.h"
 #include "UI/SongDocument.h"
 #include "UI/SongsmithColours.h"
+#include "UI/SectionEdit.h"
+#include "UI/SectionViewState.h"
+#include "PlaybackTestSupport.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -185,4 +188,231 @@ TEST_CASE ("TrackNotePreview: a finer division is fainter than a bar line", "[tr
     const auto barPixel = image.getPixelAt (viewState.xForTick (1920), previewHeight / 2);
     const auto sixteenthPixel = image.getPixelAt (viewState.xForTick (120), previewHeight / 2);
     CHECK (barPixel.getBrightness() > sixteenthPixel.getBrightness());
+}
+
+namespace
+{
+    juce::MouseEvent previewMouseAt (juce::Component& c, int x, int y = 20, juce::ModifierKeys mods = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier))
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                 juce::Point<float> ((float) x, (float) y), mods,
+                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &c, &c, juce::Time::getCurrentTime(),
+                                 juce::Point<float> ((float) x, (float) y), juce::Time::getCurrentTime(), 1, false);
+    }
+}
+
+TEST_CASE ("TrackNotePreview: sections are drawn as blocks with edges, selected ones highlighted", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 960);
+    splitAt (doc, { (juce::int64) track.getProperty (SongIDs::trackId) }, 480);
+    const auto sections = sectionsOf (track);
+    REQUIRE (sections.size() == 2);
+
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    sectionView.selected.insert ({ (juce::int64) track.getProperty (SongIDs::trackId), sections[1].id });
+
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    preview.paint (g);
+
+    const int y = previewHeight - 4;   // below the note line
+    const auto unselected = image.getPixelAt (viewState.xForTick (240), y);
+    const auto selected = image.getPixelAt (viewState.xForTick (720), y);
+    CHECK (selected != unselected);                                   // highlighted
+    CHECK (unselected != juce::Colour (SongsmithColours::background)); // a block is drawn
+    CHECK (gridLineDrawnAt (image, viewState, 480));                  // a visible edge at the split
+}
+
+TEST_CASE ("TrackNotePreview: with no section view nothing section-related is drawn", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    preview.paint (g);
+    CHECK (image.getPixelAt (50, previewHeight - 4) == juce::Colour (SongsmithColours::background));
+}
+
+TEST_CASE ("TrackNotePreview: pressing in a section reports the hit, the tick and the modifiers", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 1920);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    SectionHit hit;
+    int pressedTick = -1;
+    preview.onSectionPressed = [&] (const SectionHit& h, int tick) { hit = h; pressedTick = tick; };
+
+    const int x = viewState.xForTick (960);
+    preview.mouseDown (previewMouseAt (preview, x));
+
+    CHECK (hit.zone == SectionZone::Body);
+    CHECK (pressedTick == 960);
+}
+
+TEST_CASE ("TrackNotePreview: a section edge off the grid is drawn, and a block fills an off-grid pixel", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 960);
+    splitAt (doc, { (juce::int64) track.getProperty (SongIDs::trackId) }, 530);   // x = 53: no grid line there
+
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::Image bare (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    {
+        juce::Graphics g (bare);
+        preview.paint (g);
+    }
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+    {
+        juce::Graphics g (image);
+        preview.paint (g);
+    }
+
+    CHECK_FALSE (gridLineDrawnAt (bare, viewState, 530));
+    CHECK (gridLineDrawnAt (image, viewState, 530));
+    CHECK (bare.getPixelAt (26, previewHeight - 4) == juce::Colour (SongsmithColours::background));
+    CHECK (image.getPixelAt (26, previewHeight - 4) != juce::Colour (SongsmithColours::background));
+}
+
+TEST_CASE ("TrackNotePreview: a drag preview moves only the selected block, clamped like the commit", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+    playbacktest::addNote (track, 60, 0, 1500);
+    splitAt (doc, { id }, 530);
+    const auto sections = sectionsOf (track);   // [0, 530) and [530, 1500)
+
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    sectionView.selected.insert ({ id, sections[1].id });
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, id);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    const auto paintAt = [&] (int x)
+    {
+        juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        preview.paint (g);
+        return image.getPixelAt (x, previewHeight - 4);
+    };
+    const auto selectedFill = paintAt (100);   // x = 100: inside the selected block, off the grid
+    const auto plainFill = paintAt (26);
+
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::Move, 200, 0 };   // [730, 1700)
+    const auto background = juce::Colour (SongsmithColours::background);
+    CHECK (paintAt (63) == background);      // the gap it left is empty
+    CHECK (paintAt (77) == selectedFill);
+    CHECK (paintAt (26) == plainFill);       // the unselected block stays put
+
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, 0, 100 };   // past the start: 1 tick
+    CHECK (paintAt (63) == background);
+    CHECK (paintAt (100) == background);
+
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeLeft, 0, 2000 };   // past the end: [1499, 1500)
+    CHECK (paintAt (100) == background);
+    CHECK (paintAt (200) == background);   // nothing drawn out at the pointer
+}
+
+TEST_CASE ("TrackNotePreview: only a left press picks up a section", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 1920);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    int pressed = 0, dragged = 0, released = 0, markerTick = -1;
+    preview.onSectionPressed = [&] (const SectionHit&, int) { ++pressed; };
+    preview.onSectionDragged = [&] (int) { ++dragged; };
+    preview.onSectionReleased = [&] (int) { ++released; };
+    preview.onTimelineClicked = [&] (int tick) { markerTick = tick; };
+
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+    preview.mouseDown (previewMouseAt (preview, 96, 20, right));
+    preview.mouseDrag (previewMouseAt (preview, 130, 20, right));
+    preview.mouseUp (previewMouseAt (preview, 130, 20, right));
+    CHECK (markerTick == 960);   // the marker still moves
+    CHECK (pressed == 0);
+    CHECK (dragged == 0);
+    CHECK (released == 0);
+
+    preview.mouseUp (previewMouseAt (preview, 130));   // a stray mouse-up with no press
+    CHECK (released == 0);
+
+    preview.mouseDown (previewMouseAt (preview, 96));
+    preview.mouseDrag (previewMouseAt (preview, 130));
+    preview.mouseUp (previewMouseAt (preview, 130));
+    CHECK (pressed == 1);
+    CHECK (dragged == 1);
+    CHECK (released == 1);
+}
+
+TEST_CASE ("TrackNotePreview: an empty track and the conductor paint no sections and press as None", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto empty = playbacktest::addTrack (doc, "E");
+    auto conductor = playbacktest::addTrack (doc, "C");
+    playbacktest::addNote (conductor, 60, 0, 1920);
+    conductor.setProperty (SongIDs::isConductor, true, nullptr);
+
+    for (auto track : { empty, conductor })
+    {
+        TimelineViewState viewState;
+        viewState.setPixelsPerTick (0.1);
+        SectionViewState sectionView;
+        TrackNotePreview preview (track, viewState);
+        preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+        preview.setBounds (0, 0, previewWidth, previewHeight);
+
+        juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+        {
+            juce::Graphics g (image);
+            preview.paint (g);
+        }
+        CHECK (image.getPixelAt (26, previewHeight - 4) == juce::Colour (SongsmithColours::background));
+
+        SectionHit hit { 99, SectionZone::Body };
+        preview.onSectionPressed = [&] (const SectionHit& h, int) { hit = h; };
+        preview.mouseDown (previewMouseAt (preview, 96));
+        CHECK (hit.zone == SectionZone::None);
+    }
 }
