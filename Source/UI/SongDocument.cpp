@@ -22,6 +22,8 @@ namespace SongIDs
     const juce::Identifier NOTES ("NOTES");
     const juce::Identifier EVENTS ("EVENTS");
     const juce::Identifier EVENT ("EVENT");
+    const juce::Identifier SECTIONS ("SECTIONS");
+    const juce::Identifier SECTION ("SECTION");
 
     const juce::Identifier title ("title");
     const juce::Identifier transcriber ("transcriber");
@@ -51,6 +53,7 @@ namespace SongIDs
     const juce::Identifier offIsNoteOnZero ("offIsNoteOnZero");
     const juce::Identifier onOrder ("onOrder");
     const juce::Identifier offOrder ("offOrder");
+    const juce::Identifier sectionId ("sectionId");
     const juce::Identifier offSynthesized ("offSynthesized");
     const juce::Identifier isConductor ("isConductor");
     const juce::Identifier endTick ("endTick");
@@ -79,6 +82,7 @@ namespace SongIDs
     static const juce::Identifier nextTrackId ("nextTrackId");
     static const juce::Identifier nextPartId ("nextPartId");
     static const juce::Identifier nextImportBatch ("nextImportBatch");
+    static const juce::Identifier nextSectionId ("nextSectionId");
 }
 
 SongDocument::SongDocument()
@@ -250,6 +254,20 @@ int SongDocument::mintImportBatch()
     const int batch = (int) tree.getProperty (SongIDs::nextImportBatch, 1);
     tree.setProperty (SongIDs::nextImportBatch, batch + 1, nullptr);
     return batch;
+}
+
+juce::int64 SongDocument::mintSectionId()
+{
+    auto next = (juce::int64) tree.getProperty (SongIDs::nextSectionId, 0);
+    if (next < 1)
+    {
+        next = 1;
+        for (auto track : getSourceMidiNode())
+            for (auto section : track.getChildWithName (SongIDs::SECTIONS))
+                next = std::max (next, (juce::int64) section.getProperty (SongIDs::sectionId, 0) + 1);
+    }
+    tree.setProperty (SongIDs::nextSectionId, next + 1, nullptr);
+    return next;
 }
 
 std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree& t)

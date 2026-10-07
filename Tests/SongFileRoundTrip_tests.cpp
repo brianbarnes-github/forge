@@ -103,3 +103,42 @@ TEST_CASE ("SongFileRoundTrip: undo history is not saved but edits after a load 
     loaded.undo();
     CHECK (loaded.getNumParts() == 1);
 }
+
+TEST_CASE ("song file: sections and note tags round-trip, and the counter survives", "[song-file][sections]")
+{
+    SongDocument doc;
+    auto track = doc.addTrackBulk ("T", 0xFF336699, 1, doc.mintImportBatch());
+    juce::ValueTree sections (SongIDs::SECTIONS);
+    juce::ValueTree section (SongIDs::SECTION);
+    const auto id = doc.mintSectionId();
+    section.setProperty (SongIDs::sectionId, id, nullptr);
+    section.setProperty (SongIDs::startTick, 0, nullptr);
+    section.setProperty (SongIDs::endTick, 960, nullptr);
+    sections.addChild (section, -1, nullptr);
+    track.addChild (sections, -1, nullptr);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 60, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, 480, nullptr);
+    note.setProperty (SongIDs::sectionId, id, nullptr);
+    SongDocument::appendChildBulk (SongDocument::getNotesNode (track), note);
+
+    SongDocument reloaded;
+    reloaded.replaceContents (readSongBytes (writeSongBytes (doc.getTree())));
+
+    const auto loadedTrack = reloaded.getTrack (1);
+    const auto loadedSection = loadedTrack.getChildWithName (SongIDs::SECTIONS).getChild (0);
+    CHECK ((juce::int64) loadedSection.getProperty (SongIDs::sectionId) == id);
+    CHECK ((int) loadedSection.getProperty (SongIDs::endTick) == 960);
+    CHECK ((juce::int64) SongDocument::getNotesNode (loadedTrack).getChild (0).getProperty (SongIDs::sectionId) == id);
+    CHECK (reloaded.mintSectionId() == id + 1);
+}
+
+TEST_CASE ("song file: a song saved before sections existed still loads", "[song-file][sections]")
+{
+    SongDocument doc;   // no SECTIONS anywhere, no nextSectionId property
+    doc.getTree().removeProperty (juce::Identifier ("nextSectionId"), nullptr);
+
+    SongDocument reloaded;
+    REQUIRE_NOTHROW (reloaded.replaceContents (readSongBytes (writeSongBytes (doc.getTree()))));
+}

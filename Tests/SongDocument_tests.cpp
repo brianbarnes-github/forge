@@ -812,3 +812,29 @@ TEST_CASE ("SongDocument: resetToEmpty returns to a fresh empty Song", "[songdoc
     CHECK (doc.getNumTracks() == 1);
     CHECK (doc.mintImportBatch() == 1);
 }
+
+TEST_CASE ("SongDocument: mintSectionId is monotonic, starts at 1 and is not undone", "[song-document][sections]")
+{
+    SongDocument doc;
+    CHECK (doc.mintSectionId() == 1);
+    CHECK (doc.mintSectionId() == 2);
+
+    doc.addTrack ("T", 0xFF336699, 1, 1);
+    doc.undo();
+    CHECK (doc.mintSectionId() == 3);   // undo never rewinds the counter
+}
+
+TEST_CASE ("SongDocument: mintSectionId starts above existing ids when the counter is absent", "[song-document][sections]")
+{
+    SongDocument doc;
+    auto track = doc.addTrackBulk ("T", 0xFF336699, 1, 1);
+    juce::ValueTree sections (SongIDs::SECTIONS);
+    juce::ValueTree section (SongIDs::SECTION);
+    section.setProperty (SongIDs::sectionId, (juce::int64) 7, nullptr);
+    section.setProperty (SongIDs::startTick, 0, nullptr);
+    section.setProperty (SongIDs::endTick, 480, nullptr);
+    sections.addChild (section, -1, nullptr);
+    track.addChild (sections, -1, nullptr);
+
+    CHECK (doc.mintSectionId() == 8);
+}

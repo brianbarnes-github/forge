@@ -31,6 +31,8 @@ namespace SongIDs
     extern const juce::Identifier NOTES;   // MIDI_TRACK child holding NOTE nodes
     extern const juce::Identifier EVENTS;  // MIDI_TRACK child holding EVENT nodes
     extern const juce::Identifier EVENT;   // one non-note raw MIDI event
+    extern const juce::Identifier SECTIONS;  // MIDI_TRACK child holding SECTION nodes
+    extern const juce::Identifier SECTION;   // one section: sectionId + startTick/endTick (half-open)
 
     // SONG properties
     extern const juce::Identifier title;
@@ -67,6 +69,7 @@ namespace SongIDs
     extern const juce::Identifier offIsNoteOnZero;  // NOTE: off written as note-on velocity 0
     extern const juce::Identifier onOrder;          // NOTE: raw index of its note-on (imported only)
     extern const juce::Identifier offOrder;         // NOTE: raw index of its note-off (imported only)
+    extern const juce::Identifier sectionId;        // NOTE: owning SECTION.sectionId; SECTION: its own id
     extern const juce::Identifier offSynthesized;   // NOTE: JUCE invented its note-off on import
     extern const juce::Identifier isConductor;      // MIDI_TRACK: the song's conductor track
     extern const juce::Identifier endTick;          // MIDI_TRACK: End-of-Track tick
@@ -173,6 +176,10 @@ public:
     // Mints the next import-batch number (starts at 1) and stores the one
     // after it on SONG.nextImportBatch. Non-undoable, like mintTrackId.
     int mintImportBatch();
+
+    // Mints the next section id (starts at 1; above every existing id when a
+    // file predates sections). Non-undoable, like mintTrackId.
+    juce::int64 mintSectionId();
 
     // Structural check of a loaded Song tree (see the Song file spec,
     // "InvalidStructure"). Returns nullopt when valid.
