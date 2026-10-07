@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **557/557** (`ctest --test-dir build -N | tail -1`).
+- Test count: **712/712** (`ctest --test-dir build -N | tail -1`).
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
@@ -127,5 +127,23 @@
   `rebuild()` directly via friend access. `PartStripComponent` got the
   same fix but has no automated regression test yet for the same
   real-listener path — see the plan's "Deferred design decisions".
+
+- Track sections (`docs/ARCHITECTURE.md` §9.15; tag `[sections]`):
+  `SectionEdit_tests.cpp` pins the read model (virtual vs stored sections,
+  note ownership, edge hit-testing, companions) and every mutation
+  (`splitAt` including a straddling note, `moveSections` clamping,
+  `resizeSections`/`resizeSectionsBy` delta semantics with differing ends,
+  `deleteSections`), each as one undo step with no-op calls opening none.
+  `PreviewNoteDiff_tests.cpp` pins the pairing passes for split notes.
+  `TrackListComponent_tests.cpp` pins multi-track selection, press/drag/
+  release gestures (drag is preview-only, commits once, jitter is a click,
+  rebuild cancels a drag), and the keys: `S` at the pointer tick, falling
+  back to the marker, then nothing; selected tracks vs the pointer's track;
+  edge, conductor, unknown-track and repeated-press no-ops that open no undo
+  step; `Delete` over several tracks in one undo step and clearing the
+  selection; Ctrl+A skipping the conductor. `SongsmithMainComponent_tests.cpp`
+  pins the key forwarders doing nothing when there is nothing to act on.
+  `MainWindow::keyPressed` itself (including the text-focus guard) is not
+  unit-constructible and is verified manually.
 
 See `docs/BUILD.md` for how to run these.
