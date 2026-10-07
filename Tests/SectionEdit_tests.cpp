@@ -1,4 +1,6 @@
 #include "PlaybackTestSupport.h"
+#include "UI/MidiExport.h"
+#include "UI/Playback/PlaybackSnapshot.h"
 #include "UI/SectionEdit.h"
 #include "UI/SongDocument.h"
 
@@ -732,4 +734,43 @@ TEST_CASE ("sections: a stale id that materialising would mint does not join the
 
     CHECK (notesOf (t)[0].start == 0);
     CHECK (notesOf (u)[0].start == 10);
+}
+
+TEST_CASE ("sections: playback hears a cut note as two attacks and a deleted section as silence", "[sections][integration]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+
+    const auto countOns = [&]
+    {
+        const auto snap = buildSnapshot (doc);
+        int ons = 0;
+        for (const auto& e : snap->events())
+            ons += e.kind == PlaybackEventKind::NoteOn ? 1 : 0;
+        return ons;
+    };
+
+    splitAt (doc, { idOf (t) }, 480);
+    CHECK (countOns() == 2);
+
+    deleteSections (doc, { { idOf (t), sectionsOf (t)[1].id } });
+    CHECK (countOns() == 1);
+}
+
+TEST_CASE ("sections: a moved section exports at its new position", "[sections][integration]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    splitAt (doc, { idOf (t) }, 240);
+    moveSections (doc, { { idOf (t), sectionsOf (t)[1].id } }, 960);
+
+    const auto file = buildRawMidiFile (doc);
+    REQUIRE (file.tracks.size() >= 2);
+    int latestOn = -1;
+    for (const auto& e : file.tracks[1].events)
+        if (! e.bytes.empty() && (e.bytes[0] & 0xF0) == 0x90 && e.bytes.size() > 2 && e.bytes[2] > 0)
+            latestOn = std::max (latestOn, e.tick);
+    CHECK (latestOn == 1200);   // the second half: 240 + 960
 }

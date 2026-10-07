@@ -127,3 +127,104 @@ TEST_CASE ("PreviewNoteDiff: joins across multiple tracks on both sides, not jus
     REQUIRE (folded.postPitch.has_value());
     CHECK (*folded.postPitch == 42);
 }
+
+TEST_CASE ("PreviewNoteDiff: two notes with the same provenance key are matched in start order", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track assembledTrack;
+    assembledTrack.notes.push_back (makeNote (60, 0, 400, 100, 2, 7));
+    assembledTrack.notes.push_back (makeNote (60, 400, 560, 100, 2, 7));
+    result.assembled.tracks.push_back (assembledTrack);
+
+    Track pipelinedTrack;
+    pipelinedTrack.notes.push_back (makeNote (72, 0, 400, 100, 2, 7));   // both fold up an octave
+    pipelinedTrack.notes.push_back (makeNote (72, 400, 560, 100, 2, 7));
+    result.pipelined.tracks.push_back (pipelinedTrack);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 2);
+    for (const auto& n : diff)
+    {
+        CHECK (n.state == NoteState::WillFold);
+        REQUIRE (n.postPitch.has_value());
+        CHECK (*n.postPitch == 72);
+    }
+}
+
+TEST_CASE ("PreviewNoteDiff: halves that the pipeline removed are both Dropped; a lone survivor pairs with the first", "[previewnotediff][sections]")
+{
+    PreviewResult dropped;
+    Track a;
+    a.notes.push_back (makeNote (60, 0, 400, 100, 2, 7));
+    a.notes.push_back (makeNote (60, 400, 560, 100, 2, 7));
+    dropped.assembled.tracks.push_back (a);
+    dropped.pipelined.tracks.push_back (Track {});
+
+    for (const auto& n : diffPreviewNotes (dropped))
+        CHECK (n.state == NoteState::Dropped);
+
+    PreviewResult partial;
+    partial.assembled.tracks.push_back (a);
+    Track survivor;
+    survivor.notes.push_back (makeNote (60, 0, 400, 100, 2, 7));
+    partial.pipelined.tracks.push_back (survivor);
+
+    const auto diff = diffPreviewNotes (partial);
+    REQUIRE (diff.size() == 2);
+    CHECK (diff[0].startTick == 0);
+    CHECK (diff[0].state == NoteState::Normal);
+    CHECK (diff[1].startTick == 400);
+    CHECK (diff[1].state == NoteState::Dropped);
+}
+
+TEST_CASE ("PreviewNoteDiff: halves are matched by start order regardless of storage order", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    a.notes.push_back (makeNote (60, 400, 560, 100, 2, 7));   // later half stored first
+    a.notes.push_back (makeNote (60, 0, 400, 100, 2, 7));
+    result.assembled.tracks.push_back (a);
+
+    Track p;
+    p.notes.push_back (makeNote (60, 400, 560, 100, 2, 7));
+    p.notes.push_back (makeNote (72, 0, 400, 100, 2, 7));     // only the early half folds
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 2);
+    CHECK (diff[0].startTick == 400);
+    CHECK (diff[0].state == NoteState::Normal);
+    CHECK (diff[1].startTick == 0);
+    CHECK (diff[1].state == NoteState::WillFold);
+    REQUIRE (diff[1].postPitch.has_value());
+    CHECK (*diff[1].postPitch == 72);
+}
+
+TEST_CASE ("PreviewNoteDiff: editor-created notes (-1/-1) pair by start order, not last-write-wins", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    a.notes.push_back (makeNote (20, 0, 100, 100, -1, -1));
+    a.notes.push_back (makeNote (60, 200, 100, 100, -1, -1));
+    result.assembled.tracks.push_back (a);
+
+    Track p;
+    p.notes.push_back (makeNote (44, 0, 100, 100, -1, -1));    // first folds
+    p.notes.push_back (makeNote (60, 200, 100, 100, -1, -1));
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 2);
+    CHECK (diff[0].state == NoteState::WillFold);
+    REQUIRE (diff[0].postPitch.has_value());
+    CHECK (*diff[0].postPitch == 44);
+    CHECK (diff[1].state == NoteState::Normal);
+}
+
+TEST_CASE ("PreviewNoteDiff: empty tracks yield an empty diff", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    result.assembled.tracks.push_back (Track {});
+    result.pipelined.tracks.push_back (Track {});
+    CHECK (diffPreviewNotes (result).empty());
+}
