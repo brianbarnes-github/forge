@@ -323,3 +323,46 @@ TEST_CASE ("PreviewNoteDiff: rescaled start ticks fall back to start order", "[p
     CHECK (diff[0].state == NoteState::Normal);
     CHECK (diff[1].state == NoteState::WillFold);
 }
+
+TEST_CASE ("PreviewNoteDiff: a fold that reorders a same-tick chord leaves its unchanged notes Normal", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    for (int pitch : { 20, 60, 64 })
+        a.notes.push_back (makeNote (pitch, 0, 100, 100, -1, -1));
+    result.assembled.tracks.push_back (a);
+    Track p;
+    for (int pitch : { 60, 64, 80 })   // 20 folded up to 80
+        p.notes.push_back (makeNote (pitch, 0, 100, 100, -1, -1));
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 3);
+    CHECK (diff[0].prePitch == 20);
+    CHECK (diff[0].state == NoteState::WillFold);
+    REQUIRE (diff[0].postPitch.has_value());
+    CHECK (*diff[0].postPitch == 80);
+    CHECK (diff[1].state == NoteState::Normal);
+    CHECK (diff[2].state == NoteState::Normal);
+}
+
+TEST_CASE ("PreviewNoteDiff: a dropped middle note of a same-tick chord does not mis-pair the notes above it", "[previewnotediff][sections]")
+{
+    PreviewResult result;
+    Track a;
+    for (int pitch : { 60, 62, 64, 67 })
+        a.notes.push_back (makeNote (pitch, 0, 100, 100, -1, -1));
+    result.assembled.tracks.push_back (a);
+    Track p;
+    for (int pitch : { 60, 64, 67 })
+        p.notes.push_back (makeNote (pitch, 0, 100, 100, -1, -1));
+    result.pipelined.tracks.push_back (p);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 4);
+    CHECK (diff[0].state == NoteState::Normal);
+    CHECK (diff[1].prePitch == 62);
+    CHECK (diff[1].state == NoteState::Dropped);
+    CHECK (diff[2].state == NoteState::Normal);
+    CHECK (diff[3].state == NoteState::Normal);
+}

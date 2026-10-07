@@ -15,8 +15,8 @@ std::vector<PreviewNote> diffPreviewNotes (const PreviewResult& result)
 
     // Notes that share a provenance key (the two halves of a cut note, or
     // editor-created notes, all keyed -1/-1) are paired within their group:
-    // first by identical start tick (occurrence order, sorted by tick then
-    // pitch on both sides), then the leftovers in start order. The pipeline
+    // by identical tick and pitch, then identical tick, then the leftovers in
+    // start order (both sides sorted by tick, then pitch). The pipeline
     // can erase individual members, so rank alone would mis-pair survivors.
     std::map<Key, std::vector<std::pair<int, int>>> pipelinedByKey;   // (startTick, pitch)
     for (const auto& track : result.pipelined.tracks)
@@ -43,36 +43,50 @@ std::vector<PreviewNote> diffPreviewNotes (const PreviewResult& result)
             continue;
         const auto& candidates = found->second;
 
-        std::vector<bool> taken (candidates.size(), false);
-        std::vector<const Note*> unpaired;
-        size_t from = 0;   // candidates are sorted, so exact-tick matches advance monotonically
-        for (const auto* note : notes)
-        {
-            size_t i = from;
-            while (i < candidates.size() && (taken[i] || candidates[i].first < note->startTick))
-                ++i;
-            if (i < candidates.size() && candidates[i].first == note->startTick)
-            {
-                taken[i] = true;
-                pairedPitch[note] = candidates[i].second;
-                from = i;
-            }
-            else
-            {
-                unpaired.push_back (note);
-            }
-        }
+        std::vector<const Note*> pendingNotes (notes.begin(), notes.end());
+        std::vector<size_t> pendingCandidates (candidates.size());
+        for (size_t i = 0; i < pendingCandidates.size(); ++i)
+            pendingCandidates[i] = i;
 
-        size_t next = 0;
-        for (const auto* note : unpaired)
+        // Pairs equal-keyed entries one-to-one (both lists are sorted by
+        // (tick, pitch), so keys ascend) and keeps what is left of each.
+        const auto pairBy = [&] (auto noteKey, auto candidateKey)
         {
-            while (next < candidates.size() && taken[next])
-                ++next;
-            if (next >= candidates.size())
-                break;
-            taken[next] = true;
-            pairedPitch[note] = candidates[next].second;
-        }
+            std::vector<const Note*> restNotes;
+            std::vector<size_t> restCandidates;
+            size_t i = 0, j = 0;
+            while (i < pendingNotes.size() && j < pendingCandidates.size())
+            {
+                const auto nk = noteKey (*pendingNotes[i]);
+                const auto ck = candidateKey (candidates[pendingCandidates[j]]);
+                if (nk == ck)
+                {
+                    pairedPitch[pendingNotes[i++]] = candidates[pendingCandidates[j++]].second;
+                }
+                else if (nk < ck)
+                {
+                    restNotes.push_back (pendingNotes[i++]);
+                }
+                else
+                {
+                    restCandidates.push_back (pendingCandidates[j++]);
+                }
+            }
+            restNotes.insert (restNotes.end(), pendingNotes.begin() + (std::ptrdiff_t) i, pendingNotes.end());
+            restCandidates.insert (restCandidates.end(), pendingCandidates.begin() + (std::ptrdiff_t) j, pendingCandidates.end());
+            pendingNotes      = std::move (restNotes);
+            pendingCandidates = std::move (restCandidates);
+        };
+
+        // Identical tick and pitch, then identical tick (a fold or a cap
+        // drop changes pitch, not tick), then whatever is left in order.
+        pairBy ([] (const Note& n) { return std::pair { n.startTick, n.pitch }; },
+                [] (const std::pair<int, int>& c) { return c; });
+        pairBy ([] (const Note& n) { return n.startTick; },
+                [] (const std::pair<int, int>& c) { return c.first; });
+
+        for (size_t k = 0; k < pendingNotes.size() && k < pendingCandidates.size(); ++k)
+            pairedPitch[pendingNotes[k]] = candidates[pendingCandidates[k]].second;
     }
 
     std::vector<PreviewNote> diff;
