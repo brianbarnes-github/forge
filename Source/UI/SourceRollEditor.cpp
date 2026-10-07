@@ -1,4 +1,5 @@
 #include "SourceRollEditor.h"
+#include "SectionEdit.h"
 
 #include <algorithm>
 #include <cmath>
@@ -342,12 +343,7 @@ bool SourceRollEditor::quantizeSelection()
 // transaction.
 void SourceRollEditor::markTimingEdited (juce::ValueTree note)
 {
-    if (note.hasProperty (SongIDs::onOrder))
-        doc.removeProperty (note, SongIDs::onOrder, false);
-    if (note.hasProperty (SongIDs::offOrder))
-        doc.removeProperty (note, SongIDs::offOrder, false);
-    if ((bool) note.getProperty (SongIDs::offSynthesized, false))
-        doc.setProperty (note, SongIDs::offSynthesized, false, false);
+    markNoteTimingEdited (doc, note);
 }
 
 void SourceRollEditor::createNoteAt (juce::Point<int> pos)
