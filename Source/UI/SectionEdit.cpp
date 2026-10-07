@@ -100,14 +100,19 @@ namespace
         return out;
     }
 
-    // Materialises the tracks of `refs`, then targets them by their real ids.
-    std::vector<Target> resolve (SongDocument& doc, const std::vector<SectionRef>& refs)
+    // Materialises the tracks of `targets` (and no others), then swaps a virtual
+    // section's id 0 for the id it was minted. The set of sections is exactly the
+    // one the read-only check saw: a stale ref id that materialising happens to
+    // mint cannot join it.
+    std::vector<Target> resolve (SongDocument& doc, std::vector<Target> targets)
     {
-        std::set<juce::int64> done;
-        for (const auto& r : refs)
-            if (done.insert (r.trackId).second)
-                materialise (doc, doc.findTrackById (r.trackId));
-        return targetsOf (doc, refs);
+        for (auto& t : targets)
+        {
+            materialise (doc, t.track);
+            if (t.range.id == 0)
+                t.range.id = storedSections (t.track).front().id;
+        }
+        return targets;
     }
 
     std::vector<juce::ValueTree> membersOf (const juce::ValueTree& track, juce::int64 sectionId)
@@ -311,8 +316,9 @@ void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int t
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks)
 {
     // The clamp covers member notes too: a note before every section belongs to the first.
+    const auto before = targetsOf (doc, refs);
     int lowest = std::numeric_limits<int>::max();
-    for (const auto& t : targetsOf (doc, refs))
+    for (const auto& t : before)
     {
         lowest = std::min (lowest, t.range.startTick);
         for (const auto& note : membersOf (t.track, t.range.id))
@@ -325,7 +331,7 @@ void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int d
     if (delta == 0)
         return;
 
-    const auto targets = resolve (doc, refs);
+    const auto targets = resolve (doc, before);
     doc.getUndoManager().beginNewTransaction();
     for (const auto& t : targets)
     {
@@ -352,53 +358,56 @@ void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, Sec
             out.endTick = std::max (tick, r.startTick + 1);
         return out;
     };
-    auto changes = [&] (const Target& t)
+    std::vector<Target> changed;
+    for (const auto& t : targetsOf (doc, refs))
     {
         const auto r = resized (t.range);
-        return r.startTick != t.range.startTick || r.endTick != t.range.endTick;
-    };
-
-    const auto before = targetsOf (doc, refs);
-    if (std::none_of (before.begin(), before.end(), changes))
+        if (r.startTick != t.range.startTick || r.endTick != t.range.endTick)
+            changed.push_back (t);
+    }
+    if (changed.empty())
         return;
 
-    const auto targets = resolve (doc, refs);
+    const auto targets = resolve (doc, changed);
     doc.getUndoManager().beginNewTransaction();
     for (const auto& t : targets)
     {
-        if (! changes (t))
-            continue;
-
-        const auto r = resized (t.range);
-        const auto members = membersOf (t.track, t.range.id);
+        const auto old = t.range;
+        const auto r = resized (old);
+        const auto members = membersOf (t.track, old.id);
         auto notesNode = SongDocument::getNotesNode (t.track);
-        auto node = findSectionNode (t.track, t.range.id);
+        auto node = findSectionNode (t.track, old.id);
         doc.setProperty (node, SongIDs::startTick, r.startTick, false);
         doc.setProperty (node, SongIDs::endTick, r.endTick, false);
 
-        // Clip only at the edge that moved: a note past the other edge is left alone.
+        // Only a shrinking edge touches notes, and only those starting in the band
+        // it gives up (or, on the right, crossing into it). Growing only extends the
+        // range: a member lying outside it (drawn in a gap) is never touched.
         for (auto note : members)
         {
             const int start = (int) note.getProperty (SongIDs::startTick);
             const int end = start + (int) note.getProperty (SongIDs::durationTicks);
 
-            if (edge == SectionEdge::Right && start >= r.endTick)
+            if (r.startTick > old.startTick && old.startTick <= start && start < r.startTick)
+            {
+                if (end <= r.startTick)
+                {
+                    doc.removeChild (notesNode, note, false);
+                }
+                else
+                {
+                    doc.setProperty (note, SongIDs::startTick, r.startTick, false);
+                    doc.setProperty (note, SongIDs::durationTicks, end - r.startTick, false);
+                    markNoteTimingEdited (doc, note);
+                }
+            }
+            else if (r.endTick < old.endTick && r.endTick <= start && start < old.endTick)
             {
                 doc.removeChild (notesNode, note, false);
             }
-            else if (edge == SectionEdge::Right && end > r.endTick)
+            else if (r.endTick < old.endTick && old.startTick <= start && start < r.endTick && end > r.endTick)
             {
                 doc.setProperty (note, SongIDs::durationTicks, r.endTick - start, false);
-                markNoteTimingEdited (doc, note);
-            }
-            else if (edge == SectionEdge::Left && end <= r.startTick)
-            {
-                doc.removeChild (notesNode, note, false);
-            }
-            else if (edge == SectionEdge::Left && start < r.startTick)
-            {
-                doc.setProperty (note, SongIDs::startTick, r.startTick, false);
-                doc.setProperty (note, SongIDs::durationTicks, end - r.startTick, false);
                 markNoteTimingEdited (doc, note);
             }
         }
@@ -407,10 +416,11 @@ void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, Sec
 
 void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs)
 {
-    if (targetsOf (doc, refs).empty())
+    const auto before = targetsOf (doc, refs);
+    if (before.empty())
         return;
 
-    const auto targets = resolve (doc, refs);
+    const auto targets = resolve (doc, before);
     doc.getUndoManager().beginNewTransaction();
     for (const auto& t : targets)
     {

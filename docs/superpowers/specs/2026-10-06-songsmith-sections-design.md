@@ -80,9 +80,12 @@ Pure functions over `SongDocument`; no JUCE UI, no `Source/Core`. All take an
   `startTick` by the same delta. The delta is clamped so no range starts below 0.
   Overlap is allowed.
 - `resizeSection (section, edge, tick)`: moves the left or right edge. A section
-  keeps at least 1 tick. Shrinking deletes notes that start outside the new
-  range and trims a note that crosses the new edge; growing only extends the range.
-  Notes are never shifted by a resize.
+  keeps at least 1 tick. Only a shrinking edge touches notes: it deletes the
+  section's notes that lie wholly in the band given up and trims one that crosses
+  the new edge (on the left, its start moves up to the edge; on the right, its end
+  is cut at the edge). Growing only extends the range and never touches a note,
+  including a member that lies outside the section. Notes are never shifted by a
+  resize.
 - `deleteSections (sections)`: removes the sections and their notes.
 - A section that ends up with no notes stays (an empty section is still an
   editable block).

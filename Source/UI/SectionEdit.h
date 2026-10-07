@@ -74,7 +74,8 @@ void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int t
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks);
 
 // Moves one edge of each section to `tick` (at least 1 tick wide). Shrinking
-// deletes the notes left outside and trims a note crossing the moved edge.
+// deletes the notes that start in the band given up and trims a note crossing
+// the new edge; growing only extends the range and never touches a note.
 void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int tick);
 
 // Removes the sections and their notes.

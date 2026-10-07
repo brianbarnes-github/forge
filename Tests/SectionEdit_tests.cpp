@@ -617,3 +617,119 @@ TEST_CASE ("resizeSections: companions resize together in one undo step", "[sect
     CHECK (sectionsOf (a)[0].endTick == 960);
     CHECK_FALSE (doc.canUndo());
 }
+
+namespace
+{
+    // A track whose only section is [480,960) and which holds a note at 100..150
+    // drawn after the first section was deleted: untagged, it belongs to [480,960).
+    juce::ValueTree trackWithMemberBeforeItsSection (SongDocument& doc)
+    {
+        auto t = addTrack (doc);
+        addNote (t, 60, 0, 960);
+        splitAt (doc, { idOf (t) }, 480);
+        deleteSections (doc, { { idOf (t), sectionsOf (t)[0].id } });
+        addNote (t, 64, 100, 50);
+        return t;
+    }
+
+    // A track whose only section is [0,480) and which holds a note at 700..750
+    // drawn in the gap after it: untagged, it belongs to [0,480).
+    juce::ValueTree trackWithMemberAfterItsSection (SongDocument& doc)
+    {
+        auto t = addTrack (doc);
+        addNote (t, 60, 0, 480);
+        addNote (t, 62, 700, 50);
+        splitAt (doc, { idOf (t) }, 480);
+        deleteSections (doc, { { idOf (t), sectionsOf (t)[1].id } });
+        addNote (t, 64, 700, 50);
+        return t;
+    }
+}
+
+TEST_CASE ("resizeSections: growing the left edge past a member note outside the section keeps it whole", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = trackWithMemberBeforeItsSection (doc);
+    REQUIRE (sectionsOf (t).size() == 1);
+
+    resizeSections (doc, { { idOf (t), sectionsOf (t)[0].id } }, SectionEdge::Left, 300);   // grows 480 -> 300
+
+    CHECK (sectionsOf (t)[0].startTick == 300);
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].start == 100);
+    CHECK (notes[0].dur == 50);
+    CHECK (notes[1].start == 480);
+}
+
+TEST_CASE ("resizeSections: growing the left edge to cross an outside member note does not trim it", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = trackWithMemberBeforeItsSection (doc);
+
+    resizeSections (doc, { { idOf (t), sectionsOf (t)[0].id } }, SectionEdge::Left, 120);   // inside 100..150
+
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].start == 100);
+    CHECK (notes[0].dur == 50);
+}
+
+TEST_CASE ("resizeSections: growing the right edge past a member note outside the section keeps it", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = trackWithMemberAfterItsSection (doc);
+    REQUIRE (sectionsOf (t).size() == 1);
+
+    resizeSections (doc, { { idOf (t), sectionsOf (t)[0].id } }, SectionEdge::Right, 600);   // grows 480 -> 600
+
+    CHECK (sectionsOf (t)[0].endTick == 600);
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[1].start == 700);
+    CHECK (notes[1].dur == 50);
+}
+
+TEST_CASE ("resizeSections: shrinking only deletes notes in the band given up", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = trackWithMemberAfterItsSection (doc);
+    addNote (t, 65, 350, 50);   // inside [0,480), in the band given up
+
+    resizeSections (doc, { { idOf (t), sectionsOf (t)[0].id } }, SectionEdge::Right, 300);
+
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].dur == 300);    // 0..480 trimmed at the new edge
+    CHECK (notes[1].start == 700);  // the gap note was never inside the section: kept
+}
+
+TEST_CASE ("sections: a track whose referenced section is unknown is not materialised", "[sections]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "A");
+    auto u = addTrack (doc, "B");
+    addNote (t, 60, 0, 480);
+    addNote (u, 62, 0, 480);
+
+    moveSections (doc, { { idOf (t), 0 }, { idOf (u), 424242 } }, 10);
+
+    CHECK (notesOf (t)[0].start == 10);
+    CHECK (notesOf (u)[0].start == 0);
+    CHECK_FALSE (u.getChildWithName (SongIDs::SECTIONS).isValid());
+}
+
+TEST_CASE ("sections: a stale id that materialising would mint does not join the edit", "[sections]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "A");
+    auto u = addTrack (doc, "B");
+    addNote (t, 60, 0, 480);
+    addNote (u, 62, 0, 480);
+
+    // Section id 1 does not exist yet; materialising t first would mint it.
+    moveSections (doc, { { idOf (t), 1 }, { idOf (u), 0 } }, 10);
+
+    CHECK (notesOf (t)[0].start == 0);
+    CHECK (notesOf (u)[0].start == 10);
+}
