@@ -60,4 +60,24 @@ std::vector<SectionRef> withCompanions (const SongDocument& doc, const std::set<
 // new material with a real note-off. Joins the caller's open transaction.
 void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note);
 
+// Mutations. Each materialises the tracks it touches (non-undoable), resolves a
+// sectionId of 0 to the track's first section, and runs in exactly one undo
+// transaction. A call that would change nothing touches nothing and opens none.
+// The conductor, unknown tracks and unknown sections are ignored.
+
+// On each track, every section with start < tick < end becomes [start, tick)
+// and a new [tick, end); notes starting at or after tick move to the new one, a
+// note straddling tick is cut in two (both halves keep their provenance).
+void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int tick);
+
+// Shifts each section and its notes by one delta, clamped so nothing starts below 0.
+void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks);
+
+// Moves one edge of each section to `tick` (at least 1 tick wide). Shrinking
+// deletes the notes left outside and trims a note crossing the moved edge.
+void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int tick);
+
+// Removes the sections and their notes.
+void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs);
+
 } // namespace lotro

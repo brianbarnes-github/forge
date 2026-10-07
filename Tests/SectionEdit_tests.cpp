@@ -4,6 +4,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 using namespace lotro;
 using namespace lotro::playbacktest;
 
@@ -151,4 +153,467 @@ TEST_CASE ("sections: the nearest edge wins and an edge is only offered on its o
     CHECK (hitTestSection (narrow, 60, ppt, 5).zone == SectionZone::LeftEdge);    // 40 ticks before
     CHECK (hitTestSection (narrow, 150, ppt, 5).zone == SectionZone::RightEdge);  // 40 ticks after
     CHECK (hitTestSection (narrow, 40, ppt, 5).zone == SectionZone::None);        // beyond the slop
+}
+
+namespace
+{
+    struct N { int pitch; int start; int dur; juce::int64 section; };
+
+    std::vector<N> notesOf (const juce::ValueTree& track)
+    {
+        std::vector<N> out;
+        const auto notes = SongDocument::getNotesNode (track);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
+        {
+            const auto n = notes.getChild (i);
+            out.push_back ({ (int) n.getProperty (SongIDs::pitch), (int) n.getProperty (SongIDs::startTick),
+                             (int) n.getProperty (SongIDs::durationTicks), (juce::int64) n.getProperty (SongIDs::sectionId, 0) });
+        }
+        std::sort (out.begin(), out.end(), [] (const N& a, const N& b) { return a.start < b.start; });
+        return out;
+    }
+
+    juce::int64 idOf (const juce::ValueTree& t) { return (juce::int64) t.getProperty (SongIDs::trackId); }
+}
+
+TEST_CASE ("splitAt: divides a section and moves the later notes to the new one", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+
+    splitAt (doc, { idOf (t) }, 720);
+
+    const auto sections = sectionsOf (t);
+    REQUIRE (sections.size() == 2);
+    CHECK (sections[0].startTick == 0);
+    CHECK (sections[0].endTick == 720);
+    CHECK (sections[1].startTick == 720);
+    CHECK (sections[1].endTick == 1440);
+    CHECK (sections[0].id != 0);
+
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].section == sections[0].id);
+    CHECK (notes[1].section == sections[1].id);
+}
+
+TEST_CASE ("splitAt: a note straddling the tick is cut in two with the same provenance", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960, 90, 3);
+    auto note = SongDocument::getNotesNode (t).getChild (0);
+    note.setProperty (SongIDs::sourceTrackIndex, 2, nullptr);
+    note.setProperty (SongIDs::sourceEventIndex, 7, nullptr);
+    note.setProperty (SongIDs::onOrder, 4, nullptr);
+    note.setProperty (SongIDs::offOrder, 5, nullptr);
+
+    splitAt (doc, { idOf (t) }, 400);
+
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].start == 0);
+    CHECK (notes[0].dur == 400);
+    CHECK (notes[1].start == 400);
+    CHECK (notes[1].dur == 560);
+    CHECK (notes[0].pitch == 60);
+    CHECK (notes[1].pitch == 60);
+    CHECK (notes[0].section != notes[1].section);
+
+    const auto notesNode = SongDocument::getNotesNode (t);
+    for (int i = 0; i < 2; ++i)
+    {
+        const auto n = notesNode.getChild (i);
+        CHECK ((int) n.getProperty (SongIDs::velocity) == 90);
+        CHECK ((int) n.getProperty (SongIDs::channel) == 3);
+        CHECK ((int) n.getProperty (SongIDs::sourceTrackIndex) == 2);   // both halves keep the original pair
+        CHECK ((int) n.getProperty (SongIDs::sourceEventIndex) == 7);
+        CHECK_FALSE (n.hasProperty (SongIDs::onOrder));
+        CHECK_FALSE (n.hasProperty (SongIDs::offOrder));
+    }
+}
+
+TEST_CASE ("splitAt: a tick on a note's start or end cuts nothing and makes no zero-length note", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 480, 480);
+
+    splitAt (doc, { idOf (t) }, 480);
+
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].dur == 480);
+    CHECK (notes[1].dur == 480);
+    CHECK (notes[0].section != notes[1].section);
+}
+
+TEST_CASE ("splitAt: on an edge, outside every section, on an empty track or with no tracks does nothing", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    auto empty = addTrack (doc, "E");
+    addNote (t, 60, 0, 960);
+
+    splitAt (doc, { idOf (t) }, 0);
+    splitAt (doc, { idOf (t) }, 960);
+    splitAt (doc, { idOf (t) }, 5000);
+    splitAt (doc, { idOf (empty) }, 100);
+    splitAt (doc, {}, 100);
+
+    CHECK (sectionsOf (t).size() == 1);
+    CHECK (sectionsOf (empty).empty());
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("splitAt: applies to every named track in one undo step", "[sections][split]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc, "A");
+    auto b = addTrack (doc, "B");
+    addNote (a, 60, 0, 960);
+    addNote (b, 64, 0, 960);
+
+    splitAt (doc, { idOf (a), idOf (b) }, 480);
+    CHECK (sectionsOf (a).size() == 2);
+    CHECK (sectionsOf (b).size() == 2);
+
+    doc.undo();
+    CHECK (notesOf (a).size() == 1);     // the cut note is whole again
+    CHECK (notesOf (b).size() == 1);
+    CHECK (notesOf (a)[0].dur == 960);
+    CHECK (sectionsOf (a).size() == 1);
+    CHECK (sectionsOf (b).size() == 1);
+    CHECK_FALSE (doc.canUndo());          // exactly one transaction was recorded
+}
+
+TEST_CASE ("splitAt: overlapping sections are both split by a tick inside both", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    splitAt (doc, { idOf (t) }, 240);            // [0,240) [240,480)
+    const auto first = sectionsOf (t);
+    moveSections (doc, { { idOf (t), first[1].id } }, -120);   // second now [120,360): overlaps the first
+
+    splitAt (doc, { idOf (t) }, 200);            // 200 is inside both [0,240) and [120,360)
+    CHECK (sectionsOf (t).size() == 4);
+}
+
+TEST_CASE ("moveSections: shifts the range and its notes, leaving other sections alone", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    splitAt (doc, { idOf (t) }, 720);
+    const auto sections = sectionsOf (t);
+
+    moveSections (doc, { { idOf (t), sections[1].id } }, 480);
+
+    const auto moved = sectionsOf (t);
+    CHECK (moved[0].startTick == 0);
+    CHECK (moved[1].startTick == 1200);
+    CHECK (moved[1].endTick == 1920);
+    const auto notes = notesOf (t);
+    CHECK (notes[0].start == 0);
+    CHECK (notes[1].start == 1440);
+}
+
+TEST_CASE ("moveSections: overlap keeps every note and the sections drag apart again", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    splitAt (doc, { idOf (t) }, 720);
+    const auto s = sectionsOf (t);
+
+    moveSections (doc, { { idOf (t), s[1].id } }, -720);   // onto the first section
+    CHECK (notesOf (t).size() == 2);
+    CHECK (notesOf (t)[1].start == 240);
+
+    moveSections (doc, { { idOf (t), s[1].id } }, 720);     // and back out
+    CHECK (notesOf (t)[1].start == 960);
+}
+
+TEST_CASE ("moveSections: clamps so no section starts before tick 0, moving companions together", "[sections][move]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc, "A");
+    auto b = addTrack (doc, "B");
+    addNote (a, 60, 100, 200);
+    addNote (b, 64, 400, 200);
+    splitAt (doc, { idOf (a), idOf (b) }, 50);   // each track: [0,50) holds no notes, the second section starts at 50
+    const auto sa = sectionsOf (a);
+    const auto sb = sectionsOf (b);
+
+    // Move A's second section (start 50) and B's second (start 50) left by 500: clamps to -50.
+    moveSections (doc, { { idOf (a), sa[1].id }, { idOf (b), sb[1].id } }, -500);
+
+    CHECK (sectionsOf (a)[1].startTick == 0);
+    CHECK (sectionsOf (b)[1].startTick == 0);
+    CHECK (notesOf (a)[0].start == 50);    // 100 - 50
+    CHECK (notesOf (b)[0].start == 350);   // 400 - 50: the same delta for both
+}
+
+TEST_CASE ("moveSections: a zero or fully clamped delta changes nothing and records no undo step", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    splitAt (doc, { idOf (t) }, 240);
+    doc.getUndoManager().clearUndoHistory();
+    const auto s = sectionsOf (t);
+
+    moveSections (doc, { { idOf (t), s[0].id } }, 0);
+    moveSections (doc, { { idOf (t), s[0].id } }, -100);   // already at 0
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("resizeSections: shrinking the right edge deletes later notes and trims a crossing note", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 300);
+    addNote (t, 62, 400, 400);
+    addNote (t, 64, 900, 100);
+    const auto id = idOf (t);
+    const auto sec = sectionsOf (t)[0];   // virtual id 0: resolved after materialising
+
+    resizeSections (doc, { { id, sec.id } }, SectionEdge::Right, 600);
+
+    CHECK (sectionsOf (t)[0].endTick == 600);
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].start == 0);
+    CHECK (notes[0].dur == 300);
+    CHECK (notes[1].start == 400);
+    CHECK (notes[1].dur == 200);   // trimmed at 600
+}
+
+TEST_CASE ("resizeSections: shrinking the left edge deletes earlier notes and trims a crossing note", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 300);
+    addNote (t, 62, 400, 400);
+    addNote (t, 64, 900, 100);
+    const auto id = idOf (t);
+    const auto sec = sectionsOf (t)[0];   // virtual id 0: resolved after materialising
+
+    resizeSections (doc, { { id, sec.id } }, SectionEdge::Left, 600);
+
+    CHECK (sectionsOf (t)[0].startTick == 600);
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].start == 600);   // 400..800 trimmed to 600..800
+    CHECK (notes[0].dur == 200);
+    CHECK (notes[1].start == 900);
+}
+
+TEST_CASE ("resizeSections: growing only extends the range and keeps at least one tick", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    const auto id = idOf (t);
+    const auto sec = sectionsOf (t)[0];
+
+    resizeSections (doc, { { id, sec.id } }, SectionEdge::Right, 2000);
+    CHECK (sectionsOf (t)[0].endTick == 2000);
+    CHECK (notesOf (t).size() == 1);
+
+    resizeSections (doc, { { id, sectionsOf (t)[0].id } }, SectionEdge::Right, -50);   // before the start
+    CHECK (sectionsOf (t)[0].endTick == 1);   // start 0 + 1 tick
+}
+
+TEST_CASE ("deleteSections: removes the section and its notes only", "[sections][delete]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    splitAt (doc, { idOf (t) }, 720);
+    const auto s = sectionsOf (t);
+
+    deleteSections (doc, { { idOf (t), s[1].id } });
+
+    REQUIRE (sectionsOf (t).size() == 1);
+    CHECK (sectionsOf (t)[0].id == s[0].id);
+    REQUIRE (notesOf (t).size() == 1);
+    CHECK (notesOf (t)[0].pitch == 60);
+
+    doc.undo();
+    CHECK (sectionsOf (t).size() == 2);
+    CHECK (notesOf (t).size() == 2);
+}
+
+TEST_CASE ("deleteSections: deleting every section leaves an empty track with nothing to edit", "[sections][delete]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    deleteSections (doc, { { idOf (t), sectionsOf (t)[0].id } });
+
+    CHECK (notesOf (t).empty());
+    CHECK (sectionsOf (t).empty());
+}
+
+TEST_CASE ("sections: operations ignore the conductor, unknown tracks and unknown sections", "[sections]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    const auto conductor = (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId);
+
+    splitAt (doc, { conductor, 9999 }, 100);
+    moveSections (doc, { { conductor, 1 }, { 9999, 1 }, { idOf (t), 424242 } }, 10);
+    deleteSections (doc, { { conductor, 1 }, { idOf (t), 424242 } });
+
+    CHECK (notesOf (t).size() == 1);
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("sections: an edited note loses its raw-MIDI ordering and synthesized flag", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    auto n = SongDocument::getNotesNode (t).getChild (0);
+    n.setProperty (SongIDs::onOrder, 1, nullptr);
+    n.setProperty (SongIDs::offOrder, 2, nullptr);
+    n.setProperty (SongIDs::offSynthesized, true, nullptr);
+
+    moveSections (doc, { { idOf (t), sectionsOf (t)[0].id } }, 10);
+
+    CHECK_FALSE (n.hasProperty (SongIDs::onOrder));
+    CHECK_FALSE (n.hasProperty (SongIDs::offOrder));
+    CHECK_FALSE ((bool) n.getProperty (SongIDs::offSynthesized));
+}
+
+TEST_CASE ("splitAt: one undo restores the sections, the tags and the single uncut note", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    addNote (t, 62, 600, 120);
+    auto whole = SongDocument::getNotesNode (t).getChild (0);
+    whole.setProperty (SongIDs::onOrder, 4, nullptr);
+    whole.setProperty (SongIDs::offOrder, 5, nullptr);
+
+    splitAt (doc, { idOf (t) }, 400);
+    REQUIRE (notesOf (t).size() == 3);
+
+    doc.undo();
+    const auto sections = sectionsOf (t);
+    REQUIRE (sections.size() == 1);
+    CHECK (sections[0].startTick == 0);
+    CHECK (sections[0].endTick == 960);
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].dur == 960);
+    CHECK (notes[0].section == sections[0].id);   // tags point at the surviving section again
+    CHECK (notes[1].section == sections[0].id);
+    CHECK ((int) whole.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((int) whole.getProperty (SongIDs::offOrder) == 5);
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("moveSections: the clamp also keeps a note tagged to a later section from going below 0", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    splitAt (doc, { idOf (t) }, 480);
+    const auto s = sectionsOf (t);
+    deleteSections (doc, { { idOf (t), s[0].id } });   // only [480,960) is left
+    addNote (t, 64, 100, 50);                           // a note drawn before every section: belongs to the first
+
+    moveSections (doc, { { idOf (t), s[1].id } }, -480);
+
+    const auto notes = notesOf (t);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0].start == 0);                  // 100 - 100
+    CHECK (notes[1].start == 380);                // 480 - 100
+    CHECK (sectionsOf (t)[0].startTick == 380);
+}
+
+TEST_CASE ("moveSections: non-note events stay where they are", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addEvent (t, 240, { 0xB0, 7, 100 });
+
+    moveSections (doc, { { idOf (t), sectionsOf (t)[0].id } }, 300);
+
+    CHECK (notesOf (t)[0].start == 300);
+    CHECK ((int) SongDocument::getEventsNode (t).getChild (0).getProperty (SongIDs::tick) == 240);
+}
+
+TEST_CASE ("sections: a call that changes nothing does not materialise the track", "[sections]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+
+    moveSections (doc, { { idOf (t), 0 } }, 0);
+    resizeSections (doc, { { idOf (t), 0 } }, SectionEdge::Right, 480);
+    splitAt (doc, { idOf (t) }, 480);
+
+    CHECK (sectionsOf (t)[0].id == 0);   // still the virtual section
+    CHECK_FALSE (t.getChildWithName (SongIDs::SECTIONS).isValid());
+
+    auto empty = addTrack (doc, "E");
+    moveSections (doc, { { idOf (empty), 0 } }, 100);
+    resizeSections (doc, { { idOf (empty), 0 } }, SectionEdge::Left, 100);
+    deleteSections (doc, { { idOf (empty), 0 } });
+    moveSections (doc, {}, 100);
+    resizeSections (doc, {}, SectionEdge::Right, 100);
+    deleteSections (doc, {});
+    CHECK_FALSE (empty.getChildWithName (SongIDs::SECTIONS).isValid());
+    CHECK (notesOf (t).size() == 1);
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("resizeSections: a left-edge resize trims only at the left edge, never the note's end", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    splitAt (doc, { idOf (t) }, 480);   // [0,480) holds 0..480, [480,960) holds 480..960
+    const auto s = sectionsOf (t);
+    auto left = SongDocument::getNotesNode (t).getChild (0);
+    REQUIRE ((int) left.getProperty (SongIDs::startTick) == 0);
+    doc.setProperty (left, SongIDs::durationTicks, 600);   // the note editor lengthened it past its section's end
+
+    resizeSections (doc, { { idOf (t), s[0].id } }, SectionEdge::Left, 100);
+
+    CHECK ((int) left.getProperty (SongIDs::startTick) == 100);
+    CHECK ((int) left.getProperty (SongIDs::durationTicks) == 500);   // still ends at 600
+}
+
+TEST_CASE ("resizeSections: companions resize together in one undo step", "[sections][resize]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc, "A");
+    auto b = addTrack (doc, "B");
+    addNote (a, 60, 0, 960);
+    addNote (b, 64, 0, 480);
+
+    resizeSections (doc, { { idOf (a), 0 }, { idOf (b), 0 } }, SectionEdge::Right, 300);
+    CHECK (sectionsOf (a)[0].endTick == 300);
+    CHECK (sectionsOf (b)[0].endTick == 300);
+    CHECK (notesOf (a)[0].dur == 300);
+    CHECK (notesOf (b)[0].dur == 300);
+
+    doc.undo();
+    CHECK (notesOf (a)[0].dur == 960);
+    CHECK (notesOf (b)[0].dur == 480);
+    CHECK (sectionsOf (a)[0].endTick == 960);
+    CHECK_FALSE (doc.canUndo());
 }
