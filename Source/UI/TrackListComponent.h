@@ -125,7 +125,7 @@ private:
 
     // Section gestures from a row's note strip. A press selects the section (and
     // its companions) and starts a gesture; a drag only updates sectionView.drag;
-    // the release commits once through moveSections/resizeSections. The document
+    // the release commits once through moveSections/resizeSectionsBy. The document
     // is never touched before the release: any change rebuilds the rows, which
     // would destroy the strip holding the mouse.
     void sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick);
@@ -217,7 +217,6 @@ private:
         std::vector<SectionRef> refs;
         int pressTick = 0;
         int minStart = 0;   // earliest start among refs and their notes, for clamping the move
-        int edgeTick = 0;   // the pressed section's grabbed edge (resize only)
     };
     std::optional<SectionGesture> gesture;
 

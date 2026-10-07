@@ -74,6 +74,10 @@ void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int t
 // Shifts each section and its notes by one delta, clamped so nothing starts below 0.
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks);
 
+// A single-target / explicit-tick helper: every section's edge goes to the same
+// absolute `tick`, so with companions of different lengths it shrinks the longer
+// ones and deletes their notes. The drag gesture uses resizeSectionsBy (delta,
+// companion-safe) instead.
 // Moves one edge of each section to `tick` (at least 1 tick wide). Shrinking
 // deletes the notes that start in the band given up and trims a note crossing
 // the new edge; growing only extends the range and never touches a note.

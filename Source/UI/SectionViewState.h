@@ -15,7 +15,6 @@ struct SectionDragPreview
 {
     enum class Kind { Move, ResizeLeft, ResizeRight } kind = Kind::Move;
     int deltaTicks = 0;   // how far the pointer moved: every selected section (or edge) moves by it
-    int edgeTick = 0;     // ResizeLeft / ResizeRight: where the pressed section's edge is now
 };
 
 struct SectionViewState

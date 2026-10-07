@@ -1249,7 +1249,6 @@ TEST_CASE ("TrackListComponent: an edge drag moves the edge by the pointer's mov
     TrackListComponentTestAccess::drag (list, 630);
     REQUIRE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
     CHECK (TrackListComponentTestAccess::sectionView (list).drag->kind == SectionDragPreview::Kind::ResizeRight);
-    CHECK (TrackListComponentTestAccess::sectionView (list).drag->edgeTick == 660);
     TrackListComponentTestAccess::release (list, 630);
     CHECK (sectionsOf (t)[0].endTick == 660);
 }

@@ -432,11 +432,7 @@ void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& 
     const auto refs = withCompanions (doc, selectedTrackIds, { trackId, hit.sectionId });
     sectionView.selected = std::set<SectionRef> (refs.begin(), refs.end());
 
-    int edgeTick = tick;
-    for (const auto& s : sectionsOf (doc.findTrackById (trackId)))
-        if (s.id == hit.sectionId)
-            edgeTick = hit.zone == SectionZone::LeftEdge ? s.startTick : s.endTick;
-    gesture = SectionGesture { hit.zone, refs, tick, earliestStart (doc, refs), edgeTick };
+    gesture = SectionGesture { hit.zone, refs, tick, earliestStart (doc, refs) };
     content.repaint();
 }
 
@@ -479,9 +475,9 @@ SectionDragPreview TrackListComponent::previewFor (const SectionGesture& g, int 
     // section to at least one tick, and paintSections mirrors that).
     const int delta = tick - g.pressTick;
     if (g.zone == SectionZone::Body)
-        return { SectionDragPreview::Kind::Move, std::max (delta, -g.minStart), 0 };
+        return { SectionDragPreview::Kind::Move, std::max (delta, -g.minStart) };
     return { g.zone == SectionZone::LeftEdge ? SectionDragPreview::Kind::ResizeLeft : SectionDragPreview::Kind::ResizeRight,
-             delta, g.edgeTick + delta };
+             delta };
 }
 
 int TrackListComponent::contentWidth() const

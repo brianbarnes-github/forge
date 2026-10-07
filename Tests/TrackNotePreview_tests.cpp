@@ -247,7 +247,7 @@ TEST_CASE ("TrackNotePreview: with no section view nothing section-related is dr
     CHECK (image.getPixelAt (50, previewHeight - 4) == juce::Colour (SongsmithColours::background));
 }
 
-TEST_CASE ("TrackNotePreview: pressing in a section reports the hit, the tick and the modifiers", "[track-note-preview][sections]")
+TEST_CASE ("TrackNotePreview: pressing in a section reports the hit and the tick", "[track-note-preview][sections]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -331,17 +331,17 @@ TEST_CASE ("TrackNotePreview: a drag preview moves only the selected block, clam
     const auto selectedFill = paintAt (100);   // x = 100: inside the selected block, off the grid
     const auto plainFill = paintAt (26);
 
-    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::Move, 200, 0 };   // [730, 1700)
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::Move, 200 };   // [730, 1700)
     const auto background = juce::Colour (SongsmithColours::background);
     CHECK (paintAt (63) == background);      // the gap it left is empty
     CHECK (paintAt (77) == selectedFill);
     CHECK (paintAt (26) == plainFill);       // the unselected block stays put
 
-    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, -1400, 100 };   // past the start: 1 tick
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, -1400 };   // past the start: 1 tick
     CHECK (paintAt (63) == background);
     CHECK (paintAt (100) == background);
 
-    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeLeft, 1470, 2000 };   // past the end: [1499, 1500)
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeLeft, 1470 };   // past the end: [1499, 1500)
     CHECK (paintAt (100) == background);
     CHECK (paintAt (200) == background);   // nothing drawn out at the pointer
 }
@@ -434,7 +434,7 @@ TEST_CASE ("TrackNotePreview: a resize preview moves each selected edge by the d
     preview.setBounds (0, 0, previewWidth, previewHeight);
 
     // Dragged from another track's edge at 960 to -1040: this section ends at 3000.
-    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, -2000, -1040 };
+    sectionView.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, -2000 };
     juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
     {
         juce::Graphics g (image);
