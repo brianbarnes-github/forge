@@ -351,6 +351,70 @@ void TrackListComponent::selectAllTracks()
     applySelectionToRows();
 }
 
+bool TrackListComponent::splitSections (std::optional<int> pointerTick, juce::int64 pointerTrackId)
+{
+    std::optional<int> tick = pointerTick;
+    if (! tick && playback != nullptr)
+        if (const auto marker = playback->getMarkerTick())
+            tick = (int) std::llround (*marker);
+    if (! tick)
+        return false;
+
+    std::vector<juce::int64> trackIds (selectedTrackIds.begin(), selectedTrackIds.end());
+    if (trackIds.empty() && pointerTrackId != -1)
+        trackIds.push_back (pointerTrackId);
+
+    // splitAt ignores tracks it cannot split; ask first so "did anything" is exact.
+    const auto splittable = std::any_of (trackIds.begin(), trackIds.end(), [&] (juce::int64 id)
+    {
+        const auto track = doc.findTrackById (id);
+        if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
+            return false;
+        const auto sections = sectionsOf (track);
+        return std::any_of (sections.begin(), sections.end(),
+                            [&] (const auto& s) { return s.startTick < *tick && *tick < s.endTick; });
+    });
+    if (! splittable)
+        return false;
+
+    splitAt (doc, trackIds, *tick);
+    return true;
+}
+
+bool TrackListComponent::splitAtPointer()
+{
+    // The tick under the pointer, but only when it is over a track's note strip.
+    std::optional<int> tick;
+    juce::int64 trackId = -1;
+    if (isMouseOver (true))
+    {
+        const auto inContent = content.getLocalPoint (this, getMouseXYRelative());
+        for (auto* row : content.rows)
+        {
+            if (! row->getBounds().contains (inContent))
+                continue;
+            const auto inRow = inContent - row->getPosition();
+            const auto strip = row->notePreviewForTesting().getBounds();
+            if (strip.contains (inRow) && row->canDrag())
+            {
+                tick = timelineView.tickForX (inRow.x - strip.getX());
+                trackId = row->getTrackId();
+            }
+        }
+    }
+    return splitSections (tick, trackId);
+}
+
+bool TrackListComponent::deleteSelectedSections()
+{
+    if (sectionView.selected.empty())
+        return false;
+    deleteSections (doc, std::vector<SectionRef> (sectionView.selected.begin(), sectionView.selected.end()));
+    sectionView.selected.clear();
+    content.repaint();
+    return true;
+}
+
 void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick)
 {
     gesture.reset();

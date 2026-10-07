@@ -1545,3 +1545,175 @@ TEST_CASE ("TrackListComponent: a pixel or two of jitter on an edge is still a c
     strip.mouseUp (stripMouseAt (strip, f.x (960) - 10));
     CHECK (sectionsOf (f.a)[0].endTick == 860);
 }
+
+TEST_CASE ("TrackListComponent: S splits at the pointer's tick on the selected tracks", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    auto b = playbacktest::addTrack (doc, "B");
+    playbacktest::addNote (a, 60, 0, 960);
+    playbacktest::addNote (b, 60, 0, 960);
+    const auto idA = (juce::int64) a.getProperty (SongIDs::trackId);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+
+    CHECK (list.splitSections (480, idA));
+
+    CHECK (sectionsOf (a).size() == 2);
+    CHECK (sectionsOf (b).size() == 2);
+    CHECK (sectionsOf (a)[1].startTick == 480);
+    CHECK (sectionsOf (b)[1].startTick == 480);
+    doc.undo();   // both tracks in one transaction
+    CHECK (sectionsOf (a).size() == 1);
+    CHECK (sectionsOf (b).size() == 1);
+}
+
+TEST_CASE ("TrackListComponent: S with no selection splits only the track under the pointer", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    auto b = playbacktest::addTrack (doc, "B");
+    playbacktest::addNote (a, 60, 0, 960);
+    playbacktest::addNote (b, 60, 0, 960);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    list.splitSections (480, (juce::int64) b.getProperty (SongIDs::trackId));
+
+    CHECK (sectionsOf (a).size() == 1);
+    CHECK (sectionsOf (b).size() == 2);
+}
+
+TEST_CASE ("TrackListComponent: S falls back to the marker when the pointer is not over a strip, and does nothing without one", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    playbacktest::addNote (a, 60, 0, 960);
+    playbacktest::RecordingSink sink;
+    PlaybackController playback (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&playback);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+
+    CHECK_FALSE (list.splitSections (std::nullopt, -1));
+    CHECK (sectionsOf (a).size() == 1);   // no pointer, no marker: nothing at all
+    CHECK_FALSE (doc.canUndo());
+    CHECK_FALSE (list.splitAtPointer());  // headless: the pointer is nowhere, there is no marker
+    CHECK_FALSE (doc.canUndo());
+
+    playback.setMarkerTick (600.0);
+    CHECK (list.splitSections (std::nullopt, -1));
+    CHECK (sectionsOf (a).size() == 2);
+    CHECK (sectionsOf (a)[1].startTick == 600);
+}
+
+TEST_CASE ("TrackListComponent: S at a tick that splits nothing is a no-op and opens no undo step", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    auto cond = playbacktest::addTrack (doc, "Cond");
+    cond.setProperty (SongIDs::isConductor, true, nullptr);
+    playbacktest::addNote (a, 60, 100, 860);   // the implicit section is [0, 960)
+    const auto idA = (juce::int64) a.getProperty (SongIDs::trackId);
+    const auto idC = (juce::int64) cond.getProperty (SongIDs::trackId);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    CHECK_FALSE (list.splitSections (0, idA));     // exactly on the start edge
+    CHECK_FALSE (list.splitSections (960, idA));   // exactly on the end edge
+    CHECK_FALSE (list.splitSections (2000, idA));  // beyond the last note
+    CHECK_FALSE (list.splitSections (480, idC));   // conductor has no sections
+    CHECK_FALSE (list.splitSections (480, 9999));  // unknown track
+    CHECK_FALSE (doc.canUndo());
+    CHECK (a.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);   // nothing materialised
+
+    CHECK (list.splitSections (500, idA));
+    CHECK (sectionsOf (a).size() == 2);
+    CHECK_FALSE (list.splitSections (500, idA));   // repeat press: already a boundary
+    doc.undo();
+    CHECK (sectionsOf (a).size() == 1);            // the repeat opened no second step
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("TrackListComponent: Ctrl+A with only a conductor selects nothing, and a split then uses the pointer's track", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto cond = playbacktest::addTrack (doc, "Cond");
+    cond.setProperty (SongIDs::isConductor, true, nullptr);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+    CHECK (list.getSelectedTrackIds().empty());
+    CHECK_FALSE (list.splitSections (480, (juce::int64) cond.getProperty (SongIDs::trackId)));
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("TrackListComponent: Delete removes the selected sections in one undo step", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    playbacktest::addNote (a, 60, 0, 960);
+    const auto id = (juce::int64) a.getProperty (SongIDs::trackId);
+    splitAt (doc, { id }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    TrackListComponentTestAccess::press (list, id, { sectionsOf (a)[1].id, SectionZone::Body }, 700);
+    CHECK (list.deleteSelectedSections());
+    CHECK (sectionsOf (a).size() == 1);
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.empty());
+
+    CHECK_FALSE (list.deleteSelectedSections());   // nothing selected any more: no-op
+    CHECK (sectionsOf (a).size() == 1);
+    doc.undo();
+    CHECK (sectionsOf (a).size() == 2);
+    CHECK (SongDocument::getNotesNode (a).getNumChildren() == 2);
+}
+
+TEST_CASE ("TrackListComponent: Delete over several tracks is one undo step, and does nothing once a rebuild pruned the selection", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    auto b = playbacktest::addTrack (doc, "B");
+    playbacktest::addNote (a, 60, 0, 960);
+    playbacktest::addNote (b, 62, 0, 960);
+    const auto idA = (juce::int64) a.getProperty (SongIDs::trackId);
+    const auto idB = (juce::int64) b.getProperty (SongIDs::trackId);
+    splitAt (doc, { idA, idB }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+
+    TrackListComponentTestAccess::press (list, idA, { sectionsOf (a)[1].id, SectionZone::Body }, 700);
+    list.deleteSelectedSections();
+    CHECK (sectionsOf (a).size() == 1);
+    CHECK (sectionsOf (b).size() == 1);   // the companion went too
+    doc.undo();
+    CHECK (sectionsOf (a).size() == 2);
+    CHECK (sectionsOf (b).size() == 2);
+
+    // Select, then remove the track: the rebuild prunes the stored selection.
+    TrackListComponentTestAccess::press (list, idB, { sectionsOf (b)[1].id, SectionZone::Body }, 700);
+    doc.removeTrack (idA);
+    TrackListComponentTestAccess::rebuild (list);
+    const auto stored = TrackListComponentTestAccess::sectionView (list).selected.size();
+    CHECK (stored <= 1);
+    for (const auto& ref : TrackListComponentTestAccess::sectionView (list).selected)
+        CHECK (ref.trackId != idA);
+}

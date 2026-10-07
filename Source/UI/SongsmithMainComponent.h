@@ -77,6 +77,14 @@ public:
     // part), and refits the timeline. Must not write to the tree.
     void documentReplaced();
 
+    // Track-canvas keys, forwarded by MainWindow::keyPressed. Each returns / does
+    // nothing when there is nothing to act on, so the caller can leave the key
+    // unconsumed.
+    bool splitSections()   { return trackList.splitAtPointer(); }
+    bool deleteSections()  { return trackList.deleteSelectedSections(); }
+    void selectAllTracks() { trackList.selectAllTracks(); }
+    std::set<juce::int64> getSelectedTrackIdsForTesting() const { return trackList.getSelectedTrackIds(); }
+
 private:
     friend struct SongsmithMainComponentTestAccess;
 

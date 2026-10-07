@@ -361,3 +361,24 @@ TEST_CASE ("SongsmithMainComponent: without a playback controller there is no tr
     view.setSize (1000, 800);
     CHECK (SongsmithMainComponentTestAccess::transportStrip (view) == nullptr);
 }
+
+TEST_CASE ("SongsmithMainComponent: the section keys forward to the track list and do nothing when there is nothing to act on", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    auto b = playbacktest::addTrack (doc, "B");
+    playbacktest::addNote (a, 60, 0, 960);
+    playbacktest::addNote (b, 62, 0, 960);
+    SongsmithMainComponent main (doc);
+    main.setBounds (0, 0, 1000, 700);
+
+    main.selectAllTracks();
+    CHECK (main.getSelectedTrackIdsForTesting().size() == 2);
+
+    CHECK_FALSE (main.deleteSections());   // no section selected
+    CHECK_FALSE (main.splitSections());    // pointer outside the window, no marker
+    CHECK_FALSE (doc.canUndo());
+    CHECK (a.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
+    CHECK (b.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
+}

@@ -529,6 +529,16 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     if (key == juce::KeyPress ('o', cmd, 0))      { menuItemSelected (FileOpenSong, 0); return true; }
     if (key == juce::KeyPress ('s', cmd, 0))      { if (session.isDirty() || session.isUntitled()) menuItemSelected (FileSave, 0);   return true; }
     if (key == juce::KeyPress ('s', cmdShift, 0)) { menuItemSelected (FileSaveAs, 0);   return true; }
+
+    // Track-canvas keys. Never while an editable component has focus (it normally
+    // consumes these first; this guards the ones it does not).
+    if (dynamic_cast<juce::TextInputTarget*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+        return false;
+    // Plain S only; Ctrl/Cmd+S is Save above. Return true only when something happened.
+    if (key == juce::KeyPress ('s'))                   return body->getSongsmith().splitSections();
+    if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))
+                                                       return body->getSongsmith().deleteSections();
+    if (key == juce::KeyPress ('a', cmd, 0))           { body->getSongsmith().selectAllTracks(); return true; }
     return false;
 }
 

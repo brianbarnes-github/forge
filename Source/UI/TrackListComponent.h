@@ -59,6 +59,21 @@ public:
     const std::set<juce::int64>& getSelectedTrackIds() const noexcept { return selectedTrackIds; }
     void selectAllTracks();
 
+    // Key S. Splits at `pointerTick` (the tick under the pointer, empty when the
+    // pointer is not over a track's note strip), else at the playback marker, else
+    // does nothing. Acts on the selected tracks, else on `pointerTrackId` (-1 for
+    // none). One undo step; returns whether any section was split.
+    bool splitSections (std::optional<int> pointerTick, juce::int64 pointerTrackId);
+
+    // Key S from the real pointer: resolves the strip and tick under it, then
+    // splitSections. Returns whether a section was split.
+    bool splitAtPointer();
+
+    // Key Delete: removes the selected sections (and their notes) in one undo
+    // step, then forgets the selection. Returns false (and does nothing) when none
+    // is selected.
+    bool deleteSelectedSections();
+
     // Forgets the selected row. Fires no callbacks.
     void clearSelection();
 
