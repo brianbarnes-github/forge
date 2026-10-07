@@ -1583,7 +1583,7 @@ TEST_CASE ("TrackListComponent: S with no selection splits only the track under 
     list.setBounds (0, 0, 600, 300);
     TrackListComponentTestAccess::rebuild (list);
 
-    list.splitSections (480, (juce::int64) b.getProperty (SongIDs::trackId));
+    CHECK (list.splitSections (480, (juce::int64) b.getProperty (SongIDs::trackId)));
 
     CHECK (sectionsOf (a).size() == 1);
     CHECK (sectionsOf (b).size() == 2);
@@ -1709,11 +1709,36 @@ TEST_CASE ("TrackListComponent: Delete over several tracks is one undo step, and
     CHECK (sectionsOf (b).size() == 2);
 
     // Select, then remove the track: the rebuild prunes the stored selection.
-    TrackListComponentTestAccess::press (list, idB, { sectionsOf (b)[1].id, SectionZone::Body }, 700);
+    const auto sectionB = sectionsOf (b)[1].id;
+    TrackListComponentTestAccess::press (list, idB, { sectionB, SectionZone::Body }, 700);
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).selected.size() == 2);   // B's and its companion on A
     doc.removeTrack (idA);
     TrackListComponentTestAccess::rebuild (list);
-    const auto stored = TrackListComponentTestAccess::sectionView (list).selected.size();
-    CHECK (stored <= 1);
-    for (const auto& ref : TrackListComponentTestAccess::sectionView (list).selected)
-        CHECK (ref.trackId != idA);
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected
+           == std::set<SectionRef> { { idB, sectionB } });
+
+    // The surviving selection still deletes, and only B's section.
+    CHECK (list.deleteSelectedSections());
+    CHECK (sectionsOf (b).size() == 1);
+}
+
+TEST_CASE ("TrackListComponent: S over a strip but outside every section does nothing even with a marker set", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    playbacktest::addNote (a, 60, 0, 960);
+    const auto idA = (juce::int64) a.getProperty (SongIDs::trackId);
+    playbacktest::RecordingSink sink;
+    PlaybackController playback (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&playback);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    playback.setMarkerTick (480.0);   // would split, if it were used
+
+    CHECK_FALSE (list.splitSections (2000, idA));   // pointer on the strip, past the last note
+    CHECK_FALSE (doc.canUndo());
+    CHECK (a.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
+    CHECK (sectionsOf (a).size() == 1);
 }

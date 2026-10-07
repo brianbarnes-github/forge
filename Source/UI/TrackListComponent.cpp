@@ -400,6 +400,7 @@ bool TrackListComponent::splitAtPointer()
                 tick = timelineView.tickForX (inRow.x - strip.getX());
                 trackId = row->getTrackId();
             }
+            break;   // rows are stacked, so at most one contains the pointer
         }
     }
     return splitSections (tick, trackId);
