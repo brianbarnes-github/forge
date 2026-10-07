@@ -1,5 +1,7 @@
 #include "PlaybackTestSupport.h"
 #include "UI/MidiExport.h"
+#include "UI/PreviewNoteDiff.h"
+#include "UI/PreviewPipeline.h"
 #include "UI/Playback/PlaybackSnapshot.h"
 #include "UI/SectionEdit.h"
 #include "UI/SongDocument.h"
@@ -245,6 +247,59 @@ TEST_CASE ("splitAt: a note straddling the tick is cut in two with the same prov
         CHECK_FALSE (n.hasProperty (SongIDs::onOrder));
         CHECK_FALSE (n.hasProperty (SongIDs::offOrder));
     }
+}
+
+TEST_CASE ("splitAt: the cut tail is not marked offSynthesized even when the original was", "[sections][split]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    auto note = SongDocument::getNotesNode (t).getChild (0);
+    note.setProperty (SongIDs::offSynthesized, true, nullptr);
+    note.setProperty (SongIDs::onOrder, 4, nullptr);
+    note.setProperty (SongIDs::offOrder, 5, nullptr);
+
+    splitAt (doc, { idOf (t) }, 480);
+
+    const auto notesNode = SongDocument::getNotesNode (t);
+    REQUIRE (notesNode.getNumChildren() == 2);
+    for (int i = 0; i < 2; ++i)
+    {
+        const auto n = notesNode.getChild (i);
+        CHECK_FALSE ((bool) n.getProperty (SongIDs::offSynthesized, false));
+        CHECK_FALSE (n.hasProperty (SongIDs::onOrder));
+        CHECK_FALSE (n.hasProperty (SongIDs::offOrder));
+    }
+}
+
+TEST_CASE ("splitAt: a cut note reaches the preview pipeline as two Normal attacks", "[sections][split][previewpipeline]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    auto note = SongDocument::getNotesNode (t).getChild (0);
+    note.setProperty (SongIDs::sourceTrackIndex, 0, nullptr);
+    note.setProperty (SongIDs::sourceEventIndex, 0, nullptr);
+    auto part = doc.addPart ("LuteOfAges", "Lead");
+    doc.addAssignment (part, idOf (t), 0, 0, "octaveShift");
+    const auto partId = (juce::int64) part.getProperty (SongIDs::partId);
+
+    splitAt (doc, { idOf (t) }, 480);
+
+    const auto result = computePartPreview (doc, partId);
+    REQUIRE (result.pipelined.tracks.size() == 1);
+    auto piped = result.pipelined.tracks[0].notes;
+    REQUIRE (piped.size() == 2);
+    std::sort (piped.begin(), piped.end(), [] (const Note& l, const Note& r) { return l.startTick < r.startTick; });
+    CHECK (piped[0].startTick == 0);
+    CHECK (piped[0].durationTicks == 480);
+    CHECK (piped[1].startTick == 480);
+    CHECK (piped[1].durationTicks == 480);
+
+    const auto diff = diffPreviewNotes (result);
+    REQUIRE (diff.size() == 2);
+    for (const auto& n : diff)
+        CHECK (n.state == NoteState::Normal);
 }
 
 TEST_CASE ("splitAt: a tick on a note's start or end cuts nothing and makes no zero-length note", "[sections][split]")
