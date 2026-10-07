@@ -27,6 +27,7 @@ public:
     TrackRowComponent (juce::ValueTree trackNode, int displayIndex, const TimelineViewState& viewState);
 
     void setSelected (bool shouldBeSelected);
+    bool isSelected() const noexcept { return selected; }
 
     // Restores the embedded preview's eye-icon state after TrackListComponent
     // recreates this row (see TrackListComponent::isTrackGhosted).
@@ -62,8 +63,11 @@ public:
     // Fired with the tick under a click in the note preview (not on the ghost toggle).
     std::function<void (int tick)> onTimelineClicked;
 
-    // Fired on a plain (non-drag) click, with this row's trackId.
-    std::function<void (juce::int64)> onTrackSelected;
+    // Fired on a click in the info column, with this row's trackId and the click's modifiers.
+    std::function<void (juce::int64, const juce::ModifierKeys&)> onTrackSelected;
+
+    // Fired on a click in the note-preview strip, with this row's trackId and the click's modifiers.
+    std::function<void (juce::int64, const juce::ModifierKeys&)> onStripSelected;
 
     // Fired on a double-click, with this row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;

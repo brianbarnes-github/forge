@@ -37,11 +37,12 @@ namespace
     // Mirrors the MouseEvent construction the double-click test above uses,
     // but targeted at an arbitrary component and click count so the
     // preview-forwarding tests can aim at the embedded TrackNotePreview.
-    juce::MouseEvent eventAt (juce::Component& target, juce::Point<int> localPos, int numClicks)
+    juce::MouseEvent eventAt (juce::Component& target, juce::Point<int> localPos, int numClicks,
+                              juce::ModifierKeys mods = {})
     {
         const auto pos = localPos.toFloat();
         return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
-                                  pos, juce::ModifierKeys(),
+                                  pos, mods,
                                   0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &target, &target,
                                   juce::Time::getCurrentTime(), pos,
                                   juce::Time::getCurrentTime(), numClicks, false);
@@ -72,12 +73,16 @@ TEST_CASE ("TrackRowComponent: clicks on the note preview outside its ghost togg
     juce::int64 selectedId = -1;
     juce::int64 doubleClickedId = -1;
     bool ghostFired = false;
-    row.onTrackSelected = [&] (juce::int64 id) { selectedId = id; };
+    row.onStripSelected = [&] (juce::int64 id, const juce::ModifierKeys&) { selectedId = id; };
     row.onTrackDoubleClicked = [&] (juce::int64 id) { doubleClickedId = id; };
     row.onGhostToggled = [&] (juce::int64, bool) { ghostFired = true; };
 
+    bool infoFired = false;
+    row.onTrackSelected = [&] (juce::int64, const juce::ModifierKeys&) { infoFired = true; };
+
     preview.mouseDown (eventAt (preview, awayFromToggle, 1));
     CHECK (selectedId == trackId);
+    CHECK_FALSE (infoFired);   // a strip click is reported through onStripSelected only
 
     preview.mouseDoubleClick (eventAt (preview, awayFromToggle, 2));
     CHECK (doubleClickedId == trackId);
@@ -104,7 +109,7 @@ TEST_CASE ("TrackRowComponent: a click on the ghost toggle toggles the ghost and
     juce::int64 selectedId = -1;
     juce::int64 doubleClickedId = -1;
     row.onGhostToggled = [&] (juce::int64, bool) { ghostFired = true; };
-    row.onTrackSelected = [&] (juce::int64 id) { selectedId = id; };
+    row.onStripSelected = [&] (juce::int64 id, const juce::ModifierKeys&) { selectedId = id; };
     row.onTrackDoubleClicked = [&] (juce::int64 id) { doubleClickedId = id; };
 
     preview.mouseDown (eventAt (preview, preview.ghostToggleBounds().getCentre(), 1));
@@ -314,4 +319,34 @@ TEST_CASE ("TrackRowComponent: a click in the note preview reports the tick unde
 
     preview.mouseDown (eventAt (preview, preview.ghostToggleBounds().getCentre(), 1));
     CHECK (ticks.size() == 1);
+}
+
+TEST_CASE ("TrackRowComponent: strip and info-column clicks report their modifiers through separate callbacks", "[track-row][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+    row.setBounds (0, 0, 300, TrackRowComponent::rowHeight);
+
+    juce::ModifierKeys infoMods, stripMods;
+    juce::int64 infoId = -1, stripId = -1;
+    row.onTrackSelected = [&] (juce::int64 id, const juce::ModifierKeys& m) { infoId = id; infoMods = m; };
+    row.onStripSelected = [&] (juce::int64 id, const juce::ModifierKeys& m) { stripId = id; stripMods = m; };
+
+    auto& preview = row.notePreviewForTesting();
+    preview.mouseDown (eventAt (preview, { 20, 20 }, 1, juce::ModifierKeys (juce::ModifierKeys::shiftModifier)));
+    CHECK (stripId == trackId);
+    CHECK (stripMods.isShiftDown());
+    CHECK (infoId == -1);
+
+    row.mouseDown (eventAt (row, { 10, 10 }, 1, juce::ModifierKeys (juce::ModifierKeys::ctrlModifier)));
+    CHECK (infoId == trackId);
+    CHECK (infoMods.isCtrlDown());
+    CHECK_FALSE (infoMods.isShiftDown());
 }

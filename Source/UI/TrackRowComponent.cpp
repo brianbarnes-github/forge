@@ -49,10 +49,10 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onGhostToggled)
             onGhostToggled (getTrackId(), visible);
     };
-    notePreview.onNonToggleClick = [this]
+    notePreview.onNonToggleClick = [this] (const juce::ModifierKeys& mods)
     {
-        if (onTrackSelected)
-            onTrackSelected (getTrackId());
+        if (onStripSelected)
+            onStripSelected (getTrackId(), mods);
     };
     notePreview.onTimelineClicked = [this] (int tick)
     {
@@ -197,10 +197,10 @@ void TrackRowComponent::paint (juce::Graphics& g)
     g.drawText (buildSecondLine(), secondLine, juce::Justification::centredLeft);
 }
 
-void TrackRowComponent::mouseDown (const juce::MouseEvent&)
+void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
 {
     if (onTrackSelected)
-        onTrackSelected (getTrackId());
+        onTrackSelected (getTrackId(), e.mods);
 }
 
 void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)

@@ -46,7 +46,7 @@ namespace lotro
         // select/double-click-to-edit gestures would be dead across most of
         // its visible area. Same up-the-chain callback shape as
         // onGhostToggled.
-        std::function<void()> onNonToggleClick;
+        std::function<void (const juce::ModifierKeys&)> onNonToggleClick;
 
         // Fired with the tick under the pointer for the same clicks, so the
         // list can drop the start marker there.

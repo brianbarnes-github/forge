@@ -98,7 +98,7 @@ namespace lotro
         if (toggleGhostIfHit (e.getPosition()))
             return;
         if (onNonToggleClick)
-            onNonToggleClick();
+            onNonToggleClick (e.mods);
         if (onTimelineClicked)
             onTimelineClicked (viewState.tickForX (e.getPosition().x));
     }

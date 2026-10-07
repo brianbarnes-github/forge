@@ -127,10 +127,10 @@ void TrackListComponent::rebuild()
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
-        row->setSelected (row->getTrackId() == selectedTrackId);
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
-        row->onTrackSelected = [this] (juce::int64 trackId) { selectTrack (trackId); };
+        row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m, false); };
+        row->onStripSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m, true); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
         row->onMuteToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setMuted (id, s); };
@@ -146,8 +146,11 @@ void TrackListComponent::rebuild()
     // M5: the previously-selected track may have just disappeared (e.g. all
     // tracks removed, or SongDocument::removeTrack on this one specifically)
     // — clear the stale selection so it isn't reported as still live below.
+    for (auto it = selectedTrackIds.begin(); it != selectedTrackIds.end();)
+        it = doc.findTrackById (*it).isValid() ? std::next (it) : selectedTrackIds.erase (it);
     if (selectedTrackId != -1 && ! doc.findTrackById (selectedTrackId).isValid())
         selectedTrackId = -1;
+    applySelectionToRows();
 
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
     content.resized();
@@ -219,14 +222,82 @@ void TrackListComponent::scrollBarMoved (juce::ScrollBar*, double newRangeStart)
 
 void TrackListComponent::clearSelection()
 {
-    selectTrack (-1);
+    selectTrack (-1, {}, false);
 }
 
-void TrackListComponent::selectTrack (juce::int64 trackId)
+void TrackListComponent::selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods, bool fromStrip)
 {
-    selectedTrackId = trackId;
+    const auto isConductorId = [this] (juce::int64 id)
+    {
+        const auto t = doc.findTrackById (id);
+        return ! t.isValid() || (bool) t.getProperty (SongIDs::isConductor, false);
+    };
+
+    if (trackId == -1)
+    {
+        selectedTrackIds.clear();
+        selectedTrackId = -1;
+    }
+    else if (mods.isShiftDown() && selectedTrackId != -1)
+    {
+        int from = -1, to = -1;
+        for (int i = 0; i < content.rows.size(); ++i)
+        {
+            if (content.rows[i]->getTrackId() == selectedTrackId) from = i;
+            if (content.rows[i]->getTrackId() == trackId) to = i;
+        }
+        // A plain Shift-click replaces the selection with the range; Ctrl+Shift extends it.
+        if (! (mods.isCtrlDown() || mods.isCommandDown()))
+            selectedTrackIds.clear();
+        if (from >= 0 && to >= 0)
+            for (int i = std::min (from, to); i <= std::max (from, to); ++i)
+                if (! isConductorId (content.rows[i]->getTrackId()))
+                    selectedTrackIds.insert (content.rows[i]->getTrackId());
+    }
+    else if (mods.isCtrlDown() || mods.isCommandDown())
+    {
+        if (selectedTrackIds.erase (trackId) == 0 && ! isConductorId (trackId))
+            selectedTrackIds.insert (trackId);
+        selectedTrackId = trackId;
+    }
+    else if (fromStrip && selectedTrackIds.size() > 1 && selectedTrackIds.count (trackId) > 0)
+    {
+        selectedTrackId = trackId; // keep the multi-selection
+    }
+    else
+    {
+        selectedTrackIds.clear();
+        if (! isConductorId (trackId))
+            selectedTrackIds.insert (trackId);
+        selectedTrackId = trackId;
+    }
+    applySelectionToRows();
+}
+
+void TrackListComponent::applySelectionToRows()
+{
+    // A conductor is never in selectedTrackIds but still highlights when it is the
+    // clicked row; any other row highlights only while it is in the set (so a
+    // Ctrl-toggled-off anchor is not left looking selected).
     for (auto* row : content.rows)
-        row->setSelected (row->getTrackId() == trackId);
+    {
+        const auto id = row->getTrackId();
+        const auto track = doc.findTrackById (id);
+        const bool isConductorAnchor = id == selectedTrackId && track.isValid() && (bool) track.getProperty (SongIDs::isConductor, false);
+        row->setSelected (selectedTrackIds.count (id) > 0 || isConductorAnchor);
+    }
+}
+
+void TrackListComponent::selectAllTracks()
+{
+    selectedTrackIds.clear();
+    for (int i = 0; i < doc.getNumTracks(); ++i)
+    {
+        const auto t = doc.getTrack (i);
+        if (! (bool) t.getProperty (SongIDs::isConductor, false))
+            selectedTrackIds.insert ((juce::int64) t.getProperty (SongIDs::trackId));
+    }
+    applySelectionToRows();
 }
 
 int TrackListComponent::contentWidth() const

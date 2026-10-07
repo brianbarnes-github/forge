@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <memory>
+#include <set>
 
 // Phase 4, component B2 — the vertical, scrollable list of MIDI-track rows
 // (top-left panel of SongsmithMainComponent). Rebuilds itself from
@@ -52,6 +53,8 @@ public:
     void followPlayheadForTesting (bool playing) { followPlayhead (playing); }
 
     juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
+    const std::set<juce::int64>& getSelectedTrackIds() const noexcept { return selectedTrackIds; }
+    void selectAllTracks();
 
     // Forgets the selected row. Fires no callbacks.
     void clearSelection();
@@ -99,7 +102,8 @@ private:
     // The overlay skips repaints when the playhead x is unchanged, so every
     // change to the tick->x mapping (zoom, scroll, resize, fit) must call this.
     void refreshOverlay();
-    void selectTrack (juce::int64 trackId);
+    void selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods, bool fromStrip);
+    void applySelectionToRows();
 
     // Content width for `content`, accounting for the viewport's vertical
     // scrollbar (M2: rebuild() used to set the un-subtracted viewport width,
@@ -175,6 +179,7 @@ private:
     TimelineViewState timelineView;
     ListContent     content;
     juce::int64     selectedTrackId = -1;
+    std::set<juce::int64> selectedTrackIds;
     PlaybackController* playback = nullptr;
 
     // Declared after `playback`/`content`: destroyed first, before the

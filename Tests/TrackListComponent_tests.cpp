@@ -25,7 +25,9 @@ namespace lotro
     // declaration in TrackListComponent.h for why).
     struct TrackListComponentTestAccess
     {
-        static void selectTrack (TrackListComponent& c, juce::int64 trackId) { c.selectTrack (trackId); }
+        static void selectTrack (TrackListComponent& c, juce::int64 trackId) { c.selectTrack (trackId, {}, false); }
+        static void click (TrackListComponent& c, juce::int64 id, juce::ModifierKeys mods, bool fromStrip) { c.selectTrack (id, mods, fromStrip); }
+        static const std::set<juce::int64>& selected (TrackListComponent& c) { return c.selectedTrackIds; }
         static void rebuild (TrackListComponent& c) { c.rebuild(); }
         static int numRows (TrackListComponent& c) { return c.content.rows.size(); }
         static juce::Array<TrackRowComponent*> rows (TrackListComponent& c)
@@ -871,4 +873,226 @@ TEST_CASE ("TrackListComponent: the timing bar draws bar lines over the note pre
     CHECK (image.getPixelAt (origin, lowerRow) != background);        // bar 1's line, at the preview's left edge
     for (int x = 0; x < origin; ++x)
         CHECK (image.getPixelAt (x, lowerRow) == background);         // the info column stays clear
+}
+
+TEST_CASE ("TrackListComponent: click selects one track, ctrl-click toggles, shift-click selects a range", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    std::vector<juce::int64> ids;
+    for (int i = 0; i < 4; ++i)
+    {
+        auto t = playbacktest::addTrack (doc, "T");
+        playbacktest::addNote (t, 60, 0, 480);
+        ids.push_back ((juce::int64) t.getProperty (SongIDs::trackId));
+    }
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    const juce::ModifierKeys none, ctrl (juce::ModifierKeys::ctrlModifier), shift (juce::ModifierKeys::shiftModifier);
+
+    TrackListComponentTestAccess::click (list, ids[0], none, false);
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[0] });
+
+    TrackListComponentTestAccess::click (list, ids[2], ctrl, false);
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[0], ids[2] });
+
+    TrackListComponentTestAccess::click (list, ids[2], ctrl, false);   // toggles off
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[0] });
+
+    // The Ctrl-click on ids[2] moved the anchor there, so Shift ranges from ids[2], not ids[0].
+    TrackListComponentTestAccess::click (list, ids[3], shift, false);
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[2], ids[3] });
+
+    TrackListComponentTestAccess::click (list, ids[0], none, false);
+    TrackListComponentTestAccess::click (list, ids[3], shift, false);   // anchor ids[0] .. ids[3]
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[0], ids[1], ids[2], ids[3] });
+}
+
+TEST_CASE ("TrackListComponent: a plain strip click keeps a multi-track selection it is part of", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    std::vector<juce::int64> ids;
+    for (int i = 0; i < 3; ++i)
+    {
+        auto t = playbacktest::addTrack (doc, "T");
+        playbacktest::addNote (t, 60, 0, 480);
+        ids.push_back ((juce::int64) t.getProperty (SongIDs::trackId));
+    }
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    list.selectAllTracks();
+    CHECK (list.getSelectedTrackIds().size() == 3);   // the conductor is never selected
+
+    TrackListComponentTestAccess::click (list, ids[1], {}, true);    // strip click, inside the selection
+    CHECK (list.getSelectedTrackIds().size() == 3);
+
+    TrackListComponentTestAccess::click (list, ids[1], {}, false);   // info-column click: select only it
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { ids[1] });
+
+    list.clearSelection();
+    CHECK (list.getSelectedTrackIds().empty());
+}
+
+TEST_CASE ("TrackListComponent: rebuild drops selected tracks that no longer exist", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    auto b = playbacktest::addTrack (doc, "B");
+    playbacktest::addNote (a, 60, 0, 480);
+    playbacktest::addNote (b, 60, 0, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    list.selectAllTracks();
+
+    doc.removeTrack ((juce::int64) b.getProperty (SongIDs::trackId));
+    TrackListComponentTestAccess::rebuild (list);
+
+    CHECK (list.getSelectedTrackIds() == std::set<juce::int64> { (juce::int64) a.getProperty (SongIDs::trackId) });
+}
+
+namespace
+{
+    struct SelectionFixture
+    {
+        SongDocument doc;
+        std::vector<juce::int64> ids;   // display order; index 1 is the conductor when withConductor
+        std::unique_ptr<TrackListComponent> list;
+
+        explicit SelectionFixture (int count, int conductorIndex = -1)
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                auto t = playbacktest::addTrack (doc, "T");
+                playbacktest::addNote (t, 60, 0, 480);
+                if (i == conductorIndex)
+                    t.setProperty (SongIDs::isConductor, true, nullptr);
+                ids.push_back ((juce::int64) t.getProperty (SongIDs::trackId));
+            }
+            list = std::make_unique<TrackListComponent> (doc);
+            list->setBounds (0, 0, 600, 300);
+            TrackListComponentTestAccess::rebuild (*list);
+        }
+
+        bool highlighted (juce::int64 id) { return TrackListComponentTestAccess::rowFor (*list, id)->isSelected(); }
+    };
+
+    using Sel = std::set<juce::int64>;
+    const juce::ModifierKeys kNone, kCtrl (juce::ModifierKeys::ctrlModifier), kShift (juce::ModifierKeys::shiftModifier),
+                             kCtrlShift (juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier);
+}
+
+TEST_CASE ("TrackListComponent: shift-click with no anchor selects just that track", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (4);
+    TrackListComponentTestAccess::click (*f.list, f.ids[2], kShift, false);
+    CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[2] });
+}
+
+TEST_CASE ("TrackListComponent: shift-click replaces the selection with the range, ctrl+shift extends it", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (5);
+    auto& l = *f.list;
+    TrackListComponentTestAccess::click (l, f.ids[3], kNone, false);
+    TrackListComponentTestAccess::click (l, f.ids[0], kCtrl, false);       // {3, 0}, anchor 0
+    TrackListComponentTestAccess::click (l, f.ids[1], kShift, false);      // range 0..1 replaces
+    CHECK (l.getSelectedTrackIds() == Sel { f.ids[0], f.ids[1] });
+    CHECK (l.getSelectedTrackId() == f.ids[0]);                            // anchor stays on Shift
+
+    TrackListComponentTestAccess::click (l, f.ids[4], kCtrl, false);       // {0,1,4}, anchor 4
+    TrackListComponentTestAccess::click (l, f.ids[3], kCtrlShift, false);  // extends with 3..4
+    CHECK (l.getSelectedTrackIds() == Sel { f.ids[0], f.ids[1], f.ids[3], f.ids[4] });
+
+    TrackListComponentTestAccess::click (l, f.ids[1], kShift, false);      // upward range from anchor 4
+    CHECK (l.getSelectedTrackIds() == Sel { f.ids[1], f.ids[2], f.ids[3], f.ids[4] });
+}
+
+TEST_CASE ("TrackListComponent: shift range across a conductor row skips it", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (4, 1);
+    TrackListComponentTestAccess::click (*f.list, f.ids[0], kNone, false);
+    TrackListComponentTestAccess::click (*f.list, f.ids[3], kShift, false);
+    CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[0], f.ids[2], f.ids[3] });
+}
+
+TEST_CASE ("TrackListComponent: ctrl-toggling the last selected track off leaves nothing highlighted", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (3);
+    TrackListComponentTestAccess::click (*f.list, f.ids[1], kNone, false);
+    CHECK (f.highlighted (f.ids[1]));
+    TrackListComponentTestAccess::click (*f.list, f.ids[1], kCtrl, false);
+    CHECK (f.list->getSelectedTrackIds().empty());
+    CHECK_FALSE (f.highlighted (f.ids[1]));
+}
+
+TEST_CASE ("TrackListComponent: highlight follows the whole selection and survives a rebuild", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (4);
+    TrackListComponentTestAccess::click (*f.list, f.ids[0], kNone, false);
+    TrackListComponentTestAccess::click (*f.list, f.ids[2], kCtrl, false);
+    TrackListComponentTestAccess::rebuild (*f.list);
+    CHECK (f.highlighted (f.ids[0]));
+    CHECK_FALSE (f.highlighted (f.ids[1]));
+    CHECK (f.highlighted (f.ids[2]));
+    CHECK_FALSE (f.highlighted (f.ids[3]));
+    CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[0], f.ids[2] });
+}
+
+TEST_CASE ("TrackListComponent: removing the anchor on rebuild drops it, and shift then starts fresh", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (4);
+    TrackListComponentTestAccess::click (*f.list, f.ids[0], kNone, false);
+    f.doc.removeTrack (f.ids[0]);
+    TrackListComponentTestAccess::rebuild (*f.list);
+    CHECK (f.list->getSelectedTrackId() == -1);
+    CHECK (f.list->getSelectedTrackIds().empty());
+    TrackListComponentTestAccess::click (*f.list, f.ids[2], kShift, false);   // no anchor left
+    CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[2] });
+}
+
+TEST_CASE ("TrackListComponent: select-all with only a conductor track selects nothing", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (1, 0);
+    f.list->selectAllTracks();
+    CHECK (f.list->getSelectedTrackIds().empty());
+}
+
+TEST_CASE ("TrackListComponent: plain click on a conductor highlights it without selecting it; selection changes leave the document untouched", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (3, 1);
+    const auto before = f.doc.getTree().createCopy();
+    TrackListComponentTestAccess::click (*f.list, f.ids[0], kNone, false);
+    TrackListComponentTestAccess::click (*f.list, f.ids[1], kNone, false);
+    CHECK (f.list->getSelectedTrackIds().empty());
+    CHECK (f.list->getSelectedTrackId() == f.ids[1]);
+    CHECK (f.highlighted (f.ids[1]));
+    CHECK_FALSE (f.highlighted (f.ids[0]));
+    f.list->selectAllTracks();
+    TrackListComponentTestAccess::click (*f.list, f.ids[2], kShift, false);   // anchor is the conductor
+    CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[2] });
+    CHECK (f.doc.getTree().isEquivalentTo (before));
+}
+
+TEST_CASE ("TrackListComponent: a plain strip click outside a multi-selection selects only that track", "[track-list][selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SelectionFixture f (4);
+    TrackListComponentTestAccess::click (*f.list, f.ids[0], kNone, false);
+    TrackListComponentTestAccess::click (*f.list, f.ids[1], kCtrl, false);
+    TrackListComponentTestAccess::click (*f.list, f.ids[3], kNone, true);
+    CHECK (f.list->getSelectedTrackIds() == Sel { f.ids[3] });
 }
