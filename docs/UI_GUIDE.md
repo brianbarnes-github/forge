@@ -124,7 +124,16 @@ When you say…       …I'll know you mean
   resizing the window refits so the whole song stays visible; after a manual
   zoom, resizing keeps the zoom. A horizontal scroll bar under the note
   previews (spanning only the preview column) scrolls all rows together and
-  **Track selection and sections.** Clicking a row (or its note strip) selects
+  auto-hides whenever the whole song fits. Each preview also has a per-row ghost-visibility
+  toggle (an eye icon in its top-right corner): toggling it on/off is
+  transient (never persisted) and adds/removes that track from the set of
+  translucent ghost overlays shown in the Track
+  editor window (#28), if one is open. Click a row to select it; drag onto a
+  part slot to assign (the drag payload is the track's synthetic id, not its
+  row index); double-click an assignable track to open the Track editor window (#28) on
+  it (conductor and note-less rows ignore double-click). An empty document shows a muted placeholder ("No MIDI loaded — File
+  → Import ▸ MIDI… or drop a .mid here") instead of a blank panel.
+- **Track selection and sections.** Clicking a row (or its note strip) selects
   that track; Ctrl/Cmd+click toggles a track in the selection, Shift+click
   selects the range from the last-clicked row (Ctrl/Cmd+Shift extends instead of
   replacing), and Ctrl/Cmd+A selects every non-conductor track. Pressing a
@@ -145,15 +154,7 @@ When you say…       …I'll know you mean
   notes (nothing when none is selected); **Ctrl/Cmd+A** selects all tracks.
   The conductor and note-less tracks have no sections. Each of these is one
   undo step, and a press that changes nothing opens none.
-  auto-hides whenever the whole song fits. Each preview also has a per-row ghost-visibility
-  toggle (an eye icon in its top-right corner): toggling it on/off is
-  transient (never persisted) and adds/removes that track from the set of
-  translucent ghost overlays shown in the Track
-  editor window (#28), if one is open. Click a row to select it; drag onto a
-  part slot to assign (the drag payload is the track's synthetic id, not its
-  row index); double-click an assignable track to open the Track editor window (#28) on
-  it (conductor and note-less rows ignore double-click). An empty document shows a muted placeholder ("No MIDI loaded — File
-  → Import ▸ MIDI… or drop a .mid here") instead of a blank panel.
+
 - **Track editor window** (#28, `TrackEditorWindow`) — a floating,
   single-instance window opened by double-clicking a track row (#10). It
   pops up centred over the main window (kept on that window's monitor), not
