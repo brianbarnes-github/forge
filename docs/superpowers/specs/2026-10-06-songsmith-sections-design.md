@@ -1,0 +1,178 @@
+# Songsmith sections: split, move, resize and delete parts of a track
+
+Date: 2026-10-06. Status: design, awaiting review.
+
+## Goal
+
+On the main-screen MIDI canvas, let the user cut each track into **sections**
+and edit them like Reaper items: split with `S`, select, move, resize by an
+edge, delete. Edits apply to the selected tracks (one, several, or all).
+Playback, MIDI export and the ABC preview follow the edited notes.
+
+Splits are **destructive** (user decision): they change the notes in the
+document; undo is the way back. Sections may **overlap** (their notes sound
+together); a note under a split is **cut in two**.
+
+## Decisions (all settled with the user unless marked)
+
+- Data model B: flat `NOTES` per track, a `sectionId` on every `NOTE`, a
+  `SECTIONS` list per track. Rejected: sections owning their notes (A, large
+  blast radius) and one track per piece (C, breaks "pieces of a track").
+- A split cuts a straddling note into two notes (same pitch and velocity).
+- A move onto another section keeps both sections' notes (overlap allowed).
+- Edits apply to the **selected tracks**; with no track selected, to the track
+  under the pointer [tentative, my default].
+- `S` splits at the start marker, or at the pointer when it is over a section.
+  With the pointer over nothing and no marker set, `S` does nothing at all
+  (user decision).
+- Non-note `EVENTS` (controllers, pitch bend, tempo) stay where they are when a
+  section moves or is cut; only notes follow sections.
+- Out of scope: moving a section to another track, copy/paste/duplicate of
+  sections, sections in the Track editor roll, section selection sets
+  (select by clicking one section plus its companions, below).
+
+## Data model
+
+```
+MIDI_TRACK
+  SECTIONS
+    SECTION { sectionId:int64, startTick:int, endTick:int }   // startTick < endTick
+  NOTES
+    NOTE { ..existing.., sectionId:int64 }
+```
+
+- `sectionId` is a monotonic `int64` minted by `SongDocument` (same scheme as
+  `trackId`/`partId`; never a child index). Minting is non-undoable, like the
+  existing counters.
+- Section ranges are half-open `[startTick, endTick)`. A note belongs to a
+  section by its `sectionId`, not by position, so overlapped notes can be dragged
+  apart again.
+- Reads never mutate. `sectionsOf(track)` returns the stored sections; a
+  non-conductor track with notes but no stored sections reads as ONE virtual
+  section `{id 0, [0, last note end)}`; a track with no notes has no sections
+  (nothing to edit). The first edit on a track *materialises* it
+  (non-undoable): it writes the `SECTIONS` child with a real minted id for the
+  virtual section and tags every untagged or dangling note. A note with a
+  missing or dangling `sectionId` belongs to the first section containing its
+  `startTick`, else the first section. A selection that names id 0 is resolved
+  to the track's first section after materialising. Existing `.songsmith` files
+  and fresh imports therefore need no migration.
+- `Source/Core` is untouched. `SongModelBridge`, playback, export and the
+  editor keep reading the flat `NOTES`.
+- Provenance: `sourceTrackIndex`/`sourceEventIndex` are never regenerated.
+  Both halves of a cut note keep the original pair verbatim ("the same source
+  note"). `PreviewNoteDiff` keys a map on that pair; the plan must pin its
+  behaviour with duplicate keys in a test and fix it if a half is mis-flagged.
+
+## Editing logic: `Source/UI/SectionEdit.{h,cpp}`
+
+Pure functions over `SongDocument`; no JUCE UI, no `Source/Core`. All take an
+`UndoManager` through the document and mutate in **one transaction per call**.
+
+- `splitAt (tracks, tick)`: for each track, every section with
+  `startTick < tick < endTick` becomes two: `[start, tick)` and a new
+  `[tick, end)`. Its notes with `startTick >= tick` move to the new section.
+  A note with `startTick < tick < startTick + durationTicks` is cut: the left
+  part ends at `tick`, a new note (same pitch, velocity, drum flag, provenance,
+  new section) runs from `tick` to the old end. A tick on an edge or outside every
+  section changes nothing.
+- `moveSections (sections, deltaTicks)`: shifts each range and each of its notes'
+  `startTick` by the same delta. The delta is clamped so no range starts below 0.
+  Overlap is allowed.
+- `resizeSection (section, edge, tick)`: moves the left or right edge. A section
+  keeps at least 1 tick. Shrinking deletes notes that start outside the new
+  range and trims a note that crosses the new edge; growing only extends the range.
+  Notes are never shifted by a resize.
+- `deleteSections (sections)`: removes the sections and their notes.
+- A section that ends up with no notes stays (an empty section is still an
+  editable block).
+
+### Applying to selected tracks
+
+- A gesture names one **clicked** section. Its **companions** are, on every
+  other selected track, the sections whose `startTick` equals the clicked
+  section's `startTick`. Move, resize and delete apply to the clicked section
+  plus companions, in a single transaction.
+- Split applies to every selected track at the one tick.
+- If the clicked section's track is not in the selected set, the gesture acts on
+  that section only.
+
+## Track selection
+
+- `TrackListComponent` gains a set of selected tracks. Today nothing outside it
+  reads the selection (it only highlights a row), so there is no primary track;
+  `selectedTrackId` stays as the last-clicked anchor for Shift-range selection.
+- Click: select only that track. Ctrl/Cmd+click: toggle. Shift+click: select the
+  range from the primary track. Ctrl/Cmd+A: select all tracks.
+- Selection is transient and not persisted; stale ids are dropped on rebuild, as today.
+
+## Canvas UI
+
+- `TrackNotePreview` paints each section of its track as a translucent block over
+  the notes, with a visible edge at each end; selected sections are highlighted.
+  Painting uses the shared `TimelineViewState`, as the notes and grid do.
+- Keys (handled by the main window): `S` splits at the tick under the pointer
+  when the pointer is over a track's note strip, else at the start marker, else
+  does nothing; it applies to the selected tracks, or just the track under the
+  pointer when none is selected. `Delete`/`Backspace` delete the selected
+  sections. Ctrl/Cmd+A selects all tracks (not the conductor).
+- Mouse: clicking a track strip still sets the start marker at that tick (as
+  today) and also selects the section under the pointer, as a click in Reaper
+  moves the edit cursor and selects the item. A plain click on a strip whose
+  track is already part of a multi-track selection keeps that selection;
+  otherwise it selects only that track. Ctrl/Cmd+click toggles the track,
+  Shift+click selects a range. Selecting a section also selects its companions
+  on the other selected tracks; that stored section selection is what move,
+  resize and `Delete` act on. Drag a section's body to move it; drag within a
+  few pixels of an edge to resize. Nothing in the document changes during a
+  drag (any change rebuilds the rows and would destroy the component holding
+  the mouse); the drag is a preview committed on release. A drag is one
+  undo step, committed on mouse-up; the preview follows the pointer during the drag.
+- Snap: deferred (user decision). Moves, resizes and `S` are free (exact tick)
+  for now; snap will be added later as its own piece of work.
+- The existing marker and ruler gestures are unchanged.
+
+## Playback, export and preview
+
+Nothing new: all three read the flat `NOTES`, so an edit shows up on the next
+rebuild. The plan must confirm that a note cut in two does not change how the ABC
+pipeline treats the two halves (two attacks, as the user accepted).
+
+## Undo
+
+One gesture, one transaction (`beginNewTransaction` on mouse-up or key press), and
+every mutation passes the document's `UndoManager`. Section and note changes from
+one gesture are undone together.
+
+## File format
+
+`SECTIONS`/`SECTION` and `NOTE.sectionId` are written by `SongFile` as ordinary
+ValueTree nodes and properties. A file without them loads through the
+normalisation above. No version bump is planned unless the plan finds `SongFile`
+rejects unknown nodes.
+
+## Testing (TDD, integration-first)
+
+- `SectionEdit_tests.cpp`: split (inside a section, on an edge, outside, with a
+  straddling note, with overlapping sections), move (overlap, clamp at 0, drag
+  back apart), resize (shrink deletes and trims, grow, 1-tick minimum, edge
+  order), delete, multi-track companions, each as a single undo step.
+- `SongDocument` normalisation: untagged tracks, dangling ids, empty tracks.
+- `SongFile` round trip with sections; an old file without them.
+- Pipeline integration: a split, move and delete reach `SongModelBridge`, the
+  preview and MIDI export.
+- `TrackListComponent` multi-select (click, toggle, range, select all).
+- `TrackNotePreview` section painting and gestures (pixel checks as for the grid).
+- `PreviewNoteDiff` with a duplicate provenance key.
+
+## Docs to update when built
+
+`docs/UI_GUIDE.md` (new keys and gestures), `docs/ARCHITECTURE.md` (a section on
+sections and selection), `docs/TESTING.md`.
+
+## Open questions
+
+- None. Decided: both halves of a cut note keep the original provenance pair
+  verbatim. `PreviewNoteDiff` matches notes that share a pair by start-tick
+  order (implementation plan, Task 4); this also fixes editor-created notes,
+  which all share the pair (-1, -1).
