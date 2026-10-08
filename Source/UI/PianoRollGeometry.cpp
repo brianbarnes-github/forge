@@ -97,9 +97,9 @@ PianoRollGeometry PianoRollGeometry::fitToContent (juce::Range<int> tickRange,
     // that value shifts on every note add/delete.
     geometry.contentOriginTick = 0.0;
 
-    // Vertical: row height stays the fixed default (only horizontal zoom is
-    // interactively adjustable — see PianoRollComponent's ctrl+wheel zoom in
-    // Task B). Position the highest pitch in range at the top of the
+    // Vertical: row height stays the fixed default here (the Source roll's
+    // ctrl+wheel row height lives in PianoRollComponent and is re-applied
+    // after this). Position the highest pitch in range at the top of the
     // viewport; a pitch span taller than the viewport is expected to scroll,
     // same as every other piano-roll editor's vertical axis.
     const bool emptyPitch = pitchRange.isEmpty();

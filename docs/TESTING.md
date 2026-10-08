@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **758** (`ctest --test-dir build -N | tail -1`).
+- Test count: **767** (`ctest --test-dir build -N | tail -1`).
 - `MenuModel_tests.cpp` pins the menu bar structure (labels, shortcut hints,
   order, enabled/ticked per state, Transport as the 4th menu, no Close,
   unique command ids all in `allCommandIds`).
@@ -110,6 +110,14 @@
   row resize with 4 px steps, clamps, sub-pixel accumulation, pointer
   anchoring, survival across `rebuild()`, Shift from either region), and
   `TrackRowComponent_tests.cpp` the layout at the minimum and maximum heights.
+  `PianoRollComponent_tests.cpp` (tags `[wheel]`, `[row-height]`) pins the
+  Source editor's mapping through the real `Canvas::mouseWheelMove` and the
+  `handleWheel` decision: canvas zoom, gutter vertical scroll (clamps, no-op
+  when the range fits, never zooms), Ctrl+wheel pitch-row resize (1 px steps,
+  sub-pixel accumulation, clamps discarding excess, pointer-pitch anchoring,
+  content height, `SourceRollEditor` hit-testing at min/max/in-between
+  heights, survival across `setNoteSource`/resize, per-instance isolation),
+  Shift pan, and the unchanged Preview mapping.
   `TrackRowComponent_tests.cpp`, `TrackListComponent_tests.cpp`,
   `PianoRollComponent_tests.cpp` and `TrackEditorWindow_tests.cpp` also gained
   the M/S buttons, ruler, playhead, follow and editor-window transport

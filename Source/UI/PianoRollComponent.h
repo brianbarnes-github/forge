@@ -12,7 +12,7 @@
 #include <vector>
 
 // The shared piano-roll component: rectangles, keyboard gutter, gridlines,
-// scroll, ctrl+wheel zoom, for both roles. Role::Source (Phase 7) owns a
+// scroll, wheel zoom/resize, for both roles. Role::Source (Phase 7) owns a
 // SourceRollEditor when constructed with a SongDocument, forwarding Canvas
 // mouse/keyboard events to it for note create/move/resize/delete/quantize,
 // each one undo transaction. Role::Preview (Phase 6) instead overlays a
@@ -53,12 +53,23 @@ public:
 
     Role getRole() const noexcept { return role; }
 
+    // Where the wheel pointer is (Role::Source): over the pinned keyboard gutter
+    // or over the note canvas. Decides the plain wheel's meaning.
+    enum class WheelRegion { Gutter, Canvas };
+
+    // Source role's pitch-row height (session-only; survives setNoteSource /
+    // setEditableTrack). Ctrl/Cmd+wheel changes it within [min, max].
+    static constexpr int defaultRowHeight = 14;
+    static constexpr int minRowHeight = 10;
+    static constexpr int maxRowHeight = 40;
+    int getRowHeight() const noexcept { return geometry.getRowHeight(); }
+
     // Repoints the roll at a new note source (or nullptr for "no track
     // selected", which paints an empty roll) and refits the geometry/content
     // size to it. Role::Source always lays out the whole MIDI pitch range
     // (0..127) and scrolls vertically to centre the track's own notes (middle
     // C for an empty track); its timeline then refits to the width on every
-    // resize until the user ctrl+wheel zooms. Does not take ownership of `source` — the caller
+    // resize until the user wheel-zooms. Does not take ownership of `source` — the caller
     // (SongsmithMainComponent) owns the SourceTrackNoteSource and must keep
     // it alive at least as long as it stays set here. ticksPerQuarter and
     // meterMapNode drive bar-boundary gridlines (first meter entry only, per
@@ -127,7 +138,7 @@ private:
     // so it stays pinned at the Viewport's left edge and isn't affected by
     // horizontal scroll — notes/gridlines scroll underneath it. Sits on top
     // of `viewport` in z-order (added after it) but passes all mouse events
-    // through, so scroll/ctrl+wheel-zoom over the gutter's screen area still
+    // through, so wheel events over the gutter's screen area still
     // reaches the canvas beneath it.
     class Gutter : public juce::Component
     {
@@ -186,6 +197,17 @@ private:
     void zoom (float wheelDeltaY);
     void wheelScroll (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel);
 
+    // The one wheel decision. Preview: ctrl/cmd zooms, anything else scrolls.
+    // Source: ctrl/cmd resizes the pitch rows (1 px per notch, wheel up grows),
+    // keeping the pitch under `pointerY` (component coordinates) in place; shift
+    // pans horizontally; plain over the Canvas zooms, over the Gutter scrolls
+    // vertically (50 px per notch, wheel up = higher pitches; no-op when nothing
+    // to scroll, never zooms).
+    // Returns false when the event was not consumed (Preview's plain wheel).
+    bool handleWheel (WheelRegion region, const juce::ModifierKeys& mods,
+                      const juce::MouseWheelDetails& wheel, int pointerY);
+    void resizeRowsBy (double pixels, int pointerY);
+
     // PlaybackController::Listener
     void playbackMarkerChanged() override { if (onViewChanged) onViewChanged(); }
     void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
@@ -221,6 +243,11 @@ private:
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
+    // Unrounded row height (accumulates fractional wheel deltas) and the rounded
+    // value pushed into `geometry` after every geometry rebuild (fitTimeline and
+    // setNoteSource replace the whole geometry, which would reset it to 14).
+    double rowHeightExact = defaultRowHeight;
+    int rowHeight = defaultRowHeight;
     bool timelineFitted = false; // Source role only: refit on resize until the user zooms.
 
     PlaybackController* playback = nullptr; // Source role only; not owned.

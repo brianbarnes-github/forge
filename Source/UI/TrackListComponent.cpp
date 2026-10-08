@@ -1,5 +1,6 @@
 #include "TrackListComponent.h"
 #include "SongsmithColours.h"
+#include "WheelResize.h"
 
 #include <algorithm>
 #include <cmath>
@@ -699,9 +700,8 @@ void TrackListComponent::resizeRowsBy (double pixels, int pointerY)
     // The unrounded height accumulates, so a touchpad's sub-pixel deltas add up
     // to a whole pixel eventually instead of each rounding to nothing. Hitting a
     // limit discards the excess, so reversing starts moving at once.
-    rowHeightExact = juce::jlimit ((double) TrackRowComponent::minRowHeight,
-                                   (double) TrackRowComponent::maxRowHeight,
-                                   rowHeightExact + pixels);
+    rowHeightExact = wheelresize::accumulateClamped (rowHeightExact, pixels, (double) TrackRowComponent::minRowHeight,
+                                                      (double) TrackRowComponent::maxRowHeight);
     const int newHeight = juce::roundToInt (rowHeightExact);
     if (newHeight == rowHeight)
         return;
@@ -709,16 +709,15 @@ void TrackListComponent::resizeRowsBy (double pixels, int pointerY)
     // Keep the same fractional position of the content under the pointer.
     const int numRows = doc.getNumTracks();
     const int pointerInViewport = juce::jlimit (0, juce::jmax (0, viewport.getHeight()), pointerY - viewport.getY());
-    const double fraction = numRows > 0
-        ? (double) (viewport.getViewPositionY() + pointerInViewport) / (double) (numRows * rowHeight)
-        : 0.0;
+    const int oldScroll = viewport.getViewPositionY();
+    const int oldExtent = numRows * rowHeight;
 
     rowHeight = newHeight;
     applyRowHeight();
 
     const int maxY = juce::jmax (0, content.getHeight() - viewport.getMaximumVisibleHeight());
     viewport.setViewPosition (viewport.getViewPositionX(),
-                              juce::jlimit (0, maxY, juce::roundToInt (fraction * (double) (numRows * rowHeight)) - pointerInViewport));
+                              wheelresize::anchoredScroll (oldScroll, pointerInViewport, oldExtent, numRows * rowHeight, maxY));
 }
 
 void TrackListComponent::applyRowHeight()

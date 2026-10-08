@@ -33,7 +33,7 @@ describes the current, Songsmith-only UI only.
 │ ▼ LOTRO PREVIEW · how it will sound in-game                          │  #20  PreviewRegion header
 │  PreviewAssignedPanel │  PianoRollComponent (Role::Preview)            │  #21 (preview assigned panel)
 │  (160px): chips,      │  range band · ghost/dropped-note overlays ·   │  #22 (preview piano roll)
-│  instrument/range,    │  scroll · ctrl+wheel zoom                     │
+│  instrument/range,    │  wheel scroll · ctrl+wheel zoom              │
 │  output stats         │                                               │
 ├══════ inner SplitterComponent (drag to resize, top/bottom) ══════════┤  #18  inner splitter
 │  DiagnosticListView (import diagnostics)                              │  #23
@@ -208,10 +208,18 @@ When you say…       …I'll know you mean
   counting from the nearest C; row shading follows the real piano
   black/white-key pattern, not plain semitone alternation. Vertical
   gridlines mark bar boundaries from the document's meter, plus whole-note down to 1/64-note divisions (each appears once its lines are ≥ 8 px apart, fainter the finer it is; same grid on the main-view track strips and the LOTRO preview roll). Mouse
-  wheel, same mapping as the main track list: a plain wheel zooms
+  wheel, the same model as the main track list but for pitch rows,
+  decided by where the pointer is: a plain wheel over the notes zooms
   horizontally (centring the start marker first, or zooming about the middle
-  of the view with no marker); Ctrl/Cmd+wheel scrolls vertically;
-  Shift+wheel pans horizontally. This zoom/scroll state belongs to the editor window and is independent of
+  of the view with no marker); a plain wheel over the keyboard gutter scrolls
+  vertically (wheel up = higher pitches) and does nothing when the whole
+  range fits — it never zooms; Shift+wheel anywhere pans horizontally;
+  Ctrl/Cmd+wheel anywhere resizes the pitch rows (1 px per notch, wheel up
+  taller, between 10 and 40 px, default 14), keeping the pitch under the
+  pointer in place. The row height is session-only for that editor window
+  (not saved, not undoable) and survives switching track. (The LOTRO
+  preview roll is unchanged: Ctrl/Cmd+wheel zooms horizontally, a plain wheel
+  scrolls vertically.) This zoom/scroll state belongs to the editor window and is independent of
   the track list's shared `TimelineViewState` (#9). Re-pointing the window
   at a different track, or any change to `SOURCE_MIDI` (e.g. a second MIDI
   import), re-fits the view (and re-arms refit-on-resize) for the

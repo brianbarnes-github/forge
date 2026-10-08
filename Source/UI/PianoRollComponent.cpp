@@ -2,6 +2,7 @@
 #include "GridLinePaint.h"
 #include "SongDocument.h"
 #include "SongsmithColours.h"
+#include "WheelResize.h"
 
 #include <cmath>
 
@@ -144,6 +145,7 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
         fitTimeline();
     else
         geometry = PianoRollGeometry();
+    geometry.setRowHeight (rowHeight);
     timelineFitted = role == Role::Source && noteSource != nullptr;
 
     if (sourceEditor != nullptr)
@@ -160,6 +162,7 @@ void PianoRollComponent::fitTimeline()
     const int availableWidth = visibleSizeFor ({ 0, contentHeight() }).x;
     geometry = PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
                                                  ticksPerQuarter, availableWidth, viewport.getHeight());
+    geometry.setRowHeight (rowHeight); // fitToContent knows only the default
 }
 
 void PianoRollComponent::centreOnTrackPitches()
@@ -310,36 +313,83 @@ void PianoRollComponent::zoom (float wheelDeltaY)
 
 void PianoRollComponent::wheelScroll (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
-    // The LOTRO preview canvas keeps its original wheel mapping for now
+    // The canvas sits under the pinned gutter and scrolls with the viewport, so
+    // the region comes from the pointer's position in this component's own
+    // (unscrolled) coordinates.
+    const auto inOwner = e.getEventRelativeTo (this);
+    const auto region = inOwner.x < geometry.getKeyboardGutterWidth() ? WheelRegion::Gutter : WheelRegion::Canvas;
+    if (! handleWheel (region, e.mods, wheel, inOwner.y))
+        canvas.Component::mouseWheelMove (e, wheel); // Preview's plain wheel: the viewport scrolls
+}
+
+bool PianoRollComponent::handleWheel (WheelRegion region, const juce::ModifierKeys& mods,
+                                      const juce::MouseWheelDetails& wheel, int pointerY)
+{
+    const bool ctrl = mods.isCtrlDown() || mods.isCommandDown();
+
+    // The LOTRO preview canvas keeps its original wheel mapping
     // (ctrl+wheel zooms, plain wheel scrolls); only the source editor follows
-    // the shared main-view mapping.
+    // the main-view-style mapping.
     if (role == Role::Preview)
     {
-        if (e.mods.isCtrlDown() || e.mods.isCommandDown())
-            zoom (wheel.deltaY);
-        else
-            canvas.Component::mouseWheelMove (e, wheel);
-        return;
+        if (! ctrl)
+            return false;
+        zoom (wheel.deltaY);
+        return true;
     }
 
     constexpr float pixelsPerNotch = 50.0f;
+    constexpr double rowPixelsPerNotch = 1.0;
 
-    if (e.mods.isCtrlDown() || e.mods.isCommandDown())
+    if (ctrl)
     {
-        // Wheel up = towards the higher pitches at the top.
-        viewport.setViewPosition (viewport.getViewPositionX(),
-                                  viewport.getViewPositionY() - juce::roundToInt (wheel.deltaY * pixelsPerNotch));
+        resizeRowsBy (wheel.deltaY * rowPixelsPerNotch, pointerY);
     }
-    else if (e.mods.isShiftDown())
+    else if (mods.isShiftDown())
     {
         viewport.setViewPosition (viewport.getViewPositionX()
                                       + juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * pixelsPerNotch),
                                   viewport.getViewPositionY());
     }
+    else if (region == WheelRegion::Gutter)
+    {
+        // Wheel up = towards the higher pitches at the top. Nothing to scroll: nothing happens.
+        const int maxY = juce::jmax (0, canvas.getHeight() - viewport.getMaximumVisibleHeight());
+        viewport.setViewPosition (viewport.getViewPositionX(),
+                                  juce::jlimit (0, maxY, viewport.getViewPositionY()
+                                                             - juce::roundToInt (wheel.deltaY * pixelsPerNotch)));
+    }
     else
     {
         zoom (wheel.deltaY);
     }
+    return true;
+}
+
+void PianoRollComponent::resizeRowsBy (double pixels, int pointerY)
+{
+    rowHeightExact = wheelresize::accumulateClamped (rowHeightExact, pixels, (double) minRowHeight, (double) maxRowHeight);
+    const int newHeight = juce::roundToInt (rowHeightExact);
+    if (newHeight == rowHeight)
+        return;
+
+    // Keep the same fractional position of the content (so the same pitch) under the pointer.
+    const int pointerInViewport = juce::jlimit (0, juce::jmax (0, viewport.getHeight()), pointerY - viewport.getY());
+    const int oldScroll = viewport.getViewPositionY();
+    const int oldExtent = contentHeight();
+
+    rowHeight = newHeight;
+    geometry.setRowHeight (rowHeight);
+    if (sourceEditor != nullptr)
+        sourceEditor->setGeometry (geometry);
+
+    rebuildContentSize();
+    const int maxY = juce::jmax (0, canvas.getHeight() - viewport.getMaximumVisibleHeight());
+    viewport.setViewPosition (viewport.getViewPositionX(),
+                              wheelresize::anchoredScroll (oldScroll, pointerInViewport, oldExtent, contentHeight(), maxY));
+    gutter.repaint();
+    refreshPlayhead();
+    canvas.repaint();
 }
 
 void PianoRollComponent::setEditableTrack (juce::ValueTree trackNode)

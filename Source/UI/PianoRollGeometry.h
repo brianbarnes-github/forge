@@ -36,6 +36,7 @@ public:
 
     int getKeyboardGutterWidth() const noexcept { return keyboardGutterWidth; }
     int getRowHeight() const noexcept { return rowHeight; }
+    void setRowHeight (int pixels) noexcept { rowHeight = pixels; }
 
     void setTopPitch (int pitch) noexcept { topPitch = pitch; }
     int getTopPitch() const noexcept { return topPitch; }

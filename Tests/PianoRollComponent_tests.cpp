@@ -47,18 +47,34 @@ namespace lotro
         static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
         static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
-        static void wheel (PianoRollComponent& c, float deltaY, juce::ModifierKeys mods)
+        // A wheel notch at `componentPos` (this component's own coordinates, i.e.
+        // unscrolled), delivered through the real Canvas::mouseWheelMove the way
+        // JUCE would: the event carries canvas-space coordinates.
+        static void wheelAt (PianoRollComponent& c, float deltaY, juce::ModifierKeys mods, juce::Point<int> componentPos)
         {
             juce::MouseWheelDetails details {};
             details.deltaY = deltaY;
-            const auto pos = juce::Point<float> (200.0f, 100.0f);
             auto& canvas = c.canvas;
+            const auto pos = (componentPos + c.viewport.getViewPosition()).toFloat();
             canvas.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos, mods,
                                                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &canvas, &canvas,
                                                      juce::Time::getCurrentTime(), pos,
                                                      juce::Time::getCurrentTime(), 1, false),
                                    details);
         }
+        // Over the note canvas (right of the gutter).
+        static void wheel (PianoRollComponent& c, float deltaY, juce::ModifierKeys mods)
+        {
+            wheelAt (c, deltaY, mods, { 200, 100 });
+        }
+        static bool handleWheel (PianoRollComponent& c, PianoRollComponent::WheelRegion region, float deltaY,
+                                 juce::ModifierKeys mods, int pointerY)
+        {
+            juce::MouseWheelDetails details {};
+            details.deltaY = deltaY;
+            return c.handleWheel (region, mods, details, pointerY);
+        }
+        static SourceRollEditor& editor (PianoRollComponent& c) { return *c.sourceEditor; }
         static void paintGutter (const PianoRollComponent& c, juce::Graphics& g) { c.paintGutter (g); }
         static int hoveredPitch (const PianoRollComponent& c) { return c.hoveredPitch; }
         static juce::Component* playhead (PianoRollComponent& c) { return c.playhead.get(); }
@@ -1053,22 +1069,237 @@ TEST_CASE ("PianoRollComponent: with no marker, plain wheel zooms about the midd
     CHECK (std::abs (f.roll.tickForXInComponent (centreX) - centreTick) <= 20.0);
 }
 
-TEST_CASE ("PianoRollComponent: ctrl+wheel scrolls the roll vertically and leaves the zoom alone", "[piano-roll][wheel]")
+namespace
+{
+    constexpr int gutterPointX = 20;   // inside the 60 px keyboard gutter
+    constexpr int canvasPointX = 300;
+    const auto ctrl = juce::ModifierKeys::ctrlModifier;
+}
+
+TEST_CASE ("PianoRollComponent: plain wheel over the canvas zooms and leaves vertical scroll alone", "[piano-roll][wheel]")
 {
     PlayheadRollFixture f;
     f.roll.setEditableTrack (f.track);
     auto& viewport = Access::viewport (f.roll);
     REQUIRE (viewport.getVerticalScrollBar().isVisible());
-    const int before = viewport.getViewPositionY();
+    const int yBefore = viewport.getViewPositionY();
     const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
 
-    Access::wheel (f.roll, -1.0f, juce::ModifierKeys::ctrlModifier);   // wheel down
-    const int down = viewport.getViewPositionY();
-    CHECK (down > before);
+    Access::wheelAt (f.roll, 1.0f, {}, { canvasPointX, 100 });
 
-    Access::wheel (f.roll, 1.0f, juce::ModifierKeys::ctrlModifier);    // wheel up
-    CHECK (viewport.getViewPositionY() < down);
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() > zoomBefore);
+    CHECK (viewport.getViewPositionY() == yBefore);
+    CHECK (f.roll.getRowHeight() == 14);
+}
+
+TEST_CASE ("PianoRollComponent: plain wheel over the keyboard gutter scrolls vertically and never zooms", "[piano-roll][wheel]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    auto& viewport = Access::viewport (f.roll);
+    REQUIRE (viewport.getVerticalScrollBar().isVisible());
+    const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
+    const int xBefore = viewport.getViewPositionX();
+    const int start = viewport.getViewPositionY();
+
+    Access::wheelAt (f.roll, -1.0f, {}, { gutterPointX, 100 });   // wheel down: towards lower pitches
+    CHECK (viewport.getViewPositionY() == start + 50);
+    Access::wheelAt (f.roll, 0.5f, {}, { gutterPointX, 100 });    // half a notch up
+    CHECK (viewport.getViewPositionY() == start + 25);
+
+    for (int i = 0; i < 100; ++i)
+        Access::wheelAt (f.roll, 1.0f, {}, { gutterPointX, 100 });
+    CHECK (viewport.getViewPositionY() == 0);                      // clamped at the top
+    for (int i = 0; i < 100; ++i)
+        Access::wheelAt (f.roll, -1.0f, {}, { gutterPointX, 100 });
+    CHECK (viewport.getViewPositionY() == Access::canvas (f.roll).getHeight() - viewport.getMaximumVisibleHeight());
+
     CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomBefore));
+    CHECK (viewport.getViewPositionX() == xBefore);
+}
+
+TEST_CASE ("PianoRollComponent: gutter wheel does nothing when the whole pitch range fits", "[piano-roll][wheel]")
+{
+    PlayheadRollFixture f;
+    f.roll.setSize (800, 3000);   // taller than 128 rows
+    auto& viewport = Access::viewport (f.roll);
+    REQUIRE (! viewport.getVerticalScrollBar().isVisible());
+    const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
+
+    Access::wheelAt (f.roll, -1.0f, {}, { gutterPointX, 100 });
+    Access::wheelAt (f.roll, 1.0f, {}, { gutterPointX, 100 });
+
+    CHECK (viewport.getViewPositionY() == 0);
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomBefore));
+}
+
+TEST_CASE ("PianoRollComponent: ctrl+wheel resizes the pitch rows, one pixel per notch, wherever the pointer is", "[piano-roll][wheel][row-height]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    REQUIRE (f.roll.getRowHeight() == 14);
+    const double zoomBefore = Access::geometry (f.roll).getPixelsPerQuarterNote();
+    auto& viewport = Access::viewport (f.roll);
+    viewport.setViewPosition (0, viewport.getViewPositionY());   // pin X; only Y may move on a row resize
+
+    Access::wheelAt (f.roll, 1.0f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == 15);
+    CHECK (Access::geometry (f.roll).getRowHeight() == 15);
+    Access::wheelAt (f.roll, -2.0f, ctrl, { gutterPointX, 100 });   // over the gutter too
+    CHECK (f.roll.getRowHeight() == 13);
+
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomBefore));
+    CHECK (viewport.getViewPositionX() == 0);
+    CHECK (Access::canvas (f.roll).getHeight() == 128 * 13);       // content height tracks the rows
+}
+
+TEST_CASE ("PianoRollComponent: fractional ctrl+wheel deltas accumulate; the limits clamp and discard the excess", "[piano-roll][wheel][row-height]")
+{
+    PlayheadRollFixture f;
+    Access::wheelAt (f.roll, 0.4f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == 14);   // 14.4
+    Access::wheelAt (f.roll, 0.4f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == 15);   // 14.8
+
+    Access::wheelAt (f.roll, 1000.0f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == PianoRollComponent::maxRowHeight);
+    Access::wheelAt (f.roll, -1.0f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == PianoRollComponent::maxRowHeight - 1);   // the 1000 did not pile up
+
+    Access::wheelAt (f.roll, -1000.0f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == PianoRollComponent::minRowHeight);
+    Access::wheelAt (f.roll, 1.0f, ctrl, { canvasPointX, 100 });
+    CHECK (f.roll.getRowHeight() == PianoRollComponent::minRowHeight + 1);
+    CHECK (PianoRollComponent::maxRowHeight == 40);
+}
+
+TEST_CASE ("PianoRollComponent: resizing the rows keeps the pitch under the pointer in place", "[piano-roll][wheel][row-height]")
+{
+    PlayheadRollFixture f;
+    auto& viewport = Access::viewport (f.roll);
+    viewport.setViewPosition (0, 700);
+    const int h = f.roll.getRowHeight();
+    // The middle of a row, so a one-pixel rounding wobble cannot change which row it is.
+    const int pointerY = ((viewport.getViewPositionY() + 150) / h) * h + h / 2 - viewport.getViewPositionY();
+    const int pitch = Access::geometry (f.roll).pitchForY (viewport.getViewPositionY() + pointerY);
+
+    for (int i = 0; i < 12; ++i)
+    {
+        Access::wheelAt (f.roll, 1.0f, ctrl, { canvasPointX, pointerY });
+        CHECK (Access::geometry (f.roll).pitchForY (viewport.getViewPositionY() + pointerY) == pitch);
+    }
+    CHECK (f.roll.getRowHeight() == 26);
+    for (int i = 0; i < 12; ++i)
+    {
+        Access::wheelAt (f.roll, -1.0f, ctrl, { gutterPointX, pointerY });
+        CHECK (Access::geometry (f.roll).pitchForY (viewport.getViewPositionY() + pointerY) == pitch);
+    }
+    CHECK (f.roll.getRowHeight() == 14);
+}
+
+TEST_CASE ("PianoRollComponent: the editor's hit-testing follows the row height", "[piano-roll][row-height]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 61 });   // adjacent rows: a stale row height lands on the wrong pitch
+    auto& editor = Access::editor (fixture.roll);
+    auto notes = SongDocument::getNotesNode (fixture.track);
+
+    for (const float delta : { -100.0f, 100.0f })   // min, then max
+    {
+        Access::wheelAt (fixture.roll, delta, ctrl, { canvasPointX, 100 });
+        const auto& geometry = Access::geometry (fixture.roll);
+        const int h = fixture.roll.getRowHeight();
+        REQUIRE (h == (delta < 0 ? PianoRollComponent::minRowHeight : PianoRollComponent::maxRowHeight));
+
+        const int x = geometry.xForTick (ticksPerQuarter + ticksPerQuarter / 2);
+        for (const int dy : { h / 2, h - 2 })
+        {
+            const juce::Point<int> pos { x, geometry.yForPitch (61) + dy };
+            Access::mouseDown (fixture.roll, pos, {}, false);
+            Access::mouseUp (fixture.roll, pos);
+            CHECK (editor.getNumSelected() == 1);
+            CHECK (editor.isSelected (notes.getChild (1)));
+            Access::mouseDown (fixture.roll, { x, geometry.yForPitch (127) }, {}, false);   // empty canvas deselects
+            Access::mouseUp (fixture.roll, { x, geometry.yForPitch (127) });
+        }
+        CHECK (Access::canvas (fixture.roll).getHeight() == 128 * h);
+    }
+
+    // An in-between height too.
+    Access::wheelAt (fixture.roll, -100.0f, ctrl, { canvasPointX, 100 });
+    Access::wheelAt (fixture.roll, 4.0f, ctrl, { canvasPointX, 100 });
+    REQUIRE (fixture.roll.getRowHeight() == PianoRollComponent::minRowHeight + 4);
+    const auto& geometry = Access::geometry (fixture.roll);
+    Access::mouseDown (fixture.roll, { geometry.xForTick (240), geometry.yForPitch (60) + 7 }, {}, false);
+    CHECK (editor.isSelected (notes.getChild (0)));
+    CHECK (! editor.isSelected (notes.getChild (1)));
+}
+
+TEST_CASE ("PianoRollComponent: the row height survives new sources and tracks, and stays per instance and per role", "[piano-roll][row-height]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 36, 44 });
+    Access::wheelAt (fixture.roll, 16.0f, ctrl, { canvasPointX, 100 });
+    REQUIRE (fixture.roll.getRowHeight() == 30);
+
+    fixture.roll.setNoteSource (nullptr, ticksPerQuarter, {});
+    CHECK (fixture.roll.getRowHeight() == 30);
+    fixture.roll.setNoteSource (fixture.source.get(), ticksPerQuarter, {});
+    fixture.roll.setEditableTrack (fixture.track);
+    CHECK (fixture.roll.getRowHeight() == 30);
+    // The initial vertical centring uses the current height.
+    CHECK (std::abs (fixture.visibleCentreY() - fixture.rowCentreY (40)) <= 30);
+
+    fixture.roll.setBounds (0, 0, 500, 300);   // a window resize refits the timeline
+    CHECK (fixture.roll.getRowHeight() == 30);
+    CHECK (Access::canvas (fixture.roll).getHeight() == 128 * 30);
+
+    SourceRollFixture other ({ 60 });
+    CHECK (other.roll.getRowHeight() == 14);
+}
+
+TEST_CASE ("PianoRollComponent: Source wheel mapping decided by region and modifiers", "[piano-roll][wheel]")
+{
+    using Region = PianoRollComponent::WheelRegion;
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    auto& viewport = Access::viewport (f.roll);
+    const double zoom0 = Access::geometry (f.roll).getPixelsPerQuarterNote();
+
+    // Shift pans horizontally from either region and leaves zoom and rows alone.
+    for (int i = 0; i < 10; ++i)
+        Access::handleWheel (f.roll, Region::Canvas, 1.0f, {}, 100);
+    const double zoomed = Access::geometry (f.roll).getPixelsPerQuarterNote();
+    REQUIRE (zoomed > zoom0);
+    viewport.setViewPosition (0, viewport.getViewPositionY());
+    CHECK (Access::handleWheel (f.roll, Region::Gutter, -1.0f, juce::ModifierKeys::shiftModifier, 100));
+    CHECK (viewport.getViewPositionX() > 0);
+    CHECK (Access::geometry (f.roll).getPixelsPerQuarterNote() == Catch::Approx (zoomed));
+    CHECK (f.roll.getRowHeight() == 14);
+}
+
+TEST_CASE ("PianoRollComponent: the Preview role keeps ctrl+wheel = zoom and plain wheel = scroll", "[piano-roll][wheel]")
+{
+    using Region = PianoRollComponent::WheelRegion;
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    PreviewNote note;
+    note.prePitch = 60;
+    note.startTick = 0;
+    note.durationTicks = ticksPerQuarter;
+    PreviewNoteSource source ({ note });
+    PianoRollComponent roll (PianoRollComponent::Role::Preview);
+    roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    roll.setNoteSource (&source, ticksPerQuarter, {});
+    const double zoomBefore = Access::geometry (roll).getPixelsPerQuarterNote();
+
+    CHECK (Access::handleWheel (roll, Region::Canvas, 1.0f, ctrl, 50));
+    CHECK (Access::geometry (roll).getPixelsPerQuarterNote() > zoomBefore);
+    CHECK (roll.getRowHeight() == 14);
+
+    const double zoomed = Access::geometry (roll).getPixelsPerQuarterNote();
+    CHECK (! Access::handleWheel (roll, Region::Canvas, 1.0f, {}, 50));   // left to the viewport's own scrolling
+    CHECK (! Access::handleWheel (roll, Region::Gutter, 1.0f, {}, 50));
+    CHECK (Access::geometry (roll).getPixelsPerQuarterNote() == Catch::Approx (zoomed));
 }
 
 TEST_CASE ("PianoRollComponent: shift+wheel pans horizontally", "[piano-roll][wheel]")
