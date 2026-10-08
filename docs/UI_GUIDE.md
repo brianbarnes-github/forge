@@ -133,25 +133,38 @@ When you say…       …I'll know you mean
   row index); double-click an assignable track to open the Track editor window (#28) on
   it (conductor and note-less rows ignore double-click). An empty document shows a muted placeholder ("No MIDI loaded — File
   → Import ▸ MIDI… or drop a .mid here") instead of a blank panel.
-- **Track selection and sections.** Clicking a row (or its note strip) selects
-  that track; Ctrl/Cmd+click toggles a track in the selection, Shift+click
-  selects the range from the last-clicked row (Ctrl/Cmd+Shift extends instead of
-  replacing), and Ctrl/Cmd+A selects every non-conductor track. Pressing a
-  selected track's strip keeps a multi-selection. Each note-bearing track is
-  divided into **sections** (initially one, from tick 0 to its last note end):
-  click a section body to select it (the section starting at the same tick on every
-  other selected track is selected with it); drag the body to move the selected sections and
-  their notes (clamped at tick 0, counting member notes that lie outside the block); drag a section's left or right edge (5 px
-  grab zone) to resize them — each edge moves by the dragged delta, shrinking
+- **Track selection and sections.** Two independent selections. The **head
+  selection** is the highlighted track rows: clicking a row's info column selects
+  that track; Ctrl/Cmd+click toggles a track, Shift+click selects the range from
+  the last-clicked row (Ctrl/Cmd+Shift extends instead of replacing). A head click
+  never changes which sections are selected. The **canvas selection** is the
+  bright sections on the note strips, built only by clicking a strip. Each
+  note-bearing track is divided into **sections** (initially one, from tick 0 to
+  its last note end). A plain click on a section selects just it; Ctrl/Cmd+click
+  toggles a section; Shift+click selects, on every track between the last-clicked
+  section's track and this one, the section starting at the same tick as that
+  anchor section (tracks without one are skipped; Ctrl/Cmd+Shift extends instead of
+  replacing); a plain click on empty strip clears the section selection. Every
+  canvas selection change is mirrored onto the heads (they then highlight exactly
+  the tracks owning a selected section), but never the other way round, so you can
+  have, say, two heads highlighted and three sections selected. Pressing a section
+  that is part of a multi-selection keeps it: drag the body to move all selected
+  sections and their notes (clamped at tick 0, counting member notes that lie
+  outside the block) or a section's left or right edge (5 px grab zone) to resize
+  them; releasing without dragging collapses the selection to the pressed section.
+  Each edge moves by the dragged delta, shrinking
   deletes or trims the notes it gives up, growing touches no note. A few
   pixels of jitter is a click. The drag is a preview only and commits once on
-  mouse-up as one undo step; pressing empty strip clears the section selection.
+  mouse-up as one undo step.
   Keys on the track canvas (never while a text field has focus; Ctrl/Cmd+S
   stays Save): **S** splits at the tick under the pointer when it is over a
   track's note strip (else at the start marker, else nothing — the key is not
-  consumed) on the selected tracks, or just the pointer's track when none is
-  selected; **Delete**/**Backspace** removes the selected sections and their
-  notes (nothing when none is selected); **Ctrl/Cmd+A** selects all tracks.
+  consumed) on the tracks that own a selected section, or just the pointer's
+  track when no section is selected (the head selection is not used);
+  **Delete**/**Backspace** removes the selected sections and their
+  notes (nothing when none is selected); **Ctrl/Cmd+A** acts on the region under the
+  pointer: over the note strips it selects every section of every non-conductor track
+  (and so highlights all heads), anywhere else it selects all heads only.
   A note drawn in the Track editor far from every section still belongs to the
   nearest section and moves or deletes with it.
   The conductor and note-less tracks have no sections. Each of these is one

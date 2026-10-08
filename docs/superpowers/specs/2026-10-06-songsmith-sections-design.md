@@ -29,8 +29,7 @@ together); a note under a split is **cut in two**.
 - Non-note `EVENTS` (controllers, pitch bend, tempo) stay where they are when a
   section moves or is cut; only notes follow sections.
 - Out of scope: moving a section to another track, copy/paste/duplicate of
-  sections, sections in the Track editor roll, section selection sets
-  (select by clicking one section plus its companions, below).
+  sections, sections in the Track editor roll.
 
 ## Data model
 
@@ -108,22 +107,31 @@ Pure functions over `SongDocument`; no JUCE UI, no `Source/Core`. All take an
 
 ### Applying to selected tracks
 
-- A gesture names one **clicked** section. Its **companions** are, on every
-  other selected track, the sections whose `startTick` equals the clicked
-  section's `startTick`. Move, resize and delete apply to the clicked section
-  plus companions, in a single transaction.
-- Split applies to every selected track at the one tick.
-- If the clicked section's track is not in the selected set, the gesture acts on
-  that section only.
+- A gesture acts on the **canvas selection** (a set of sections, see below),
+  in a single transaction: a press on a section of a multi-selection keeps the
+  selection so one drag moves or resizes every selected section by the same
+  delta; a press elsewhere selects just that section first. (An earlier design
+  derived "companions" from the head selection; heads no longer influence the
+  canvas.)
+- Split applies, at the one tick, to every track that owns a selected section.
 
 ## Track selection
 
-- `TrackListComponent` gains a set of selected tracks. Today nothing outside it
-  reads the selection (it only highlights a row), so there is no primary track;
-  `selectedTrackId` stays as the last-clicked anchor for Shift-range selection.
-- Click: select only that track. Ctrl/Cmd+click: toggle. Shift+click: select the
-  range from the primary track. Ctrl/Cmd+A: select all tracks.
-- Selection is transient and not persisted; stale ids are dropped on rebuild, as today.
+Two independent selections, both transient and not persisted:
+
+- **Head selection** (`selectedTrackIds`, with `selectedTrackId` as the
+  last-clicked anchor for Shift ranges): a click on a track head. Click: select
+  only that track. Ctrl/Cmd+click: toggle. Shift+click: select the range from the
+  anchor (Ctrl/Cmd+Shift extends). It never changes the canvas selection. Drag-to-part
+  uses it.
+- **Canvas selection** (`sectionView.selected`, the bright sections): built only by
+  clicks on a note strip, described under "Canvas UI". Every change to it is
+  mirrored one way onto the heads: `selectedTrackIds` becomes the non-conductor
+  tracks that own a selected section and the clicked track becomes the anchor. The
+  mirror runs only on user clicks (and Ctrl+A over the strips), never from
+  `rebuild()`.
+- `rebuild()` prunes each selection on its own: dead tracks leave the heads, dead
+  sections (a virtual id 0 remapped to the first stored section) leave the canvas.
 
 ## Canvas UI
 
@@ -132,17 +140,24 @@ Pure functions over `SongDocument`; no JUCE UI, no `Source/Core`. All take an
   Painting uses the shared `TimelineViewState`, as the notes and grid do.
 - Keys (handled by the main window): `S` splits at the tick under the pointer
   when the pointer is over a track's note strip, else at the start marker, else
-  does nothing; it applies to the selected tracks, or just the track under the
-  pointer when none is selected. `Delete`/`Backspace` delete the selected
-  sections. Ctrl/Cmd+A selects all tracks (not the conductor).
+  does nothing; it applies to the tracks that own a selected section, or just the
+  track under the pointer when no section is selected (the head selection is not
+  used). `Delete`/`Backspace` delete the selected sections. Ctrl/Cmd+A acts on the
+  region under the pointer: over the note strips it selects every section of every
+  non-conductor track (and mirrors onto the heads); anywhere else it selects all
+  heads only and leaves the canvas selection alone.
 - Mouse: clicking a track strip still sets the start marker at that tick (as
-  today) and also selects the section under the pointer, as a click in Reaper
-  moves the edit cursor and selects the item. A plain click on a strip whose
-  track is already part of a multi-track selection keeps that selection;
-  otherwise it selects only that track. Ctrl/Cmd+click toggles the track,
-  Shift+click selects a range. Selecting a section also selects its companions
-  on the other selected tracks; that stored section selection is what move,
-  resize and `Delete` act on. Drag a section's body to move it; drag within a
+  today) and edits the canvas selection, as a click in Reaper moves the edit
+  cursor and selects the item. Plain click on a section: select just it (unless it
+  is already in a multi-selection, which is kept on press and collapsed to it if
+  the button is released without dragging). Ctrl/Cmd+click: toggle that section,
+  no drag. Shift+click: select, on each non-conductor track between the anchor
+  section's track and the clicked one (row order), the section with the same
+  `startTick` as the anchor section (rows without one are skipped); plain Shift
+  replaces, Ctrl/Cmd+Shift extends; with no anchor Shift acts as a plain click.
+  The anchor is the last plain or Ctrl-clicked section. Plain click on empty strip:
+  clear the canvas selection and select that head. Ctrl/Shift on empty strip does
+  nothing. Drag a section's body to move the selection; drag within a
   few pixels of an edge to resize. Nothing in the document changes during a
   drag (any change rebuilds the rows and would destroy the component holding
   the mouse); the drag is a preview committed on release. A drag is one
@@ -175,7 +190,7 @@ rejects unknown nodes.
 - `SectionEdit_tests.cpp`: split (inside a section, on an edge, outside, with a
   straddling note, with overlapping sections), move (overlap, clamp at 0, drag
   back apart), resize (shrink deletes and trims, grow, 1-tick minimum, edge
-  order), delete, multi-track companions, each as a single undo step.
+  order), delete, each as a single undo step.
 - `SongDocument` normalisation: untagged tracks, dangling ids, empty tracks.
 - `SongFile` round trip with sections; an old file without them.
 - Pipeline integration: a split, move and delete reach `SongModelBridge`, the
