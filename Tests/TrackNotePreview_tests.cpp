@@ -467,3 +467,72 @@ TEST_CASE ("TrackNotePreview: a resize preview moves each selected edge by the d
     CHECK (image.getPixelAt (101, previewHeight - 4) != background);   // tick 2020: still inside
     CHECK (image.getPixelAt (171, previewHeight - 4) == background);   // tick 3420: given up
 }
+
+namespace
+{
+    constexpr juce::uint32 dragTrackColour = 0xFF80C878;
+    constexpr juce::int64 dragTrackId = 7;
+
+    // One note at tick 0, 480 long, on the track's virtual (id 0) section.
+    juce::ValueTree makeTrackWithNoteAtZero()
+    {
+        juce::ValueTree track (SongIDs::MIDI_TRACK);
+        track.setProperty (SongIDs::colorArgb, (int) dragTrackColour, nullptr);
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, 60, nullptr);
+        note.setProperty (SongIDs::startTick, 0, nullptr);
+        note.setProperty (SongIDs::durationTicks, 480, nullptr);
+        juce::ValueTree notes (SongIDs::NOTES);
+        notes.appendChild (note, nullptr);
+        track.appendChild (notes, nullptr);
+        return track;
+    }
+
+    // Paints the preview and returns whether the note bar's colour is at `tick`.
+    bool noteBarAt (juce::ValueTree track, const SectionViewState& state, int tick)
+    {
+        TimelineViewState viewState;
+        viewState.setPixelsPerTick (0.1);
+        viewState.setScrollOffsetTicks (0.0);
+        TrackNotePreview preview (track, viewState);
+        preview.setBounds (0, 0, previewWidth, previewHeight);
+        preview.setSectionView (&state, dragTrackId);
+
+        juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        preview.paint (g);
+        return image.getPixelAt (viewState.xForTick (tick) + 1, previewHeight - 2) == juce::Colour (dragTrackColour);
+    }
+}
+
+TEST_CASE ("TrackNotePreview: a Move drag draws the selected section's notes at the dragged position", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto track = makeTrackWithNoteAtZero();
+
+    SectionViewState state;
+    state.selected.insert ({ dragTrackId, 0 });
+    state.drag = SectionDragPreview { SectionDragPreview::Kind::Move, 960 };
+
+    CHECK (noteBarAt (track, state, 960));        // moved with its section
+    CHECK_FALSE (noteBarAt (track, state, 0));    // and gone from where it was
+}
+
+TEST_CASE ("TrackNotePreview: notes stay put for an unselected section, a resize drag, or no drag", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto track = makeTrackWithNoteAtZero();
+
+    SectionViewState unselected;
+    unselected.drag = SectionDragPreview { SectionDragPreview::Kind::Move, 960 };
+    CHECK (noteBarAt (track, unselected, 0));
+
+    SectionViewState resizing;
+    resizing.selected.insert ({ dragTrackId, 0 });
+    resizing.drag = SectionDragPreview { SectionDragPreview::Kind::ResizeRight, 960 };
+    CHECK (noteBarAt (track, resizing, 0));
+
+    SectionViewState idle;
+    idle.selected.insert ({ dragTrackId, 0 });
+    CHECK (noteBarAt (track, idle, 0));
+}

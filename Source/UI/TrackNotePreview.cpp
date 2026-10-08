@@ -97,12 +97,20 @@ namespace lotro
         {
             const int pitchSpan = juce::jmax (1, maxPitch - minPitch);
 
+            // While a selected section is being moved its notes travel with it (the
+            // list already clamped the shared delta, as for the section itself).
+            const auto sections = sectionsOf (track);
+            const bool moving = sectionView != nullptr && sectionView->drag
+                                && sectionView->drag->kind == SectionDragPreview::Kind::Move;
+
             g.setColour (juce::Colour ((juce::uint32) (int) track.getProperty (SongIDs::colorArgb)));
             for (int i = 0; i < notes.getNumChildren(); ++i)
             {
                 auto note = notes.getChild (i);
                 const int pitch = (int) note.getProperty (SongIDs::pitch);
-                const int startTick = (int) note.getProperty (SongIDs::startTick);
+                int startTick = (int) note.getProperty (SongIDs::startTick);
+                if (moving && sectionView->selected.count ({ trackId, sectionIdOfNote (note, sections) }) > 0)
+                    startTick += sectionView->drag->deltaTicks;
                 const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);
 
                 const int x = viewState.xForTick (startTick);

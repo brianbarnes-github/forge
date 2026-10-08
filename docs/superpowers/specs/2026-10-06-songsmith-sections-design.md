@@ -137,7 +137,10 @@ Two independent selections, both transient and not persisted:
 
 - `TrackNotePreview` paints each section of its track as a translucent block under
   the note bars, with a visible edge at each end; selected sections are highlighted.
-  Painting uses the shared `TimelineViewState`, as the notes and grid do.
+  Painting uses the shared `TimelineViewState`, as the notes and grid do. While a
+  selected section is being moved, its notes are drawn shifted by the drag delta
+  (same clamp as the block), so the notes travel inside the block; a resize drag
+  does not preview note changes.
 - Keys (handled by the main window): `S` splits at the tick under the pointer
   when the pointer is over a track's note strip, else at the start marker, else
   does nothing; it applies to the tracks that own a selected section, or just the
