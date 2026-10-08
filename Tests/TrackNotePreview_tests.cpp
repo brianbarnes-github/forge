@@ -262,7 +262,7 @@ TEST_CASE ("TrackNotePreview: pressing in a section reports the hit and the tick
 
     SectionHit hit;
     int pressedTick = -1;
-    preview.onSectionPressed = [&] (const SectionHit& h, int tick) { hit = h; pressedTick = tick; };
+    preview.onSectionPressed = [&] (const SectionHit& h, int tick, const juce::ModifierKeys&) { hit = h; pressedTick = tick; };
 
     const int x = viewState.xForTick (960);
     preview.mouseDown (previewMouseAt (preview, x));
@@ -360,7 +360,7 @@ TEST_CASE ("TrackNotePreview: only a left press picks up a section", "[track-not
     preview.setBounds (0, 0, previewWidth, previewHeight);
 
     int pressed = 0, dragged = 0, released = 0, markerTick = -1;
-    preview.onSectionPressed = [&] (const SectionHit&, int) { ++pressed; };
+    preview.onSectionPressed = [&] (const SectionHit&, int, const juce::ModifierKeys&) { ++pressed; };
     preview.onSectionDragged = [&] (int) { ++dragged; };
     preview.onSectionReleased = [&] (int) { ++released; };
     preview.onTimelineClicked = [&] (int tick) { markerTick = tick; };
@@ -411,10 +411,33 @@ TEST_CASE ("TrackNotePreview: an empty track and the conductor paint no sections
         CHECK (image.getPixelAt (26, previewHeight - 4) == juce::Colour (SongsmithColours::background));
 
         SectionHit hit { 99, SectionZone::Body };
-        preview.onSectionPressed = [&] (const SectionHit& h, int) { hit = h; };
+        preview.onSectionPressed = [&] (const SectionHit& h, int, const juce::ModifierKeys&) { hit = h; };
         preview.mouseDown (previewMouseAt (preview, 96));
         CHECK (hit.zone == SectionZone::None);
     }
+}
+
+TEST_CASE ("TrackNotePreview: the section press reports the click's modifier keys", "[track-note-preview][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 1920);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    juce::ModifierKeys seen;
+    preview.onSectionPressed = [&] (const SectionHit&, int, const juce::ModifierKeys& m) { seen = m; };
+    preview.mouseDown (previewMouseAt (preview, viewState.xForTick (960), 20,
+                                       juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::shiftModifier)));
+    CHECK (seen.isShiftDown());
+    CHECK_FALSE (seen.isCtrlDown());
+    preview.mouseDown (previewMouseAt (preview, viewState.xForTick (960)));
+    CHECK_FALSE (seen.isShiftDown());
 }
 
 TEST_CASE ("TrackNotePreview: a resize preview moves each selected edge by the delta, not to one tick", "[track-note-preview][sections]")

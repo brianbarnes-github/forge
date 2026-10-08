@@ -220,32 +220,6 @@ SectionHit hitTestSection (const std::vector<SectionRange>& sections, int tick, 
     return best;
 }
 
-std::vector<SectionRef> withCompanions (const SongDocument& doc, const std::set<juce::int64>& selectedTrackIds,
-                                        SectionRef clicked)
-{
-    std::vector<SectionRef> out { clicked };
-    if (selectedTrackIds.count (clicked.trackId) == 0)
-        return out;
-
-    const auto clickedTrack = doc.findTrackById (clicked.trackId);
-    int clickedStart = -1;
-    for (const auto& s : sectionsOf (clickedTrack))
-        if (s.id == clicked.sectionId)
-            clickedStart = s.startTick;
-    if (clickedStart < 0)
-        return out;
-
-    for (const auto trackId : selectedTrackIds)
-    {
-        if (trackId == clicked.trackId)
-            continue;
-        for (const auto& s : sectionsOf (doc.findTrackById (trackId)))
-            if (s.startTick == clickedStart)
-                out.push_back ({ trackId, s.id });
-    }
-    return out;
-}
-
 void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note)
 {
     if (note.hasProperty (SongIDs::onOrder))

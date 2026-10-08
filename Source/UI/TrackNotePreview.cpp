@@ -151,7 +151,7 @@ namespace lotro
             sectionDragStarted = false;
             sectionPressX = e.getPosition().x;
             sectionPressTick = tick;
-            onSectionPressed (hit, tick);
+            onSectionPressed (hit, tick, e.mods);
         }
     }
 

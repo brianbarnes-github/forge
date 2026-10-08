@@ -373,8 +373,14 @@ TEST_CASE ("SongsmithMainComponent: the section keys forward to the track list a
     SongsmithMainComponent main (doc);
     main.setBounds (0, 0, 1000, 700);
 
-    main.selectAllTracks();
+    main.selectAllHeadsForTesting();
     CHECK (main.getSelectedTrackIdsForTesting().size() == 2);
+    main.clearSelectionForTesting();
+    main.selectAll();   // headless: the pointer is over nothing, so this is the heads variant
+    CHECK (main.getSelectedTrackIdsForTesting().size() == 2);
+    main.selectAllCanvasesForTesting();
+    CHECK (main.getSelectedTrackIdsForTesting().size() == 2);
+    main.clearSelectionForTesting();
 
     CHECK_FALSE (main.deleteSections());   // no section selected
     CHECK_FALSE (main.splitSections());    // pointer outside the window, no marker

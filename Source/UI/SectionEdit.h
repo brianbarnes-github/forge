@@ -52,11 +52,6 @@ juce::int64 sectionIdOfNote (const juce::ValueTree& note, const std::vector<Sect
 SectionHit hitTestSection (const std::vector<SectionRange>& sections, int tick,
                            double pixelsPerTick, int edgeSlopPixels);
 
-// `clicked` plus, when its track is in `selectedTrackIds`, the section starting
-// at the same tick on every other selected track. `clicked` is first.
-std::vector<SectionRef> withCompanions (const SongDocument& doc, const std::set<juce::int64>& selectedTrackIds,
-                                        SectionRef clicked);
-
 // Clears the raw-MIDI ordering of a note whose timing changed, so it exports as
 // new material with a real note-off. Joins the caller's open transaction.
 void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note);

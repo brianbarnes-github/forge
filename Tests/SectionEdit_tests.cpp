@@ -113,33 +113,6 @@ TEST_CASE ("sections: hit testing finds edges within the slop, then the narrowes
     CHECK (hitTestSection ({}, 10, ppt, 5).zone == SectionZone::None);
 }
 
-TEST_CASE ("sections: companions are the sections starting at the same tick on the other selected tracks", "[sections]")
-{
-    SongDocument doc;
-    auto a = addTrack (doc, "A");
-    auto b = addTrack (doc, "B");
-    auto c = addTrack (doc, "C");
-    for (auto t : { a, b, c })
-        addNote (t, 60, 0, 960);
-    const auto sa = addStoredSection (doc, a, 0, 480);
-    const auto sb = addStoredSection (doc, b, 0, 960);
-    addStoredSection (doc, c, 480, 960);
-
-    const auto idA = (juce::int64) a.getProperty (SongIDs::trackId);
-    const auto idB = (juce::int64) b.getProperty (SongIDs::trackId);
-    const auto idC = (juce::int64) c.getProperty (SongIDs::trackId);
-    const SectionRef clicked { idA, (juce::int64) sa.getProperty (SongIDs::sectionId) };
-
-    const auto both = withCompanions (doc, { idA, idB, idC }, clicked);
-    REQUIRE (both.size() == 2);   // C's section starts at 480, not 0
-    CHECK (both[0] == clicked);
-    CHECK (both[1].trackId == idB);
-    CHECK (both[1].sectionId == (juce::int64) sb.getProperty (SongIDs::sectionId));
-
-    // A clicked track outside the selection acts alone.
-    CHECK (withCompanions (doc, { idB, idC }, clicked).size() == 1);
-}
-
 TEST_CASE ("sections: at a boundary shared by two sections the pointer side picks the edge", "[sections]")
 {
     const std::vector<SectionRange> sections { { 1, 0, 100 }, { 2, 100, 200 } };

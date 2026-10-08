@@ -57,12 +57,25 @@ public:
 
     juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
     const std::set<juce::int64>& getSelectedTrackIds() const noexcept { return selectedTrackIds; }
-    void selectAllTracks();
+
+    // Two independent selections. HEAD: selectedTrackIds / selectedTrackId, changed
+    // by clicks on a track head (and selectAllHeads). CANVAS: sectionView.selected,
+    // changed only by clicks on a note strip (and selectAllCanvases). Every canvas
+    // change is mirrored one way onto the heads (the heads then show exactly the
+    // tracks owning a selected section); a head click never touches the canvas.
+    //
+    // Ctrl/Cmd+A: acts on the region under the real pointer. Over the note strips
+    // it is selectAllCanvases(); anywhere else selectAllHeads().
+    void selectAll();
+    // Every non-conductor track's head; the canvas selection is left alone.
+    void selectAllHeads();
+    // Every section of every non-conductor track, mirrored onto the heads.
+    void selectAllCanvases();
 
     // Key S. Splits at `pointerTick` (the tick under the pointer, empty when the
     // pointer is not over a track's note strip), else at the playback marker, else
-    // does nothing. Acts on the selected tracks, else on `pointerTrackId` (-1 for
-    // none). One undo step; returns whether any section was split.
+    // does nothing. Acts on the tracks owning a selected canvas section, else on
+    // `pointerTrackId` (-1 for none); the head selection is not consulted. One undo step; returns whether any section was split.
     bool splitSections (std::optional<int> pointerTick, juce::int64 pointerTrackId);
 
     // Key S from the real pointer: resolves the strip and tick under it, then
@@ -74,7 +87,7 @@ public:
     // is selected.
     bool deleteSelectedSections();
 
-    // Forgets the selected row. Fires no callbacks.
+    // Forgets the head and canvas selections. Fires no callbacks.
     void clearSelection();
 
     // Fired when a row is double-clicked, with that row's trackId.
@@ -120,15 +133,28 @@ private:
     // The overlay skips repaints when the playhead x is unchanged, so every
     // change to the tick->x mapping (zoom, scroll, resize, fit) must call this.
     void refreshOverlay();
-    void selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods, bool fromStrip);
+    // A click on a track head: changes only the head selection.
+    void selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods);
     void applySelectionToRows();
 
-    // Section gestures from a row's note strip. A press selects the section (and
-    // its companions) and starts a gesture; a drag only updates sectionView.drag;
+    // Canvas -> heads, one way: selectedTrackIds becomes the non-conductor tracks
+    // owning a selected section, and the clicked track (if given) the anchor.
+    void mirrorCanvasToHeads (std::optional<juce::int64> clickedTrackId);
+
+    bool isConductorTrack (juce::int64 trackId) const;   // also true for an unknown id
+
+    // True when the real pointer is over a row's note strip (not its head).
+    bool pointerIsOverNoteStrips() const;
+
+    // Section gestures from a row's note strip. A press edits the canvas selection
+    // (plain: just that section, unless it is already part of a multi-selection,
+    // which is kept so a drag moves them all; Ctrl toggles; Shift selects the
+    // same-start sections across a range of tracks) and, for a plain press on a
+    // section, starts a gesture; a drag only updates sectionView.drag;
     // the release commits once through moveSections/resizeSectionsBy. The document
     // is never touched before the release: any change rebuilds the rows, which
     // would destroy the strip holding the mouse.
-    void sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick);
+    void sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick, const juce::ModifierKeys& mods);
     void sectionDragged (int tick);
     void sectionReleased (int tick);
 
@@ -217,7 +243,12 @@ private:
         std::vector<SectionRef> refs;
         int pressTick = 0;
         int minStart = 0;   // earliest start among refs and their notes, for clamping the move
+        // Set when the press landed on a section of a multi-selection: a release
+        // without a drag collapses the selection to it.
+        std::optional<SectionRef> collapseTo;
     };
+    // The last plain/Ctrl-clicked section: the start of a Shift range.
+    std::optional<SectionRef> canvasAnchor;
     std::optional<SectionGesture> gesture;
 
     static SectionDragPreview previewFor (const SectionGesture& g, int tick);

@@ -59,10 +59,10 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onTimelineClicked)
             onTimelineClicked (tick);
     };
-    notePreview.onSectionPressed = [this] (const SectionHit& hit, int tick)
+    notePreview.onSectionPressed = [this] (const SectionHit& hit, int tick, const juce::ModifierKeys& mods)
     {
         if (onSectionPressed)
-            onSectionPressed (getTrackId(), hit, tick);
+            onSectionPressed (getTrackId(), hit, tick, mods);
     };
     notePreview.onSectionDragged = [this] (int tick)
     {

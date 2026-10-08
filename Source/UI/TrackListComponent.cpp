@@ -160,11 +160,10 @@ void TrackListComponent::rebuild()
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
-        row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m, false); };
-        row->onStripSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m, true); };
+        row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
         row->setSectionView (&sectionView);
-        row->onSectionPressed = [this] (juce::int64 trackId, const SectionHit& hit, int tick) { sectionPressed (trackId, hit, tick); };
+        row->onSectionPressed = [this] (juce::int64 trackId, const SectionHit& hit, int tick, const juce::ModifierKeys& m) { sectionPressed (trackId, hit, tick, m); };
         row->onSectionDragged = [this] (int tick) { sectionDragged (tick); };
         row->onSectionReleased = [this] (int tick) { sectionReleased (tick); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
@@ -187,20 +186,27 @@ void TrackListComponent::rebuild()
         selectedTrackId = -1;
     applySelectionToRows();
 
-    // Sections that no longer exist drop out of the selection. A virtual default
-    // section (id 0) that an edit materialised becomes the track's first section,
-    // as the mutations resolve it, so it stays selected.
-    std::set<SectionRef> stillSelected;
-    for (const auto& r : sectionView.selected)
+    // Sections that no longer exist drop out of the canvas selection (and the Shift
+    // anchor); this never touches the head selection and is not mirrored onto it. A
+    // virtual default section (id 0) that an edit materialised becomes the track's
+    // first section, as the mutations resolve it, so it stays selected.
+    const auto resolve = [this] (const SectionRef& r) -> std::optional<SectionRef>
     {
         const auto sections = sectionsOf (doc.findTrackById (r.trackId));
         const auto id = r.sectionId;
-        if (std::any_of (sections.begin(), sections.end(), [id] (const SectionRange& s) { return s.id == id; }))
-            stillSelected.insert (r);
-        else if (id == 0 && ! sections.empty())
-            stillSelected.insert ({ r.trackId, sections.front().id });
-    }
+        if (std::any_of (sections.begin(), sections.end(), [id] (const SectionRange& sec) { return sec.id == id; }))
+            return r;
+        if (id == 0 && ! sections.empty())
+            return SectionRef { r.trackId, sections.front().id };
+        return std::nullopt;
+    };
+    std::set<SectionRef> stillSelected;
+    for (const auto& r : sectionView.selected)
+        if (const auto kept = resolve (r))
+            stillSelected.insert (*kept);
     sectionView.selected = std::move (stillSelected);
+    if (canvasAnchor)
+        canvasAnchor = resolve (*canvasAnchor);
     content.repaint();
 
     content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
@@ -273,16 +279,15 @@ void TrackListComponent::scrollBarMoved (juce::ScrollBar*, double newRangeStart)
 
 void TrackListComponent::clearSelection()
 {
-    selectTrack (-1, {}, false);
+    selectTrack (-1, {});
+    sectionView.selected.clear();
+    canvasAnchor.reset();
+    content.repaint();
 }
 
-void TrackListComponent::selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods, bool fromStrip)
+void TrackListComponent::selectTrack (juce::int64 trackId, const juce::ModifierKeys& mods)
 {
-    const auto isConductorId = [this] (juce::int64 id)
-    {
-        const auto t = doc.findTrackById (id);
-        return ! t.isValid() || (bool) t.getProperty (SongIDs::isConductor, false);
-    };
+    const auto isConductorId = [this] (juce::int64 id) { return isConductorTrack (id); };
 
     if (trackId == -1)
     {
@@ -311,10 +316,6 @@ void TrackListComponent::selectTrack (juce::int64 trackId, const juce::ModifierK
             selectedTrackIds.insert (trackId);
         selectedTrackId = trackId;
     }
-    else if (fromStrip && selectedTrackIds.size() > 1 && selectedTrackIds.count (trackId) > 0)
-    {
-        selectedTrackId = trackId; // keep the multi-selection
-    }
     else
     {
         selectedTrackIds.clear();
@@ -322,6 +323,23 @@ void TrackListComponent::selectTrack (juce::int64 trackId, const juce::ModifierK
             selectedTrackIds.insert (trackId);
         selectedTrackId = trackId;
     }
+    applySelectionToRows();
+}
+
+bool TrackListComponent::isConductorTrack (juce::int64 trackId) const
+{
+    const auto t = doc.findTrackById (trackId);
+    return ! t.isValid() || (bool) t.getProperty (SongIDs::isConductor, false);
+}
+
+void TrackListComponent::mirrorCanvasToHeads (std::optional<juce::int64> clickedTrackId)
+{
+    selectedTrackIds.clear();
+    for (const auto& r : sectionView.selected)
+        if (! isConductorTrack (r.trackId))
+            selectedTrackIds.insert (r.trackId);
+    if (clickedTrackId)
+        selectedTrackId = *clickedTrackId;
     applySelectionToRows();
 }
 
@@ -339,7 +357,7 @@ void TrackListComponent::applySelectionToRows()
     }
 }
 
-void TrackListComponent::selectAllTracks()
+void TrackListComponent::selectAllHeads()
 {
     selectedTrackIds.clear();
     for (int i = 0; i < doc.getNumTracks(); ++i)
@@ -351,6 +369,46 @@ void TrackListComponent::selectAllTracks()
     applySelectionToRows();
 }
 
+void TrackListComponent::selectAllCanvases()
+{
+    sectionView.selected.clear();
+    for (int i = 0; i < doc.getNumTracks(); ++i)
+    {
+        const auto t = doc.getTrack (i);
+        if ((bool) t.getProperty (SongIDs::isConductor, false))
+            continue;
+        const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+        for (const auto& sec : sectionsOf (t))
+            sectionView.selected.insert ({ id, sec.id });
+    }
+    mirrorCanvasToHeads (std::nullopt);
+    content.repaint();
+}
+
+void TrackListComponent::selectAll()
+{
+    if (pointerIsOverNoteStrips())
+        selectAllCanvases();
+    else
+        selectAllHeads();
+}
+
+bool TrackListComponent::pointerIsOverNoteStrips() const
+{
+    // Resolved like splitAtPointer(): the pointer inside a row's note strip, and
+    // inside the visible viewport (not the ruler or the scroll bar strip).
+    if (! isMouseOver (true) || ! viewport.getBounds().contains (getMouseXYRelative()))
+        return false;
+    const auto inContent = content.getLocalPoint (this, getMouseXYRelative());
+    for (auto* row : content.rows)
+    {
+        if (! row->getBounds().contains (inContent))
+            continue;
+        return row->notePreviewForTesting().getBounds().contains (inContent - row->getPosition());
+    }
+    return false;
+}
+
 bool TrackListComponent::splitSections (std::optional<int> pointerTick, juce::int64 pointerTrackId)
 {
     std::optional<int> tick = pointerTick;
@@ -360,7 +418,11 @@ bool TrackListComponent::splitSections (std::optional<int> pointerTick, juce::in
     if (! tick)
         return false;
 
-    std::vector<juce::int64> trackIds (selectedTrackIds.begin(), selectedTrackIds.end());
+    // The tracks that own a selected section (the head selection is not consulted).
+    std::vector<juce::int64> trackIds;
+    for (const auto& r : sectionView.selected)
+        if (trackIds.empty() || trackIds.back() != r.trackId)   // the set is ordered by track
+            trackIds.push_back (r.trackId);
     if (trackIds.empty() && pointerTrackId != -1)
         trackIds.push_back (pointerTrackId);
 
@@ -412,27 +474,95 @@ bool TrackListComponent::deleteSelectedSections()
         return false;
     deleteSections (doc, std::vector<SectionRef> (sectionView.selected.begin(), sectionView.selected.end()));
     sectionView.selected.clear();
+    canvasAnchor.reset();
     content.repaint();
     return true;
 }
 
-void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick)
+void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& hit, int tick, const juce::ModifierKeys& mods)
 {
     gesture.reset();
     sectionView.drag.reset();
+    const bool ctrl = mods.isCtrlDown() || mods.isCommandDown();
+    const bool shift = mods.isShiftDown();
+
     if (hit.zone == SectionZone::None)
     {
-        sectionView.selected.clear();
+        // A plain click on empty strip clears the canvas selection and selects that
+        // head, like a plain head click; Ctrl/Shift on nothing leaves things as they are.
+        if (! ctrl && ! shift)
+        {
+            sectionView.selected.clear();
+            canvasAnchor.reset();
+            selectTrack (trackId, {});
+        }
         content.repaint();
         return;
     }
 
-    // Track toggling/range selection already ran in selectTrack (the preview calls
-    // onNonToggleClick first), so selectedTrackIds is up to date here.
-    const auto refs = withCompanions (doc, selectedTrackIds, { trackId, hit.sectionId });
-    sectionView.selected = std::set<SectionRef> (refs.begin(), refs.end());
+    const SectionRef ref { trackId, hit.sectionId };
 
-    gesture = SectionGesture { hit.zone, refs, tick, earliestStart (doc, refs) };
+    // Shift: the sections starting where the anchor section does, on every track
+    // between the anchor's and this one (plain replaces, Ctrl+Shift extends).
+    if (shift && canvasAnchor)
+    {
+        int from = -1, to = -1;
+        for (int i = 0; i < content.rows.size(); ++i)
+        {
+            if (content.rows[i]->getTrackId() == canvasAnchor->trackId) from = i;
+            if (content.rows[i]->getTrackId() == trackId) to = i;
+        }
+        std::optional<int> anchorStart;
+        for (const auto& sec : sectionsOf (doc.findTrackById (canvasAnchor->trackId)))
+            if (sec.id == canvasAnchor->sectionId)
+                anchorStart = sec.startTick;
+
+        if (from >= 0 && to >= 0 && anchorStart)
+        {
+            if (! ctrl)
+                sectionView.selected.clear();
+            for (int i = std::min (from, to); i <= std::max (from, to); ++i)
+            {
+                const auto rowTrackId = content.rows[i]->getTrackId();
+                if (isConductorTrack (rowTrackId))
+                    continue;
+                for (const auto& sec : sectionsOf (doc.findTrackById (rowTrackId)))
+                    if (sec.startTick == *anchorStart)
+                    {
+                        sectionView.selected.insert ({ rowTrackId, sec.id });
+                        break;
+                    }
+            }
+            mirrorCanvasToHeads (trackId);
+            content.repaint();
+            return;
+        }
+    }
+
+    if (ctrl)
+    {
+        if (sectionView.selected.erase (ref) == 0)
+            sectionView.selected.insert (ref);
+        canvasAnchor = ref;
+        mirrorCanvasToHeads (trackId);
+        content.repaint();
+        return;
+    }
+
+    canvasAnchor = ref;
+    std::optional<SectionRef> collapseTo;
+    if (sectionView.selected.size() > 1 && sectionView.selected.count (ref) > 0)
+    {
+        collapseTo = ref;   // keep the selection for a drag; a plain click collapses it on release
+    }
+    else
+    {
+        sectionView.selected = { ref };
+        mirrorCanvasToHeads (trackId);
+    }
+
+    const std::vector<SectionRef> refs (sectionView.selected.begin(), sectionView.selected.end());
+    gesture = SectionGesture { hit.zone, refs, tick, earliestStart (doc, refs), collapseTo };
     content.repaint();
 }
 
@@ -451,11 +581,20 @@ void TrackListComponent::sectionReleased (int tick)
     const auto g = *gesture;
     gesture.reset();
     sectionView.drag.reset();
-    content.repaint();
 
-    // A press released where it started is a click: it only selects.
+    // A press released where it started is a click: it only selects (and, on a
+    // section of a multi-selection, collapses the selection to that section).
     if (tick == g.pressTick)
+    {
+        if (g.collapseTo)
+        {
+            sectionView.selected = { *g.collapseTo };
+            mirrorCanvasToHeads (g.collapseTo->trackId);
+        }
+        content.repaint();
         return;
+    }
+    content.repaint();
 
     // Every edge moves by the same delta (never to one shared tick), so a
     // companion with a different end grows or shrinks by what the user dragged.

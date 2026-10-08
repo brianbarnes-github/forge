@@ -74,7 +74,7 @@ public:
     std::function<void (juce::int64, const juce::ModifierKeys&)> onStripSelected;
 
     // The preview's section gestures, the press with this row's trackId first.
-    std::function<void (juce::int64, const SectionHit&, int)> onSectionPressed;
+    std::function<void (juce::int64, const SectionHit&, int, const juce::ModifierKeys&)> onSectionPressed;
     std::function<void (int)> onSectionDragged;
     std::function<void (int)> onSectionReleased;
 

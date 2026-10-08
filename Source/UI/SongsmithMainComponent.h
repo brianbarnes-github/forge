@@ -82,7 +82,10 @@ public:
     // unconsumed.
     bool splitSections()   { return trackList.splitAtPointer(); }
     bool deleteSections()  { return trackList.deleteSelectedSections(); }
-    void selectAllTracks() { trackList.selectAllTracks(); }
+    void selectAll()       { trackList.selectAll(); }
+    void clearSelectionForTesting()   { trackList.clearSelection(); }
+    void selectAllHeadsForTesting()   { trackList.selectAllHeads(); }
+    void selectAllCanvasesForTesting() { trackList.selectAllCanvases(); }
     std::set<juce::int64> getSelectedTrackIdsForTesting() const { return trackList.getSelectedTrackIds(); }
 
 private:

@@ -538,7 +538,7 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     if (key == juce::KeyPress ('s'))                   return body->getSongsmith().splitSections();
     if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))
                                                        return body->getSongsmith().deleteSections();
-    if (key == juce::KeyPress ('a', cmd, 0))           { body->getSongsmith().selectAllTracks(); return true; }
+    if (key == juce::KeyPress ('a', cmd, 0))           { body->getSongsmith().selectAll(); return true; }
     return false;
 }
 

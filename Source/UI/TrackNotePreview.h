@@ -69,7 +69,7 @@ namespace lotro
         // the pointer while dragging and on release. Only fired with a section view.
         // Dragging starts once the pointer has moved sectionDragThresholdPixels;
         // a release before that reports the press tick.
-        std::function<void (const SectionHit&, int tick)> onSectionPressed;
+        std::function<void (const SectionHit&, int tick, const juce::ModifierKeys&)> onSectionPressed;
         std::function<void (int tick)> onSectionDragged;
         std::function<void (int tick)> onSectionReleased;
 
