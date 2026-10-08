@@ -298,7 +298,8 @@ Edit
   Undo                                  ← songDocument.undo()
   Redo                                  ← songDocument.redo()
                                           (enabled per canUndo()/canRedo();
-                                           no keyboard shortcuts yet)
+                                           Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z work
+                                           window-wide via HistoryKeys.h)
   Quantize                              ← quantizeActiveEditor() (#12)
   Grid Size ▸                           ← setActiveEditorGridSize (#11)
     Off

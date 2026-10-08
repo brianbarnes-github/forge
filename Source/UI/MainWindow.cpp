@@ -3,6 +3,7 @@
 #include "DiagnosticsPane.h"
 #include "DiscardGuard.h"
 #include "GridSize.h"
+#include "HistoryKeys.h"
 #include "MidiExport.h"
 #include "RawMidi.h"
 #include "SongFile.h"
@@ -230,11 +231,18 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     }
     else if (topLevelMenuIndex == 1) // Edit
     {
-        // No keyboard shortcuts yet (Phase 8). Recomputed fresh every time
-        // the menu opens, so canUndo()/canRedo() don't need an explicit
-        // menuItemsChanged() poke elsewhere.
-        m.addItem (EditUndo, "Undo", songDocument.canUndo(), false);
-        m.addItem (EditRedo, "Redo", songDocument.canRedo(), false);
+        // Recomputed fresh every time the menu opens, so canUndo()/canRedo()
+        // don't need an explicit menuItemsChanged() poke elsewhere.
+        const auto item = [&m] (int id, const juce::String& text, const juce::String& shortcut, bool enabled)
+        {
+            juce::PopupMenu::Item i (text);
+            i.itemID = id;
+            i.isEnabled = enabled;
+            i.shortcutKeyDescription = shortcut;
+            m.addItem (i);
+        };
+        item (EditUndo, "Undo", "Ctrl+Z", songDocument.canUndo());
+        item (EditRedo, "Redo", "Ctrl+Y", songDocument.canRedo());
 
         m.addSeparator();
         const bool editorOpen = body->getSongsmith().isTrackEditorOpen();
@@ -539,6 +547,12 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))
                                                        return body->getSongsmith().deleteSections();
     if (key == juce::KeyPress ('a', cmd, 0))           { body->getSongsmith().selectAll(); return true; }
+    // Undo/redo for the whole document (a focused source editor handles its own first).
+    if (const auto action = historyActionFor (key))
+    {
+        if (*action == HistoryAction::Undo) songDocument.undo(); else songDocument.redo();
+        return true;
+    }
     return false;
 }
 

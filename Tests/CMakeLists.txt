@@ -58,6 +58,7 @@ add_executable(forge_tests
     PianoRollComponent_tests.cpp
     TrackEditorWindow_tests.cpp
     SourceRollEditor_tests.cpp
+    HistoryKeys_tests.cpp
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
     SplitterComponent_tests.cpp

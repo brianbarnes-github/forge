@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **729/729** (`ctest --test-dir build -N | tail -1`).
+- Test count: **732** (`ctest --test-dir build -N | tail -1`).
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the
