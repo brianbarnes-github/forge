@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **747** (`ctest --test-dir build -N | tail -1`).
+- Test count: **748** (`ctest --test-dir build -N | tail -1`).
 - `MenuModel_tests.cpp` pins the menu bar structure (labels, shortcut hints,
   order, enabled/ticked per state, Transport as the 4th menu, no Close,
   unique command ids all in `allCommandIds`).

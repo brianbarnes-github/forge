@@ -882,3 +882,42 @@ TEST_CASE ("resizeSectionsBy: a zero delta or one every section already clamps a
     CHECK (t.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);   // not materialised
     CHECK_FALSE (doc.canUndo());
 }
+
+TEST_CASE ("sections: undoing delete, draw and split back to the start leaves just the original section", "[sections][undo]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960);
+    const auto original = sectionsOf (t);   // the track's one (virtual) section
+    REQUIRE (original.size() == 1);
+
+    // Materialise the original as a stored section, as any first edit does.
+    splitAt (doc, { idOf (t) }, 480);
+    doc.undo();
+    REQUIRE (sectionsOf (t).size() == 1);
+    const auto stored = sectionsOf (t);
+
+    deleteSections (doc, { { idOf (t), stored[0].id } });
+    REQUIRE (sectionsOf (t).empty());
+
+    // The user draws a note on the now-empty track: undoable, like SourceRollEditor::createNoteAt.
+    doc.getUndoManager().beginNewTransaction();
+    juce::ValueTree drawn (SongIDs::NOTE);
+    drawn.setProperty (SongIDs::pitch, 64, nullptr);
+    drawn.setProperty (SongIDs::startTick, 0, nullptr);
+    drawn.setProperty (SongIDs::durationTicks, 960, nullptr);
+    doc.addChild (SongDocument::getNotesNode (t), drawn, false);
+
+    splitAt (doc, { idOf (t) }, 480);
+    REQUIRE (sectionsOf (t).size() == 2);
+
+    doc.undo();   // the split
+    doc.undo();   // the drawn note
+    doc.undo();   // the delete
+
+    const auto after = sectionsOf (t);
+    REQUIRE (after.size() == 1);
+    CHECK (after[0].startTick == stored[0].startTick);
+    CHECK (after[0].endTick == stored[0].endTick);
+    CHECK (notesOf (t).size() == 1);
+}

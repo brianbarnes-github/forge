@@ -50,9 +50,11 @@ MIDI_TRACK
 - Reads never mutate. `sectionsOf(track)` returns the stored sections; a
   non-conductor track with notes but no stored sections reads as ONE virtual
   section `{id 0, [0, last note end)}`; a track with no notes has no sections
-  (nothing to edit). The first edit on a track *materialises* it
-  (non-undoable): it writes the `SECTIONS` child with a real minted id for the
-  virtual section and tags every untagged or dangling note. A note with a
+  (nothing to edit). The first edit on a track *materialises* it, inside that
+  edit's own undo transaction (so undoing the edit puts the track back to its
+  virtual section; the minted-id counter itself is not rolled back): it writes
+  the `SECTIONS` child with a real minted id for the virtual section and tags
+  every untagged or dangling note. A note with a
   missing or dangling `sectionId` belongs to the **nearest** section: distance
   is measured from its `startTick` to the section's `[startTick, endTick)` (0
   inside; otherwise to the nearer edge, the exclusive end counting as one past

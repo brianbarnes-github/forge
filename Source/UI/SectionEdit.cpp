@@ -33,7 +33,10 @@ namespace
         return {};
     }
 
-    // Non-undoable: gives a track real stored sections and tags every note.
+    // Gives a track real stored sections and tags every note. Undoable, so the caller
+    // must already have begun the transaction of the edit it belongs to: undoing that
+    // edit then puts the track back to its virtual section, instead of leaving minted
+    // sections behind to pile up on top of ones a later undo restores.
     void materialise (SongDocument& doc, juce::ValueTree track)
     {
         if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
@@ -43,7 +46,7 @@ namespace
         if (! sectionsNode.isValid())
         {
             sectionsNode = juce::ValueTree (SongIDs::SECTIONS);
-            track.addChild (sectionsNode, -1, nullptr);
+            doc.addChild (track, sectionsNode, false);
         }
 
         if (sectionsNode.getNumChildren() == 0)
@@ -55,7 +58,7 @@ namespace
                 s.setProperty (SongIDs::sectionId, doc.mintSectionId(), nullptr);
                 s.setProperty (SongIDs::startTick, v.startTick, nullptr);
                 s.setProperty (SongIDs::endTick, v.endTick, nullptr);
-                sectionsNode.addChild (s, -1, nullptr);
+                doc.addChild (sectionsNode, s, false);
             }
         }
 
@@ -66,7 +69,7 @@ namespace
             auto note = notes.getChild (i);
             const auto id = sectionIdOfNote (note, sections);
             if (id != 0 && (juce::int64) note.getProperty (SongIDs::sectionId, 0) != id)
-                note.setProperty (SongIDs::sectionId, id, nullptr);
+                doc.setProperty (note, SongIDs::sectionId, id, false);
         }
     }
 
@@ -107,6 +110,7 @@ namespace
     // mint cannot join it.
     std::vector<Target> resolve (SongDocument& doc, std::vector<Target> targets)
     {
+        doc.getUndoManager().beginNewTransaction();   // materialising is part of the edit's one undo step
         for (auto& t : targets)
         {
             materialise (doc, t.track);
@@ -243,10 +247,9 @@ void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int t
     if (tracks.empty())
         return;
 
+    doc.getUndoManager().beginNewTransaction();   // materialising is part of the split's one undo step
     for (auto track : tracks)
         materialise (doc, track);
-
-    doc.getUndoManager().beginNewTransaction();
 
     for (auto track : tracks)
     {
@@ -314,7 +317,6 @@ void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int d
         return;
 
     const auto targets = resolve (doc, before);
-    doc.getUndoManager().beginNewTransaction();
     for (const auto& t : targets)
     {
         const auto members = membersOf (t.track, t.range.id);   // before the range moves
@@ -355,7 +357,6 @@ namespace
             return;
 
         const auto targets = resolve (doc, changed);
-        doc.getUndoManager().beginNewTransaction();
         for (const auto& t : targets)
         {
             const auto old = t.range;
@@ -421,7 +422,6 @@ void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs)
         return;
 
     const auto targets = resolve (doc, before);
-    doc.getUndoManager().beginNewTransaction();
     for (const auto& t : targets)
     {
         auto notesNode = SongDocument::getNotesNode (t.track);
