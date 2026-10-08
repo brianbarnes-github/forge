@@ -70,7 +70,7 @@ public:
     void fitTrackTimelineToDocument() { trackList.fitTimelineToDocument(); }
 
     // Called by MainWindow after the document's contents were replaced
-    // (New / Open / Close). Resets everything that lives outside the tree:
+    // (New / Open). Resets everything that lives outside the tree:
     // closes the track editor (its note source holds the OLD MIDI_TRACK
     // handle), clears ghost / track / part selection and the preview (ids
     // persist per Song, so a stale id could re-select a different Song's
@@ -83,6 +83,12 @@ public:
     bool splitSections()   { return trackList.splitAtPointer(); }
     bool deleteSections()  { return trackList.deleteSelectedSections(); }
     void selectAll()       { trackList.selectAll(); }
+    // Menu paths: no pointer is consulted (the pointer is over the menu).
+    bool splitAtMarker()          { return trackList.splitSections (std::nullopt, -1); }
+    bool canSplitAtMarker() const { return trackList.canSplitAtMarker(); }
+    bool hasSelectedSections() const { return trackList.hasSelectedSections(); }
+    void selectAllTracks()        { trackList.selectAllHeads(); }
+    void selectAllSections()      { trackList.selectAllCanvases(); }
     void clearSelectionForTesting()   { trackList.clearSelection(); }
     void selectAllHeadsForTesting()   { trackList.selectAllHeads(); }
     void selectAllCanvasesForTesting() { trackList.selectAllCanvases(); }

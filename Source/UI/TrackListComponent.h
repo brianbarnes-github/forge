@@ -78,6 +78,13 @@ public:
     // `pointerTrackId` (-1 for none); the head selection is not consulted. One undo step; returns whether any section was split.
     bool splitSections (std::optional<int> pointerTick, juce::int64 pointerTrackId);
 
+    // Whether splitSections (nullopt, -1) -- the menu's Split, which has no pointer --
+    // would split something: a marker is set and falls strictly inside a section of a
+    // track that owns a selected canvas section.
+    bool canSplitAtMarker() const;
+    // Whether any canvas section is selected (Delete's enabled state).
+    bool hasSelectedSections() const noexcept { return ! sectionView.selected.empty(); }
+
     // Key S from the real pointer: resolves the strip and tick under it, then
     // splitSections. Returns whether a section was split.
     bool splitAtPointer();
@@ -145,6 +152,7 @@ private:
 
     // True when the real pointer is over a row's note strip (not its head).
     bool pointerIsOverNoteStrips() const;
+    bool anySplittable (const std::vector<juce::int64>& trackIds, int tick) const;
 
     // Section gestures from a row's note strip. A press edits the canvas selection
     // (plain: just that section, unless it is already part of a multi-selection,

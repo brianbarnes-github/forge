@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "DiscardGuard.h"
+#include "MenuModel.h"
 #include "Playback/AudioOutput.h"
 #include "Playback/PlaybackController.h"
 #include "Playback/SynthVoice.h"
@@ -45,34 +46,7 @@ public:
     void requestQuit();
 
 private:
-    enum CommandId
-    {
-        FileNew = 1,
-        FileOpenSong,
-        FileClose,
-        FileSave,
-        FileSaveAs,
-        FileImportMidi,
-        FileExportAbc,
-        FileExportMidi,
-        FileQuit,
-        EditUndo,
-        EditRedo,
-        SongDefaultParts,
-        SongRunConverter,
-        ViewExportPanelToggle,
-        ViewDiagnosticsToggle,
-        EditQuantize,
-        HelpAbout,
-        SongSoundFont,
-
-        // Grid-size submenu items occupy EditGridSizeBase + each GridSize
-        // enum value, and menuItemSelected range-checks incoming ids against
-        // that span. Pinned well clear of the ids above rather than left to
-        // be last in declaration order, so appending an enumerator here
-        // can't silently land inside the grid-size range.
-        EditGridSizeBase = 1000
-    };
+    MenuState currentMenuState();
 
     class Body;
     // Declared before `body` so it's constructed first (member init order

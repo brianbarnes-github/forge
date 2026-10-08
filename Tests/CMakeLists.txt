@@ -59,6 +59,7 @@ add_executable(forge_tests
     TrackEditorWindow_tests.cpp
     SourceRollEditor_tests.cpp
     HistoryKeys_tests.cpp
+    MenuModel_tests.cpp
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
     SplitterComponent_tests.cpp

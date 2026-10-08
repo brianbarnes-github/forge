@@ -2099,3 +2099,40 @@ TEST_CASE ("TrackListComponent: S over a strip but outside every section does no
     CHECK (a.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
     CHECK (sectionsOf (a).size() == 1);
 }
+
+TEST_CASE ("TrackListComponent: canSplitAtMarker needs a marker inside a selected section; hasSelectedSections tracks the canvas selection", "[track-list][sections][menu]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto a = playbacktest::addTrack (doc, "A");
+    playbacktest::addNote (a, 60, 0, 960);   // implicit section [0, 960)
+    playbacktest::RecordingSink sink;
+    PlaybackController playback (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&playback);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    CHECK_FALSE (list.hasSelectedSections());
+    CHECK_FALSE (list.canSplitAtMarker());           // nothing selected, no marker
+
+    list.selectAllCanvases();
+    CHECK (list.hasSelectedSections());
+    CHECK_FALSE (list.canSplitAtMarker());           // selected, but no marker
+
+    playback.setMarkerTick (960.0);
+    CHECK_FALSE (list.canSplitAtMarker());           // marker on the section's end edge splits nothing
+    playback.setMarkerTick (5000.0);
+    CHECK_FALSE (list.canSplitAtMarker());           // marker beyond the section
+
+    playback.setMarkerTick (600.0);
+    CHECK (list.canSplitAtMarker());
+    // It agrees with what the menu's split would really do.
+    CHECK (list.splitSections (std::nullopt, -1));
+    CHECK_FALSE (list.canSplitAtMarker());           // 600 is now a boundary
+
+    list.clearSelection();
+    playback.setMarkerTick (300.0);
+    CHECK_FALSE (list.hasSelectedSections());
+    CHECK_FALSE (list.canSplitAtMarker());           // marker inside a section, but none selected
+}

@@ -1,6 +1,9 @@
 # Testing notes
 
-- Test count: **732** (`ctest --test-dir build -N | tail -1`).
+- Test count: **745** (`ctest --test-dir build -N | tail -1`).
+- `MenuModel_tests.cpp` pins the menu bar structure (labels, shortcut hints,
+  order, enabled/ticked per state, Transport as the 4th menu, no Close,
+  unique command ids all in `allCommandIds`).
 - `BarAlignment_tests.cpp` verifies bar-tick sums — regression catch
   for the day bar alignment was off in track 5.
 - `Provenance_tests.cpp` verifies source-track/event IDs survive the

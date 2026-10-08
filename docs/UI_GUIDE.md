@@ -275,7 +275,7 @@ When you say…       …I'll know you mean
   120 BPM, `SONG.tempoBpm` and the conductor's events are ignored. **M** mutes
   a track and **S** solos it (#31): solo is additive, mute beats solo, flags
   are keyed by track id and survive a track's removal and undo, and New /
-  Open / Close clear them. They are never saved and never undoable. The
+  Open clear them. They are never saved and never undoable. The
   Track editor window has no M/S controls but plays what they allow. Edits,
   undo and redo during playback take effect without a restart (a held note is
   cut). **Song → SoundFont…** chooses a `.sf2`; the path is stored in the
@@ -340,7 +340,6 @@ replaces it). The Song itself is saved and opened as a `.songsmith` file (see
 File
   New                Ctrl+N          ← empty Song (guarded, see below)
   Open…              Ctrl+O          ← FileChooser, *.songsmith (guarded)
-  Close                              ← back to an empty Song (guarded)
   ─────────
   Save               Ctrl+S          ← enabled when dirty or untitled;
                                         untitled → Save As
@@ -356,7 +355,48 @@ File
                                         (disabled until one has produced
                                         something)
   ─────────
-  Quit                                ← guarded
+  Quit               Ctrl+Q          ← guarded
+
+Edit
+  Undo               Ctrl+Z          ← enabled when there is something to undo
+  Redo               Ctrl+Y          ← Ctrl+Shift+Z also works (one hint only)
+  ─────────
+  Split              S               ← at the start marker only (the pointer is
+                                        over the menu); enabled when a marker
+                                        falls strictly inside a section of a
+                                        track that owns a selected section
+  Delete             Del             ← the selected sections; enabled when any
+                                        is selected
+  Select All         Ctrl+A          ← same as the key; from the menu the pointer
+                                        is off the strips, so it selects all heads
+  Select All Tracks                   ← every track head
+  Select All Sections                 ← every section on every track
+  ─────────
+  Quantize                            ← enabled while a track editor is open
+  Grid Size ▸ Off, 1/4, 1/8, 1/16     ← likewise
+
+Song
+  Default parts from tracks
+  Run Converter
+  ─────────
+  SoundFont…
+
+Transport
+  Play / Pause       Space           ← "Pause" while playing; same path as Space
+  Stop
+  ─────────
+  Go to Start
+  Go to End
+  Rewind One Bar
+  ─────────
+  Clear Marker                        ← enabled when a start marker is set
+
+View
+  Export ABC panel                    ← ticked while visible
+  Diagnostics list                    ← ticked while visible
+
+Help
+  About…
 ```
 
 Export defaults to the Song's own file name with the extension swapped
@@ -367,7 +407,7 @@ Windows/Linux-style (`Ctrl`); there are no Mac `Cmd` labels.
 **Title bar / unsaved changes.** The window title is
 `<name>[*] — Songsmith` (`Untitled` before the first save). `*` means the Song
 changed since the last save or load; any tree edit counts, including imports,
-and undoing back to the saved state still shows `*`. New, Open, Close, Quit,
+and undoing back to the saved state still shows `*`. New, Open, Quit (menu or Ctrl+Q),
 the window's close request and dropping a `.songsmith` file all go through
 the guard: when the Song is dirty a **Save / Don't Save / Cancel** prompt
 appears. Save writes (Save As for an untitled Song) and only then continues;
@@ -375,7 +415,7 @@ a cancelled chooser, a failed write or Cancel stops the action. Opening a
 damaged or unsupported file shows an error and leaves the open Song as it was.
 Passing a `.songsmith` path on the command line opens it at startup.
 
-(Edit/Song/View are covered in "Songsmith view" above.)
+(The menu structure lives in `Source/UI/MenuModel.h`, pinned by `MenuModel_tests.cpp`; the menus are rebuilt from live state each time one opens.)
 
 ## Context menus
 

@@ -63,7 +63,7 @@ with range-band/ghost/dropped-note overlays, diagnostics) — the classic
 Config-editing UI (`EditorPane`/`InstrumentsTree`/`PropertyPageHost` +
 property pages) was deleted at the end of Phase 6; `View → Export ABC
 panel` now toggles a separate full-export diagnostics/ABC-preview panel
-instead. The File menu is now New / Open… / Close / Save / Save As… /
+instead. The File menu is now New / Open… / Save / Save As… /
 Import ▸ MIDI… / Export ▸ MIDI…, ABC… / Quit over a binary `.songsmith`
 Song file; "Open Config" / "Save Config As" are gone. Do not launch the GUI from subagents; the user sees every
 window. Single test: `ctest --test-dir build -R <name>

@@ -196,87 +196,77 @@ void MainWindow::closeButtonPressed()
     requestQuit();
 }
 
-juce::StringArray MainWindow::getMenuBarNames() { return { "File", "Edit", "Song", "View", "Help" }; }
+juce::StringArray MainWindow::getMenuBarNames()
+{
+    juce::StringArray names;
+    for (const auto& m : buildMenus ({}))
+        names.add (m.name);
+    return names;
+}
 
+MenuState MainWindow::currentMenuState()
+{
+    auto& songsmith = body->getSongsmith();
+    MenuState s;
+    s.isDirty            = session.isDirty();
+    s.isUntitled         = session.isUntitled();
+    s.canUndo            = songDocument.canUndo();
+    s.canRedo            = songDocument.canRedo();
+    s.trackCount         = songDocument.getNumTracks();
+    s.hasAbc             = ! lastAbc.empty();
+    s.trackEditorOpen    = songsmith.isTrackEditorOpen();
+    s.exportPanelVisible = body->isExportPanelVisible();
+    s.diagnosticsVisible = songsmith.isDiagnosticsVisible();
+    s.isPlaying          = playback.isPlaying();
+    s.hasMarker          = playback.getMarkerTick().has_value();
+    s.hasSelectedSections = songsmith.hasSelectedSections();
+    s.canSplitAtMarker   = songsmith.canSplitAtMarker();
+    return s;
+}
+
+namespace
+{
+    void addItems (juce::PopupMenu& m, const std::vector<MenuItemDesc>& items)
+    {
+        for (const auto& d : items)
+        {
+            if (d.separator)
+            {
+                m.addSeparator();
+            }
+            else if (d.isSubmenu)
+            {
+                juce::PopupMenu sub;
+                addItems (sub, d.children);
+                m.addSubMenu (d.label, sub, d.enabled);
+            }
+            else
+            {
+                juce::PopupMenu::Item i (d.label);
+                i.itemID = d.id;
+                i.isEnabled = d.enabled;
+                i.isTicked = d.ticked;
+                i.shortcutKeyDescription = d.shortcut;
+                m.addItem (i);
+            }
+        }
+    }
+}
+
+// Rebuilt from the live state every time a menu opens, so enabled / ticked / the
+// Play-Pause label never need an explicit menuItemsChanged() poke.
 juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::String&)
 {
     juce::PopupMenu m;
-    if (topLevelMenuIndex == 0) // File
-    {
-        const auto item = [&m] (int id, const juce::String& text, const juce::String& shortcut, bool enabled)
-        {
-            juce::PopupMenu::Item i (text);
-            i.itemID = id;
-            i.isEnabled = enabled;
-            i.shortcutKeyDescription = shortcut;
-            m.addItem (i);
-        };
-        item (FileNew,      "New",         "Ctrl+N",       true);
-        item (FileOpenSong, "Open...",     "Ctrl+O",       true);
-        item (FileClose,    "Close",       "",             true);
-        m.addSeparator();
-        item (FileSave,     "Save",        "Ctrl+S",       session.isDirty() || session.isUntitled());
-        item (FileSaveAs,   "Save As...",  "Ctrl+Shift+S", true);
-        m.addSeparator();
-        juce::PopupMenu importMenu;
-        importMenu.addItem (FileImportMidi, "MIDI...");
-        m.addSubMenu ("Import", importMenu);
-        juce::PopupMenu exportMenu;
-        // MIDI is enabled once the song has anything besides its conductor.
-        exportMenu.addItem (FileExportMidi, "MIDI...", songDocument.getNumTracks() > 1);
-        exportMenu.addItem (FileExportAbc,  "ABC...",  ! lastAbc.empty());
-        m.addSubMenu ("Export", exportMenu);
-        m.addSeparator();
-        m.addItem (FileQuit, "Quit");
-    }
-    else if (topLevelMenuIndex == 1) // Edit
-    {
-        // Recomputed fresh every time the menu opens, so canUndo()/canRedo()
-        // don't need an explicit menuItemsChanged() poke elsewhere.
-        const auto item = [&m] (int id, const juce::String& text, const juce::String& shortcut, bool enabled)
-        {
-            juce::PopupMenu::Item i (text);
-            i.itemID = id;
-            i.isEnabled = enabled;
-            i.shortcutKeyDescription = shortcut;
-            m.addItem (i);
-        };
-        item (EditUndo, "Undo", "Ctrl+Z", songDocument.canUndo());
-        item (EditRedo, "Redo", "Ctrl+Y", songDocument.canRedo());
-
-        m.addSeparator();
-        const bool editorOpen = body->getSongsmith().isTrackEditorOpen();
-        m.addItem (EditQuantize, "Quantize", editorOpen);
-
-        juce::PopupMenu gridMenu;
-        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Off,       "Off",  editorOpen);
-        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Quarter,   "1/4",  editorOpen);
-        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Eighth,    "1/8",  editorOpen);
-        gridMenu.addItem (EditGridSizeBase + (int) GridSize::Sixteenth, "1/16", editorOpen);
-        m.addSubMenu ("Grid Size", gridMenu, editorOpen);
-    }
-    else if (topLevelMenuIndex == 2) // Song
-    {
-        m.addItem (SongDefaultParts, "Default parts from tracks", true, false);
-        m.addItem (SongRunConverter, "Run Converter", true, false);
-        m.addSeparator();
-        m.addItem (SongSoundFont, "SoundFont...");
-    }
-    else if (topLevelMenuIndex == 3) // View
-    {
-        m.addItem (ViewExportPanelToggle, "Export ABC panel", true, body->isExportPanelVisible());
-        m.addItem (ViewDiagnosticsToggle, "Diagnostics list", true, body->getSongsmith().isDiagnosticsVisible());
-    }
-    else if (topLevelMenuIndex == 4) // Help
-    {
-        m.addItem (HelpAbout, "About...");
-    }
+    const auto menus = buildMenus (currentMenuState());
+    if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
+        addItems (m, menus[(size_t) topLevelMenuIndex].items);
     return m;
 }
 
 void MainWindow::menuItemSelected (int menuItemID, int)
 {
-    if (menuItemID >= EditGridSizeBase && menuItemID <= EditGridSizeBase + (int) GridSize::Sixteenth)
+    if (isGridSizeCommand (menuItemID))
     {
         body->getSongsmith().setActiveEditorGridSize ((GridSize) (menuItemID - EditGridSizeBase));
         return;
@@ -284,8 +274,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
 
     switch (menuItemID)
     {
-        case FileNew:
-        case FileClose:       guarded ([this] { resetToEmptySong(); });                       return;
+        case FileNew:         guarded ([this] { resetToEmptySong(); });                       return;
         case FileOpenSong:    guarded ([this] { openSongViaDialog(); });                       return;
         case FileSave:        saveSong();                                                      return;
         case FileSaveAs:      saveSongAs();                                                    return;
@@ -296,6 +285,19 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
         case EditQuantize:    body->getSongsmith().quantizeActiveEditor();                    return;
+        // No pointer (it is over the menu): Split uses the marker only; Select All
+        // falls back to the heads, as Ctrl+A does with the pointer off the strips.
+        case EditSplit:       body->getSongsmith().splitAtMarker();                           return;
+        case EditDelete:      body->getSongsmith().deleteSections();                          return;
+        case EditSelectAll:   body->getSongsmith().selectAll();                               return;
+        case EditSelectAllTracks:   body->getSongsmith().selectAllTracks();                   return;
+        case EditSelectAllSections: body->getSongsmith().selectAllSections();                 return;
+        case TransportPlayPause:    playback.togglePlayPause();                               return;
+        case TransportStop:         playback.stop();                                          return;
+        case TransportGoToStart:    playback.goToStart();                                     return;
+        case TransportGoToEnd:      playback.goToEnd();                                       return;
+        case TransportRewindOneBar: playback.rewindOneBar();                                  return;
+        case TransportClearMarker:  playback.clearMarker();                                   return;
         case HelpAbout:       showAboutDialog (this);                                         return;
         case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
@@ -532,11 +534,12 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     // Plain Space only (KeyPress equality includes modifiers). Text fields and
     // other focused children get the key first; the transport buttons are
     // non-focusable, so Space cannot re-click one.
-    if (key == juce::KeyPress (juce::KeyPress::spaceKey)) { playback.togglePlayPause(); return true; }
+    if (key == juce::KeyPress (juce::KeyPress::spaceKey)) { menuItemSelected (TransportPlayPause, 0); return true; }
     if (key == juce::KeyPress ('n', cmd, 0))      { menuItemSelected (FileNew, 0);      return true; }
     if (key == juce::KeyPress ('o', cmd, 0))      { menuItemSelected (FileOpenSong, 0); return true; }
     if (key == juce::KeyPress ('s', cmd, 0))      { if (session.isDirty() || session.isUntitled()) menuItemSelected (FileSave, 0);   return true; }
     if (key == juce::KeyPress ('s', cmdShift, 0)) { menuItemSelected (FileSaveAs, 0);   return true; }
+    if (key == juce::KeyPress ('q', cmd, 0))      { menuItemSelected (FileQuit, 0);     return true; }
 
     // Track-canvas keys. Never while an editable component has focus (it normally
     // consumes these first; this guards the ones it does not).

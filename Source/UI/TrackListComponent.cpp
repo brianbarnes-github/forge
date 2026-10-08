@@ -409,6 +409,33 @@ bool TrackListComponent::pointerIsOverNoteStrips() const
     return false;
 }
 
+bool TrackListComponent::anySplittable (const std::vector<juce::int64>& trackIds, int tick) const
+{
+    return std::any_of (trackIds.begin(), trackIds.end(), [&] (juce::int64 id)
+    {
+        const auto track = doc.findTrackById (id);
+        if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
+            return false;
+        const auto sections = sectionsOf (track);
+        return std::any_of (sections.begin(), sections.end(),
+                            [&] (const auto& s) { return s.startTick < tick && tick < s.endTick; });
+    });
+}
+
+bool TrackListComponent::canSplitAtMarker() const
+{
+    if (playback == nullptr)
+        return false;
+    const auto marker = playback->getMarkerTick();
+    if (! marker)
+        return false;
+    std::vector<juce::int64> trackIds;   // as splitSections (nullopt, -1) would choose them
+    for (const auto& r : sectionView.selected)
+        if (trackIds.empty() || trackIds.back() != r.trackId)
+            trackIds.push_back (r.trackId);
+    return anySplittable (trackIds, (int) std::llround (*marker));
+}
+
 bool TrackListComponent::splitSections (std::optional<int> pointerTick, juce::int64 pointerTrackId)
 {
     std::optional<int> tick = pointerTick;
@@ -427,16 +454,7 @@ bool TrackListComponent::splitSections (std::optional<int> pointerTick, juce::in
         trackIds.push_back (pointerTrackId);
 
     // splitAt ignores tracks it cannot split; ask first so "did anything" is exact.
-    const auto splittable = std::any_of (trackIds.begin(), trackIds.end(), [&] (juce::int64 id)
-    {
-        const auto track = doc.findTrackById (id);
-        if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
-            return false;
-        const auto sections = sectionsOf (track);
-        return std::any_of (sections.begin(), sections.end(),
-                            [&] (const auto& s) { return s.startTick < *tick && *tick < s.endTick; });
-    });
-    if (! splittable)
+    if (! anySplittable (trackIds, *tick))
         return false;
 
     splitAt (doc, trackIds, *tick);

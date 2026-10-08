@@ -324,7 +324,7 @@
         <div class="marker" data-id="2">2</div>
       </div>
       <div class="menubar box">
-        <span>File</span><span>Edit</span><span>Song</span><span>View</span>
+        <span>File</span><span>Edit</span><span>Song</span><span>Transport</span><span>View</span><span>Help</span>
         <div class="marker" data-id="3" style="position:static; margin-left:auto; margin-right:8px;">3</div>
       </div>
       <div class="marker container" data-id="4" title="Body" style="top:36px; right:4px; z-index:4;">4</div>
@@ -461,7 +461,7 @@ CDEF GABc | c'b agfedc |</div>
     <h3>Frame</h3>
     <div class="legend-row" data-id="1"><div class="legend-num container">1</div><div><div class="legend-name">Main window</div><span class="legend-code">MainWindow</span><div class="legend-desc">The whole window — also the drag-drop target for .mid/.midi/.songsmith files.</div></div></div>
     <div class="legend-row" data-id="2"><div class="legend-num">2</div><div><div class="legend-name">Title bar</div><span class="legend-code">MainWindow (JUCE-drawn)</span><div class="legend-desc">Window chrome, reads "&lt;name&gt;[*] — Songsmith".</div></div></div>
-    <div class="legend-row" data-id="3"><div class="legend-num">3</div><div><div class="legend-name">Menu bar</div><span class="legend-code">juce::MenuBarComponent</span><div class="legend-desc">File / Edit / Song / View — see the Menus appendix below.</div></div></div>
+    <div class="legend-row" data-id="3"><div class="legend-num">3</div><div><div class="legend-name">Menu bar</div><span class="legend-code">juce::MenuBarComponent</span><div class="legend-desc">File / Edit / Song / Transport / View / Help — see the Menus appendix below.</div></div></div>
     <div class="legend-row" data-id="4"><div class="legend-num container">4</div><div><div class="legend-name">Body</div><span class="legend-code">MainWindow::Body</span><div class="legend-desc">Inner class hosting Songsmith + the toggleable export panel.</div></div></div>
     <div class="legend-row" data-id="5"><div class="legend-num container">5</div><div><div class="legend-name">Songsmith view</div><span class="legend-code">SongsmithMainComponent</span><div class="legend-desc">Everything below the menu bar when the export panel isn't shown.</div></div></div>
   </div>
@@ -528,19 +528,26 @@ CDEF GABc | c'b agfedc |</div>
     <div class="menutree"><span class="item">File</span>
   New (Ctrl+N)             <span class="arrow">→ guarded</span>
   Open… (Ctrl+O)           <span class="arrow">→ FileChooser, .songsmith; guarded</span>
-  Close                    <span class="arrow">→ guarded</span>
   Save (Ctrl+S)            <span class="arrow">→ disabled when clean with a path</span>
   Save As… (Ctrl+Shift+S)
   Import ▸ MIDI…           <span class="arrow">→ FileChooser, .mid/.midi</span>
   Export ▸ MIDI… / ABC…
-  Quit
+  Quit (Ctrl+Q)            <span class="arrow">→ guarded</span>
 <span class="item">Edit</span>
-  Undo / Redo              <span class="arrow">→ songDocument.undo()/redo()</span>
+  Undo (Ctrl+Z) / Redo (Ctrl+Y) <span class="arrow">→ songDocument.undo()/redo()</span>
+  Split (S)                <span class="arrow">→ at the start marker</span>
+  Delete (Del)             <span class="arrow">→ selected sections</span>
+  Select All (Ctrl+A) / Select All Tracks / Select All Sections
+  Quantize, Grid Size ▸ Off / 1/4 / 1/8 / 1/16
 <span class="item">Song</span>
   Default parts from tracks <span class="arrow">→ synthesiseDefaultParts(songDocument)</span>
   Run Converter             <span class="arrow">→ runConversion(), shows the export panel</span>
   ────────────────
   SoundFont…                <span class="arrow">→ FileChooser, *.sf2; path kept in settings</span>
+<span class="item">Transport</span>
+  Play / Pause (Space), Stop
+  Go to Start, Go to End, Rewind One Bar
+  Clear Marker             <span class="arrow">→ disabled without a marker</span>
 <span class="item">View</span>
   Export ABC panel          <span class="arrow">→ toggles the export panel (checkbox)</span>
   Diagnostics list          <span class="arrow">→ toggles #23 (checkbox, unchecked by default)</span></div>
