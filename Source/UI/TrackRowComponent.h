@@ -45,8 +45,15 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override;
     void mouseDoubleClick (const juce::MouseEvent& e) override;
 
-    // Fixed row height used by TrackListComponent to lay out its content.
-    static constexpr int rowHeight = 34;
+    // Row height bounds used by TrackListComponent (Ctrl+wheel resizes the rows
+    // within [minRowHeight, maxRowHeight]; defaultRowHeight is where a new list
+    // starts). The minimum is the smallest height at which the info column's two
+    // text lines (11 px and 9 px fonts, each half of the height less the divider),
+    // the M / S buttons (inset 8 px top and bottom) and the 10 px swatch neither
+    // clip nor overlap. Layout and painting derive from the row's actual bounds.
+    static constexpr int defaultRowHeight = 34;
+    static constexpr int minRowHeight = 30;
+    static constexpr int maxRowHeight = 120;
 
     // Fixed width of the left-hand index/name/note-count text column. The
     // embedded TrackNotePreview fills everything to its right, so it grows

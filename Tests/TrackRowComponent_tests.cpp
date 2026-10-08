@@ -64,7 +64,7 @@ TEST_CASE ("TrackRowComponent: clicks on the note preview outside its ghost togg
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
-    row.setBounds (0, 0, 300, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, 300, TrackRowComponent::defaultRowHeight);
 
     auto& preview = row.notePreviewForTesting();
     const juce::Point<int> awayFromToggle { 20, 20 };
@@ -101,7 +101,7 @@ TEST_CASE ("TrackRowComponent: a click on the ghost toggle toggles the ghost and
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
-    row.setBounds (0, 0, 300, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, 300, TrackRowComponent::defaultRowHeight);
 
     auto& preview = row.notePreviewForTesting();
 
@@ -130,7 +130,7 @@ TEST_CASE ("TrackRowComponent: ghost-toggle forwarding reports this row's trackI
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
-    row.setBounds (0, 0, 200, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, 200, TrackRowComponent::defaultRowHeight);
 
     juce::int64 firedId = -1;
     bool firedVisible = false;
@@ -155,14 +155,14 @@ TEST_CASE ("TrackRowComponent: a divider line spans the row's full width along i
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
     constexpr int width = 600;
-    row.setBounds (0, 0, width, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, width, TrackRowComponent::defaultRowHeight);
 
-    juce::Image image (juce::Image::ARGB, width, TrackRowComponent::rowHeight, true, juce::SoftwareImageType());
+    juce::Image image (juce::Image::ARGB, width, TrackRowComponent::defaultRowHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     row.paintEntireComponent (g, false);
 
     const auto divider = juce::Colour (SongsmithColours::trackDivider);
-    const int bottom = TrackRowComponent::rowHeight - 1;
+    const int bottom = TrackRowComponent::defaultRowHeight - 1;
 
     // Across both the info column and the note preview (which must not paint
     // over it).
@@ -185,9 +185,9 @@ TEST_CASE ("TrackRowComponent: a vertical divider separates the info column from
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
     constexpr int width = 600;
-    row.setBounds (0, 0, width, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, width, TrackRowComponent::defaultRowHeight);
 
-    juce::Image image (juce::Image::ARGB, width, TrackRowComponent::rowHeight, true, juce::SoftwareImageType());
+    juce::Image image (juce::Image::ARGB, width, TrackRowComponent::defaultRowHeight, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     row.paintEntireComponent (g, false);
 
@@ -196,7 +196,7 @@ TEST_CASE ("TrackRowComponent: a vertical divider separates the info column from
 
     // The line sits at the info column's right edge, over the full row height
     // (above the bottom divider), including where the M / S buttons are.
-    for (int y : { 0, TrackRowComponent::rowHeight / 2, TrackRowComponent::rowHeight - 2 })
+    for (int y : { 0, TrackRowComponent::defaultRowHeight / 2, TrackRowComponent::defaultRowHeight - 2 })
         for (int t = 1; t <= TrackRowComponent::columnDividerThickness; ++t)
             CHECK (image.getPixelAt (edge - t, y) == line);
 
@@ -237,7 +237,7 @@ TEST_CASE ("TrackRowComponent: double-clicking a non-assignable row does not fir
     TrackRowComponent row (doc.getConductorTrack(), 0, view);
     bool fired = false;
     row.onTrackDoubleClicked = [&] (juce::int64) { fired = true; };
-    row.setBounds (0, 0, 400, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, 400, TrackRowComponent::defaultRowHeight);
     row.mouseDoubleClick (eventAt (row, { 5, 5 }, 2));
     CHECK_FALSE (fired);
 }
@@ -306,7 +306,7 @@ TEST_CASE ("TrackRowComponent: a click in the note preview reports the tick unde
     auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
-    row.setBounds (0, 0, 300, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, 300, TrackRowComponent::defaultRowHeight);
     auto& preview = row.notePreviewForTesting();
 
     std::vector<int> ticks;
@@ -332,7 +332,7 @@ TEST_CASE ("TrackRowComponent: strip and info-column clicks report their modifie
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
-    row.setBounds (0, 0, 300, TrackRowComponent::rowHeight);
+    row.setBounds (0, 0, 300, TrackRowComponent::defaultRowHeight);
 
     juce::ModifierKeys infoMods, stripMods;
     juce::int64 infoId = -1, stripId = -1;
@@ -349,4 +349,40 @@ TEST_CASE ("TrackRowComponent: strip and info-column clicks report their modifie
     CHECK (infoId == trackId);
     CHECK (infoMods.isCtrlDown());
     CHECK_FALSE (infoMods.isShiftDown());
+}
+
+TEST_CASE ("TrackRowComponent: at the minimum and maximum row heights nothing clips or overlaps", "[track-row][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
+
+    for (const int height : { TrackRowComponent::minRowHeight, TrackRowComponent::maxRowHeight })
+    {
+        TimelineViewState viewState;
+        TrackRowComponent row (track, 1, viewState);
+        row.setBounds (0, 0, 400, height);
+
+        const auto inside = row.getLocalBounds().withTrimmedBottom (TrackRowComponent::dividerThickness);
+        auto& m = row.muteButtonForTesting();
+        auto& s = row.soloButtonForTesting();
+        auto& preview = row.notePreviewForTesting();
+
+        CHECK (inside.contains (m.getBounds()));
+        CHECK (inside.contains (s.getBounds()));
+        CHECK (inside.contains (preview.getBounds()));
+        CHECK_FALSE (m.getBounds().intersects (s.getBounds()));
+        CHECK_FALSE (m.getBounds().intersects (preview.getBounds()));
+        CHECK_FALSE (s.getBounds().intersects (preview.getBounds()));
+        // Buttons stay tall enough to read and click, and centred in the head.
+        CHECK (m.getHeight() >= 12);
+        CHECK (m.getY() - inside.getY() == inside.getBottom() - m.getBottom());
+        CHECK (preview.getHeight() == height - TrackRowComponent::dividerThickness);
+
+        // The two text lines (11 px and 9 px fonts) each get half of the head's height:
+        // enough for their glyphs at the minimum.
+        CHECK (inside.getHeight() / 2 >= 13);
+    }
 }

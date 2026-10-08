@@ -115,12 +115,19 @@ When you say…       …I'll know you mean
   On import, the shared zoom auto-fits so the longest track's notes span the
   full preview width (`TrackListComponent::fitTimelineToDocument()`, called
   from `MainWindow::openMidiFromPath`) — it is not recomputed on every edit,
-  so a deliberate zoom/scroll survives routine note edits. Mouse wheel (shared
-  with the track editor, #28): a plain wheel zooms all rows horizontally —
+  so a deliberate zoom/scroll survives routine note edits. Mouse wheel (the
+  zoom/pan mapping is shared with the track editor, #28), decided purely by
+  where the pointer is, never by whether a vertical scroll bar is showing:
+  a plain wheel over a note strip or the ruler zooms all rows horizontally —
   first bringing the start marker to the middle of the preview strip and
-  zooming about it (with no marker, about the middle of the view);
-  Ctrl/Cmd+wheel scrolls the track list vertically; Shift+wheel pans all
-  rows horizontally, stopping at the song's end. Until you zoom by hand,
+  zooming about it (with no marker, about the middle of the view); a plain
+  wheel over the track heads (left column) scrolls the rows vertically (wheel
+  up = towards the first row) and does nothing when the rows fit — it never
+  zooms; Shift+wheel anywhere pans all rows horizontally, stopping at the
+  song's end; Ctrl/Cmd+wheel anywhere resizes every track row (head and
+  strip together), 4 px per notch, wheel up taller, between 30 and 120 px
+  (default 34), keeping the content under the pointer in place. The row
+  height is session-only: not saved, not undoable, reset only by restarting. Until you zoom by hand,
   resizing the window refits so the whole song stays visible; after a manual
   zoom, resizing keeps the zoom. A horizontal scroll bar under the note
   previews (spanning only the preview column) scrolls all rows together and

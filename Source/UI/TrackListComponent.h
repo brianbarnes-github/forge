@@ -35,7 +35,16 @@ public:
 
     void resized() override;
     void paint (juce::Graphics& g) override;
+    // Entry point for wheel events that reach the list itself rather than the
+    // viewport: i.e. the ruler. Treated as the note-canvas region.
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
+
+    // Where the wheel pointer is. Decides the plain wheel's meaning, independent
+    // of whether a vertical scrollbar exists (see handleWheel).
+    enum class WheelRegion { Heads, Canvas };
+
+    // Current height of every track row (session-only; survives rebuild()).
+    int getRowHeight() const noexcept { return rowHeight; }
 
     // Rescales the shared TimelineViewState so the latest-ending note across
     // all tracks fits the note-preview width, and resets scroll to the
@@ -125,7 +134,32 @@ private:
     public:
         void resized() override;
         juce::OwnedArray<TrackRowComponent> rows;
+        int rowHeight = TrackRowComponent::defaultRowHeight;
     };
+
+    // The viewport swallows wheel events over a row whenever its vertical
+    // scrollbar is showing, so the list's own mouseWheelMove would only see them
+    // when there is none. This subclass takes them first and routes by pointer
+    // region through handleWheel, making the wheel's meaning scrollbar-independent.
+    class WheelViewport : public juce::Viewport
+    {
+    public:
+        explicit WheelViewport (TrackListComponent& o) : owner (o) {}
+        void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
+    private:
+        TrackListComponent& owner;
+    };
+
+    // The one wheel decision. Ctrl/Cmd: resize every row (4 px per notch, wheel up
+    // grows), keeping the row under `pointerY` (list coordinates) in place. Shift:
+    // horizontal timeline scroll. Plain: Canvas zooms about the marker; Heads
+    // scrolls the rows vertically (50 px per notch, wheel up = towards the first
+    // row) and does nothing when there is nothing to scroll.
+    void handleWheel (WheelRegion region, const juce::ModifierKeys& mods,
+                      const juce::MouseWheelDetails& wheel, int pointerY);
+    void resizeRowsBy (double pixels, int pointerY);
+    void scrollRowsBy (int pixels);
+    void applyRowHeight();
 
     void rebuild();
     void muteSoloChanged() override;
@@ -227,7 +261,7 @@ private:
     // removeListener(); plain reads (getNumTracks(), getTrack(i), etc.) are
     // unaffected and can keep using doc.getSourceMidiNode() freshly.
     juce::ValueTree sourceMidiNode;
-    juce::Viewport  viewport;
+    WheelViewport   viewport { *this };
     // Scrolls the shared TimelineViewState; spans only the note-preview
     // column along the bottom edge. Auto-hides when the whole song fits.
     juce::ScrollBar horizontalBar { false };
@@ -273,6 +307,11 @@ private:
     // resizes. After a manual zoom, resizing keeps the zoom and the
     // horizontal scroll bar takes over.
     bool timelineFitted = false;
+
+    // Row height, kept unrounded so touchpad deltas under one pixel accumulate
+    // (rowHeight is its rounded value, what layout uses).
+    double rowHeightExact = TrackRowComponent::defaultRowHeight;
+    int    rowHeight = TrackRowComponent::defaultRowHeight;
 };
 
 } // namespace lotro

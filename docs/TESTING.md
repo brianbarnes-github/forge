@@ -1,6 +1,6 @@
 # Testing notes
 
-- Test count: **748** (`ctest --test-dir build -N | tail -1`).
+- Test count: **758** (`ctest --test-dir build -N | tail -1`).
 - `MenuModel_tests.cpp` pins the menu bar structure (labels, shortcut hints,
   order, enabled/ticked per state, Transport as the 4th menu, no Close,
   unique command ids all in `allCommandIds`).
@@ -104,6 +104,12 @@
   Stop that does not jump to the previous Song's play-start, veto,
   flush-before-play, rewind), `TransportStrip_tests.cpp` and
   `PlayheadOverlay_tests.cpp` (the overlay and `TimelineRuler` seek), `TimelineRulerMarks_tests.cpp` (the pure bar/beat/clock mark computation, `formatClock`, and the ruler's two-row paint). `GridLines_tests.cpp` pins the pure grid-line computation (zoom thresholds, coarsest-level wins, meter-driven bars, 6/8, range clipping, odd PPQ); grid paint is checked in `TrackNotePreview_tests.cpp` and `PianoRollComponent_tests.cpp`.
+  `TrackListComponent_tests.cpp` (tag `[wheel]`) pins the pointer-region wheel
+  rules through `handleWheel` and the `WheelViewport` (canvas zoom with and
+  without a vertical scrollbar, heads scroll / no-op / never zoom, Ctrl+wheel
+  row resize with 4 px steps, clamps, sub-pixel accumulation, pointer
+  anchoring, survival across `rebuild()`, Shift from either region), and
+  `TrackRowComponent_tests.cpp` the layout at the minimum and maximum heights.
   `TrackRowComponent_tests.cpp`, `TrackListComponent_tests.cpp`,
   `PianoRollComponent_tests.cpp` and `TrackEditorWindow_tests.cpp` also gained
   the M/S buttons, ruler, playhead, follow and editor-window transport

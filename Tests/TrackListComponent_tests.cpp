@@ -60,6 +60,14 @@ namespace lotro
             c.syncHorizontalBar();
         }
         static juce::Viewport& viewport (TrackListComponent& c) { return c.viewport; }
+        static void wheel (TrackListComponent& c, TrackListComponent::WheelRegion region, juce::ModifierKeys mods,
+                           float deltaY, int pointerY = 10, float deltaX = 0.0f)
+        {
+            juce::MouseWheelDetails details {};
+            details.deltaX = deltaX;
+            details.deltaY = deltaY;
+            c.handleWheel (region, mods, details, pointerY);
+        }
         static PlayheadOverlay* overlay (TrackListComponent& c) { return c.overlay.get(); }
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
         static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
@@ -369,27 +377,266 @@ TEST_CASE ("TrackListComponent: plain wheel centres the start marker and zooms a
     CHECK (std::abs (view.xForTick ((int) markerTick) - centreX) <= 1);
 }
 
-TEST_CASE ("TrackListComponent: ctrl+wheel scrolls the track list vertically and leaves the zoom alone", "[track-list]")
+namespace
+{
+    using Region = TrackListComponent::WheelRegion;
+    constexpr auto ctrl = juce::ModifierKeys::ctrlModifier;
+    constexpr auto shift = juce::ModifierKeys::shiftModifier;
+
+    void addTracks (SongDocument& doc, int n)
+    {
+        for (int i = 0; i < n; ++i)
+            addTrackEndingAt (doc, 52000);
+    }
+}
+
+TEST_CASE ("TrackListComponent: a plain wheel over the note canvas zooms whether or not the rows need a vertical scrollbar", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    for (const int tracks : { 12, 1 })   // 12 rows overflow a 200 px viewport; 1 fits
+    {
+        SongDocument doc;
+        addTracks (doc, tracks);
+        TrackListComponent list (doc);
+        list.setBounds (0, 0, 600, 200);
+        REQUIRE ((Access::viewport (list).getMaximumVisibleHeight() < Access::viewport (list).getViewedComponent()->getHeight())
+                 == (tracks == 12));
+
+        const double before = Access::timelineView (list).getPixelsPerTick();
+        Access::wheel (list, Region::Canvas, {}, 1.0f);
+        CHECK (Access::timelineView (list).getPixelsPerTick() > before);
+        CHECK (Access::viewport (list).getViewPositionY() == 0);
+    }
+}
+
+TEST_CASE ("TrackListComponent: a plain wheel over the heads scrolls the rows vertically and never zooms", "[track-list][wheel]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
-    for (int i = 0; i < 12; ++i)
-        addTrackEndingAt (doc, 52000);
-
+    addTracks (doc, 12);
     TrackListComponent list (doc);
-    list.setBounds (0, 0, 600, 200);   // far shorter than 12+ rows
-
+    list.setBounds (0, 0, 600, 200);
     auto& viewport = Access::viewport (list);
-    REQUIRE (viewport.getViewPositionY() == 0);
     const double zoomBefore = Access::timelineView (list).getPixelsPerTick();
 
-    wheelAt (list, 300, -1.0f, juce::ModifierKeys::ctrlModifier);   // wheel down
-    const int scrolledDown = viewport.getViewPositionY();
-    CHECK (scrolledDown > 0);
+    Access::wheel (list, Region::Heads, {}, -1.0f);   // wheel down
+    const int down = viewport.getViewPositionY();
+    CHECK (down == 50);
+    Access::wheel (list, Region::Heads, {}, 1.0f);    // wheel up: back towards the first row
+    CHECK (viewport.getViewPositionY() == 0);
+    Access::wheel (list, Region::Heads, {}, 1.0f);    // already at the top
+    CHECK (viewport.getViewPositionY() == 0);
 
-    wheelAt (list, 300, 1.0f, juce::ModifierKeys::ctrlModifier);    // wheel up
-    CHECK (viewport.getViewPositionY() < scrolledDown);
+    for (int i = 0; i < 100; ++i)
+        Access::wheel (list, Region::Heads, {}, -1.0f);
+    CHECK (viewport.getViewPositionY() == viewport.getViewedComponent()->getHeight() - viewport.getMaximumVisibleHeight());
     CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoomBefore));
+}
+
+TEST_CASE ("TrackListComponent: a plain wheel over the heads does nothing when the rows fit", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 1);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+    const double zoomBefore = Access::timelineView (list).getPixelsPerTick();
+    const double scrollBefore = Access::scrollOffsetTicks (list);
+
+    Access::wheel (list, Region::Heads, {}, 1.0f);
+    Access::wheel (list, Region::Heads, {}, -1.0f);
+
+    CHECK (Access::viewport (list).getViewPositionY() == 0);
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoomBefore));
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (scrollBefore));
+}
+
+TEST_CASE ("TrackListComponent: ctrl+wheel resizes every row 4 px per notch and leaves zoom and horizontal scroll alone", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 12);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 200);
+    const int n = doc.getNumTracks();
+    Access::timelineViewMut (list).setPixelsPerTick (0.05);
+    Access::timelineViewMut (list).setScrollOffsetTicks (1000.0);
+    const double zoomBefore = Access::timelineView (list).getPixelsPerTick();
+    const double scrollBefore = Access::scrollOffsetTicks (list);
+    REQUIRE (list.getRowHeight() == 34);
+
+    for (const auto region : { Region::Heads, Region::Canvas })
+    {
+        const int before = list.getRowHeight();
+        Access::wheel (list, region, ctrl, 1.0f);   // wheel up grows
+        CHECK (list.getRowHeight() == before + 4);
+        for (auto* row : Access::rows (list))
+            CHECK (row->getHeight() == before + 4);
+        CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * (before + 4));
+    }
+    Access::wheel (list, Region::Canvas, ctrl, -2.0f);   // two notches down
+    CHECK (list.getRowHeight() == 34);
+    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * 34);
+    CHECK (Access::rows (list)[3]->getBottom() == 4 * 34);
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoomBefore));
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (scrollBefore));
+}
+
+TEST_CASE ("TrackListComponent: ctrl+wheel clamps the row height to the minimum and maximum", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 3);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+
+    Access::wheel (list, Region::Heads, ctrl, -100.0f);
+    CHECK (list.getRowHeight() == TrackRowComponent::minRowHeight);
+    for (auto* row : Access::rows (list))
+        CHECK (row->getHeight() == TrackRowComponent::minRowHeight);
+    // Having been pushed far past the minimum must not delay growing again.
+    Access::wheel (list, Region::Heads, ctrl, 1.0f);
+    CHECK (list.getRowHeight() == TrackRowComponent::minRowHeight + 4);
+
+    Access::wheel (list, Region::Canvas, ctrl, 100.0f);
+    CHECK (list.getRowHeight() == TrackRowComponent::maxRowHeight);
+    for (auto* row : Access::rows (list))
+        CHECK (row->getHeight() == TrackRowComponent::maxRowHeight);
+    Access::wheel (list, Region::Canvas, ctrl, -1.0f);
+    CHECK (list.getRowHeight() == TrackRowComponent::maxRowHeight - 4);
+}
+
+TEST_CASE ("TrackListComponent: ctrl+wheel with a small touchpad delta accumulates until it moves a whole pixel", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 3);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+
+    Access::wheel (list, Region::Heads, ctrl, 0.05f);   // 0.2 px
+    CHECK (list.getRowHeight() == 34);
+    for (int i = 0; i < 2; ++i)
+        Access::wheel (list, Region::Heads, ctrl, 0.05f);   // 0.6 px in all
+    CHECK (list.getRowHeight() == 35);
+    for (int i = 0; i < 10; ++i)
+        Access::wheel (list, Region::Heads, ctrl, -0.05f);  // back down 2 px
+    CHECK (list.getRowHeight() == 33);
+}
+
+TEST_CASE ("TrackListComponent: ctrl+wheel keeps the content under the pointer where it was", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 30);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 200);
+    auto& viewport = Access::viewport (list);
+    const int n = doc.getNumTracks();
+    viewport.setViewPosition (0, 300);
+    REQUIRE (viewport.getViewPositionY() == 300);
+
+    const int pointerY = 57;
+    const double fractionBefore = (300.0 + pointerY) / (n * 34.0);
+    Access::wheel (list, Region::Heads, ctrl, 1.0f, pointerY);
+
+    REQUIRE (list.getRowHeight() == 38);
+    const double fractionAfter = (viewport.getViewPositionY() + pointerY) / (n * 38.0);
+    CHECK (fractionAfter == Catch::Approx (fractionBefore).margin (1.0 / (n * 38.0)));
+    CHECK (viewport.getViewPositionY() == 342);
+
+    // Shrinking to where the rows fit again pulls the view back to the top.
+    Access::wheel (list, Region::Heads, ctrl, -100.0f, pointerY);
+    CHECK (viewport.getViewPositionY() >= 0);
+    CHECK (viewport.getViewPositionY() <= n * 30 - viewport.getMaximumVisibleHeight());
+}
+
+TEST_CASE ("TrackListComponent: the row height survives a rebuild that adds a track", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 2);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+    Access::wheel (list, Region::Heads, ctrl, 3.0f);
+    REQUIRE (list.getRowHeight() == 46);
+
+    addTrackEndingAt (doc, 52000);
+    Access::rebuild (list);
+
+    const int n = doc.getNumTracks();
+    REQUIRE (Access::numRows (list) == n);
+    int y = 0;
+    for (auto* row : Access::rows (list))
+    {
+        CHECK (row->getHeight() == 46);
+        CHECK (row->getY() == y);
+        y += 46;
+    }
+    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * 46);
+    // A later resize of the list keeps the height too.
+    list.setBounds (0, 0, 500, 300);
+    CHECK (Access::rows (list)[0]->getHeight() == 46);
+    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * 46);
+}
+
+TEST_CASE ("TrackListComponent: shift+wheel scrolls the timeline horizontally from either region and never touches the rows", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 12);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 200);
+    Access::timelineViewMut (list).setPixelsPerTick (0.05);
+    const double zoom = Access::timelineView (list).getPixelsPerTick();
+
+    for (const auto region : { Region::Heads, Region::Canvas })
+    {
+        const double before = Access::scrollOffsetTicks (list);
+        Access::wheel (list, region, shift, -1.0f);
+        CHECK (Access::scrollOffsetTicks (list) > before);
+    }
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoom));
+    CHECK (Access::viewport (list).getViewPositionY() == 0);
+    CHECK (list.getRowHeight() == 34);
+}
+
+TEST_CASE ("TrackListComponent: wheel events reaching the viewport are routed by the pointer's region", "[track-list][wheel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 12);   // a vertical scrollbar is showing: the base Viewport would scroll everything
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 200);
+    auto& viewport = Access::viewport (list);
+    auto* row = Access::rows (list)[1];
+    const double zoom0 = Access::timelineView (list).getPixelsPerTick();
+
+    auto wheelOnRow = [&] (int xInRow, float deltaY, juce::ModifierKeys mods)
+    {
+        juce::MouseWheelDetails details {};
+        details.deltaY = deltaY;
+        const auto pos = juce::Point<float> ((float) xInRow, 5.0f);
+        viewport.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                   pos, mods, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, row, row,
+                                                   juce::Time::getCurrentTime(), pos,
+                                                   juce::Time::getCurrentTime(), 1, false),
+                                 details);
+    };
+
+    wheelOnRow (Access::notePreviewOriginX (list) + 20, 1.0f, {});   // canvas
+    CHECK (Access::timelineView (list).getPixelsPerTick() > zoom0);
+    CHECK (viewport.getViewPositionY() == 0);
+
+    const double zoom1 = Access::timelineView (list).getPixelsPerTick();
+    wheelOnRow (20, -1.0f, {});                                      // heads
+    CHECK (viewport.getViewPositionY() > 0);
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoom1));
+
+    wheelOnRow (20, 1.0f, ctrl);                                     // ctrl resizes from the heads
+    CHECK (list.getRowHeight() == 38);
+    wheelOnRow (Access::notePreviewOriginX (list) + 20, 1.0f, ctrl); // and from the canvas
+    CHECK (list.getRowHeight() == 42);
 }
 
 TEST_CASE ("TrackListComponent: fitTimelineToDocument scales the shared zoom so the longest track fits the preview width",

@@ -38,8 +38,8 @@ void TrackListComponent::ListContent::resized()
     int y = 0;
     for (auto* row : rows)
     {
-        row->setBounds (0, y, getWidth(), TrackRowComponent::rowHeight);
-        y += TrackRowComponent::rowHeight;
+        row->setBounds (0, y, getWidth(), rowHeight);
+        y += rowHeight;
     }
 }
 
@@ -209,8 +209,7 @@ void TrackListComponent::rebuild()
         canvasAnchor = resolve (*canvasAnchor);
     content.repaint();
 
-    content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
-    content.resized();
+    applyRowHeight();
     syncHorizontalBar(); // the song may have got longer or shorter.
     repaint(); // M4: empty-state message visibility may have changed.
 }
@@ -651,23 +650,82 @@ int TrackListComponent::notePreviewOriginX() const
 
 void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
 {
-    constexpr float pixelsPerNotch = 50.0f;
+    handleWheel (WheelRegion::Canvas, e.mods, wheel, e.getEventRelativeTo (this).y);
+}
 
-    if (e.mods.isCtrlDown() || e.mods.isCommandDown())
+void TrackListComponent::WheelViewport::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    const auto inOwner = e.getEventRelativeTo (&owner);
+    const auto region = (inOwner.x - getX() < owner.notePreviewOriginX()) ? WheelRegion::Heads : WheelRegion::Canvas;
+    owner.handleWheel (region, e.mods, wheel, inOwner.y);
+}
+
+void TrackListComponent::handleWheel (WheelRegion region, const juce::ModifierKeys& mods,
+                                      const juce::MouseWheelDetails& wheel, int pointerY)
+{
+    constexpr float pixelsPerNotch = 50.0f;
+    constexpr double rowPixelsPerNotch = 4.0;
+
+    if (mods.isCtrlDown() || mods.isCommandDown())
     {
-        // Ctrl/Cmd+wheel: the track rows' vertical scroll. Wheel up = towards the first row.
-        viewport.setViewPosition (viewport.getViewPositionX(),
-                                  viewport.getViewPositionY() - juce::roundToInt (wheel.deltaY * pixelsPerNotch));
+        resizeRowsBy (wheel.deltaY * rowPixelsPerNotch, pointerY);
         return;
     }
 
-    if (e.mods.isShiftDown())
+    if (mods.isShiftDown())
         timelineView.scrollByPixels (juce::roundToInt ((-wheel.deltaX - wheel.deltaY) * pixelsPerNotch));
+    else if (region == WheelRegion::Heads)
+    {
+        // Wheel up = towards the first row. Nothing to scroll: nothing happens.
+        scrollRowsBy (-juce::roundToInt (wheel.deltaY * pixelsPerNotch));
+        return;
+    }
     else
         zoomAboutMarker (wheel.deltaY > 0.0f ? 1.1 : 1.0 / 1.1);
 
     syncHorizontalBar();
     content.repaint();
+}
+
+void TrackListComponent::scrollRowsBy (int pixels)
+{
+    const int maxY = juce::jmax (0, content.getHeight() - viewport.getMaximumVisibleHeight());
+    viewport.setViewPosition (viewport.getViewPositionX(),
+                              juce::jlimit (0, maxY, viewport.getViewPositionY() + pixels));
+}
+
+void TrackListComponent::resizeRowsBy (double pixels, int pointerY)
+{
+    // The unrounded height accumulates, so a touchpad's sub-pixel deltas add up
+    // to a whole pixel eventually instead of each rounding to nothing. Hitting a
+    // limit discards the excess, so reversing starts moving at once.
+    rowHeightExact = juce::jlimit ((double) TrackRowComponent::minRowHeight,
+                                   (double) TrackRowComponent::maxRowHeight,
+                                   rowHeightExact + pixels);
+    const int newHeight = juce::roundToInt (rowHeightExact);
+    if (newHeight == rowHeight)
+        return;
+
+    // Keep the same fractional position of the content under the pointer.
+    const int numRows = doc.getNumTracks();
+    const int pointerInViewport = juce::jlimit (0, juce::jmax (0, viewport.getHeight()), pointerY - viewport.getY());
+    const double fraction = numRows > 0
+        ? (double) (viewport.getViewPositionY() + pointerInViewport) / (double) (numRows * rowHeight)
+        : 0.0;
+
+    rowHeight = newHeight;
+    applyRowHeight();
+
+    const int maxY = juce::jmax (0, content.getHeight() - viewport.getMaximumVisibleHeight());
+    viewport.setViewPosition (viewport.getViewPositionX(),
+                              juce::jlimit (0, maxY, juce::roundToInt (fraction * (double) (numRows * rowHeight)) - pointerInViewport));
+}
+
+void TrackListComponent::applyRowHeight()
+{
+    content.rowHeight = rowHeight;
+    content.setSize (contentWidth(), doc.getNumTracks() * rowHeight);
+    content.resized();
 }
 
 void TrackListComponent::zoomAboutMarker (double factor)
@@ -704,8 +762,7 @@ void TrackListComponent::resized()
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
                                      .withWidth (previewWidth()));
 
-    content.setSize (contentWidth(), doc.getNumTracks() * TrackRowComponent::rowHeight);
-    content.resized();
+    applyRowHeight();
 
     if (timelineFitted)
         timelineView.fitToWidth ((double) documentEndTick(), previewWidth());
