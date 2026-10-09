@@ -64,6 +64,11 @@ public:
     TimelineRuler* rulerForTesting() noexcept { return ruler.get(); }
     void followPlayheadForTesting (bool playing) { followPlayhead (playing); }
 
+    // Escape during a section drag: drops the gesture and its preview so the
+    // release commits nothing. The selection the press made stays. Returns false
+    // (key not consumed) when no gesture is in flight.
+    bool cancelSectionDrag();
+
     juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
     const std::set<juce::int64>& getSelectedTrackIds() const noexcept { return selectedTrackIds; }
 

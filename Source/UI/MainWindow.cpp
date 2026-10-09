@@ -545,6 +545,7 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     // consumes these first; this guards the ones it does not).
     if (dynamic_cast<juce::TextInputTarget*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
         return false;
+    if (key == juce::KeyPress (juce::KeyPress::escapeKey))   return body->getSongsmith().cancelSectionDrag();
     // Plain S only; Ctrl/Cmd+S is Save above. Return true only when something happened.
     if (key == juce::KeyPress ('s'))                   return body->getSongsmith().splitSections();
     if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))

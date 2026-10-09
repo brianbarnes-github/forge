@@ -162,7 +162,8 @@ When you say…       …I'll know you mean
   Each edge moves by the dragged delta, shrinking
   deletes or trims the notes it gives up, growing touches no note. A few
   pixels of jitter is a click. The drag is a preview only and commits once on
-  mouse-up as one undo step.
+  mouse-up as one undo step; **Esc** during the drag cancels it (nothing is
+  committed, the press-time selection stays).
   Keys on the track canvas (never while a text field has focus; Ctrl/Cmd+S
   stays Save): **S** splits at the tick under the pointer when it is over a
   track's note strip (else at the start marker, else nothing — the key is not

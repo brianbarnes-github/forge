@@ -584,6 +584,16 @@ void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& 
     content.repaint();
 }
 
+bool TrackListComponent::cancelSectionDrag()
+{
+    if (! gesture)
+        return false;
+    gesture.reset();
+    sectionView.drag.reset();
+    content.repaint();
+    return true;
+}
+
 void TrackListComponent::sectionDragged (int tick)
 {
     if (! gesture)

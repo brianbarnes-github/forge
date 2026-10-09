@@ -1340,6 +1340,37 @@ TEST_CASE ("TrackListComponent: a section drag changes nothing in the document u
     CHECK (sectionsOf (t)[1].startTick == 480);   // one undo step for the whole drag
 }
 
+TEST_CASE ("TrackListComponent: cancelSectionDrag drops the preview, the release commits nothing, and the selection stays", "[track-list][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 960);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    splitAt (doc, { id }, 480);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+
+    CHECK_FALSE (list.cancelSectionDrag());   // nothing in flight: the key is not consumed
+
+    const auto second = sectionsOf (t)[1];
+    TrackListComponentTestAccess::press (list, id, { second.id, SectionZone::Body }, 700);
+    TrackListComponentTestAccess::drag (list, 900);
+    REQUIRE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+
+    const auto before = doc.getTree().createCopy();
+    CHECK (list.cancelSectionDrag());
+    CHECK_FALSE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+    CHECK (TrackListComponentTestAccess::sectionView (list).selected.count ({ id, second.id }) == 1);
+
+    TrackListComponentTestAccess::drag (list, 1000);   // pointer still down after Escape
+    CHECK_FALSE (TrackListComponentTestAccess::sectionView (list).drag.has_value());
+    TrackListComponentTestAccess::release (list, 1000);
+    CHECK (doc.getTree().isEquivalentTo (before));
+    CHECK (sectionsOf (t)[1].startTick == 480);
+}
+
 TEST_CASE ("TrackListComponent: dragging an edge resizes, a press on empty strip selects no section", "[track-list][sections]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

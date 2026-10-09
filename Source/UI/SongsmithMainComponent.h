@@ -83,6 +83,7 @@ public:
     bool splitSections()   { return trackList.splitAtPointer(); }
     bool deleteSections()  { return trackList.deleteSelectedSections(); }
     void selectAll()       { trackList.selectAll(); }
+    bool cancelSectionDrag() { return trackList.cancelSectionDrag(); }
     // Menu paths: no pointer is consulted (the pointer is over the menu).
     bool splitAtMarker()          { return trackList.splitSections (std::nullopt, -1); }
     bool canSplitAtMarker() const { return trackList.canSplitAtMarker(); }
