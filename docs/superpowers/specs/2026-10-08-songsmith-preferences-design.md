@@ -62,8 +62,9 @@ Pure decision functions (no JUCE UI) so the hooks are testable:
 - `MainWindow::guardHooks()` prompt hook: when the setting is off it answers
   `DiscardChoice::DontSave` without showing the box. New, Open, `.songsmith`
   drops and Quit all route through these hooks, so all four follow it.
-- Save As overwrite check: when off, the file is written without the
-  "Replace file?" box (the extension is still appended first).
+- Overwrite checks: when off, the file is written without the "Replace file?"
+  box (the extension is still appended first). There are two call sites and both
+  follow it: `chooseAndConfirm` (Export MIDI/ABC) and the Song Save As path.
 - Read at the moment of use, so a toggle takes effect immediately, no restart.
 
 ## PreferencesDialog
