@@ -1,6 +1,6 @@
 # Songsmith Preferences dialog — design
 
-Date: 2026-10-08. Status: awaiting review.
+Date: 2026-10-08. Status: implemented.
 
 ## Intent
 

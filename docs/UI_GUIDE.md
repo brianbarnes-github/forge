@@ -374,6 +374,9 @@ File
                                         (disabled until one has produced
                                         something)
   ─────────
+  Preferences…                       ← opens the modal Preferences dialog; no
+                                        shortcut, always enabled
+  ─────────
   Quit               Ctrl+Q          ← guarded
 
 Edit
@@ -526,3 +529,14 @@ tag or the name both work:
 > "The **track list** (#9) placeholder text is wrong for an empty document."
 
 That avoids any ambiguity about which of the half-dozen panels / rolls / lists we're talking about.
+
+
+## Preferences dialog
+
+`File → Preferences…`. Modal: the main window, its menus and shortcuts do nothing until it is closed (Close button, Escape or the title-bar X). Changes apply immediately; there is no OK/Cancel.
+
+- **Left:** a tree of pages (General, selected by default). **Splitter** between tree and page (drag to resize).
+- **General page:**
+  - *Ask about unsaved changes* (default on) — off: New / Open / drops / Quit discard unsaved edits silently (no auto-save).
+  - *Ask before replacing an existing file* (default on) — off: Save As and Export MIDI / ABC overwrite without the Replace box.
+- Both settings persist in the per-user settings file across launches.

@@ -1,6 +1,7 @@
 # Testing notes
 
-- Test count: **771** (`ctest --test-dir build -N | tail -1`).
+- Test count: **780** (`ctest --test-dir build -N | tail -1`).
+- `AppSettings_tests.cpp` pins the two confirmation keys, their defaults (on), the "anything but 0 is on" read rule and write-through save; `PreferencesDialog_tests.cpp` pins the page tree / splitter / page layout, the page registry, the Close button (`triggerClick()` is asynchronous, so the test pumps the dispatch loop) and the General page toggles.
 - `MenuModel_tests.cpp` pins the menu bar structure (labels, shortcut hints,
   order, enabled/ticked per state, Transport as the 4th menu, no Close,
   unique command ids all in `allCommandIds`).
