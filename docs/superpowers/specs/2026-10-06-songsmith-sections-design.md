@@ -31,9 +31,10 @@ together); a note under a split is **cut in two**.
   removes the stray note-on/note-off pairs the importer kept in `EVENTS` (a
   stacked duplicate or zero-length note has no Song note) whose note-on lies
   in the section; a note-off alone, paired with an on elsewhere, stays. Shrinking
-  a section's edge does the same for the band it gives up. **Known limit:**
-  moving a section does not move those stray pairs (they stay at their original
-  ticks), so a stacked duplicate is left behind as a ghost note at the old position.
+  a section's edge does the same for the band it gives up, and moving a section
+  shifts those pairs (on and off) by the same delta as its notes, in the same undo
+  step. A pair belongs to the section whose range holds its note-on; where
+  selected sections overlap it moves once.
 - Out of scope: moving a section to another track, copy/paste/duplicate of
   sections, sections in the Track editor roll.
 

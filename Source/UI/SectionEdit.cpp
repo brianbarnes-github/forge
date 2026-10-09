@@ -143,48 +143,58 @@ namespace
     }
 
     // Note messages the importer kept in EVENTS because no Song note owns them (a
-    // stacked duplicate, a zero-length note). A note-on whose tick lies in [start, end)
-    // goes together with the note-off it is paired with (the next one for the same
-    // channel and pitch); a note-off alone, whose on is elsewhere, stays.
-    void removeStrayNotesIn (SongDocument& doc, juce::ValueTree track, int start, int end)
+    // stacked duplicate, a zero-length note). Returns every note-on whose tick lies in
+    // [start, end) together with the note-off it is paired with (the next one for the
+    // same channel and pitch); a note-off alone, whose on is elsewhere, is not returned.
+    std::vector<juce::ValueTree> strayNoteEventsIn (const juce::ValueTree& track, int start, int end)
     {
-        auto events = SongDocument::getEventsNode (track);
-        std::map<std::pair<int, int>, std::vector<int>> open;   // (channel, pitch) -> note-on children awaiting an off
-        std::vector<int> doomed;
+        const auto events = SongDocument::getEventsNode (track);
+        std::map<std::pair<int, int>, std::vector<juce::ValueTree>> open;   // (channel, pitch) -> note-ons awaiting an off
+        std::vector<juce::ValueTree> found;
+        const auto inRange = [start, end] (const juce::ValueTree& on)
+        {
+            const int tick = (int) on.getProperty (SongIDs::tick);
+            return start <= tick && tick < end;
+        };
+
         for (int i = 0; i < events.getNumChildren(); ++i)
         {
-            const auto bytes = eventBytes (events.getChild (i));
+            const auto event = events.getChild (i);
+            const auto bytes = eventBytes (event);
             if (bytes.size() < 3)
                 continue;
             const int kind = bytes[0] & 0xF0;
             const std::pair<int, int> key { bytes[0] & 0x0F, bytes[1] };
             if (kind == 0x90 && bytes[2] > 0)
             {
-                open[key].push_back (i);
+                open[key].push_back (event);
             }
             else if (kind == 0x80 || kind == 0x90)
             {
                 auto& pending = open[key];
                 if (pending.empty())
                     continue;
-                const int on = pending.front();
+                const auto on = pending.front();
                 pending.erase (pending.begin());
-                const int tick = (int) events.getChild (on).getProperty (SongIDs::tick);
-                if (start <= tick && tick < end)
+                if (inRange (on))
                 {
-                    doomed.push_back (on);
-                    doomed.push_back (i);
+                    found.push_back (on);
+                    found.push_back (event);
                 }
             }
         }
         for (const auto& [key, pending] : open)   // an on that never got an off
-            for (const int on : pending)
-                if (const int tick = (int) events.getChild (on).getProperty (SongIDs::tick); start <= tick && tick < end)
-                    doomed.push_back (on);
+            for (const auto& on : pending)
+                if (inRange (on))
+                    found.push_back (on);
+        return found;
+    }
 
-        std::sort (doomed.begin(), doomed.end(), std::greater<int>());   // children shift as they go: highest index first
-        for (const int index : doomed)
-            doc.removeChild (events, events.getChild (index), false);
+    void removeStrayNotesIn (SongDocument& doc, juce::ValueTree track, int start, int end)
+    {
+        auto events = SongDocument::getEventsNode (track);
+        for (auto event : strayNoteEventsIn (track, start, end))
+            doc.removeChild (events, event, false);
     }
 
     bool containsStrictly (const std::vector<SectionRange>& sections, int tick)
@@ -373,6 +383,18 @@ void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int d
         return;
 
     const auto targets = resolve (doc, before);
+
+    // Every target's stray pairs are found before any moves: a pair shifted into a
+    // neighbouring target's old range must not be picked up (and shifted) again, and a
+    // pair in two overlapping ranges moves once.
+    std::vector<juce::ValueTree> strays;
+    for (const auto& t : targets)
+        for (const auto& event : strayNoteEventsIn (t.track, t.range.startTick, t.range.endTick))
+            if (std::find (strays.begin(), strays.end(), event) == strays.end())
+                strays.push_back (event);
+    for (auto event : strays)
+        doc.setProperty (event, SongIDs::tick, (int) event.getProperty (SongIDs::tick) + delta, false);
+
     for (const auto& t : targets)
     {
         const auto members = membersOf (t.track, t.range.id);   // before the range moves

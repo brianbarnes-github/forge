@@ -67,8 +67,8 @@ void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note);
 void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int tick);
 
 // Shifts each section and its notes by one delta, clamped so nothing starts below 0.
-// Known limit: stray note-on/off pairs the importer kept in EVENTS (stacked duplicates,
-// zero-length notes) stay at their original ticks, so they are left behind at the old position.
+// Stray note-on/off pairs the importer kept in EVENTS (stacked duplicates, zero-length
+// notes) whose note-on lies in a section shift with it; controllers and the like stay.
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks);
 
 // A single-target / explicit-tick helper: every section's edge goes to the same

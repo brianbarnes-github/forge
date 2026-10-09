@@ -698,6 +698,47 @@ TEST_CASE ("deleteSections: stray note events inside the section go with it, oth
     CHECK (left == std::vector<std::pair<int, int>> { { 100, 144064 }, { 1000, 128064 }, { 1000, 176007 }, { 2000, 144065 } });
 }
 
+TEST_CASE ("moveSections: stray note pairs whose on lies in the section move with it, in one undo step", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    addEvent (t, 100, { 0x90, 70, 90 });    // stray pair in the first section: stays
+    addEvent (t, 200, { 0x80, 70, 64 });
+    addEvent (t, 960, { 0x90, 62, 90 });    // stray duplicate of the note at 960: moves, off included
+    addEvent (t, 1000, { 0xB0, 7, 100 });   // controller: stays
+    addEvent (t, 1440, { 0x80, 62, 64 });
+    splitAt (doc, { idOf (t) }, 480);
+    const auto before = eventsLeft (t);
+
+    moveSections (doc, { { idOf (t), sectionsOf (t)[1].id } }, 960);
+
+    CHECK (eventsLeft (t) == std::vector<std::pair<int, int>> { { 100, 144070 }, { 200, 128070 }, { 1920, 144062 }, { 1000, 176007 }, { 2400, 128062 } });
+
+    doc.undo();
+    CHECK (eventsLeft (t) == before);
+}
+
+TEST_CASE ("moveSections: a stray pair shifted into a neighbouring section's range moves only once", "[sections][move]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 100);
+    addNote (t, 62, 480, 100);   // sections A [0, 480) and B [480, 580) once split
+    addEvent (t, 100, { 0x90, 70, 90 });   // stray pair in A
+    addEvent (t, 200, { 0x80, 70, 64 });
+    addEvent (t, 500, { 0x90, 71, 90 });   // stray pair in B
+    addEvent (t, 550, { 0x80, 71, 64 });
+    splitAt (doc, { idOf (t) }, 480);
+    const auto sections = sectionsOf (t);
+
+    moveSections (doc, { { idOf (t), sections[0].id }, { idOf (t), sections[1].id } }, 400);
+
+    // A's pair lands at 500/600, inside B's old range, but is still shifted once.
+    CHECK (eventsLeft (t) == std::vector<std::pair<int, int>> { { 500, 144070 }, { 600, 128070 }, { 900, 144071 }, { 950, 128071 } });
+}
+
 TEST_CASE ("sections: a call that changes nothing does not materialise the track", "[sections]")
 {
     SongDocument doc;
