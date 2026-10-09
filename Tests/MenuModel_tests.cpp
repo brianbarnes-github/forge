@@ -58,7 +58,7 @@ TEST_CASE ("MenuModel: File menu layout, shortcuts, and no Close", "[menu-model]
 {
     const auto menus = buildMenus ({});
     const auto file = menuNamed (menus, "File");
-    CHECK (labels (file) == V { "New", "Open...", "-", "Save", "Save As...", "-", "Import>", "Export>", "-", "Quit" });
+    CHECK (labels (file) == V { "New", "Open...", "-", "Save", "Save As...", "-", "Import>", "Export>", "-", "Preferences...", "-", "Quit" });
     CHECK (itemWith (file, FileNew).shortcut == "Ctrl+N");
     CHECK (itemWith (file, FileOpenSong).shortcut == "Ctrl+O");
     CHECK (itemWith (file, FileSave).shortcut == "Ctrl+S");
@@ -70,6 +70,19 @@ TEST_CASE ("MenuModel: File menu layout, shortcuts, and no Close", "[menu-model]
     for (const auto& m : menus)
         for (const auto& i : m.items)
             CHECK (i.label != "Close");
+}
+
+TEST_CASE ("MenuModel: Preferences sits between Export and Quit, always enabled, no shortcut", "[menu-model]")
+{
+    for (const bool dirty : { false, true })
+    {
+        MenuState s; s.isDirty = dirty;
+        const auto file = menuNamed (buildMenus (s), "File");
+        const auto prefs = itemWith (file, FilePreferences);
+        CHECK (prefs.label == "Preferences...");
+        CHECK (prefs.shortcut.empty());
+        CHECK (prefs.enabled);
+    }
 }
 
 TEST_CASE ("MenuModel: Save is enabled when dirty or untitled, not when clean", "[menu-model]")

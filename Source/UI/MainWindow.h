@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "AppSettings.h"
 #include "DiscardGuard.h"
 #include "MenuModel.h"
 #include "Playback/AudioOutput.h"
@@ -77,6 +78,8 @@ private:
     // Per-user app settings (window position so far), in the OS's usual
     // per-user settings folder, e.g. %APPDATA%\SongSmith\SongSmith.settings.
     std::unique_ptr<juce::PropertiesFile>   settings;
+    // Typed view over `settings`; declared after it so it is built from a live file.
+    AppSettings                             appSettings { *settings };
 
     // Declared after everything it renders from so it is destroyed first.
     // Created lazily on the message thread by ensurePlaybackReady().

@@ -22,6 +22,7 @@ enum MenuCommandId : int
     FileImportMidi,
     FileExportAbc,
     FileExportMidi,
+    FilePreferences,
     FileQuit,
     EditUndo,
     EditRedo,
@@ -52,9 +53,9 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 28> allCommandIds {
+inline constexpr std::array<MenuCommandId, 29> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
-    FileExportMidi, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
+    FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
@@ -146,6 +147,8 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         // MIDI export is enabled once the song has anything besides its conductor.
         submenu ("Export", { item (FileExportMidi, "MIDI...", {}, s.trackCount > 1),
                              item (FileExportAbc,  "ABC...",  {}, s.hasAbc) }),
+        separator(),
+        item (FilePreferences, "Preferences..."),
         separator(),
         item (FileQuit,     "Quit",       "Ctrl+Q") } });
 

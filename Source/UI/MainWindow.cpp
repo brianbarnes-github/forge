@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "AboutBox.h"
+#include "AppSettings.h"
 #include "DiagnosticsPane.h"
 #include "DiscardGuard.h"
 #include "GridSize.h"
@@ -11,6 +12,7 @@
 #include "SongSession.h"
 #include "SongsmithMainComponent.h"
 #include "WindowPlacement.h"
+#include "Preferences/PreferencesDialog.h"
 
 #include "Playback/PlaybackError.h"
 
@@ -48,14 +50,14 @@ namespace
     // overwrite ourselves (the native warning would check the typed name, not
     // the name with the extension appended). `write` runs only once confirmed,
     // and only if the window still exists.
-    void chooseAndConfirm (MainWindow* owner, std::unique_ptr<juce::FileChooser>& holder,
+    void chooseAndConfirm (MainWindow* owner, bool confirmReplace, std::unique_ptr<juce::FileChooser>& holder,
                            const juce::String& title, const juce::File& defaultFile,
                            const juce::String& wildcard, const juce::StringArray& accepted,
                            const juce::String& defaultExt, std::function<void (const juce::File&)> write)
     {
         holder = std::make_unique<juce::FileChooser> (title, defaultFile, wildcard);
         holder->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-            [safe = juce::Component::SafePointer<MainWindow> (owner), accepted, defaultExt, write]
+            [safe = juce::Component::SafePointer<MainWindow> (owner), accepted, defaultExt, write, confirmReplace]
             (const juce::FileChooser& fc)
             {
                 if (safe == nullptr) return;
@@ -63,7 +65,7 @@ namespace
                 if (file == juce::File()) return;
                 file = withExtensionIfMissing (file, accepted, defaultExt);
 
-                if (! file.existsAsFile()) { write (file); return; }
+                if (! confirmReplace || ! file.existsAsFile()) { write (file); return; }
 
                 juce::NativeMessageBox::showAsync (
                     juce::MessageBoxOptions()
@@ -299,6 +301,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case TransportRewindOneBar: playback.rewindOneBar();                                  return;
         case TransportClearMarker:  playback.clearMarker();                                   return;
         case HelpAbout:       showAboutDialog (this);                                         return;
+        case FilePreferences: showPreferencesDialog (appSettings, this);                         return;
         case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
         case SongRunConverter:
@@ -402,7 +405,9 @@ DiscardGuardHooks MainWindow::guardHooks()
 
 void MainWindow::guarded (std::function<void()> action)
 {
-    confirmDiscardChanges (session.isDirty(), guardHooks(), std::move (action));
+    // With the prompt switched off a dirty Song counts as clean here, so the action
+    // proceeds and the unsaved edits are discarded without asking.
+    confirmDiscardChanges (shouldPromptForUnsavedChanges (appSettings, session.isDirty()), guardHooks(), std::move (action));
 }
 
 void MainWindow::requestQuit()
@@ -503,7 +508,7 @@ void MainWindow::saveSongAs (std::function<void (bool)> done)
             }
             file = withExtensionIfMissing (file, { songExtension }, songExtension);
 
-            if (file.existsAsFile() && file != session.getFile())
+            if (shouldConfirmReplace (appSettings) && file.existsAsFile() && file != session.getFile())
             {
                 // Built outside the capture list: MSVC resolves `this` in a
                 // nested lambda's init-capture to the closure, not the window.
@@ -677,7 +682,7 @@ void MainWindow::saveAbcAs()
 
     const auto defaultFile = defaultExportFile (session.getFile(), ".abc",
                                                 juce::File::getSpecialLocation (juce::File::userDocumentsDirectory));
-    chooseAndConfirm (this, fileChooser, "Export ABC", defaultFile, "*.abc", { ".abc" }, ".abc",
+    chooseAndConfirm (this, shouldConfirmReplace (appSettings), fileChooser, "Export ABC", defaultFile, "*.abc", { ".abc" }, ".abc",
         [this] (const juce::File& file)
         {
             if (! file.replaceWithText (juce::String (lastAbc)))
@@ -694,7 +699,7 @@ void MainWindow::exportMidiAs()
 {
     const auto defaultFile = defaultExportFile (session.getFile(), ".mid",
                                                 juce::File::getSpecialLocation (juce::File::userDocumentsDirectory));
-    chooseAndConfirm (this, fileChooser, "Export MIDI", defaultFile, "*.mid;*.midi", { ".mid", ".midi" }, ".mid",
+    chooseAndConfirm (this, shouldConfirmReplace (appSettings), fileChooser, "Export MIDI", defaultFile, "*.mid;*.midi", { ".mid", ".midi" }, ".mid",
         [this] (const juce::File& file)
         {
             // Build the whole byte buffer before touching the destination, so a
