@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <map>
 
 namespace lotro
 {
@@ -129,6 +130,61 @@ namespace
             if (sectionIdOfNote (notes.getChild (i), sections) == sectionId)
                 out.push_back (notes.getChild (i));
         return out;
+    }
+
+    std::vector<std::uint8_t> eventBytes (const juce::ValueTree& event)
+    {
+        if (const auto* block = event.getProperty (SongIDs::data).getBinaryData())
+        {
+            const auto* d = static_cast<const std::uint8_t*> (block->getData());
+            return std::vector<std::uint8_t> (d, d + block->getSize());
+        }
+        return {};
+    }
+
+    // Note messages the importer kept in EVENTS because no Song note owns them (a
+    // stacked duplicate, a zero-length note). A note-on whose tick lies in [start, end)
+    // goes together with the note-off it is paired with (the next one for the same
+    // channel and pitch); a note-off alone, whose on is elsewhere, stays.
+    void removeStrayNotesIn (SongDocument& doc, juce::ValueTree track, int start, int end)
+    {
+        auto events = SongDocument::getEventsNode (track);
+        std::map<std::pair<int, int>, std::vector<int>> open;   // (channel, pitch) -> note-on children awaiting an off
+        std::vector<int> doomed;
+        for (int i = 0; i < events.getNumChildren(); ++i)
+        {
+            const auto bytes = eventBytes (events.getChild (i));
+            if (bytes.size() < 3)
+                continue;
+            const int kind = bytes[0] & 0xF0;
+            const std::pair<int, int> key { bytes[0] & 0x0F, bytes[1] };
+            if (kind == 0x90 && bytes[2] > 0)
+            {
+                open[key].push_back (i);
+            }
+            else if (kind == 0x80 || kind == 0x90)
+            {
+                auto& pending = open[key];
+                if (pending.empty())
+                    continue;
+                const int on = pending.front();
+                pending.erase (pending.begin());
+                const int tick = (int) events.getChild (on).getProperty (SongIDs::tick);
+                if (start <= tick && tick < end)
+                {
+                    doomed.push_back (on);
+                    doomed.push_back (i);
+                }
+            }
+        }
+        for (const auto& [key, pending] : open)   // an on that never got an off
+            for (const int on : pending)
+                if (const int tick = (int) events.getChild (on).getProperty (SongIDs::tick); start <= tick && tick < end)
+                    doomed.push_back (on);
+
+        std::sort (doomed.begin(), doomed.end(), std::greater<int>());   // children shift as they go: highest index first
+        for (const int index : doomed)
+            doc.removeChild (events, events.getChild (index), false);
     }
 
     bool containsStrictly (const std::vector<SectionRange>& sections, int tick)
@@ -427,6 +483,7 @@ void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs)
         auto notesNode = SongDocument::getNotesNode (t.track);
         for (auto note : membersOf (t.track, t.range.id))
             doc.removeChild (notesNode, note, false);
+        removeStrayNotesIn (doc, t.track, t.range.startTick, t.range.endTick);
         auto sectionsNode = t.track.getChildWithName (SongIDs::SECTIONS);
         doc.removeChild (sectionsNode, findSectionNode (t.track, t.range.id), false);
     }

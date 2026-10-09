@@ -27,7 +27,10 @@ together); a note under a split is **cut in two**.
   and does not fall through to the marker. With the pointer over nothing and no
   marker set, `S` does nothing at all (user decision).
 - Non-note `EVENTS` (controllers, pitch bend, tempo) stay where they are when a
-  section moves or is cut; only notes follow sections.
+  section moves or is cut; only notes follow sections. Deleting a section also
+  removes the stray note-on/note-off pairs the importer kept in `EVENTS` (a
+  stacked duplicate or zero-length note has no Song note) whose note-on lies
+  in the section; a note-off alone, paired with an on elsewhere, stays.
 - Out of scope: moving a section to another track, copy/paste/duplicate of
   sections, sections in the Track editor roll.
 

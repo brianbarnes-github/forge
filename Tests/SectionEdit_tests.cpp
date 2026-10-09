@@ -627,6 +627,35 @@ TEST_CASE ("moveSections: non-note events stay where they are", "[sections][move
     CHECK ((int) SongDocument::getEventsNode (t).getChild (0).getProperty (SongIDs::tick) == 240);
 }
 
+TEST_CASE ("deleteSections: stray note events inside the section go with it, other events stay", "[sections][delete]")
+{
+    // A stacked duplicate import leaves a note-on/off pair in EVENTS beside the Song note, so the
+    // pair is audible after the note is deleted unless the delete takes it too.
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    addEvent (t, 100, { 0x90, 64, 90 });    // stray on before the section: kept ...
+    addEvent (t, 1000, { 0x80, 64, 64 });   // ... and so is its off, although that falls inside the section
+    addEvent (t, 960, { 0x90, 62, 90 });    // stray pair duplicating the note at 960
+    addEvent (t, 1000, { 0xB0, 7, 100 });   // controller: stays
+    addEvent (t, 1440, { 0x80, 62, 64 });
+    addEvent (t, 2000, { 0x90, 65, 90 });   // after the section: kept
+    splitAt (doc, { idOf (t) }, 480);
+    splitAt (doc, { idOf (t) }, 1920);
+
+    deleteSections (doc, { { idOf (t), sectionsOf (t)[1].id } });
+
+    std::vector<std::pair<int, int>> left;   // (tick, status+pitch) of what EVENTS still holds
+    for (auto e : SongDocument::getEventsNode (t))
+    {
+        const auto* block = e.getProperty (SongIDs::data).getBinaryData();
+        const auto* bytes = static_cast<const std::uint8_t*> (block->getData());
+        left.emplace_back ((int) e.getProperty (SongIDs::tick), bytes[0] * 1000 + bytes[1]);
+    }
+    CHECK (left == std::vector<std::pair<int, int>> { { 100, 144064 }, { 1000, 128064 }, { 1000, 176007 }, { 2000, 144065 } });
+}
+
 TEST_CASE ("sections: a call that changes nothing does not materialise the track", "[sections]")
 {
     SongDocument doc;
