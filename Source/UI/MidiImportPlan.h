@@ -24,6 +24,16 @@ public:
     using std::runtime_error::runtime_error;
 };
 
+enum class TempoMode { keep, replace };
+enum class TrackMode { expanded, merged };
+
+// What Import > MIDI does beyond the default. The defaults are today's behaviour.
+struct ImportOptions
+{
+    TempoMode tempo  = TempoMode::keep;     // replace: the file's conductor replaces the Song's
+    TrackMode tracks = TrackMode::expanded; // merged: all the file's note tracks become one track
+};
+
 struct PlannedEvent
 {
     int                       tick          = 0;
@@ -74,6 +84,6 @@ bool hasConductorTrack (const RawMidiFile& raw);
 // Throws MidiImportPlanError for format 2 or when the two parsers disagree.
 // Appends Info/Warning diagnostics (source "SongModelBridge") only on success.
 MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool isFirstImport,
-                               Diagnostics& diagnostics);
+                               Diagnostics& diagnostics, const ImportOptions& options = {});
 
 } // namespace lotro

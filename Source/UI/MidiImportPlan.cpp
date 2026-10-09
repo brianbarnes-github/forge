@@ -144,14 +144,16 @@ bool hasConductorTrack (const RawMidiFile& raw)
 }
 
 MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool isFirstImport,
-                               Diagnostics& diagnostics)
+                               Diagnostics& diagnostics, const ImportOptions& options)
 {
     if (raw.format == 2)
         throw MidiImportPlanError ("MIDI format 2 is not supported");
 
     Diagnostics local; // only reaches `diagnostics` if planning succeeds
     MidiImportPlan plan;
-    plan.writesConductor = isFirstImport;
+    // A first import always writes the conductor; so does a replace.
+    const bool writeConductor = isFirstImport || options.tempo == TempoMode::replace;
+    plan.writesConductor = writeConductor;
     const bool fileHasConductor = hasConductorTrack (raw);
 
     std::map<int, int> songTrackForRaw;
@@ -170,7 +172,7 @@ MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool is
 
         if (fileHasConductor && r == 0)
         {
-            if (isFirstImport)
+            if (writeConductor)
             {
                 for (int i = 0; i < (int) rawTrack.events.size(); ++i)
                     plan.conductorEvents.push_back ({ rawTrack.events[(size_t) i].tick, i, -1, rawTrack.events[(size_t) i].bytes });
@@ -213,7 +215,7 @@ MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool is
             const auto& e = rawTrack.events[(size_t) i];
             if (! fileHasConductor && isSongWideMetaEvent (e))
             {
-                if (isFirstImport)
+                if (writeConductor)
                 {
                     plan.conductorEvents.push_back ({ e.tick, i, r, e.bytes });
                     ++plan.relocatedEventCount;
@@ -238,6 +240,8 @@ MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool is
         info (local, "Dropped " + std::to_string (plan.droppedEventCount)
                      + " song-wide event(s) from a later import; the first import's conductor track is kept");
 
+    if (! isFirstImport && options.tempo == TempoMode::replace)
+        info (local, "Replaced the Song's tempo map and conductor events with the imported file's");
     diagnostics.insert (diagnostics.end(), local.begin(), local.end());
     return plan;
 }

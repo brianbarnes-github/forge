@@ -320,3 +320,63 @@ TEST_CASE ("MidiImportPlan: every raw event of every fixture is accounted for ex
         CHECK (totalPlanned == totalRaw);
     }
 }
+
+TEST_CASE ("MidiImportPlan: tempo replace on a later import writes the file's conductor and drops nothing", "[midiimportplan]")
+{
+    TrackBody melody;
+    melody.ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    const auto p = parse (smf (1, 96, { conductorBody(), melody }));
+
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    Diagnostics diags;
+    const auto plan = planMidiImport (p.song, p.raw, false, diags, options);
+
+    CHECK (plan.writesConductor);
+    REQUIRE (plan.conductorEvents.size() == 2);
+    CHECK (plan.conductorEvents[0].bytes == p.raw.tracks[0].events[0].bytes);
+    CHECK (plan.conductorEndTick == 960);
+    CHECK (plan.droppedEventCount == 0);
+    REQUIRE (diags.size() == 1);
+    CHECK (diags[0].severity == Severity::Info);
+    CHECK (diags[0].source == "SongModelBridge");
+    CHECK (diags[0].message.find ("Replaced") != std::string::npos);
+}
+
+TEST_CASE ("MidiImportPlan: tempo replace on a later import relocates a conductor-less file's song-wide metas", "[midiimportplan]")
+{
+    TrackBody first;
+    first.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x05, 0x02, 'l', 'a' })
+         .ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    const auto p = parse (smf (1, 96, { first }));
+
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    Diagnostics diags;
+    const auto plan = planMidiImport (p.song, p.raw, false, diags, options);
+
+    CHECK (plan.writesConductor);
+    REQUIRE (plan.conductorEvents.size() == 1);
+    CHECK (plan.conductorEvents[0].relocatedFrom == 0);
+    CHECK (plan.relocatedEventCount == 1);
+    CHECK (plan.droppedEventCount == 0);
+    REQUIRE (plan.tracks.size() == 1);
+    REQUIRE (plan.tracks[0].events.size() == 1);   // the lyric stays on the track
+}
+
+TEST_CASE ("MidiImportPlan: tempo replace on the first import is identical to keep", "[midiimportplan]")
+{
+    TrackBody melody;
+    melody.ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    const auto p = parse (smf (1, 96, { conductorBody(), melody }));
+
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    Diagnostics keepDiags, replaceDiags;
+    const auto keep    = planMidiImport (p.song, p.raw, true, keepDiags);
+    const auto replace = planMidiImport (p.song, p.raw, true, replaceDiags, options);
+
+    CHECK (replace.writesConductor == keep.writesConductor);
+    CHECK (replace.conductorEvents.size() == keep.conductorEvents.size());
+    CHECK (replaceDiags.size() == keepDiags.size());   // no "Replaced" line when nothing existed
+}
