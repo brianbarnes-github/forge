@@ -63,21 +63,35 @@ Source/UI editing/import logic; see the `forge-engine-ui-boundary` skill).
 - **Tempo = keep:** unchanged. The first import writes the conductor
   (`plan.writesConductor`), later ones do not. The existing "file's tempo map
   differs" warning stays.
-- **Tempo = replace:** `writesConductor` is true on any import. The existing
-  conductor's song-wide events (tempo, time signature, key signature, SMPTE
-  offset, marker, copyright — `isSongWideMetaEvent`) and the tempo/meter map
-  nodes are removed, then the file's are written. Existing tracks' ticks do
-  not change, so they now play against the new tempo map. One Info diagnostic
-  (source "SongModelBridge") says the tempo map was replaced. On the first
-  import into an empty Song, replace and keep are the same.
+- **Tempo = replace:** `writesConductor` is true on any import, so the planner
+  emits the file's conductor exactly as it does for a first import (the
+  conductor track verbatim, or song-wide metas relocated out of the note
+  tracks when the file has none). The Song's conductor EVENTS and its
+  TEMPO_MAP / METER_MAP nodes are then replaced wholesale (not just the
+  song-wide events: the new conductor already carries the file's own SysEx
+  and other conductor events, so keeping the old ones would duplicate them).
+  The file's ticks are rescaled to the Song's time base like any later import
+  (after any lcm raise). Existing tracks' ticks do not change, so they now play
+  against the new tempo map. The planner emits one Info diagnostic (source
+  "SongModelBridge") saying the tempo map was replaced, only when the Song
+  already had one. On the first import into an empty Song, replace and keep are
+  the same.
 - **Tracks = expanded:** unchanged, one `PlannedTrack` per raw track.
 - **Tracks = merged:** one `PlannedTrack` carrying every note link and event of
   all the file's note-bearing raw tracks.
   - Each note keeps its own MIDI `channel`, so export writes it on the original
     channel.
-  - Events keep provenance (`order` within source, `relocatedFrom`); the merged
-    track's event order uses a deterministic sort key (tick, then source raw
-    track index, then original `order`).
+  - `order` is per raw track, so two merged tracks would collide. The merged
+    track therefore renumbers every raw event of the merged tracks by the
+    deterministic key (tick, source raw track index, original index) and remaps
+    each note link's `onOrder` / `offOrder` and each leftover event's `order`
+    through the same table. Each source track's own relative order is preserved,
+    so an unedited merged import still exports note-for-note.
+  - The merged track's notes are the source tracks' notes, stable-sorted by
+    start tick (note links stay parallel). One Info diagnostic says how many
+    tracks were merged.
+  - A file with fewer than two note-bearing tracks has nothing to merge and
+    imports as it does in expanded mode (no " (merged)" rename).
   - Note-less raw tracks are not merged; they import as they do today.
   - Metadata: name = the file's stem + " (merged)"; `sourceProgram` and
     `sourceMidiChannel` from the first note-bearing track; `defaultChannel`
