@@ -5,6 +5,7 @@
 #include "DiscardGuard.h"
 #include "GridSize.h"
 #include "HistoryKeys.h"
+#include "ImportOptionsDialog.h"
 #include "MidiExport.h"
 #include "RawMidi.h"
 #include "SongFile.h"
@@ -358,8 +359,27 @@ void MainWindow::openMidiViaDialog()
 
 void MainWindow::openMidiFromPath (const juce::File& file)
 {
+    // Import Expanded Always: no dialog, today's behaviour.
+    if (! shouldAskImportOptions (appSettings))
+    {
+        importMidiWithOptions (file, ImportOptions {});
+        return;
+    }
+
+    const bool songHasTempoMap = songDocument.getTempoMapNode().getNumChildren() > 0;
+    const juce::Component::SafePointer<MainWindow> safe (this);
+    showImportOptionsDialog (this, file.getFileName(), songHasTempoMap,
+        [safe, file] (const ImportOptions& options)
+        {
+            if (safe != nullptr)
+                safe->importMidiWithOptions (file, options);
+        });
+}
+
+void MainWindow::importMidiWithOptions (const juce::File& file, const ImportOptions& options)
+{
     Diagnostics diags;
-    importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags);
+    importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, options);
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
     body->getSongsmith().fitTrackTimelineToDocument();
 }

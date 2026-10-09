@@ -5,6 +5,7 @@
 #include "AppSettings.h"
 #include "DiscardGuard.h"
 #include "MenuModel.h"
+#include "MidiImportPlan.h"
 #include "Playback/AudioOutput.h"
 #include "Playback/PlaybackController.h"
 #include "Playback/SynthVoice.h"
@@ -91,6 +92,7 @@ private:
 
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
+    void importMidiWithOptions (const juce::File& file, const ImportOptions& options);
     void runConversion();
     void saveAbcAs();
     void exportMidiAs();
