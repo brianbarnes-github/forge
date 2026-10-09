@@ -71,6 +71,7 @@ add_executable(forge_tests
     AboutBox_tests.cpp
     AppSettings_tests.cpp
     PreferencesDialog_tests.cpp
+    ImportOptionsDialog_tests.cpp
     JuceNoteReplica_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/JuceNoteReplica.cpp
     MidiImportPlan_tests.cpp
@@ -112,6 +113,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/WindowPlacement.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/BuildInfo.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/AboutBox.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/ImportOptionsDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/GeneralPreferencesPage.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/PreferencesDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
