@@ -55,6 +55,16 @@ public:
     static constexpr int minRowHeight = 30;
     static constexpr int maxRowHeight = 120;
 
+    // Height of the instrument-name band across the top of the canvas side of
+    // every row (the Reaper-style label bar between tracks). It is extra: a row's
+    // bounds are the list's row height plus this, so the notes area keeps the
+    // height the user sized it to.
+    static constexpr int instrumentBandHeight = 16;
+
+    // The band's text: the track's General MIDI program name, "Drum Kit" on
+    // channel 10, empty for the conductor.
+    juce::String instrumentLabel() const;
+
     // Fixed width of the left-hand index/name/note-count text column. The
     // embedded TrackNotePreview fills everything to its right, so it grows
     // with the row instead of being pinned to a small fixed width — the

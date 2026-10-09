@@ -132,7 +132,10 @@ When you say…       …I'll know you mean
   zoom, resizing keeps the zoom. A horizontal scroll bar under the note
   previews (spanning only the preview column) scrolls all rows together and
   auto-hides whenever the whole song fits. Each preview also has a per-row ghost-visibility
-  toggle (an eye icon in its top-right corner): toggling it on/off is
+  toggle (an eye icon in its top-right corner). Across the top of each row's canvas side
+  runs a 16 px instrument band (like Reaper's item label bar) naming the track's General MIDI
+  instrument ("Drum Kit" on channel 10, blank for the conductor); it is extra height, so the
+  notes area keeps its size: toggling it on/off is
   transient (never persisted) and adds/removes that track from the set of
   translucent ghost overlays shown in the Track
   editor window (#28), if one is open. Click a row to select it; drag onto a

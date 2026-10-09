@@ -66,6 +66,7 @@ add_executable(forge_tests
     TrackNotePreview_tests.cpp
     SongsmithColours_tests.cpp
     TrackRowComponent_tests.cpp
+    GmProgramNames_tests.cpp
     WindowPlacement_tests.cpp
     AboutBox_tests.cpp
     JuceNoteReplica_tests.cpp

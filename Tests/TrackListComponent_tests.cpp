@@ -463,6 +463,7 @@ TEST_CASE ("TrackListComponent: ctrl+wheel resizes every row 4 px per notch and 
     Access::timelineViewMut (list).setScrollOffsetTicks (1000.0);
     const double zoomBefore = Access::timelineView (list).getPixelsPerTick();
     const double scrollBefore = Access::scrollOffsetTicks (list);
+    const int band = TrackRowComponent::instrumentBandHeight;
     REQUIRE (list.getRowHeight() == 34);
 
     for (const auto region : { Region::Heads, Region::Canvas })
@@ -471,13 +472,13 @@ TEST_CASE ("TrackListComponent: ctrl+wheel resizes every row 4 px per notch and 
         Access::wheel (list, region, ctrl, 1.0f);   // wheel up grows
         CHECK (list.getRowHeight() == before + 4);
         for (auto* row : Access::rows (list))
-            CHECK (row->getHeight() == before + 4);
-        CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * (before + 4));
+            CHECK (row->getHeight() == before + 4 + band);
+        CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * (before + 4 + band));
     }
     Access::wheel (list, Region::Canvas, ctrl, -2.0f);   // two notches down
     CHECK (list.getRowHeight() == 34);
-    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * 34);
-    CHECK (Access::rows (list)[3]->getBottom() == 4 * 34);
+    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * (34 + band));
+    CHECK (Access::rows (list)[3]->getBottom() == 4 * (34 + band));
     CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (zoomBefore));
     CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (scrollBefore));
 }
@@ -493,7 +494,7 @@ TEST_CASE ("TrackListComponent: ctrl+wheel clamps the row height to the minimum 
     Access::wheel (list, Region::Heads, ctrl, -100.0f);
     CHECK (list.getRowHeight() == TrackRowComponent::minRowHeight);
     for (auto* row : Access::rows (list))
-        CHECK (row->getHeight() == TrackRowComponent::minRowHeight);
+        CHECK (row->getHeight() == TrackRowComponent::minRowHeight + TrackRowComponent::instrumentBandHeight);
     // Having been pushed far past the minimum must not delay growing again.
     Access::wheel (list, Region::Heads, ctrl, 1.0f);
     CHECK (list.getRowHeight() == TrackRowComponent::minRowHeight + 4);
@@ -501,7 +502,7 @@ TEST_CASE ("TrackListComponent: ctrl+wheel clamps the row height to the minimum 
     Access::wheel (list, Region::Canvas, ctrl, 100.0f);
     CHECK (list.getRowHeight() == TrackRowComponent::maxRowHeight);
     for (auto* row : Access::rows (list))
-        CHECK (row->getHeight() == TrackRowComponent::maxRowHeight);
+        CHECK (row->getHeight() == TrackRowComponent::maxRowHeight + TrackRowComponent::instrumentBandHeight);
     Access::wheel (list, Region::Canvas, ctrl, -1.0f);
     CHECK (list.getRowHeight() == TrackRowComponent::maxRowHeight - 4);
 }
@@ -536,19 +537,20 @@ TEST_CASE ("TrackListComponent: ctrl+wheel keeps the content under the pointer w
     viewport.setViewPosition (0, 300);
     REQUIRE (viewport.getViewPositionY() == 300);
 
+    const double band = TrackRowComponent::instrumentBandHeight;
     const int pointerY = 57;
-    const double fractionBefore = (300.0 + pointerY) / (n * 34.0);
+    const double fractionBefore = (300.0 + pointerY) / (n * (34.0 + band));
     Access::wheel (list, Region::Heads, ctrl, 1.0f, pointerY);
 
     REQUIRE (list.getRowHeight() == 38);
-    const double fractionAfter = (viewport.getViewPositionY() + pointerY) / (n * 38.0);
-    CHECK (fractionAfter == Catch::Approx (fractionBefore).margin (1.0 / (n * 38.0)));
-    CHECK (viewport.getViewPositionY() == 342);
+    const double fractionAfter = (viewport.getViewPositionY() + pointerY) / (n * (38.0 + band));
+    CHECK (fractionAfter == Catch::Approx (fractionBefore).margin (1.0 / (n * (38.0 + band))));
+    CHECK (viewport.getViewPositionY() == 329);   // (300 + 57) * 54 / 50 - 57, rounded
 
     // Shrinking to where the rows fit again pulls the view back to the top.
     Access::wheel (list, Region::Heads, ctrl, -100.0f, pointerY);
     CHECK (viewport.getViewPositionY() >= 0);
-    CHECK (viewport.getViewPositionY() <= n * 30 - viewport.getMaximumVisibleHeight());
+    CHECK (viewport.getViewPositionY() <= n * (30 + TrackRowComponent::instrumentBandHeight) - viewport.getMaximumVisibleHeight());
 }
 
 TEST_CASE ("TrackListComponent: the row height survives a rebuild that adds a track", "[track-list][wheel]")
@@ -565,19 +567,20 @@ TEST_CASE ("TrackListComponent: the row height survives a rebuild that adds a tr
     Access::rebuild (list);
 
     const int n = doc.getNumTracks();
+    const int pitch = 46 + TrackRowComponent::instrumentBandHeight;   // notes height + band
     REQUIRE (Access::numRows (list) == n);
     int y = 0;
     for (auto* row : Access::rows (list))
     {
-        CHECK (row->getHeight() == 46);
+        CHECK (row->getHeight() == pitch);
         CHECK (row->getY() == y);
-        y += 46;
+        y += pitch;
     }
-    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * 46);
+    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * pitch);
     // A later resize of the list keeps the height too.
     list.setBounds (0, 0, 500, 300);
-    CHECK (Access::rows (list)[0]->getHeight() == 46);
-    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * 46);
+    CHECK (Access::rows (list)[0]->getHeight() == pitch);
+    CHECK (Access::viewport (list).getViewedComponent()->getHeight() == n * pitch);
 }
 
 TEST_CASE ("TrackListComponent: shift+wheel scrolls the timeline horizontally from either region and never touches the rows", "[track-list][wheel]")

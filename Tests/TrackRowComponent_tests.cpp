@@ -379,10 +379,51 @@ TEST_CASE ("TrackRowComponent: at the minimum and maximum row heights nothing cl
         // Buttons stay tall enough to read and click, and centred in the head.
         CHECK (m.getHeight() >= 12);
         CHECK (m.getY() - inside.getY() == inside.getBottom() - m.getBottom());
-        CHECK (preview.getHeight() == height - TrackRowComponent::dividerThickness);
+        // The preview sits under the instrument band, over the canvas side only.
+        CHECK (preview.getY() == TrackRowComponent::instrumentBandHeight);
+        CHECK (preview.getHeight() == height - TrackRowComponent::instrumentBandHeight - TrackRowComponent::dividerThickness);
 
         // The two text lines (11 px and 9 px fonts) each get half of the head's height:
         // enough for their glyphs at the minimum.
         CHECK (inside.getHeight() / 2 >= 13);
     }
+}
+
+TEST_CASE ("TrackRowComponent: the instrument band names the GM program, 'Drum Kit' on channel 10, nothing on the conductor", "[track-row][band]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TimelineViewState viewState;
+
+    auto bass = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    bass.setProperty (SongIDs::sourceProgram, 33, nullptr);
+    bass.setProperty (SongIDs::sourceMidiChannel, 2, nullptr);
+    CHECK (TrackRowComponent (bass, 1, viewState).instrumentLabel() == "Electric Bass (finger)");
+
+    auto drums = doc.addTrack ("Track B", (int) 0xFFAABBCC, 0, 0);
+    drums.setProperty (SongIDs::sourceProgram, 33, nullptr);   // ignored on channel 10
+    drums.setProperty (SongIDs::sourceMidiChannel, 10, nullptr);
+    CHECK (TrackRowComponent (drums, 2, viewState).instrumentLabel() == "Drum Kit");
+
+    auto conductor = doc.addTrack ("Conductor", (int) 0xFFAABBCC, 0, 0);
+    conductor.setProperty (SongIDs::isConductor, true, nullptr);
+    CHECK (TrackRowComponent (conductor, 0, viewState).instrumentLabel().isEmpty());
+}
+
+TEST_CASE ("TrackRowComponent: the band is painted across the canvas side only, above the notes", "[track-row][band]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
+    TimelineViewState viewState;
+    TrackRowComponent row (track, 1, viewState);
+    row.setBounds (0, 0, 400, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+
+    const auto image = row.createComponentSnapshot (row.getLocalBounds(), false);
+    const auto band = juce::Colour (SongsmithColours::instrumentBand);
+    const int canvasX = TrackRowComponent::trackInfoWidth + 2;
+    CHECK (image.getPixelAt (399, 1) == band);                                        // right end of the band
+    CHECK (image.getPixelAt (canvasX, TrackRowComponent::instrumentBandHeight - 2) == band);
+    CHECK (image.getPixelAt (canvasX, TrackRowComponent::instrumentBandHeight + 4) != band);   // notes area below
+    CHECK (image.getPixelAt (4, 1) != band);                                          // head column unchanged
 }

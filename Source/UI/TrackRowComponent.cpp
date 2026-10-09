@@ -1,5 +1,6 @@
 #include "TrackRowComponent.h"
 #include "SongsmithColours.h"
+#include "GmProgramNames.h"
 
 #include <algorithm>
 #include <limits>
@@ -94,6 +95,7 @@ void TrackRowComponent::resized()
     auto buttons = info.removeFromRight (muteSoloWidth).reduced (1, 8);
     muteButton.setBounds (buttons.removeFromLeft (buttons.getWidth() / 2));
     soloButton.setBounds (buttons);
+    area.removeFromTop (juce::jmin (instrumentBandHeight, area.getHeight()));
     notePreview.setBounds (area);
 }
 
@@ -125,6 +127,15 @@ void TrackRowComponent::setSectionView (const SectionViewState* state)
 void TrackRowComponent::setGhostVisible (bool shouldBeVisible)
 {
     notePreview.setGhostVisible (shouldBeVisible);
+}
+
+juce::String TrackRowComponent::instrumentLabel() const
+{
+    if ((bool) track.getProperty (SongIDs::isConductor, false))
+        return {};
+    if ((int) track.getProperty (SongIDs::sourceMidiChannel) == 10)
+        return "Drum Kit";
+    return gmProgramName ((int) track.getProperty (SongIDs::sourceProgram));
 }
 
 juce::String TrackRowComponent::buildSecondLine() const
@@ -185,6 +196,17 @@ void TrackRowComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (columnDivider));
     g.fillRect (bounds.withWidth (juce::jmin (trackInfoWidth, bounds.getWidth()))
                       .removeFromRight (columnDividerThickness));
+
+    // Instrument band: canvas side only, over the top of the notes.
+    {
+        const auto band = bounds.withTrimmedLeft (juce::jmin (trackInfoWidth, bounds.getWidth()))
+                                .removeFromTop (instrumentBandHeight);
+        g.setColour (juce::Colour (instrumentBand));
+        g.fillRect (band);
+        g.setColour (juce::Colour (textMuted));
+        g.setFont (juce::Font (juce::FontOptions (10.0f)));
+        g.drawText (instrumentLabel(), band.withTrimmedLeft (6).withTrimmedRight (4), juce::Justification::centredLeft);
+    }
 
     const int textLeft = 8;
     const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);

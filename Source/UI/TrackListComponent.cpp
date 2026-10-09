@@ -39,8 +39,8 @@ void TrackListComponent::ListContent::resized()
     int y = 0;
     for (auto* row : rows)
     {
-        row->setBounds (0, y, getWidth(), rowHeight);
-        y += rowHeight;
+        row->setBounds (0, y, getWidth(), rowHeight + TrackRowComponent::instrumentBandHeight);
+        y += rowHeight + TrackRowComponent::instrumentBandHeight;
     }
 }
 
@@ -720,20 +720,21 @@ void TrackListComponent::resizeRowsBy (double pixels, int pointerY)
     const int numRows = doc.getNumTracks();
     const int pointerInViewport = juce::jlimit (0, juce::jmax (0, viewport.getHeight()), pointerY - viewport.getY());
     const int oldScroll = viewport.getViewPositionY();
-    const int oldExtent = numRows * rowHeight;
+    const int pitchBand = TrackRowComponent::instrumentBandHeight;
+    const int oldExtent = numRows * (rowHeight + pitchBand);
 
     rowHeight = newHeight;
     applyRowHeight();
 
     const int maxY = juce::jmax (0, content.getHeight() - viewport.getMaximumVisibleHeight());
     viewport.setViewPosition (viewport.getViewPositionX(),
-                              wheelresize::anchoredScroll (oldScroll, pointerInViewport, oldExtent, numRows * rowHeight, maxY));
+                              wheelresize::anchoredScroll (oldScroll, pointerInViewport, oldExtent, numRows * (rowHeight + pitchBand), maxY));
 }
 
 void TrackListComponent::applyRowHeight()
 {
     content.rowHeight = rowHeight;
-    content.setSize (contentWidth(), doc.getNumTracks() * rowHeight);
+    content.setSize (contentWidth(), doc.getNumTracks() * (rowHeight + TrackRowComponent::instrumentBandHeight));
     content.resized();
 }
 
