@@ -69,3 +69,33 @@ TEST_CASE ("shouldPromptForUnsavedChanges / shouldConfirmReplace follow the sett
     CHECK_FALSE (shouldPromptForUnsavedChanges (settings, false));
     CHECK_FALSE (shouldConfirmReplace (settings));
 }
+
+TEST_CASE ("AppSettings: import track options default to Ask and round-trip", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    AppSettings settings (props);
+    CHECK (settings.importTrackOptions() == ImportTrackOptions::ask);
+    CHECK (shouldAskImportOptions (settings));
+
+    settings.setImportTrackOptions (ImportTrackOptions::expandedAlways);
+    juce::PropertiesFile reader (file, {});   // written through while `props` is still alive
+    CHECK (AppSettings (reader).importTrackOptions() == ImportTrackOptions::expandedAlways);
+    CHECK_FALSE (shouldAskImportOptions (settings));
+
+    settings.setImportTrackOptions (ImportTrackOptions::ask);
+    CHECK (shouldAskImportOptions (settings));
+}
+
+TEST_CASE ("AppSettings: an unrecognised import setting reads as Ask and leaves the confirmations alone", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    props.setValue ("import.trackOptions", "banana");
+    const AppSettings settings (props);
+    CHECK (settings.importTrackOptions() == ImportTrackOptions::ask);
+    CHECK (settings.askToSaveUnsavedChanges());
+    CHECK (settings.askBeforeReplacingFile());
+}

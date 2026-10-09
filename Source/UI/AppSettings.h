@@ -9,6 +9,13 @@
 namespace lotro
 {
 
+// Preferences > Import > "Import Track Options".
+enum class ImportTrackOptions
+{
+    ask,            // Import > MIDI shows the tempo map / track choices dialog
+    expandedAlways  // no dialog: keep the tempo map, expand the tracks (today's behaviour)
+};
+
 class AppSettings
 {
 public:
@@ -20,9 +27,21 @@ public:
     bool askBeforeReplacingFile() const { return read (keyReplaceFile); }
     void setAskBeforeReplacingFile (bool on) { write (keyReplaceFile, on); }
 
+    ImportTrackOptions importTrackOptions() const
+    {
+        return file.getValue (keyImportTrackOptions) == "expanded" ? ImportTrackOptions::expandedAlways
+                                                                   : ImportTrackOptions::ask;
+    }
+    void setImportTrackOptions (ImportTrackOptions value)
+    {
+        file.setValue (keyImportTrackOptions, value == ImportTrackOptions::expandedAlways ? "expanded" : "ask");
+        file.saveIfNeeded();
+    }
+
 private:
-    static constexpr const char* keyUnsavedChanges = "confirm.unsavedChanges";
-    static constexpr const char* keyReplaceFile    = "confirm.replaceFile";
+    static constexpr const char* keyUnsavedChanges    = "confirm.unsavedChanges";
+    static constexpr const char* keyReplaceFile       = "confirm.replaceFile";
+    static constexpr const char* keyImportTrackOptions = "import.trackOptions";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.
@@ -49,6 +68,12 @@ inline bool shouldPromptForUnsavedChanges (const AppSettings& settings, bool isD
 inline bool shouldConfirmReplace (const AppSettings& settings)
 {
     return settings.askBeforeReplacingFile();
+}
+
+// Import > MIDI: show the options dialog only when the user wants asking.
+inline bool shouldAskImportOptions (const AppSettings& settings)
+{
+    return settings.importTrackOptions() == ImportTrackOptions::ask;
 }
 
 } // namespace lotro
