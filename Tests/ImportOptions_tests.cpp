@@ -157,15 +157,17 @@ TEST_CASE ("ImportOptions: merged imports one track whose notes keep their chann
             name = merged.getTrack (i).getProperty (SongIDs::name).toString();
     CHECK (name.endsWith (" (merged)"));
 
-    // The same notes (pitch, start, duration, velocity, channel), just on one track.
+    // The same notes (pitch, start, duration, velocity, channel, source provenance), just on one track.
     auto notesOf = [] (const SongDocument& doc)
     {
-        std::vector<std::tuple<int, int, int, int, int>> out;
+        std::vector<std::tuple<int, int, int, int, int, int, int>> out;
         for (auto track : doc.getSourceMidiNode())
             for (auto n : SongDocument::getNotesNode (track))
                 out.emplace_back ((int) n.getProperty (SongIDs::pitch), (int) n.getProperty (SongIDs::startTick),
                                   (int) n.getProperty (SongIDs::durationTicks), (int) n.getProperty (SongIDs::velocity),
-                                  (int) n.getProperty (SongIDs::channel, 1));
+                                  (int) n.getProperty (SongIDs::channel, 1),
+                                  (int) n.getProperty (SongIDs::sourceTrackIndex),
+                                  (int) n.getProperty (SongIDs::sourceEventIndex));
         std::sort (out.begin(), out.end());
         return out;
     };
