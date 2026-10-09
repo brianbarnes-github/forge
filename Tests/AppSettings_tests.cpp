@@ -24,7 +24,9 @@ TEST_CASE ("AppSettings: setters round-trip and persist across a re-opened file"
         settings.setAskToSaveUnsavedChanges (false);
         CHECK_FALSE (settings.askToSaveUnsavedChanges());
         CHECK (settings.askBeforeReplacingFile());   // independent
-        // No explicit saveIfNeeded() here: the setter must have written to disk.
+        // No explicit saveIfNeeded() here. (The PropertiesFile destructor also saves, so
+        // this block alone does not prove the setter writes; the later block
+        // below reads back while the first file is still alive.)
     }
     juce::PropertiesFile reloaded (file, {});
     const AppSettings settings (reloaded);

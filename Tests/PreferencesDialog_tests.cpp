@@ -44,6 +44,24 @@ TEST_CASE ("PreferencesDialog: tree, splitter and page share the content, tree o
     CHECK (dialog.treeWidthForTesting() < dialog.getWidth() / 2);   // fraction 0.25
 }
 
+TEST_CASE ("PreferencesDialog: dragging the splitter re-lays out the page to the host's new width", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    PreferencesDialog dialog (f.settings);
+    dialog.setSize (640, 400);
+    auto* page = dialog.currentPage();
+    REQUIRE (page != nullptr);
+
+    dialog.splitterForTesting().setFraction (0.6f);
+    const int widthWhenTreeIsWide = page->getWidth();
+    CHECK (widthWhenTreeIsWide == page->getParentComponent()->getWidth());
+
+    dialog.splitterForTesting().setFraction (0.2f);
+    CHECK (page->getWidth() == page->getParentComponent()->getWidth());
+    CHECK (page->getWidth() > widthWhenTreeIsWide);   // the page grew with its host
+}
+
 TEST_CASE ("General page: toggles show the saved state and write straight through", "[preferences]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

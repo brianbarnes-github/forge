@@ -60,6 +60,7 @@ namespace lotro
 
         pageTitle.setFont (juce::FontOptions (18.0f));
         pageTitle.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
+        pageHost.onResized = [this] { layoutPage(); };
         pageHost.addAndMakeVisible (pageTitle);
         addAndMakeVisible (pageHost);
 
@@ -98,7 +99,7 @@ namespace lotro
         page = pages[(size_t) index].make (settings);
         pageHost.addAndMakeVisible (*page);
         pageTitle.setText (pages[(size_t) index].name, juce::dontSendNotification);
-        resized();
+        layoutPage();
     }
 
     void PreferencesDialog::paint (juce::Graphics& g)
@@ -111,7 +112,11 @@ namespace lotro
         auto area = getLocalBounds();
         closeButton.setBounds (area.removeFromBottom (44).reduced (8).removeFromRight (80));
         splitter.setBounds (area);   // lays out tree (left) and pageHost (right)
+        layoutPage();
+    }
 
+    void PreferencesDialog::layoutPage()
+    {
         auto host = pageHost.getLocalBounds();
         pageTitle.setBounds (host.removeFromTop (36).reduced (12, 4));
         if (page != nullptr)
@@ -130,6 +135,7 @@ namespace lotro
         options.useNativeTitleBar = true;
         options.resizable = true;
         auto* window = options.launchAsync();   // enters modal state
-        dialog->onCloseRequested = [window] { if (window != nullptr) window->exitModalState (0); };
+        // The window owns the content that owns this callback, so it cannot outlive `window`.
+        dialog->onCloseRequested = [window] { window->exitModalState (0); };
     }
 }

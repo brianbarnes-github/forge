@@ -363,7 +363,7 @@ File
   Save               Ctrl+S          ← enabled when dirty or untitled;
                                         untitled → Save As
   Save As…           Ctrl+Shift+S    ← appends .songsmith if missing, then
-                                        asks before replacing another file
+                                        asks before replacing another file (unless switched off in Preferences)
   ─────────
   Import ▸ MIDI…                      ← FileChooser, .mid/.midi
   Export ▸ MIDI…                      ← the whole song as a format-1 .mid;
@@ -432,7 +432,8 @@ changed since the last save or load; any tree edit counts, including imports,
 and undoing back to the saved state still shows `*`. New, Open, Quit (menu or Ctrl+Q),
 the window's close request and dropping a `.songsmith` file all go through
 the guard: when the Song is dirty a **Save / Don't Save / Cancel** prompt
-appears. Save writes (Save As for an untitled Song) and only then continues;
+appears (unless "Ask about unsaved changes" is off in Preferences, which
+discards silently). Save writes (Save As for an untitled Song) and only then continues;
 a cancelled chooser, a failed write or Cancel stops the action. Opening a
 damaged or unsupported file shows an error and leaves the open Song as it was.
 Passing a `.songsmith` path on the command line opens it at startup.

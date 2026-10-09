@@ -59,9 +59,12 @@ Pure decision functions (no JUCE UI) so the hooks are testable:
 
 ## Applying the settings
 
-- `MainWindow::guardHooks()` prompt hook: when the setting is off it answers
-  `DiscardChoice::DontSave` without showing the box. New, Open, `.songsmith`
-  drops and Quit all route through these hooks, so all four follow it.
+- `MainWindow::guarded()` feeds `shouldPromptForUnsavedChanges (appSettings, isDirty)`
+  into `confirmDiscardChanges` as the dirty flag: with the setting off a dirty Song
+  counts as clean, so the action proceeds and the edits are discarded without the
+  box (same behaviour as answering `DiscardChoice::DontSave`; chosen during
+  implementation over changing the `guardHooks()` prompt hook). New, Open,
+  `.songsmith` drops, Quit and window close all route through `guarded()`.
 - Overwrite checks: when off, the file is written without the "Replace file?"
   box (the extension is still appended first). There are two call sites and both
   follow it: `chooseAndConfirm` (Export MIDI/ABC) and the Song Save As path.

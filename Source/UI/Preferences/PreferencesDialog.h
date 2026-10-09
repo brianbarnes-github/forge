@@ -42,15 +42,26 @@ namespace lotro
         juce::TextButton& closeButtonForTesting() { return closeButton; }
         int treeLeftEdgeForTesting() const { return tree.getX(); }
         int treeWidthForTesting() const { return tree.getWidth(); }
+        SplitterComponent& splitterForTesting() { return splitter; }
 
     private:
         class RootItem;
         class PageItem;
 
+        // The splitter resizes this directly, bypassing the dialog's own
+        // resized(), so it reports its resizes back for the title/page layout.
+        struct PageHost : juce::Component
+        {
+            std::function<void()> onResized;
+            void resized() override { if (onResized) onResized(); }
+        };
+
+        void layoutPage();
+
         AppSettings& settings;
         juce::TreeView tree;
         std::unique_ptr<RootItem> root;
-        juce::Component pageHost;
+        PageHost pageHost;
         juce::Label pageTitle;
         std::unique_ptr<juce::Component> page;
         SplitterComponent splitter { SplitterComponent::Orientation::leftRight };
