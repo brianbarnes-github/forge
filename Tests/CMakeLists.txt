@@ -76,6 +76,7 @@ add_executable(forge_tests
     MidiImportPlan_tests.cpp
     MidiImport_tests.cpp
     MidiFidelity_tests.cpp
+    ImportOptions_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/MidiExport.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/MidiImportPlan.cpp
     RawMidi_tests.cpp

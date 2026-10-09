@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MidiImportPlan.h"
 #include "RawMidi.h"
 #include "SongDocument.h"
 #include "Core/Config.h"
@@ -52,10 +53,12 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 // document unchanged and returns false. On success, appends
 // `importerDiagnostics` (with trackIndex remapped to the document row --
 // the MIDI_TRACK's SOURCE_MIDI child index), then the plan's diagnostics,
-// then the bridge's own, and returns true.
+// then the bridge's own, and returns true. `options` default to today's
+// behaviour (keep the tempo map, expand the tracks).
 bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiFile& raw,
                          int importBatch, Diagnostics& diagnostics,
-                         const Diagnostics& importerDiagnostics = {});
+                         const Diagnostics& importerDiagnostics = {},
+                         const ImportOptions& options = {});
 
 // Opens `midiFile` (sourceName = the file's stem, matching the CLI's ad-hoc
 // path in Source/Main.cpp), parses with both importMidi and readMidiBytes and
@@ -64,9 +67,10 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
 // SONG.inputMidiPath only if it is currently empty (first import's filename
 // wins). Never touches the UndoManager (bulk import is not a user-undoable
 // edit). An unopenable file likewise appends a Severity::Error Diagnostic
-// (source "SongModelBridge") and returns false.
+// (source "SongModelBridge") and returns false. `options` default to today's
+// behaviour (keep the tempo map, expand the tracks).
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
-                     Diagnostics& diagnostics);
+                     Diagnostics& diagnostics, const ImportOptions& options = {});
 
 // A-R1: default-part synthesis. For every assignable MIDI_TRACK (not the conductor, not note-less) not yet referenced by
 // any ASSIGNMENT on any PART, adds one PART (instrumentName =

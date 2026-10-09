@@ -115,8 +115,11 @@ namespace
         // leaving zero tracks) would otherwise still read as "no import has
         // landed yet" on the next call, causing a second import to re-set
         // ticksPerQuarter and re-append onto maps that already hold the first
-        // file's entries.
+        // file's entries. A tempo replace (ImportOptions::tempo == replace)
+        // overrides this: the file's maps replace the document's.
         const bool isFirstImport = doc.getTempoMapNode().getNumChildren() == 0;
+        // A later import whose plan writes the conductor is a tempo replace.
+        const bool replacingTempo = plan != nullptr && plan->writesConductor && ! isFirstImport;
 
         if (isFirstImport)
             doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, imported.ticksPerQuarter, nullptr);
@@ -279,7 +282,10 @@ namespace
                 juce::ValueTree trackTree;
                 if (planned.songTrackIndex >= 0)
                 {
-                    trackTree = addSongTrack (imported.tracks[(size_t) planned.songTrackIndex], &planned.noteLinks);
+                    const Track& source = planned.mergedTrack.has_value()
+                                              ? *planned.mergedTrack
+                                              : imported.tracks[(size_t) planned.songTrackIndex];
+                    trackTree = addSongTrack (source, &planned.noteLinks);
                 }
                 else
                 {
@@ -297,11 +303,14 @@ namespace
                 appendEvents (SongDocument::getEventsNode (trackTree), planned.events);
             }
 
-            if (plan->writesConductor) // first import only, so never rescaled
+            if (plan->writesConductor) // first import, or a tempo replace
             {
                 auto conductor = doc.getConductorTrack();
-                appendEvents (SongDocument::getEventsNode (conductor), plan->conductorEvents);
-                conductor.setProperty (SongIDs::endTick, plan->conductorEndTick, nullptr);
+                auto conductorEvents = SongDocument::getEventsNode (conductor);
+                if (replacingTempo)
+                    conductorEvents.removeAllChildren (nullptr);   // the file's conductor replaces it wholesale
+                appendEvents (conductorEvents, plan->conductorEvents);   // rescaled when the PPQs differ
+                conductor.setProperty (SongIDs::endTick, rescaleOther (plan->conductorEndTick), nullptr);
             }
         }
 
@@ -344,22 +353,31 @@ namespace
             diagnostics.push_back (std::move (d));
         }
 
-        if (isFirstImport)
+        if (isFirstImport || replacingTempo)
         {
             auto tempoMapNode = doc.getTempoMapNode();
+            auto meterMapNode = doc.getMeterMapNode();
+            if (replacingTempo)
+            {
+                tempoMapNode.removeAllChildren (nullptr);
+                meterMapNode.removeAllChildren (nullptr);
+            }
+            // The conductor events above already counted any inexact rescale, so the
+            // map ticks are converted without a second count.
+            const auto mapTick = [&] (int tick) { return needsRescale ? rescaleTick (tick, docPpq, importedPpq) : tick; };
+
             for (const auto& change : imported.tempoMap)
             {
                 juce::ValueTree changeTree (SongIDs::TEMPO_CHANGE);
-                changeTree.setProperty (SongIDs::tick, change.tick, nullptr);
+                changeTree.setProperty (SongIDs::tick, mapTick (change.tick), nullptr);
                 changeTree.setProperty (SongIDs::bpm, change.bpm, nullptr);
                 SongDocument::appendChildBulk (tempoMapNode, changeTree);
             }
 
-            auto meterMapNode = doc.getMeterMapNode();
             for (const auto& change : imported.meterMap)
             {
                 juce::ValueTree changeTree (SongIDs::METER_CHANGE);
-                changeTree.setProperty (SongIDs::tick, change.tick, nullptr);
+                changeTree.setProperty (SongIDs::tick, mapTick (change.tick), nullptr);
                 changeTree.setProperty (SongIDs::numerator, change.numerator, nullptr);
                 changeTree.setProperty (SongIDs::denominator, change.denominator, nullptr);
                 SongDocument::appendChildBulk (meterMapNode, changeTree);
@@ -445,7 +463,7 @@ void appendImportedSong (SongDocument& doc, const Song& imported, int importBatc
 
 bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiFile& raw,
                          int importBatch, Diagnostics& diagnostics,
-                         const Diagnostics& importerDiagnostics)
+                         const Diagnostics& importerDiagnostics, const ImportOptions& options)
 {
     const bool isFirstImport = doc.getTempoMapNode().getNumChildren() == 0;
 
@@ -453,7 +471,7 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
     MidiImportPlan plan;
     try
     {
-        plan = planMidiImport (imported, raw, isFirstImport, planDiagnostics);
+        plan = planMidiImport (imported, raw, isFirstImport, planDiagnostics, options);
     }
     catch (const MidiImportPlanError& e)
     {
@@ -470,8 +488,16 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
     const int firstRow = doc.getNumTracks();
     std::map<int, int> rowForSongTrack;
     for (int p = 0; p < (int) plan.tracks.size(); ++p)
-        if (plan.tracks[(size_t) p].songTrackIndex >= 0)
-            rowForSongTrack[plan.tracks[(size_t) p].songTrackIndex] = firstRow + p;
+    {
+        const auto& planned = plan.tracks[(size_t) p];
+        if (planned.mergedTrack.has_value())
+        {
+            for (const int songTrack : planned.mergedSongTrackIndices)
+                rowForSongTrack[songTrack] = firstRow + p;   // every folded-in track lands on the merged row
+        }
+        else if (planned.songTrackIndex >= 0)
+            rowForSongTrack[planned.songTrackIndex] = firstRow + p;
+    }
 
     for (auto d : importerDiagnostics)
     {
@@ -489,7 +515,7 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
 }
 
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
-                     Diagnostics& diagnostics)
+                     Diagnostics& diagnostics, const ImportOptions& options)
 {
     juce::MemoryBlock block;
     if (! midiFile.existsAsFile() || ! midiFile.loadFileAsData (block))
@@ -525,7 +551,7 @@ bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBa
         return false;
     }
 
-    if (! appendImportedMidi (doc, imported, raw, importBatch, diagnostics, importerDiagnostics))
+    if (! appendImportedMidi (doc, imported, raw, importBatch, diagnostics, importerDiagnostics, options))
         return false;
 
     // R3: first import's filename wins for SONG.inputMidiPath (and thus the
