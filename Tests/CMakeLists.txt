@@ -69,6 +69,7 @@ add_executable(forge_tests
     GmProgramNames_tests.cpp
     WindowPlacement_tests.cpp
     AboutBox_tests.cpp
+    AppSettings_tests.cpp
     JuceNoteReplica_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/JuceNoteReplica.cpp
     MidiImportPlan_tests.cpp
