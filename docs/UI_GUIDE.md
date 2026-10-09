@@ -550,6 +550,6 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
 
 `File → Import ▸ MIDI…` or a dropped `.mid`/`.midi`, when Import Track Options is *Ask*. Modal, titled "MIDI File Import" and naming the file. Two radio groups:
 
-- **Tempo map:** *Keep existing tempo map* (default) / *Replace existing tempo map* (the file's tempo and meter maps and conductor events replace the Song's; existing tracks then play at the new tempo, and an Info diagnostic says so). Greyed out on an empty Song, where the file's tempo map is used anyway.
+- **Tempo map:** *Keep existing tempo map* (default) / *Replace existing tempo map* (the file's tempo and meter maps and conductor events replace the Song's; existing tracks then play at the new tempo, and an Info diagnostic says so). Replace also removes the markers, copyright, key signatures and other conductor events from earlier imports. Greyed out when the Song has no tempo map yet, where the file's tempo map is used anyway.
 - **Tracks:** *Expand into separate tracks* (default) / *Merge into one track* (all of the file's note tracks become one track named "<file> (merged)"; each note keeps its MIDI channel, so Export ▸ MIDI writes it back on the original channel).
 - **OK** imports with the chosen options; **Cancel**, Escape and the title-bar X import nothing and leave the Song untouched.

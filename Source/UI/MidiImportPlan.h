@@ -73,7 +73,7 @@ struct PlannedTrack
 
 struct MidiImportPlan
 {
-    bool                      writesConductor     = false; // first import only
+    bool                      writesConductor     = false; // first import, or a tempo replace
     std::vector<PlannedEvent> conductorEvents;
     int                       conductorEndTick    = 0;
     std::vector<PlannedTrack> tracks;                       // raw order, file's conductor excluded

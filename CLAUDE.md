@@ -2,7 +2,7 @@
 
 Guidance for Claude Code (claude.ai/code) when working in this repository.
 
-## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity, the `.songsmith` Song file, source-MIDI playback (TinySoundFont, transport, mute/solo), track sections (split/move/resize/delete, `S`/`Delete`/Ctrl+A, multi-track selection) and a Preferences dialog (`File → Preferences…`, two confirmation toggles) and MIDI import options (tempo map keep/replace, expand/merge tracks, Preferences ▸ Import) implemented
+## Status: v0.1 CLI complete; Songsmith GUI through Phase 7 + polish; MIDI fidelity, the `.songsmith` Song file, source-MIDI playback (TinySoundFont, transport, mute/solo), track sections (split/move/resize/delete, `S`/`Delete`/Ctrl+A, multi-track selection), a Preferences dialog (`File → Preferences…`, two confirmation toggles) and MIDI import options (tempo map keep/replace, expand/merge tracks, Preferences ▸ Import) implemented
 
 This repo (**Forge**) is a MIDI → LOTRO ABC converter shipped as a CLI
 (`forge`) and a JUCE GUI (`forge_ui`, the **Songsmith** MIDI editor —

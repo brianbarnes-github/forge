@@ -23,7 +23,9 @@ namespace lotro
 // i.e. TEMPO_MAP is not empty — that emptiness, not track count, is what
 // distinguishes the first import from a later one; see appendImport's
 // definition of isFirstImport in the .cpp):
-//   * TEMPO_MAP/METER_MAP belong to the FIRST import only. A later
+//   * TEMPO_MAP/METER_MAP belong to the FIRST import only, unless
+//     options.tempo is TempoMode::replace, in which case a later import
+//     replaces them (and the conductor events) wholesale. Otherwise a later
 //     import's tempo/meter map is never appended/concatenated. If the
 //     later import's map (after rescaling its ticks below) differs from
 //     what the document already holds, one Severity::Warning Diagnostic
