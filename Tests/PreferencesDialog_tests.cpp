@@ -1,5 +1,6 @@
 #include "UI/Preferences/PreferencesDialog.h"
 #include "UI/Preferences/GeneralPreferencesPage.h"
+#include "UI/Preferences/ImportPreferencesPage.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -24,7 +25,7 @@ TEST_CASE ("PreferencesDialog: the tree lists the registered pages, General firs
 
     REQUIRE (preferencePages().size() >= 1);
     CHECK (preferencePages().front().name == "General");
-    CHECK (dialog.pageNames() == juce::StringArray { "General" });
+    CHECK (dialog.pageNames() == juce::StringArray { "General", "Import" });
     CHECK (dialog.getSelectedPageIndex() == 0);
     CHECK (dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage()) != nullptr);
 }
@@ -94,4 +95,34 @@ TEST_CASE ("PreferencesDialog: the Close button asks to close", "[preferences]")
     dialog.closeButtonForTesting().triggerClick();
     juce::MessageManager::getInstance()->runDispatchLoopUntil (100);   // triggerClick() is asynchronous
     CHECK (closed);
+}
+
+TEST_CASE ("PreferencesDialog: the Import page is the second page", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    PreferencesDialog dialog (f.settings);
+    dialog.selectPage (1);
+    CHECK (dialog.getSelectedPageIndex() == 1);
+    CHECK (dynamic_cast<ImportPreferencesPage*> (dialog.currentPage()) != nullptr);
+}
+
+TEST_CASE ("Import page: the dropdown shows the saved choice and writes straight through", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    {
+        ImportPreferencesPage page (f.settings);
+        CHECK (page.trackOptionsForTesting().getSelectedId() == 1);   // Ask by default
+
+        page.trackOptionsForTesting().setSelectedId (2, juce::sendNotificationSync);
+        CHECK (f.settings.importTrackOptions() == ImportTrackOptions::expandedAlways);
+
+        page.trackOptionsForTesting().setSelectedId (1, juce::sendNotificationSync);
+        CHECK (f.settings.importTrackOptions() == ImportTrackOptions::ask);
+    }
+
+    f.settings.setImportTrackOptions (ImportTrackOptions::expandedAlways);
+    ImportPreferencesPage reopened (f.settings);                     // a fresh page reflects the saved state
+    CHECK (reopened.trackOptionsForTesting().getSelectedId() == 2);
 }

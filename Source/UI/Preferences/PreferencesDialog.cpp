@@ -1,5 +1,6 @@
 #include "PreferencesDialog.h"
 #include "GeneralPreferencesPage.h"
+#include "ImportPreferencesPage.h"
 #include "../SongsmithColours.h"
 
 namespace lotro
@@ -9,6 +10,7 @@ namespace lotro
         static const std::vector<PreferencesPage> pages
         {
             { "General", [] (AppSettings& s) -> std::unique_ptr<juce::Component> { return std::make_unique<GeneralPreferencesPage> (s); } },
+            { "Import",  [] (AppSettings& s) -> std::unique_ptr<juce::Component> { return std::make_unique<ImportPreferencesPage> (s); } },
         };
         return pages;
     }

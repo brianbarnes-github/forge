@@ -115,6 +115,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/AboutBox.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ImportOptionsDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/GeneralPreferencesPage.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/ImportPreferencesPage.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/PreferencesDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
