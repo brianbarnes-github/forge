@@ -202,3 +202,149 @@ TEST_CASE ("ImportOptions: merged on a single note track imports it unchanged", 
         if (SongDocument::isAssignableTrack (doc.getTrack (i)))
             CHECK_FALSE (doc.getTrack (i).getProperty (SongIDs::name).toString().endsWith (" (merged)"));
 }
+
+TEST_CASE ("ImportOptions: tempo replace at a different PPQ raises the Song to the LCM and rescales everything consistently", "[import-options]")
+{
+    // Song at 96 PPQ; the replacing file is 64 PPQ with a tempo change at its tick 64. lcm(96, 64) = 192:
+    // the existing Song scales by 2, the incoming file by 3.
+    TempMidi first  (smf (1, 96, { conductor (usFor120), melody (60) }));
+    TempMidi second (smf (1, 64, { conductor (usFor120, 64, usFor100), melody (64) }));
+
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, first.file, 1, d1));
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    REQUIRE (importMidiFile (doc, second.file, 2, d2, options));
+
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 192);
+
+    const auto tempoMap = doc.getTempoMapNode();
+    REQUIRE (tempoMap.getNumChildren() == 2);
+    CHECK ((int) tempoMap.getChild (1).getProperty (SongIDs::tick) == 192);   // 64 * 3
+    CHECK ((double) tempoMap.getChild (1).getProperty (SongIDs::bpm) == Catch::Approx (100.0));
+
+    // Conductor events and endTick come from the replacing file, scaled by 3 (eot is 960 ticks after tick 64).
+    const auto conductorTrack = doc.getConductorTrack();
+    const auto events = SongDocument::getEventsNode (conductorTrack);
+    REQUIRE (events.getNumChildren() == 2);
+    CHECK ((int) events.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((int) events.getChild (1).getProperty (SongIDs::tick) == 192);
+    CHECK ((int) conductorTrack.getProperty (SongIDs::endTick) == (64 + 960) * 3);
+
+    // The earlier import's note (tick 0, 96 long at 96 PPQ) was scaled by 2; the new file's (96 long at 64 PPQ) by 3.
+    std::vector<std::pair<int, int>> notes;   // (startTick, durationTicks) per note-track, in row order
+    for (int i = 0; i < doc.getNumTracks(); ++i)
+        if (SongDocument::isAssignableTrack (doc.getTrack (i)))
+        {
+            const auto n = SongDocument::getNotesNode (doc.getTrack (i)).getChild (0);
+            notes.emplace_back ((int) n.getProperty (SongIDs::startTick), (int) n.getProperty (SongIDs::durationTicks));
+        }
+    REQUIRE (notes.size() == 2);
+    CHECK (notes[0] == std::make_pair (0, 192));
+    CHECK (notes[1] == std::make_pair (0, 288));
+}
+
+TEST_CASE ("ImportOptions: tempo replace clears the meter map and takes the new file's", "[import-options]")
+{
+    auto meterConductor = [] (std::uint8_t numerator, std::uint8_t denominatorPow2) -> TrackBody
+    {
+        TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 })
+         .ev (0, { 0xFF, 0x58, 0x04, numerator, denominatorPow2, 0x18, 0x08 })
+         .eot (960);
+        return c;
+    };
+    TempMidi first  (smf (1, 96, { meterConductor (3, 2), melody (60) }));   // 3/4
+    TempMidi second (smf (1, 96, { meterConductor (6, 3), melody (64) }));   // 6/8
+
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, first.file, 1, d1));
+    REQUIRE (doc.getMeterMapNode().getNumChildren() == 1);
+    CHECK ((int) doc.getMeterMapNode().getChild (0).getProperty (SongIDs::numerator) == 3);
+
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    REQUIRE (importMidiFile (doc, second.file, 2, d2, options));
+
+    const auto meterMap = doc.getMeterMapNode();
+    REQUIRE (meterMap.getNumChildren() == 1);   // the 3/4 entry is gone, not appended after
+    CHECK ((int) meterMap.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((int) meterMap.getChild (0).getProperty (SongIDs::numerator) == 6);
+    CHECK ((int) meterMap.getChild (0).getProperty (SongIDs::denominator) == 8);
+}
+
+TEST_CASE ("ImportOptions: a diagnostic from a folded-in track lands on the merged row", "[import-options]")
+{
+    TrackBody a;   // a clean first note track
+    a.ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    TrackBody b;   // the second note track also holds a note-on (pitch 70) that is never released
+    b.ev (0, { 0x90, 64, 90 }).ev (0, { 0x90, 70, 90 }).ev (96, { 0x80, 64, 0x40 }).eot();
+    TempMidi tmp (smf (1, 96, { conductor (usFor120), a, b }));
+
+    auto rowOfDiagnostic = [&] (const ImportOptions& options, SongDocument& doc, int& noteRow)
+    {
+        Diagnostics diags;
+        REQUIRE (importMidiFile (doc, tmp.file, 1, diags, options));
+        noteRow = -1;
+        for (int i = doc.getNumTracks() - 1; i >= 0; --i)
+            if (SongDocument::isAssignableTrack (doc.getTrack (i)))
+                noteRow = i;   // first note row
+        const auto it = std::find_if (diags.begin(), diags.end(), [] (const Diagnostic& d)
+                                      { return d.message.find ("Unmatched note-on") != std::string::npos; });
+        REQUIRE (it != diags.end());
+        return it->trackIndex;
+    };
+
+    SongDocument expanded, merged;
+    int expandedFirstRow = -1, mergedRow = -1;
+    const int expandedIndex = rowOfDiagnostic ({}, expanded, expandedFirstRow);
+    CHECK (expandedIndex == expandedFirstRow + 1);   // sanity: on the second track's row when expanded
+
+    ImportOptions options;
+    options.tracks = TrackMode::merged;
+    const int mergedIndex = rowOfDiagnostic (options, merged, mergedRow);
+    REQUIRE (noteTrackCount (merged) == 1);
+    CHECK (mergedIndex == mergedRow);   // the merged row, not -1 and not a stale second-track row
+}
+
+TEST_CASE ("ImportOptions: merged export keeps same-tick events in (raw track, original index) order", "[import-options]")
+{
+    // Both tracks have events on ticks 0 and 96. Track a uses channel 3 (status 0x92/0x82) and track b channel 1
+    // (0x90/0x80), b's tick-0 note-ons descend in pitch, and a's tick-0 note-on has a higher index than b's first, so neither byte order nor pitch order equals
+    // the required (track, index) order.
+    TrackBody a;
+    a.ev (0, { 0xC2, 5 }).ev (0, { 0x92, 72, 100 }).ev (96, { 0x82, 72, 0x40 }).eot();   // a's note-on has index 1
+    TrackBody b;
+    b.ev (0, { 0x90, 67, 90 }).ev (0, { 0x90, 60, 80 }).ev (96, { 0x80, 67, 0x40 }).ev (0, { 0x80, 60, 0x40 }).eot();
+    const auto bytes = smf (1, 96, { conductor (usFor120), a, b });
+    TempMidi tmp (bytes);
+
+    SongDocument merged;
+    Diagnostics diags;
+    ImportOptions options;
+    options.tracks = TrackMode::merged;
+    REQUIRE (importMidiFile (merged, tmp.file, 1, diags, options));
+    REQUIRE (noteTrackCount (merged) == 1);
+
+    const auto original = readMidiBytes (bytes, "o");
+    const auto exported = buildRawMidiFile (merged);
+    REQUIRE (exported.tracks.size() == 2);
+
+    // (tick, raw track, original index, bytes), sorted by the first three.
+    std::vector<std::tuple<int, size_t, size_t, Bytes>> ordered;
+    for (size_t t = 1; t < original.tracks.size(); ++t)
+        for (size_t i = 0; i < original.tracks[t].events.size(); ++i)
+            ordered.emplace_back (original.tracks[t].events[i].tick, t, i, original.tracks[t].events[i].bytes);
+    std::sort (ordered.begin(), ordered.end(), [] (const auto& x, const auto& y)
+               { return std::tie (std::get<0> (x), std::get<1> (x), std::get<2> (x))
+                      < std::tie (std::get<0> (y), std::get<1> (y), std::get<2> (y)); });
+
+    std::vector<std::pair<int, Bytes>> want, got;
+    for (const auto& o : ordered)
+        want.emplace_back (std::get<0> (o), std::get<3> (o));
+    for (const auto& e : exported.tracks[1].events)
+        got.emplace_back (e.tick, e.bytes);
+    CHECK (got == want);   // sequence equality, not multiset
+}
