@@ -11,6 +11,7 @@
 #include "RawMidi.h"
 
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -63,6 +64,11 @@ struct PlannedTrack
     int                          endTick           = 0;
     std::vector<PlannedNoteLink> noteLinks;              // parallel to Song::tracks[songTrackIndex].notes
     std::vector<PlannedEvent>    events;
+    // Set only for a merged track (ImportOptions::tracks == merged): the
+    // combined notes (parallel to noteLinks) and the Song::tracks indices they
+    // came from. songTrackIndex is then the first of those.
+    std::optional<Track>         mergedTrack;
+    std::vector<int>             mergedSongTrackIndices;
 };
 
 struct MidiImportPlan

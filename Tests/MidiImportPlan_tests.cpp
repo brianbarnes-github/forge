@@ -380,3 +380,98 @@ TEST_CASE ("MidiImportPlan: tempo replace on the first import is identical to ke
     CHECK (replace.conductorEvents.size() == keep.conductorEvents.size());
     CHECK (replaceDiags.size() == keepDiags.size());   // no "Replaced" line when nothing existed
 }
+
+namespace
+{
+    ImportOptions mergedOptions()
+    {
+        ImportOptions o;
+        o.tracks = TrackMode::merged;
+        return o;
+    }
+}
+
+TEST_CASE ("MidiImportPlan: merged folds every note track into one, keeping channels and renumbering orders", "[midiimportplan]")
+{
+    TrackBody a;   // MIDI channel 1
+    a.ev (0, { 0xFF, 0x03, 0x01, 'A' }).ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    TrackBody b;   // MIDI channel 3
+    b.ev (0, { 0xFF, 0x03, 0x01, 'B' }).ev (0, { 0x92, 64, 90 }).ev (48, { 0x92, 67, 80 })
+     .ev (48, { 0x82, 64, 0x40 }).ev (48, { 0x82, 67, 0x40 }).eot();
+    const auto p = parse (smf (1, 96, { conductorBody(), a, b }));
+
+    Diagnostics diags;
+    const auto plan = planMidiImport (p.song, p.raw, true, diags, mergedOptions());
+
+    REQUIRE (plan.tracks.size() == 1);
+    const auto& t = plan.tracks[0];
+    REQUIRE (t.mergedTrack.has_value());
+    CHECK (t.mergedTrack->name == "t (merged)");
+    CHECK (t.mergedSongTrackIndices == std::vector<int> { 0, 1 });
+    CHECK (t.songTrackIndex == 0);
+    CHECK (t.rawTrackIndex == 1);
+
+    // Notes stable-sorted by start tick: A60@0, B64@0, B67@48.
+    REQUIRE (t.mergedTrack->notes.size() == 3);
+    CHECK (t.mergedTrack->notes[0].pitch == 60);
+    CHECK (t.mergedTrack->notes[1].pitch == 64);
+    CHECK (t.mergedTrack->notes[2].pitch == 67);
+    REQUIRE (t.noteLinks.size() == 3);
+    CHECK (t.noteLinks[0].channel == 1);
+    CHECK (t.noteLinks[1].channel == 3);
+    CHECK (t.noteLinks[2].channel == 3);
+
+    // Raw events sorted by (tick, raw track, index): A.name 0, A.on 1, B.name 2, B.on64 3,
+    // B.on67 4, A.off 5, B.off64 6, B.off67 7.
+    CHECK (t.noteLinks[0].onOrder == 1);  CHECK (t.noteLinks[0].offOrder == 5);
+    CHECK (t.noteLinks[1].onOrder == 3);  CHECK (t.noteLinks[1].offOrder == 6);
+    CHECK (t.noteLinks[2].onOrder == 4);  CHECK (t.noteLinks[2].offOrder == 7);
+    REQUIRE (t.events.size() == 2);       // the two track names
+    CHECK (t.events[0].order == 0);
+    CHECK (t.events[1].order == 2);
+
+    const auto merged = std::any_of (diags.begin(), diags.end(), [] (const Diagnostic& d)
+        { return d.severity == Severity::Info && d.message.find ("Merged 2") != std::string::npos; });
+    CHECK (merged);
+}
+
+TEST_CASE ("MidiImportPlan: merged leaves note-less tracks alone and mixes drums with melody without losing flags", "[midiimportplan]")
+{
+    TrackBody melody;
+    melody.ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    TrackBody drums;   // MIDI channel 10
+    drums.ev (0, { 0x99, 36, 100 }).ev (48, { 0x89, 36, 0x40 }).eot();
+    TrackBody markers; // no notes
+    markers.ev (0, { 0xFF, 0x03, 0x01, 'X' }).eot();
+    const auto p = parse (smf (1, 96, { conductorBody(), melody, markers, drums }));
+
+    Diagnostics diags;
+    const auto plan = planMidiImport (p.song, p.raw, true, diags, mergedOptions());
+
+    REQUIRE (plan.tracks.size() == 2);                // merged track + the note-less one
+    REQUIRE (plan.tracks[0].mergedTrack.has_value());
+    CHECK_FALSE (plan.tracks[1].mergedTrack.has_value());
+    CHECK (plan.tracks[1].songTrackIndex == -1);
+    const auto& notes = plan.tracks[0].mergedTrack->notes;
+    REQUIRE (notes.size() == 2);
+    CHECK_FALSE (notes[0].isDrum);
+    CHECK (notes[1].isDrum);
+    CHECK (plan.tracks[0].noteLinks[1].channel == 10);
+}
+
+TEST_CASE ("MidiImportPlan: merged with fewer than two note tracks changes nothing", "[midiimportplan]")
+{
+    TrackBody melody;
+    melody.ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot();
+    const auto p = parse (smf (1, 96, { conductorBody(), melody }));
+
+    Diagnostics expandedDiags, mergedDiags;
+    const auto expanded = planMidiImport (p.song, p.raw, true, expandedDiags);
+    const auto merged   = planMidiImport (p.song, p.raw, true, mergedDiags, mergedOptions());
+
+    REQUIRE (merged.tracks.size() == expanded.tracks.size());
+    CHECK_FALSE (merged.tracks[0].mergedTrack.has_value());
+    CHECK (merged.tracks[0].songTrackIndex == expanded.tracks[0].songTrackIndex);
+    CHECK (merged.tracks[0].noteLinks.size() == expanded.tracks[0].noteLinks.size());
+    CHECK (mergedDiags.size() == expandedDiags.size());
+}

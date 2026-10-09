@@ -3,7 +3,9 @@
 
 #include <juce_core/juce_core.h> // jassertfalse only
 
+#include <algorithm>
 #include <map>
+#include <tuple>
 
 namespace lotro
 {
@@ -117,6 +119,94 @@ namespace
         d.severity = Severity::Info;
         d.message  = std::move (message);
         diagnostics.push_back (std::move (d));
+    }
+
+    // Folds every note-bearing planned track into one. `order` is per raw
+    // track, so every raw event of the merged tracks is renumbered by
+    // (tick, raw track, original index) and the note links and leftover events
+    // are remapped through the same table; each source track's own relative
+    // order is preserved. Fewer than two note tracks: nothing to merge.
+    void mergeNoteTracks (const Song& song, const RawMidiFile& raw, MidiImportPlan& plan, Diagnostics& local)
+    {
+        std::vector<size_t> noteTracks;
+        for (size_t p = 0; p < plan.tracks.size(); ++p)
+            if (plan.tracks[p].songTrackIndex >= 0)
+                noteTracks.push_back (p);
+        if (noteTracks.size() < 2)
+            return;
+
+        struct Key { int tick; int rawTrack; int index; };
+        std::vector<Key> keys;
+        for (const auto p : noteTracks)
+        {
+            const int r = plan.tracks[p].rawTrackIndex;
+            const auto& events = raw.tracks[(size_t) r].events;
+            for (int i = 0; i < (int) events.size(); ++i)
+                keys.push_back ({ events[(size_t) i].tick, r, i });
+        }
+        std::sort (keys.begin(), keys.end(), [] (const Key& a, const Key& b)
+                   { return std::tie (a.tick, a.rawTrack, a.index) < std::tie (b.tick, b.rawTrack, b.index); });
+        std::map<std::pair<int, int>, int> newOrder;
+        for (int k = 0; k < (int) keys.size(); ++k)
+            newOrder[{ keys[(size_t) k].rawTrack, keys[(size_t) k].index }] = k;
+
+        const auto& first = plan.tracks[noteTracks.front()];
+        PlannedTrack merged;
+        merged.rawTrackIndex  = first.rawTrackIndex;
+        merged.songTrackIndex = first.songTrackIndex;
+        merged.defaultChannel = first.defaultChannel;
+
+        Track track = song.tracks[(size_t) first.songTrackIndex]; // name, channel, program from the first
+        track.notes.clear();
+        track.name = (song.title.empty() ? std::string ("Merged") : song.title) + " (merged)";
+
+        struct NoteAndLink { Note note; PlannedNoteLink link; };
+        std::vector<NoteAndLink> pairs;
+        for (const auto p : noteTracks)
+        {
+            const auto& planned = plan.tracks[p];
+            const int r = planned.rawTrackIndex;
+            merged.endTick = std::max (merged.endTick, planned.endTick);
+            merged.mergedSongTrackIndices.push_back (planned.songTrackIndex);
+
+            const auto& notes = song.tracks[(size_t) planned.songTrackIndex].notes;
+            for (size_t n = 0; n < notes.size(); ++n)
+            {
+                auto link = planned.noteLinks[n];
+                link.onOrder = newOrder.at ({ r, link.onOrder });
+                if (! link.offSynthesized && link.offOrder >= 0)
+                    link.offOrder = newOrder.at ({ r, link.offOrder });
+                pairs.push_back ({ notes[n], link });
+            }
+            for (auto e : planned.events)
+            {
+                e.order = newOrder.at ({ r, e.order });
+                merged.events.push_back (std::move (e));
+            }
+        }
+
+        std::stable_sort (pairs.begin(), pairs.end(), [] (const NoteAndLink& a, const NoteAndLink& b)
+                          { return a.note.startTick < b.note.startTick; });
+        for (auto& pair : pairs)
+        {
+            track.notes.push_back (pair.note);
+            merged.noteLinks.push_back (pair.link);
+        }
+        std::stable_sort (merged.events.begin(), merged.events.end(), [] (const PlannedEvent& a, const PlannedEvent& b)
+                          { return std::tie (a.tick, a.order) < std::tie (b.tick, b.order); });
+        merged.mergedTrack = std::move (track);
+
+        std::vector<PlannedTrack> result;
+        for (size_t p = 0; p < plan.tracks.size(); ++p)
+        {
+            if (p == noteTracks.front())
+                result.push_back (merged);
+            else if (std::find (noteTracks.begin(), noteTracks.end(), p) == noteTracks.end())
+                result.push_back (std::move (plan.tracks[p]));
+        }
+        plan.tracks = std::move (result);
+
+        info (local, "Merged " + std::to_string (noteTracks.size()) + " MIDI tracks into one track");
     }
 }
 
@@ -232,6 +322,9 @@ MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool is
 
         plan.tracks.push_back (std::move (planned));
     }
+
+    if (options.tracks == TrackMode::merged)
+        mergeNoteTracks (song, raw, plan, local);
 
     if (plan.relocatedEventCount > 0)
         info (local, "Moved " + std::to_string (plan.relocatedEventCount)
