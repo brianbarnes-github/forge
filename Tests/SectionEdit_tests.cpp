@@ -614,6 +614,48 @@ TEST_CASE ("sections: a note drawn in a gap is not carried away by a distant sec
     }
 }
 
+namespace
+{
+    // (tick, status * 1000 + pitch) of every message EVENTS still holds, in stored order.
+    std::vector<std::pair<int, int>> eventsLeft (const juce::ValueTree& track)
+    {
+        std::vector<std::pair<int, int>> out;
+        for (auto e : SongDocument::getEventsNode (track))
+        {
+            const auto* block = e.getProperty (SongIDs::data).getBinaryData();
+            const auto* bytes = static_cast<const std::uint8_t*> (block->getData());
+            out.emplace_back ((int) e.getProperty (SongIDs::tick), bytes[0] * 1000 + bytes[1]);
+        }
+        return out;
+    }
+}
+
+TEST_CASE ("resizeSections: shrinking an edge takes the stray note events in the band given up", "[sections][resize]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    addNote (t, 64, 1920, 480);   // section [0, 2400)
+    addEvent (t, 960, { 0x90, 62, 90 });    // stray duplicate of the note at 960
+    addEvent (t, 1000, { 0xB0, 7, 100 });   // controller: stays
+    addEvent (t, 1440, { 0x80, 62, 64 });
+    addEvent (t, 100, { 0x90, 70, 90 });    // outside the band: stays, pair and all
+    addEvent (t, 200, { 0x80, 70, 64 });
+    const auto id = idOf (t);
+
+    SECTION ("right edge")
+    {
+        resizeSections (doc, { { id, 0 } }, SectionEdge::Right, 900);   // gives up [900, 2400)
+        CHECK (eventsLeft (t) == std::vector<std::pair<int, int>> { { 1000, 176007 }, { 100, 144070 }, { 200, 128070 } });
+    }
+    SECTION ("left edge")
+    {
+        resizeSections (doc, { { id, 0 } }, SectionEdge::Left, 1500);   // gives up [0, 1500)
+        CHECK (eventsLeft (t) == std::vector<std::pair<int, int>> { { 1000, 176007 } });   // the pair at 100/200 was in the band too
+    }
+}
+
 TEST_CASE ("moveSections: non-note events stay where they are", "[sections][move]")
 {
     SongDocument doc;

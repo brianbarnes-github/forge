@@ -423,6 +423,11 @@ namespace
             doc.setProperty (node, SongIDs::startTick, r.startTick, false);
             doc.setProperty (node, SongIDs::endTick, r.endTick, false);
 
+            if (r.startTick > old.startTick)
+                removeStrayNotesIn (doc, t.track, old.startTick, r.startTick);
+            if (r.endTick < old.endTick)
+                removeStrayNotesIn (doc, t.track, r.endTick, old.endTick);
+
             // Only a shrinking edge touches notes, and only those starting in the band
             // it gives up (or, on the right, crossing into it). Growing only extends the
             // range: a member lying outside it (drawn in a gap) is never touched.

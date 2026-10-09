@@ -30,7 +30,10 @@ together); a note under a split is **cut in two**.
   section moves or is cut; only notes follow sections. Deleting a section also
   removes the stray note-on/note-off pairs the importer kept in `EVENTS` (a
   stacked duplicate or zero-length note has no Song note) whose note-on lies
-  in the section; a note-off alone, paired with an on elsewhere, stays.
+  in the section; a note-off alone, paired with an on elsewhere, stays. Shrinking
+  a section's edge does the same for the band it gives up. **Known limit:**
+  moving a section does not move those stray pairs (they stay at their original
+  ticks), so a stacked duplicate is left behind as a ghost note at the old position.
 - Out of scope: moving a section to another track, copy/paste/duplicate of
   sections, sections in the Track editor roll.
 

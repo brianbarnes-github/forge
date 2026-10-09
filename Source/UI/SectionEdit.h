@@ -67,6 +67,8 @@ void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note);
 void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int tick);
 
 // Shifts each section and its notes by one delta, clamped so nothing starts below 0.
+// Known limit: stray note-on/off pairs the importer kept in EVENTS (stacked duplicates,
+// zero-length notes) stay at their original ticks, so they are left behind at the old position.
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks);
 
 // A single-target / explicit-tick helper: every section's edge goes to the same
@@ -75,7 +77,8 @@ void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int d
 // companion-safe) instead.
 // Moves one edge of each section to `tick` (at least 1 tick wide). Shrinking
 // deletes the notes that start in the band given up and trims a note crossing
-// the new edge; growing only extends the range and never touches a note.
+// the new edge; growing only extends the range and never touches a note. Stray
+// note-on/off pairs in EVENTS whose note-on lies in the band given up go too.
 void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int tick);
 
 // As resizeSections, but each section's edge moves by deltaTicks from where it is
@@ -83,7 +86,7 @@ void resizeSections (SongDocument& doc, const std::vector<SectionRef>& refs, Sec
 // different ends all move by the same amount.
 void resizeSectionsBy (SongDocument& doc, const std::vector<SectionRef>& refs, SectionEdge edge, int deltaTicks);
 
-// Removes the sections and their notes.
+// Removes the sections and their notes, plus stray note-on/off pairs in EVENTS whose note-on lies in them.
 void deleteSections (SongDocument& doc, const std::vector<SectionRef>& refs);
 
 } // namespace lotro
