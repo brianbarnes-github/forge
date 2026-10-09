@@ -151,6 +151,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/WindowPlacement.cpp
     Source/UI/BuildInfo.cpp
     Source/UI/AboutBox.cpp
+    Source/UI/Preferences/GeneralPreferencesPage.cpp
+    Source/UI/Preferences/PreferencesDialog.cpp
     Source/UI/AssignmentChipComponent.cpp
     Source/UI/PartSlotComponent.cpp
     Source/UI/PartStripComponent.cpp
