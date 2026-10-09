@@ -1,6 +1,6 @@
 # Songsmith MIDI import options — design
 
-Date: 2026-10-08. Status: awaiting review.
+Date: 2026-10-08. Status: implemented.
 
 ## Intent
 

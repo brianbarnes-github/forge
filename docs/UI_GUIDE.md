@@ -349,7 +349,9 @@ View
 **File → Import ▸ MIDI…** and dropping a `.mid`/`.midi` file both import into
 `songDocument` (via `importMidiFile`) and show the result in the Songsmith
 view's own `DiagnosticListView` (#23). Import adds to the open Song (it never
-replaces it). The Song itself is saved and opened as a `.songsmith` file (see
+replaces it). With Preferences ▸ Import ▸ Import Track Options on *Ask* (the
+default) an import first opens the **MIDI File Import** dialog (see "Import
+options dialog"). The Song itself is saved and opened as a `.songsmith` file (see
 "Menus"); there is no Config file path in the GUI any more — "Open Config…" and
 "Save Config As…" were removed.
 
@@ -365,7 +367,8 @@ File
   Save As…           Ctrl+Shift+S    ← appends .songsmith if missing, then
                                         asks before replacing another file (unless switched off in Preferences)
   ─────────
-  Import ▸ MIDI…                      ← FileChooser, .mid/.midi
+  Import ▸ MIDI…                      ← FileChooser, .mid/.midi; then opens the options
+                                        dialog when Preferences ▸ Import is Ask
   Export ▸ MIDI…                      ← the whole song as a format-1 .mid;
                                         disabled until something besides the
                                         conductor is imported. Independent
@@ -450,7 +453,7 @@ Passing a `.songsmith` path on the command line opens it at startup.
 
 The whole Main window (#1) is a drag-drop target. Drop:
 
-- `.mid` or `.midi` → same as **File → Import ▸ MIDI…**
+- `.mid` or `.midi` → same as **File → Import ▸ MIDI…** (including the options dialog)
 - `.songsmith` → same as **File → Open…** (behind the unsaved-changes guard)
 
 Within the Songsmith view itself, dragging a track row (#10) onto a part slot
@@ -536,8 +539,17 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
 
 `File → Preferences…`. Modal: the main window, its menus and shortcuts do nothing until it is closed (Close button, Escape or the title-bar X). Changes apply immediately; there is no OK/Cancel.
 
-- **Left:** a tree of pages (General, selected by default). **Splitter** between tree and page (drag to resize).
+- **Left:** a tree of pages (General, selected by default; then Import). **Splitter** between tree and page (drag to resize).
 - **General page:**
   - *Ask about unsaved changes* (default on) — off: New / Open / drops / Quit discard unsaved edits silently (no auto-save).
   - *Ask before replacing an existing file* (default on) — off: Save As and Export MIDI / ABC overwrite without the Replace box.
-- Both settings persist in the per-user settings file across launches.
+- **Import page:** one dropdown, *Import Track Options* — *Ask* (default: every import shows the options dialog) or *Import Expanded Always* (no dialog; keeps the existing tempo map and expands the file into separate tracks). Merging into one track is only available through Ask.
+- All settings persist in the per-user settings file across launches.
+
+## Import options dialog
+
+`File → Import ▸ MIDI…` or a dropped `.mid`/`.midi`, when Import Track Options is *Ask*. Modal, titled "MIDI File Import" and naming the file. Two radio groups:
+
+- **Tempo map:** *Keep existing tempo map* (default) / *Replace existing tempo map* (the file's tempo and meter maps and conductor events replace the Song's; existing tracks then play at the new tempo, and an Info diagnostic says so). Greyed out on an empty Song, where the file's tempo map is used anyway.
+- **Tracks:** *Expand into separate tracks* (default) / *Merge into one track* (all of the file's note tracks become one track named "<file> (merged)"; each note keeps its MIDI channel, so Export ▸ MIDI writes it back on the original channel).
+- **OK** imports with the chosen options; **Cancel**, Escape and the title-bar X import nothing and leave the Song untouched.
