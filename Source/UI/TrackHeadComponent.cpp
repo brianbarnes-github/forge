@@ -267,6 +267,12 @@ void TrackHeadComponent::endRename()
     // The member is cleared first so the focus-lost callback that removal
     // triggers is a no-op; the editor outlives the callback that got us here.
     std::shared_ptr<juce::TextEditor> dying (std::move (renameEditor));
+    // The removal posts a focus loss that can arrive after this head is gone,
+    // so the detached editor must not keep [this]. Clearing the callback that
+    // is running is safe: none of them touches its closure after this returns.
+    dying->onReturnKey = nullptr;
+    dying->onEscapeKey = nullptr;
+    dying->onFocusLost = nullptr;
     removeChildComponent (dying.get());
     juce::MessageManager::callAsync ([dying] {});
 }

@@ -241,6 +241,9 @@ TEST_CASE ("TrackHead: committing a new name fires onRenamed once; blank or unch
     head.beginRename(); head.commitRename ("   ");   CHECK (names.size() == 1);   // blank rejected
     head.beginRename(); head.commitRename ("Lute");  CHECK (names.size() == 1);   // unchanged
     CHECK (head.renameEditorForTesting() == nullptr);
+    // The editors are deleted on the next message-loop turn: run it inside this
+    // test's initialiser, or a later test frees them on a dead X connection.
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 }
 
 TEST_CASE ("TrackHead: Escape cancels a rename", "[track-head][rename]")
@@ -257,6 +260,41 @@ TEST_CASE ("TrackHead: Escape cancels a rename", "[track-head][rename]")
     CHECK (head.renameEditorForTesting() == nullptr);
     CHECK (! fired);
     juce::MessageManager::getInstance()->runDispatchLoopUntil (20);   // the deferred deletion must not crash
+}
+
+TEST_CASE ("TrackHead: losing focus cancels a rename", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    bool fired = false;
+    head.onRenamed = [&] (const juce::String&) { fired = true; };
+    head.beginRename();
+    head.renameEditorForTesting()->setText ("Other", juce::dontSendNotification);
+    head.renameEditorForTesting()->onFocusLost();
+    CHECK (head.renameEditorForTesting() == nullptr);
+    CHECK (! fired);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
+
+TEST_CASE ("TrackHead: a closed rename editor keeps no callbacks into the head while it awaits deletion", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    head.beginRename();
+    juce::Component::SafePointer<juce::TextEditor> editor (head.renameEditorForTesting());
+    head.commitRename ("Harp");
+    // Detached but not yet deleted: a focus-loss posted by the removal can still
+    // reach it after the head is gone, so it must not call back into the head.
+    REQUIRE (editor != nullptr);
+    CHECK (! editor->onReturnKey);
+    CHECK (! editor->onEscapeKey);
+    CHECK (! editor->onFocusLost);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (editor == nullptr);
 }
 
 TEST_CASE ("TrackHead: Return in the editor commits through the editor's own callback", "[track-head][rename]")

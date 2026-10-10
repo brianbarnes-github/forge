@@ -673,6 +673,9 @@ TEST_CASE ("TrackRowComponent: a head rename is forwarded with the trackId; the 
     row.headForTesting().commitRename ("Fiddle");
     CHECK (gotId == id);
     CHECK (gotName == "Fiddle");
+    // The editor is deleted on the next message-loop turn: run it inside this
+    // test's initialiser, or a later test frees it on a dead X connection.
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 
     TrackRowComponent conductor (doc.getConductorTrack(), 0, view);
     conductor.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
