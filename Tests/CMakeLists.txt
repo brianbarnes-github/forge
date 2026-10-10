@@ -72,6 +72,7 @@ add_executable(forge_tests
     AppSettings_tests.cpp
     PreferencesDialog_tests.cpp
     PlaybackPreferencesPage_tests.cpp
+    ViewPreferencesPages_tests.cpp
     ImportOptionsDialog_tests.cpp
     JuceNoteReplica_tests.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/JuceNoteReplica.cpp
@@ -118,6 +119,8 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/GeneralPreferencesPage.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/ImportPreferencesPage.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/PlaybackPreferencesPage.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/AppearancePreferencesPage.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/EditingPreferencesPage.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/PreferencesDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp

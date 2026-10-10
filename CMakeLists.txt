@@ -155,6 +155,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/Preferences/GeneralPreferencesPage.cpp
     Source/UI/Preferences/ImportPreferencesPage.cpp
     Source/UI/Preferences/PlaybackPreferencesPage.cpp
+    Source/UI/Preferences/AppearancePreferencesPage.cpp
+    Source/UI/Preferences/EditingPreferencesPage.cpp
     Source/UI/Preferences/PreferencesDialog.cpp
     Source/UI/AssignmentChipComponent.cpp
     Source/UI/PartSlotComponent.cpp

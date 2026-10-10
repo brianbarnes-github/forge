@@ -35,7 +35,7 @@ TEST_CASE ("PreferencesDialog: the tree lists the registered pages, General firs
 
     REQUIRE (preferencePages().size() >= 1);
     CHECK (preferencePages().front().name == "General");
-    CHECK (dialog.pageNames() == juce::StringArray { "General", "Import", "Playback" });
+    CHECK (dialog.pageNames() == juce::StringArray { "General", "Import", "Playback", "Appearance", "Editing" });
     CHECK (dialog.getSelectedPageIndex() == 0);
     CHECK (dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage()) != nullptr);
 }

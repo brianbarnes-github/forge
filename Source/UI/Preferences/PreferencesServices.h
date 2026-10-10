@@ -25,5 +25,6 @@ namespace lotro
         std::function<SoundFontLoad (const juce::File&)> loadSoundFont;        // load, then remember the choice
         std::function<SoundFontLoad ()>                  useBundledSoundFont;  // clear the choice, load the bundled file
         std::function<juce::String ()>                   activeSoundFontLabel;
+        std::function<void ()>                           applyViewSettings = {};   // re-read the view settings and push them to the views
     };
 }
