@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <memory>
 
 // The two-row head at the left of a MIDI-source track row: index, colour
 // swatch and name on top; drawn mute / solo icon buttons and a playback
@@ -53,6 +54,22 @@ public:
     // (wheel, keyboard, double-click reset), so each opens its own undo step.
     std::function<void (int percent, bool startsGesture)> onVolumeChanged;
 
+    // Right-click menu. buildContextMenu() is the single place menu items are
+    // added; item 1 is "Rename...", disabled on the conductor.
+    juce::PopupMenu buildContextMenu() const;
+    void showContextMenu();
+    void contextMenuChosen (int itemId);
+
+    // Inline rename. commitRename trims, and fires onRenamed only for a
+    // non-empty name that differs from the current one; either way the editor
+    // closes. Losing focus or pressing Escape cancels.
+    void beginRename();
+    void commitRename (const juce::String& newName);
+    std::function<void (const juce::String&)> onRenamed;
+
+    // Null when not editing.
+    juce::TextEditor* renameEditorForTesting() { return renameEditor.get(); }
+
 private:
     class IconButton : public juce::Button
     {
@@ -75,6 +92,10 @@ public:
     juce::Slider& volumeSliderForTesting() { return volumeSlider; }
 
 private:
+    // Detaches the editor now and deletes it on the next message-loop turn, so
+    // it may be called from the editor's own callbacks.
+    void endRename();
+
     bool isConductorTrack() const { return (bool) track.getProperty (SongIDs::isConductor, false); }
 
     juce::ValueTree track;
@@ -84,6 +105,7 @@ private:
     juce::Slider    volumeSlider;
     bool            dragging = false;        // between the slider's onDragStart and onDragEnd
     bool            dragHasChanged = false;  // the current drag has already reported a change
+    std::unique_ptr<juce::TextEditor> renameEditor;
 };
 
 } // namespace lotro

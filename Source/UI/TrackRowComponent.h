@@ -131,6 +131,15 @@ public:
     // Fired on a user change of the head's volume slider: (trackId, percent, startsGesture).
     std::function<void (juce::int64, int, bool)> onVolumeChanged;
 
+    // Fired when the head's inline rename commits a new name: (trackId, name).
+    std::function<void (juce::int64, const juce::String&)> onRenamed;
+
+    // True for a point in the head column, where a right-click opens the head's menu.
+    static bool inHeadArea (juce::Point<int> p) noexcept
+    {
+        return p.x >= 0 && p.x < trackInfoWidth;
+    }
+
     juce::Button& muteButtonForTesting() { return head.muteButtonForTesting(); }
     juce::Button& soloButtonForTesting() { return head.soloButtonForTesting(); }
     TrackHeadComponent& headForTesting() { return head; }

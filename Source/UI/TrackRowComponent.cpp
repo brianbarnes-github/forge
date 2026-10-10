@@ -17,6 +17,7 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
 
     addAndMakeVisible (head);
     head.onMuteToggled = [this] (bool on) { if (onMuteToggled) onMuteToggled (getTrackId(), on); };
+    head.onRenamed = [this] (const juce::String& n) { if (onRenamed) onRenamed (getTrackId(), n); };
     head.onSoloToggled = [this] (bool on) { if (onSoloToggled) onSoloToggled (getTrackId(), on); };
     head.onVolumeChanged = [this] (int percent, bool startsGesture)
     {
@@ -200,6 +201,11 @@ void TrackRowComponent::paint (juce::Graphics& g)
 
 void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
 {
+    if (e.mods.isPopupMenu() && inHeadArea (e.getPosition()) && ! isConductorTrack())
+    {
+        head.showContextMenu();
+        return;
+    }
     if (e.mods.isPopupMenu() && inInstrumentBand (e.getPosition()) && ! isConductorTrack())
     {
         juce::Component::SafePointer<TrackRowComponent> safe (this);

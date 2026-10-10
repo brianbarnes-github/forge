@@ -204,3 +204,83 @@ TEST_CASE ("TrackHead: resized places the controls at layoutFor's rectangles", "
     CHECK (head.swatchBounds() == l.swatch);
     CHECK (! head.swatchBounds().isEmpty());
 }
+
+TEST_CASE ("TrackHead: the context menu offers Rename, disabled on the conductor", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    TrackHeadComponent conductor (doc.getConductorTrack(), 0);
+    const auto menu = head.buildContextMenu();   // the iterator keeps a reference, so no temporary
+    juce::PopupMenu::MenuItemIterator it (menu);
+    REQUIRE (it.next());
+    CHECK (it.getItem().text == juce::String::fromUTF8 ("Rename\xe2\x80\xa6"));
+    CHECK (it.getItem().isEnabled);
+    const auto conductorMenu = conductor.buildContextMenu();
+    juce::PopupMenu::MenuItemIterator itC (conductorMenu);
+    REQUIRE (itC.next());
+    CHECK (! itC.getItem().isEnabled);
+}
+
+TEST_CASE ("TrackHead: committing a new name fires onRenamed once; blank or unchanged does not", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    std::vector<juce::String> names;
+    head.onRenamed = [&] (const juce::String& n) { names.push_back (n); };
+
+    head.beginRename();
+    REQUIRE (head.renameEditorForTesting() != nullptr);
+    CHECK (head.renameEditorForTesting()->getText() == "Lute");
+    head.commitRename ("  Flute ");
+    CHECK (names == std::vector<juce::String> { "Flute" });
+    CHECK (head.renameEditorForTesting() == nullptr);
+
+    head.beginRename(); head.commitRename ("   ");   CHECK (names.size() == 1);   // blank rejected
+    head.beginRename(); head.commitRename ("Lute");  CHECK (names.size() == 1);   // unchanged
+    CHECK (head.renameEditorForTesting() == nullptr);
+}
+
+TEST_CASE ("TrackHead: Escape cancels a rename", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    bool fired = false;
+    head.onRenamed = [&] (const juce::String&) { fired = true; };
+    head.beginRename();
+    head.renameEditorForTesting()->setText ("Other", juce::dontSendNotification);
+    head.renameEditorForTesting()->onEscapeKey();
+    CHECK (head.renameEditorForTesting() == nullptr);
+    CHECK (! fired);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);   // the deferred deletion must not crash
+}
+
+TEST_CASE ("TrackHead: Return in the editor commits through the editor's own callback", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    std::vector<juce::String> names;
+    head.onRenamed = [&] (const juce::String& n) { names.push_back (n); };
+    head.beginRename();
+    head.renameEditorForTesting()->setText ("Harp", juce::dontSendNotification);
+    head.renameEditorForTesting()->onReturnKey();
+    CHECK (names == std::vector<juce::String> { "Harp" });
+    CHECK (head.renameEditorForTesting() == nullptr);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
+
+TEST_CASE ("TrackHead: the conductor cannot be renamed", "[track-head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent conductor (doc.getConductorTrack(), 0);
+    conductor.setBounds (0, 0, 198, 62);
+    conductor.beginRename();
+    CHECK (conductor.renameEditorForTesting() == nullptr);
+}

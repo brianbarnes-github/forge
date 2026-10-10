@@ -628,3 +628,56 @@ TEST_CASE ("TrackRowComponent: a click on the head surface still selects the tra
     CHECK (selectedId == trackId);
     CHECK (mods.isCtrlDown());
 }
+
+TEST_CASE ("TrackRowComponent: a right-click on the head opens the menu instead of selecting; on the band it keeps the instrument path", "[track-row][head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    row.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+    int selected = 0;
+    row.onTrackSelected = [&] (juce::int64, const juce::ModifierKeys&) { ++selected; };
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+
+    CHECK (TrackRowComponent::inHeadArea ({ 20, 10 }));
+    CHECK_FALSE (TrackRowComponent::inHeadArea ({ TrackRowComponent::trackInfoWidth, 10 }));
+    CHECK_FALSE (TrackRowComponent::inHeadArea ({ -1, 10 }));
+
+    row.mouseDown (eventAt (row, { 20, 10 }, 1, right));
+    CHECK (selected == 0);
+    juce::PopupMenu::dismissAllActiveMenus();
+
+    row.mouseDown (eventAt (row, { TrackRowComponent::trackInfoWidth + 5, 3 }, 1, right));
+    CHECK (selected == 0);   // the band's menu, not a selection
+    juce::PopupMenu::dismissAllActiveMenus();
+
+    row.mouseDown (eventAt (row, { 20, 10 }, 1));
+    CHECK (selected == 1);   // a plain click still selects
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
+
+TEST_CASE ("TrackRowComponent: a head rename is forwarded with the trackId; the conductor's right-click still selects", "[track-row][head][rename]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    row.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+    juce::int64 gotId = -1; juce::String gotName;
+    row.onRenamed = [&] (juce::int64 i, const juce::String& n) { gotId = i; gotName = n; };
+    row.headForTesting().beginRename();
+    row.headForTesting().commitRename ("Fiddle");
+    CHECK (gotId == id);
+    CHECK (gotName == "Fiddle");
+
+    TrackRowComponent conductor (doc.getConductorTrack(), 0, view);
+    conductor.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+    int selected = 0;
+    conductor.onTrackSelected = [&] (juce::int64, const juce::ModifierKeys&) { ++selected; };
+    conductor.mouseDown (eventAt (conductor, { 20, 10 }, 1, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier)));
+    CHECK (selected == 1);
+}

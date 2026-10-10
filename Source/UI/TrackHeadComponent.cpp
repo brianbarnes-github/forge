@@ -208,6 +208,67 @@ void TrackHeadComponent::refreshFromTrack()
     repaint();
 }
 
+juce::PopupMenu TrackHeadComponent::buildContextMenu() const
+{
+    juce::PopupMenu menu;
+    menu.addItem (1, juce::String::fromUTF8 ("Rename\xe2\x80\xa6"), ! isConductorTrack());
+    return menu;
+}
+
+void TrackHeadComponent::showContextMenu()
+{
+    juce::Component::SafePointer<TrackHeadComponent> safe (this);
+    buildContextMenu().showMenuAsync (juce::PopupMenu::Options(), [safe] (int id)
+    {
+        if (safe != nullptr)
+            safe->contextMenuChosen (id);
+    });
+}
+
+void TrackHeadComponent::contextMenuChosen (int itemId)
+{
+    if (itemId == 1)
+        beginRename();
+}
+
+void TrackHeadComponent::beginRename()
+{
+    if (isConductorTrack() || renameEditor != nullptr)
+        return;
+
+    renameEditor = std::make_unique<juce::TextEditor>();
+    renameEditor->setFont (juce::Font (juce::FontOptions (11.0f)));
+    renameEditor->setText (track.getProperty (SongIDs::name).toString(), juce::dontSendNotification);
+    renameEditor->onReturnKey = [this] { if (renameEditor != nullptr) commitRename (renameEditor->getText()); };
+    renameEditor->onEscapeKey = [this] { endRename(); };
+    renameEditor->onFocusLost = [this] { endRename(); };
+    addAndMakeVisible (*renameEditor);
+    renameEditor->setBounds (layoutFor (getLocalBounds(), false).name);
+    renameEditor->selectAll();
+    if (isShowing())
+        renameEditor->grabKeyboardFocus();
+}
+
+void TrackHeadComponent::commitRename (const juce::String& newName)
+{
+    const auto trimmed = newName.trim();
+    const auto old = track.getProperty (SongIDs::name).toString();
+    endRename();
+    if (trimmed.isNotEmpty() && trimmed != old && onRenamed)
+        onRenamed (trimmed);
+}
+
+void TrackHeadComponent::endRename()
+{
+    if (renameEditor == nullptr)
+        return;
+    // The member is cleared first so the focus-lost callback that removal
+    // triggers is a no-op; the editor outlives the callback that got us here.
+    std::shared_ptr<juce::TextEditor> dying (std::move (renameEditor));
+    removeChildComponent (dying.get());
+    juce::MessageManager::callAsync ([dying] {});
+}
+
 juce::Rectangle<int> TrackHeadComponent::swatchBounds() const
 {
     return layoutFor (getLocalBounds(), isConductorTrack()).swatch;
