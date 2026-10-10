@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "MidiImportPlan.h"
 #include "RawMidi.h"
 #include "SongDocument.h"
@@ -73,6 +75,12 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
 // behaviour (keep the tempo map, expand the tracks).
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
                      Diagnostics& diagnostics, const ImportOptions& options = {});
+
+// How many tracks an expand import of `midiFile` would add to a Song: every
+// track of the file except its conductor, note-less ones included. nullopt when
+// the file cannot be opened or parsed, or the plan rejects it (importMidiFile
+// then reports the real error). Reads the file; changes nothing.
+std::optional<int> previewImportTrackCount (const juce::File& midiFile);
 
 // A-R1: default-part synthesis. For every assignable MIDI_TRACK (not the conductor, not note-less) not yet referenced by
 // any ASSIGNMENT on any PART, adds one PART (instrumentName =

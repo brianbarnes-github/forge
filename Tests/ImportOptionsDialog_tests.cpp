@@ -59,3 +59,23 @@ TEST_CASE ("ImportOptionsDialog: OK delivers the chosen options, Cancel delivers
     CHECK (got.tracks == TrackMode::merged);
     CHECK (got.tempo == TempoMode::keep);
 }
+
+TEST_CASE ("ImportOptionsDialog: the expand label shows how many tracks the file will expand into", "[import-options-dialog]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ImportOptionsComponent nine ("song.mid", true, 9);
+    CHECK (nine.expandTracksForTesting().getButtonText() == "Expand 9 tracks into separate tracks");
+
+    ImportOptionsComponent two ("song.mid", true, 2);
+    CHECK (two.expandTracksForTesting().getButtonText() == "Expand 2 tracks into separate tracks");
+}
+
+TEST_CASE ("ImportOptionsDialog: one track or an unknown count keeps the plain expand label", "[import-options-dialog]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ImportOptionsComponent one ("song.mid", true, 1);
+    CHECK (one.expandTracksForTesting().getButtonText() == "Expand into separate tracks");
+
+    ImportOptionsComponent unknown ("song.mid", true);   // the preview could not read the file
+    CHECK (unknown.expandTracksForTesting().getButtonText() == "Expand into separate tracks");
+}

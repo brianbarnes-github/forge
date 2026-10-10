@@ -514,42 +514,73 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
     return true;
 }
 
+namespace
+{
+    // Opens and parses `midiFile` with both parsers. On failure appends an Error
+    // diagnostic (source "SongModelBridge") to `diagnostics` and returns false.
+    bool parseMidiFile (const juce::File& midiFile, Song& imported, RawMidiFile& raw,
+                        Diagnostics& importerDiagnostics, Diagnostics& diagnostics)
+    {
+        juce::MemoryBlock block;
+        if (! midiFile.existsAsFile() || ! midiFile.loadFileAsData (block))
+        {
+            Diagnostic d;
+            d.source   = "SongModelBridge";
+            d.severity = Severity::Error;
+            d.message  = "Could not open MIDI file: " + midiFile.getFullPathName().toStdString();
+            diagnostics.push_back (std::move (d));
+            return false;
+        }
+
+        const auto sourceName = midiFile.getFileNameWithoutExtension().toStdString();
+        const auto* begin = static_cast<const std::uint8_t*> (block.getData());
+        const std::vector<std::uint8_t> bytes (begin, begin + block.getSize());
+
+        try
+        {
+            std::istringstream input (std::string (bytes.begin(), bytes.end()), std::ios::binary);
+            imported = importMidi (input, sourceName, importerDiagnostics);
+            raw      = readMidiBytes (bytes, sourceName);
+        }
+        catch (const MidiImportError& e)
+        {
+            Diagnostic d;
+            d.source   = "SongModelBridge";
+            d.severity = Severity::Error;
+            d.message  = std::string ("Malformed MIDI file: ") + e.what();
+            diagnostics.push_back (std::move (d));
+            return false;
+        }
+        return true;
+    }
+}
+
+std::optional<int> previewImportTrackCount (const juce::File& midiFile)
+{
+    Song imported;
+    RawMidiFile raw;
+    Diagnostics importerDiagnostics, discarded;
+    if (! parseMidiFile (midiFile, imported, raw, importerDiagnostics, discarded))
+        return std::nullopt;
+
+    try
+    {
+        return (int) planMidiImport (imported, raw, true, discarded).tracks.size();
+    }
+    catch (const MidiImportPlanError&)
+    {
+        return std::nullopt;
+    }
+}
+
 bool importMidiFile (SongDocument& doc, const juce::File& midiFile, int importBatch,
                      Diagnostics& diagnostics, const ImportOptions& options)
 {
-    juce::MemoryBlock block;
-    if (! midiFile.existsAsFile() || ! midiFile.loadFileAsData (block))
-    {
-        Diagnostic d;
-        d.source   = "SongModelBridge";
-        d.severity = Severity::Error;
-        d.message  = "Could not open MIDI file: " + midiFile.getFullPathName().toStdString();
-        diagnostics.push_back (std::move (d));
-        return false;
-    }
-
-    const auto sourceName = midiFile.getFileNameWithoutExtension().toStdString();
-    const auto* begin = static_cast<const std::uint8_t*> (block.getData());
-    const std::vector<std::uint8_t> bytes (begin, begin + block.getSize());
-
     Song imported;
     RawMidiFile raw;
     Diagnostics importerDiagnostics;
-    try
-    {
-        std::istringstream input (std::string (bytes.begin(), bytes.end()), std::ios::binary);
-        imported = importMidi (input, sourceName, importerDiagnostics);
-        raw      = readMidiBytes (bytes, sourceName);
-    }
-    catch (const MidiImportError& e)
-    {
-        Diagnostic d;
-        d.source   = "SongModelBridge";
-        d.severity = Severity::Error;
-        d.message  = std::string ("Malformed MIDI file: ") + e.what();
-        diagnostics.push_back (std::move (d));
+    if (! parseMidiFile (midiFile, imported, raw, importerDiagnostics, diagnostics))
         return false;
-    }
 
     if (! appendImportedMidi (doc, imported, raw, importBatch, diagnostics, importerDiagnostics, options))
         return false;

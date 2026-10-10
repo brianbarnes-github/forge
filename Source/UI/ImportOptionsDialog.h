@@ -15,7 +15,9 @@ namespace lotro
     {
     public:
         // `songHasTempoMap` false (first import): the tempo choice is moot, so it is disabled.
-        ImportOptionsComponent (const juce::String& fileName, bool songHasTempoMap);
+        // `trackCount` is how many tracks Expand will add (previewImportTrackCount); 0 = unknown.
+        // The Expand label shows it when it is 2 or more.
+        ImportOptionsComponent (const juce::String& fileName, bool songHasTempoMap, int trackCount = 0);
 
         void paint (juce::Graphics& g) override;
         void resized() override;
@@ -45,5 +47,6 @@ namespace lotro
     // Opens the dialog fully modal. `onAccepted` runs only on OK; Cancel, Escape
     // and the title-bar X import nothing.
     void showImportOptionsDialog (juce::Component* centreAround, const juce::String& fileName,
-                                  bool songHasTempoMap, std::function<void (const ImportOptions&)> onAccepted);
+                                  bool songHasTempoMap, int trackCount,
+                                  std::function<void (const ImportOptions&)> onAccepted);
 }

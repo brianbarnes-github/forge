@@ -372,7 +372,9 @@ void MainWindow::openMidiFromPath (const juce::File& file)
 
     const bool songHasTempoMap = songDocument.getTempoMapNode().getNumChildren() > 0;
     const juce::Component::SafePointer<MainWindow> safe (this);
-    showImportOptionsDialog (this, file.getFileName(), songHasTempoMap,
+    // 0 (unknown) when the preview cannot read the file; the import itself then reports why.
+    const int trackCount = previewImportTrackCount (file).value_or (0);
+    showImportOptionsDialog (this, file.getFileName(), songHasTempoMap, trackCount,
         [safe, file] (const ImportOptions& options)
         {
             if (safe != nullptr)

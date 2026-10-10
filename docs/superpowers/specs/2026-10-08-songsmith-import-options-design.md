@@ -108,7 +108,7 @@ the file.
 - Tempo map group, radio buttons: "Keep existing tempo map" (default) /
   "Replace existing tempo map". Disabled, with the file's tempo map implied,
   when the Song has no tempo map yet (first import).
-- Tracks group, radio buttons: "Expand into separate tracks" (default) /
+- Tracks group, radio buttons: "Expand into separate tracks" (default; later amended to "Expand N tracks into separate tracks" when N >= 2, N from `previewImportTrackCount`) /
   "Merge into one track". Always enabled.
 - OK delivers an `ImportOptions` through a callback; Cancel (button, Escape,
   title-bar X) imports nothing and changes nothing.

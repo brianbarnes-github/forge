@@ -350,3 +350,27 @@ TEST_CASE ("ImportOptions: merged export keeps same-tick events in (raw track, o
         got.emplace_back (e.tick, e.bytes);
     CHECK (got == want);   // sequence equality, not multiset
 }
+
+TEST_CASE ("ImportOptions: previewImportTrackCount counts the tracks an expand import adds, not the conductor", "[import-options]")
+{
+    TrackBody noteless;
+    noteless.eot();
+    TempMidi file (smf (1, 96, { conductor (usFor120), melody (60), melody (64), noteless }));
+
+    const auto count = previewImportTrackCount (file.file);
+    REQUIRE (count.has_value());
+    CHECK (*count == 3);   // two note tracks + the note-less one
+
+    SongDocument doc;
+    Diagnostics diags;
+    REQUIRE (importMidiFile (doc, file.file, 1, diags));
+    CHECK (doc.getNumTracks() - 1 == *count);   // the Song's own conductor track is not an import
+}
+
+TEST_CASE ("ImportOptions: previewImportTrackCount gives no count for a missing or malformed file", "[import-options]")
+{
+    CHECK_FALSE (previewImportTrackCount (juce::File::createTempFile (".mid")).has_value());   // does not exist
+
+    TempMidi junk (Bytes { 'n', 'o', 't', ' ', 'm', 'i', 'd', 'i' });
+    CHECK_FALSE (previewImportTrackCount (junk.file).has_value());
+}

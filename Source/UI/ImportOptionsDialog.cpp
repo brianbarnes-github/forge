@@ -18,8 +18,11 @@ namespace lotro
         }
     }
 
-    ImportOptionsComponent::ImportOptionsComponent (const juce::String& fileName, bool songHasTempoMap)
+    ImportOptionsComponent::ImportOptionsComponent (const juce::String& fileName, bool songHasTempoMap, int trackCount)
     {
+        if (trackCount >= 2)
+            expandTracks.setButtonText ("Expand " + juce::String (trackCount) + " tracks into separate tracks");
+
         styleLabel (heading,     "Import " + fileName, 16.0f, SongsmithColours::text);
         styleLabel (tempoLabel,  songHasTempoMap ? "Tempo map" : "Tempo map (first import: the file's is used)",
                     13.0f, SongsmithColours::textMuted);
@@ -83,9 +86,10 @@ namespace lotro
     }
 
     void showImportOptionsDialog (juce::Component* centreAround, const juce::String& fileName,
-                                  bool songHasTempoMap, std::function<void (const ImportOptions&)> onAccepted)
+                                  bool songHasTempoMap, int trackCount,
+                                  std::function<void (const ImportOptions&)> onAccepted)
     {
-        auto content = std::make_unique<ImportOptionsComponent> (fileName, songHasTempoMap);
+        auto content = std::make_unique<ImportOptionsComponent> (fileName, songHasTempoMap, trackCount);
         auto* component = content.get();
 
         juce::DialogWindow::LaunchOptions options;
