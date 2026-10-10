@@ -36,6 +36,12 @@ namespace lotro
 
         void setGhostTracks (std::vector<juce::ValueTree> tracks);
 
+        // A track's name or colour changed: retitles the window if it is this
+        // window's track, and repaints the roll (its notes or a ghost may use
+        // that colour).
+        void trackAppearanceChanged (juce::int64 trackId);
+        int appearanceRepaintsForTesting() const noexcept { return appearanceRepaintCount; }
+
         void closeButtonPressed() override;
 
         // Hosts the shared transport strip and seek ruler above the roll and
@@ -84,5 +90,6 @@ namespace lotro
         PlaybackController* playback = nullptr;
         std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
         juce::int64 currentTrackId = -1;
+        int appearanceRepaintCount = 0;   // test observability
     };
 }

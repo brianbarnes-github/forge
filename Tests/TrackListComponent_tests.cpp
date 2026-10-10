@@ -1215,6 +1215,20 @@ TEST_CASE ("TrackList: a head edit refreshes in place, any other track property 
     CHECK (f.row() != nullptr);
 }
 
+TEST_CASE ("TrackList: a name or colour change, edit or undo, reports the track's appearance changed; volume does not", "[track-list][head]")
+{
+    HeadEditFixture f;
+    std::vector<juce::int64> reported;
+    f.list->onTrackAppearanceChanged = [&] (juce::int64 id) { reported.push_back (id); };
+
+    f.doc.setProperty (f.track, SongIDs::playbackVolume, 25);
+    CHECK (reported.empty());
+    f.doc.setProperty (f.track, SongIDs::colorArgb, (int) 0xFF445566u);
+    f.doc.setProperty (f.track, SongIDs::name, "Flute");
+    f.doc.getUndoManager().undo();
+    CHECK (reported == std::vector<juce::int64> { f.id, f.id, f.id });
+}
+
 TEST_CASE ("TrackListComponent: following a playhead at the end of a fitted song keeps fitted mode", "[track-list][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

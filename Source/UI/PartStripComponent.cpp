@@ -67,6 +67,12 @@ void PartStripComponent::clearSelection()
         slot->setSelected (false);
 }
 
+void PartStripComponent::trackAppearanceChanged()
+{
+    repaint();
+    ++appearanceRepaintCount;
+}
+
 void PartStripComponent::selectPart (juce::int64 partId)
 {
     selectedPartId = partId;

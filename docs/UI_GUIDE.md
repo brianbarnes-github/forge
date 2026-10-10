@@ -123,8 +123,9 @@ When you say…       …I'll know you mean
   that start after the change during playback only and never reaches MIDI or
   ABC export. Mute / solo stay session-only. Editing the name, colour or
   volume refreshes the head in place; other property changes still rebuild the
-  rows. Known limits: an open rename editor does not follow an undo, and an
-  open Track editor window keeps its old title after a rename.
+  rows; a name or colour change (including its undo / redo) also repaints the
+  part strip's assignment chips and retitles / repaints an open Track editor
+  window. Known limit: an open rename editor does not follow an undo.
   The first row is always the song's **conductor** (`isConductor`): no
   index number, name "Conductor", muted text, and a head that shows the name
   only (no swatch picker, rename, mute / solo or volume). A track with no

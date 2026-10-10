@@ -7,5 +7,6 @@ namespace lotro
     struct PartStripComponentTestAccess
     {
         static void selectPart (PartStripComponent& c, juce::int64 partId) { c.selectPart (partId); }
+        static int appearanceRepaints (const PartStripComponent& c) { return c.appearanceRepaintCount; }
     };
 }

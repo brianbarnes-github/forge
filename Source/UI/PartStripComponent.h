@@ -41,6 +41,10 @@ public:
     // Forgets the selected slot. Does NOT fire onPartSelected.
     void clearSelection();
 
+    // A track's name or colour changed. The chips read the track at paint
+    // time but this strip listens only to PARTS, so it is told to repaint.
+    void trackAppearanceChanged();
+
 private:
     friend struct PartStripComponentTestAccess;
 
@@ -82,6 +86,7 @@ private:
     juce::Viewport   viewport;
     Row              row;
     juce::int64      selectedPartId = -1;
+    int              appearanceRepaintCount = 0;   // test observability
 
     static constexpr int headerHeight = 20;
     static constexpr int addButtonWidth = 60;

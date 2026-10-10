@@ -38,6 +38,15 @@ namespace lotro
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
         }
+        static juce::String trackEditorWindowTitle (const SongsmithMainComponent& c)
+        {
+            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getName() : juce::String();
+        }
+        static int trackEditorAppearanceRepaints (const SongsmithMainComponent& c)
+        {
+            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->appearanceRepaintsForTesting() : -1;
+        }
+        static bool previewUpdatePending (const SongsmithMainComponent& c) { return c.isUpdatePending(); }
         static void trackDoubleClicked (SongsmithMainComponent& c, juce::int64 trackId)
         {
             c.trackDoubleClicked (trackId);
@@ -129,6 +138,60 @@ TEST_CASE ("SongsmithMainComponent: double-clicking a track opens the editor win
 
     CHECK (main.isTrackEditorOpen());
     CHECK (Access::trackEditorWindowTrackId (main) == trackId);
+}
+
+TEST_CASE ("SongsmithMainComponent: a rename or recolour retitles the open editor and repaints the part strip's chips; volume does neither", "[track-editor][head]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    lotro::playbacktest::addNote (track, 60, 0, 480);
+    doc.assignTrackToPart ((juce::int64) doc.addPart ("Lute", "Part 1").getProperty (SongIDs::partId), trackId);
+
+    SongsmithMainComponent main (doc);
+    Access::trackDoubleClicked (main, trackId);
+    REQUIRE (Access::trackEditorWindowTitle (main) == "Edit Track: Track A");
+    const int stripBefore = PartStripComponentTestAccess::appearanceRepaints (Access::partStrip (main));
+    const int editorBefore = Access::trackEditorAppearanceRepaints (main);
+
+    doc.setProperty (track, SongIDs::playbackVolume, 40);
+    CHECK (PartStripComponentTestAccess::appearanceRepaints (Access::partStrip (main)) == stripBefore);
+    CHECK (Access::trackEditorAppearanceRepaints (main) == editorBefore);
+
+    doc.setProperty (track, SongIDs::colorArgb, (int) 0xFF112233u);
+    CHECK (PartStripComponentTestAccess::appearanceRepaints (Access::partStrip (main)) == stripBefore + 1);
+    CHECK (Access::trackEditorAppearanceRepaints (main) == editorBefore + 1);
+
+    doc.setProperty (track, SongIDs::name, "Harp");
+    CHECK (Access::trackEditorWindowTitle (main) == "Edit Track: Harp");
+    doc.getUndoManager().undo();
+    CHECK (Access::trackEditorWindowTitle (main) == "Edit Track: Track A");
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
+
+TEST_CASE ("SongsmithMainComponent: a volume change on a previewed part's track does not recompute the preview; a colour change does", "[track-editor][head][volume]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    lotro::playbacktest::addNote (track, 60, 0, 480);
+    const auto partId = (juce::int64) doc.addPart ("Lute", "Part 1").getProperty (SongIDs::partId);
+    REQUIRE (doc.assignTrackToPart (partId, trackId));
+
+    SongsmithMainComponent main (doc);
+    Access::selectPartForPreview (main, partId);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    REQUIRE_FALSE (Access::previewUpdatePending (main));
+
+    doc.setProperty (track, SongIDs::playbackVolume, 40);
+    CHECK_FALSE (Access::previewUpdatePending (main));
+    doc.setProperty (track, SongIDs::colorArgb, (int) 0xFF112233u);
+    CHECK (Access::previewUpdatePending (main));
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 }
 
 TEST_CASE ("SongsmithMainComponent: double-clicking a second track re-points the existing window rather than opening a new one", "[track-editor]")

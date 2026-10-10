@@ -210,7 +210,10 @@ and `docs/TESTING.md`.
 - An open rename editor does not update when the name changes underneath it
   (for example on undo); it keeps the text being typed until it commits or
   cancels.
-- An open `TrackEditorWindow` keeps its old title after a rename (pre-existing:
-  the title is set when the window is pointed at the track).
+- *Resolved:* an open `TrackEditorWindow` used to keep its old title after a
+  rename, and the part strip's chips and the editor's roll kept a track's old
+  colour. The track list now reports name / colour changes
+  (`onTrackAppearanceChanged`) and `SongsmithMainComponent` retitles the
+  editor and repaints both.
 - The head's tooltips ("Mute", "Solo", "Playback volume") are inert, like all
   tooltips in the app, because no `juce::TooltipWindow` is created.

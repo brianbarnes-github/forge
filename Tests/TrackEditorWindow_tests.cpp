@@ -40,6 +40,31 @@ TEST_CASE ("TrackEditorWindow: setTrack re-points the same window to a different
     CHECK (window.getTrackId() == idB);
 }
 
+TEST_CASE ("TrackEditorWindow: a track appearance change retitles the window for its own track and repaints the roll for any", "[track-editor-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto trackA = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto trackB = doc.addTrack ("Track B", (int) 0xFFDDEEFFu, 1, 0);
+    const auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
+    const auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
+
+    TrackEditorWindow window (doc, nullptr);
+    window.setTrack (trackA);
+    REQUIRE (window.getName() == "Edit Track: Track A");
+
+    trackA.setProperty (SongIDs::name, "Harp", nullptr);
+    trackB.setProperty (SongIDs::name, "Flute", nullptr);
+    const int repaints = window.appearanceRepaintsForTesting();
+    window.trackAppearanceChanged (idB);                       // a ghost's colour, say
+    CHECK (window.getName() == "Edit Track: Track A");
+    CHECK (window.appearanceRepaintsForTesting() == repaints + 1);
+    window.trackAppearanceChanged (idA);
+    CHECK (window.getName() == "Edit Track: Harp");
+    CHECK (window.appearanceRepaintsForTesting() == repaints + 2);
+}
+
 TEST_CASE ("TrackEditorWindow: onClosed fires when the window's close button is pressed", "[track-editor-window]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

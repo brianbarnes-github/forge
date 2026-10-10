@@ -251,7 +251,10 @@ void TrackListComponent::valueTreePropertyChanged (juce::ValueTree& tree, const 
     if (tree.hasType (SongIDs::MIDI_TRACK)
         && (property == SongIDs::name || property == SongIDs::colorArgb || property == SongIDs::playbackVolume))
     {
-        refreshHead ((juce::int64) tree.getProperty (SongIDs::trackId, (juce::int64) -1));
+        const auto trackId = (juce::int64) tree.getProperty (SongIDs::trackId, (juce::int64) -1);
+        refreshHead (trackId);
+        if (property != SongIDs::playbackVolume && onTrackAppearanceChanged)
+            onTrackAppearanceChanged (trackId);
         return;
     }
     triggerAsyncUpdate();

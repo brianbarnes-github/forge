@@ -123,6 +123,16 @@ namespace lotro
         roll.setGhostTracks (std::move (tracks));
     }
 
+    void TrackEditorWindow::trackAppearanceChanged (juce::int64 trackId)
+    {
+        if (trackId == currentTrackId)
+            if (auto trackNode = doc.findTrackById (trackId); trackNode.isValid())
+                setName ("Edit Track: " + trackNode.getProperty (SongIDs::name).toString());
+
+        roll.repaint();
+        ++appearanceRepaintCount;
+    }
+
     void TrackEditorWindow::closeButtonPressed()
     {
         setVisible (false);

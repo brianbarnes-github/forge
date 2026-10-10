@@ -135,6 +135,11 @@ public:
     // ghosted".
     std::function<bool (juce::int64)> isTrackGhosted;
 
+    // Fired with the trackId when a track's name or colour changes (an edit,
+    // undo or redo). The rows refresh themselves; this is for views outside
+    // the list that draw them (part strip chips, the Track editor).
+    std::function<void (juce::int64)> onTrackAppearanceChanged;
+
 private:
     // Test-only access to selectTrack()/rebuild() so TrackListComponent_tests.cpp
     // can drive selection and stale-selection cleanup deterministically
