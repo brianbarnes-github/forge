@@ -86,6 +86,18 @@ TEST_CASE ("Playback page: a file that fails to load shows the error and changes
     CHECK_FALSE (page.clearButtonForTesting().isEnabled());
 }
 
+TEST_CASE ("Playback page: a period-terminated failure detail does not produce a doubled period", "[preferences][playback-page]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    FakeApp app;
+    app.nextLoad = { SoundFontResult::failed, "That file is not a usable SoundFont (.sf2)." };
+    PlaybackPreferencesPage page (app.services);
+
+    page.loadChosenFileForTesting (chosen);
+    CHECK_FALSE (page.statusTextForTesting().contains (".."));
+    CHECK (page.statusTextForTesting() == "Could not load: That file is not a usable SoundFont (.sf2). Still using the previous SoundFont.");
+}
+
 TEST_CASE ("Playback page: Clear goes back to the bundled SoundFont", "[preferences][playback-page]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

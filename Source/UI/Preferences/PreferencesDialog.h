@@ -18,8 +18,8 @@ namespace lotro
     // One entry per tree item. Adding a page = one entry in preferencePages()
     // plus its component.
 
-    // A page touches AppSettings only in its constructor and in click handlers,
-    // never in its destructor: the window can outlive its owner's settings during shutdown.
+    // A page touches PreferencesServices / AppSettings only in its constructor and in
+    // click or chooser handlers, never in its destructor: the window can outlive its owner's settings during shutdown.
     struct PreferencesPage
     {
         juce::String name;
@@ -80,7 +80,9 @@ namespace lotro
     };
 
     // Opens the dialog fully modal (the main window and its menus are blocked
-    // until it closes). `services` and what it references must outlive it; MainWindow owns both.
+    // until it closes). `services` must outlive any handler call. That holds because the owner
+    // ends modality (exitModalState) before it destroys them and nothing is dispatched after
+    // shutdown; destructors therefore must not touch `services`. MainWindow owns both.
     // The returned pointer goes null when the window closes; the owner closes it
     // if still alive when it is destroyed.
     juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (PreferencesServices& services, juce::Component* centreAround);

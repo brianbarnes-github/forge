@@ -63,7 +63,7 @@ namespace lotro
         if (loaded.result == SoundFontResult::loaded)
             status.setText ("Loaded.", juce::dontSendNotification);
         else
-            status.setText ("Could not load: " + loaded.detail + ". Still using the previous SoundFont.",
+            status.setText ("Could not load: " + loaded.detail.trimCharactersAtEnd (".") + ". Still using the previous SoundFont.",
                             juce::dontSendNotification);
         refresh();
         if (onChanged) onChanged();
