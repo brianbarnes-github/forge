@@ -645,6 +645,41 @@ TEST_CASE ("TrackListComponent: wheel events reaching the viewport are routed by
     CHECK (list.getRowHeight() == 42);
 }
 
+TEST_CASE ("TrackListComponent: a wheel over a head's volume slider scrolls or resizes the rows and leaves the volume alone", "[track-list][wheel][head][volume]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTracks (doc, 12);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 200);
+    list.setVisible (true);   // getComponentAt only searches visible components
+    auto* row = Access::rows (list)[1];
+    auto& slider = row->headForTesting().volumeSliderForTesting();
+    const auto centre = list.getLocalPoint (&slider, slider.getLocalBounds().getCentre());
+    REQUIRE (list.getComponentAt (centre) == &slider);   // a real wheel event lands on the slider
+
+    auto wheelOnSlider = [&] (float deltaY, juce::ModifierKeys mods)
+    {
+        juce::MouseWheelDetails details {};
+        details.deltaY = deltaY;
+        const auto pos = slider.getLocalBounds().getCentre().toFloat();
+        slider.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                 pos, mods, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &slider, &slider,
+                                                 juce::Time::getCurrentTime(), pos,
+                                                 juce::Time::getCurrentTime(), 1, false),
+                               details);
+    };
+
+    doc.getUndoManager().clearUndoHistory();   // forget the setup's track adds
+    wheelOnSlider (-1.0f, {});
+    CHECK (Access::viewport (list).getViewPositionY() == 50);
+    wheelOnSlider (1.0f, ctrl);
+    CHECK (list.getRowHeight() == 38);
+    CHECK ((int) slider.getValue() == 100);
+    CHECK (trackPlaybackVolume (doc.findTrackById (row->getTrackId())) == 100);
+    CHECK (! doc.getUndoManager().canUndo());
+}
+
 TEST_CASE ("TrackListComponent: fitTimelineToDocument scales the shared zoom so the longest track fits the preview width",
            "[piano-roll]")
 {

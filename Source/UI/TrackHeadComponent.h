@@ -52,7 +52,7 @@ public:
 
     // Fired on a user change of the slider. startsGesture is true for the
     // first change of a drag and for every change made outside a drag
-    // (wheel, keyboard, double-click reset), so each opens its own undo step.
+    // (keyboard, double-click reset), so each opens its own undo step.
     std::function<void (int percent, bool startsGesture)> onVolumeChanged;
 
     // Right-click menu. buildContextMenu() is the single place menu items are

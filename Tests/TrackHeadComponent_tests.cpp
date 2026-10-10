@@ -126,6 +126,27 @@ TEST_CASE ("TrackHead: double-clicking the slider resets it to 100, each as its 
     CHECK (reports == expected);
 }
 
+TEST_CASE ("TrackHead: dragging the slider shows its value as NN% in a popup", "[track-head][volume]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    auto& slider = head.volumeSliderForTesting();
+    CHECK (slider.getTextFromValue (42.0) == "42%");
+
+    const auto at = slider.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+    const juce::MouseEvent press (juce::Desktop::getInstance().getMainMouseSource(), at,
+                                  juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
+                                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &slider, &slider, now, at, now, 1, false);
+    slider.mouseDown (press);
+    CHECK (slider.getCurrentPopupDisplay() != nullptr);
+    slider.mouseUp (press.withNewPosition (at));
+    CHECK (slider.getCurrentPopupDisplay() == nullptr);   // gone once the drag ends
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
+
 TEST_CASE ("TrackHead: the conductor head has no controls", "[track-head]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

@@ -115,9 +115,10 @@ When you say…       …I'll know you mean
   colour is not changed). Right-click the head for a menu with **Rename…**: an
   inline editor over the name where Enter commits, Escape or losing focus
   cancels, and a blank or unchanged name is rejected (one undo step on commit).
-  The volume slider runs 0–100 (default 100); double-click resets it to 100;
-  one drag is one undo step, and a lone change (arrow keys, wheel, reset) is
-  one step each. Volume is a saved `MIDI_TRACK` property (`playbackVolume`,
+  The volume slider runs 0–100 (default 100) and shows the value as `NN%` in
+  a popup while dragging; double-click resets it to 100; one drag is one undo
+  step, and a lone change (arrow keys, reset) is one step each. The slider
+  ignores the mouse wheel, which keeps the track list's meaning below. Volume is a saved `MIDI_TRACK` property (`playbackVolume`,
   absent = 100, removed when set back to 100); it scales the velocity of notes
   that start after the change during playback only and never reaches MIDI or
   ABC export. Mute / solo stay session-only. Editing the name, colour or
@@ -140,7 +141,7 @@ When you say…       …I'll know you mean
   a plain wheel over a note strip or the ruler zooms all rows horizontally —
   first bringing the start marker to the middle of the preview strip and
   zooming about it (with no marker, about the middle of the view); a plain
-  wheel over the track heads (left column) scrolls the rows vertically (wheel
+  wheel over the track heads (left column, volume sliders included) scrolls the rows vertically (wheel
   up = towards the first row) and does nothing when the rows fit — it never
   zooms; Shift+wheel anywhere pans all rows horizontally, stopping at the
   song's end; Ctrl/Cmd+wheel anywhere resizes every track row (head and

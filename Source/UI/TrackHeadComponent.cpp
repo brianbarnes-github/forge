@@ -113,6 +113,11 @@ TrackHeadComponent::TrackHeadComponent (juce::ValueTree trackNode, int displayIn
     volumeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     volumeSlider.setRange (0.0, 100.0, 1.0);
     volumeSlider.setDoubleClickReturnValue (true, 100.0);
+    // The wheel belongs to the track list (scroll / row resize over the heads).
+    volumeSlider.setScrollWheelEnabled (false);
+    // NN% in a bubble while dragging (a bubble needs no TooltipWindow).
+    volumeSlider.setTextValueSuffix ("%");
+    volumeSlider.setPopupDisplayEnabled (true, false, nullptr);
     volumeSlider.setTooltip ("Playback volume");
     volumeSlider.setValue (trackPlaybackVolume (track), juce::dontSendNotification);
     // JUCE brackets mouse drags, wheel moves and double-clicks with

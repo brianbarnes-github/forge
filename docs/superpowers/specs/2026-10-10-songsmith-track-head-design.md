@@ -120,9 +120,15 @@ A commit is one undo step and is a no-op if the name is unchanged.
 ### Volume slider
 
 A horizontal `juce::Slider`, range 0–100, step 1, default 100. Double-click
-resets to 100. The value shows as `NN%` in a tooltip / popup while dragging.
+resets to 100. *Amended:* the value shows as `NN%` in the slider's own popup
+bubble while dragging (`setPopupDisplayEnabled`; it needs no
+`juce::TooltipWindow`).
 `dragStarted` begins one coalesced undo transaction and `dragEnded` closes it,
-so a drag is a single undo step. Keyboard / wheel changes are one step each.
+so a drag is a single undo step. Keyboard changes are one step each.
+*Amended (no wheel):* the slider ignores the mouse wheel
+(`setScrollWheelEnabled (false)`), so a wheel over it reaches the track list's
+wheel routing (scroll / Ctrl resize / Shift pan over the heads) like anywhere
+else in the head column. Every modifier is already taken by the list.
 
 ## Data and file format
 
@@ -168,7 +174,8 @@ on `ASSIGNMENT` nodes.
 - Save/load round trip of `playbackVolume`, including absent → 100, and
   `validateLoaded` rejecting out-of-range and wrong-type values.
 - Snapshot / engine integration with the recording sink: a track at 50 %
-  delivers halved velocities and halved CC7/CC11; 0 % delivers no NoteOn;
+  delivers halved `NoteOn` velocities (velocity only, see the amended
+  Playback section; CCs pass unscaled); 0 % delivers no NoteOn;
   changing the gain mid-playback takes effect without a rebuild; mute still
   beats gain.
 - Head gestures on a real document: the colour change, rename and a volume
