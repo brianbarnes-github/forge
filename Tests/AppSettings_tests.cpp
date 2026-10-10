@@ -172,3 +172,69 @@ TEST_CASE ("AppSettings: SoundFont setters report a failed save", "[app-settings
     CHECK (settings.lastSaveFailed());
     CHECK (settings.soundFontPath().isEmpty());
 }
+
+TEST_CASE ("AppSettings: the view settings default to today's behaviour and round-trip", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.showRangeBand());
+        CHECK (settings.restoreWindowPlacement());
+        CHECK (settings.followPlayhead());
+        CHECK (settings.defaultGrid() == GridSize::Off);
+
+        CHECK (settings.setShowRangeBand (false));
+        CHECK (settings.setRestoreWindowPlacement (false));
+        CHECK (settings.setFollowPlayhead (false));
+        CHECK (settings.setDefaultGrid (GridSize::Eighth));
+    }
+    juce::PropertiesFile reopened (file, {});
+    AppSettings settings (reopened);
+    CHECK_FALSE (settings.showRangeBand());
+    CHECK_FALSE (settings.restoreWindowPlacement());
+    CHECK_FALSE (settings.followPlayhead());
+    CHECK (settings.defaultGrid() == GridSize::Eighth);
+    CHECK (reopened.getValue ("appearance.showRangeBand") == "0");
+    CHECK (reopened.getValue ("appearance.restoreWindowPlacement") == "0");
+    CHECK (reopened.getValue ("editing.followPlayhead") == "0");
+    CHECK (reopened.getValue ("editing.defaultGrid") == "eighth");
+}
+
+TEST_CASE ("AppSettings: every grid size round-trips and an unrecognised stored grid reads Off", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    AppSettings settings (props);
+
+    for (const auto size : { GridSize::Off, GridSize::Quarter, GridSize::Eighth, GridSize::Sixteenth })
+    {
+        CHECK (settings.setDefaultGrid (size));
+        CHECK (settings.defaultGrid() == size);
+    }
+
+    props.setValue ("editing.defaultGrid", "thirtysecond");   // hand-edited / future value
+    CHECK (settings.defaultGrid() == GridSize::Off);
+    props.setValue ("editing.defaultGrid", "");
+    CHECK (settings.defaultGrid() == GridSize::Off);
+}
+
+TEST_CASE ("AppSettings: the view-setting setters report a failed save but still apply", "[app-settings]")
+{
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopedJuceInitialiser_GUI juceInit;
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+
+    CHECK_FALSE (settings.setShowRangeBand (false));
+    CHECK (settings.lastSaveFailed());
+    CHECK_FALSE (settings.showRangeBand());
+
+    CHECK_FALSE (settings.setDefaultGrid (GridSize::Quarter));
+    CHECK (settings.lastSaveFailed());
+    CHECK (settings.defaultGrid() == GridSize::Quarter);
+}

@@ -2,6 +2,8 @@
 
 #include <juce_data_structures/juce_data_structures.h>
 
+#include "GridSize.h"
+
 // Typed view over the per-user settings file (MainWindow's PropertiesFile).
 // Key names and defaults live here and nowhere else. Setters write and save at
 // once (so a toggle survives a crash) and return whether the save succeeded.
@@ -53,6 +55,39 @@ public:
         return save();
     }
 
+    // Preferences > Appearance / Editing. Defaults equal the behaviour before the pages existed.
+    bool showRangeBand() const { return read (keyShowRangeBand); }
+    bool setShowRangeBand (bool on) { return write (keyShowRangeBand, on); }
+
+    bool restoreWindowPlacement() const { return read (keyRestorePlacement); }
+    bool setRestoreWindowPlacement (bool on) { return write (keyRestorePlacement, on); }
+
+    bool followPlayhead() const { return read (keyFollowPlayhead); }
+    bool setFollowPlayhead (bool on) { return write (keyFollowPlayhead, on); }
+
+    // What a newly opened track editor starts on. Absent or unrecognised reads Off.
+    GridSize defaultGrid() const
+    {
+        const auto stored = file.getValue (keyDefaultGrid);
+        if (stored == "quarter")   return GridSize::Quarter;
+        if (stored == "eighth")    return GridSize::Eighth;
+        if (stored == "sixteenth") return GridSize::Sixteenth;
+        return GridSize::Off;
+    }
+    bool setDefaultGrid (GridSize size)
+    {
+        const char* name = "off";
+        switch (size)
+        {
+            case GridSize::Quarter:   name = "quarter";   break;
+            case GridSize::Eighth:    name = "eighth";    break;
+            case GridSize::Sixteenth: name = "sixteenth"; break;
+            case GridSize::Off:       break;
+        }
+        file.setValue (keyDefaultGrid, name);
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -62,6 +97,10 @@ private:
     static constexpr const char* keyReplaceFile       = "confirm.replaceFile";
     static constexpr const char* keyImportTrackOptions = "import.trackOptions";
     static constexpr const char* keySoundFontPath      = "soundFontPath";
+    static constexpr const char* keyShowRangeBand      = "appearance.showRangeBand";
+    static constexpr const char* keyRestorePlacement   = "appearance.restoreWindowPlacement";
+    static constexpr const char* keyFollowPlayhead     = "editing.followPlayhead";
+    static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.
