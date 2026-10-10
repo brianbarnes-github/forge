@@ -4,49 +4,25 @@
 #include "InstrumentEdit.h"
 #include "ProgramChanges.h"
 
-#include <algorithm>
-#include <limits>
-
 namespace lotro
 {
 
-namespace
-{
-    // Standard MIDI naming (60 = C4, "middle C") — matches the Songsmith UI
-    // Guide mockup's own numbers (LuteOfAges' 36..72 MIDI range is captioned
-    // "Range: C2 - C5" there).
-    juce::String pitchName (int midiPitch)
-    {
-        static const char* const names[12] =
-            { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-        const int octave = midiPitch / 12 - 1;
-        const int pitchClass = ((midiPitch % 12) + 12) % 12;
-        return juce::String (names[pitchClass]) + juce::String (octave);
-    }
-}
-
 TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayIndex, const TimelineViewState& viewState)
-    : track (trackNode), index (displayIndex), timelineView (viewState), notePreview (trackNode, viewState)
+    : track (trackNode), index (displayIndex), timelineView (viewState), head (trackNode, displayIndex), notePreview (trackNode, viewState)
 {
     jassert (track.hasType (SongIDs::MIDI_TRACK));
     setInterceptsMouseClicks (true, false);
 
     addAndMakeVisible (notePreview);
 
-    const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);
-    for (auto* b : { &muteButton, &soloButton })
+    addAndMakeVisible (head);
+    head.onMuteToggled = [this] (bool on) { if (onMuteToggled) onMuteToggled (getTrackId(), on); };
+    head.onSoloToggled = [this] (bool on) { if (onSoloToggled) onSoloToggled (getTrackId(), on); };
+    head.onVolumeChanged = [this] (int percent, bool startsGesture)
     {
-        b->setClickingTogglesState (true);
-        b->setWantsKeyboardFocus (false);
-        addChildComponent (*b);
-        b->setVisible (! isConductor);
-    }
-    muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colours::orangered);
-    soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colours::gold);
-    muteButton.setTooltip ("Mute");
-    soloButton.setTooltip ("Solo");
-    muteButton.onClick = [this] { if (onMuteToggled) onMuteToggled (getTrackId(), muteButton.getToggleState()); };
-    soloButton.onClick = [this] { if (onSoloToggled) onSoloToggled (getTrackId(), soloButton.getToggleState()); };
+        if (onVolumeChanged)
+            onVolumeChanged (getTrackId(), percent, startsGesture);
+    };
     notePreview.onGhostToggled = [this] (bool visible)
     {
         if (onGhostToggled)
@@ -114,17 +90,14 @@ void TrackRowComponent::resized()
     auto area = getLocalBounds().withTrimmedBottom (dividerThickness);
     auto info = area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
     info.removeFromRight (columnDividerThickness);
-    auto buttons = info.removeFromRight (muteSoloWidth).reduced (1, 8);
-    muteButton.setBounds (buttons.removeFromLeft (buttons.getWidth() / 2));
-    soloButton.setBounds (buttons);
+    head.setBounds (info);
     area.removeFromTop (juce::jmin (instrumentBandHeight, area.getHeight()));
     notePreview.setBounds (area);
 }
 
 void TrackRowComponent::setMuteSolo (bool muted, bool soloed, bool silenced)
 {
-    muteButton.setToggleState (muted, juce::dontSendNotification);
-    soloButton.setToggleState (soloed, juce::dontSendNotification);
+    head.setMuteSolo (muted, soloed);
     silencedBySolo = silenced;
     setAlpha ((muted || silenced) ? 0.5f : 1.0f);
 }
@@ -161,39 +134,6 @@ juce::String TrackRowComponent::instrumentLabel() const
     const auto segments = instrumentSegmentsOf (track);
     return gmProgramName (segments.empty() ? (int) track.getProperty (SongIDs::sourceProgram)
                                            : segments.front().program);
-}
-
-juce::String TrackRowComponent::buildSecondLine() const
-{
-    const int numEvents = SongDocument::getEventsNode (track).getNumChildren();
-    if ((bool) track.getProperty (SongIDs::isConductor, false))
-        return juce::String (numEvents) + " events";
-
-    const int numNotes = SongDocument::getNotesNode (track).getNumChildren();
-    if (numNotes == 0)
-        return juce::String (numNotes) + " notes" + juce::String::fromUTF8 (" \xc2\xb7 ")
-             + juce::String (numEvents) + " events";
-
-    juce::String line = juce::String (numNotes) + " notes";
-
-    const int channel = (int) track.getProperty (SongIDs::sourceMidiChannel);
-    if (channel == 10)
-    {
-        line += juce::String (" \xc2\xb7 ch 10"); // " · ch 10"
-        return line;
-    }
-
-    int lowest = std::numeric_limits<int>::max();
-    int highest = std::numeric_limits<int>::min();
-    for (int i = 0; i < numNotes; ++i)
-    {
-        const int pitch = (int) SongDocument::getNotesNode (track).getChild (i).getProperty (SongIDs::pitch);
-        lowest  = std::min (lowest, pitch);
-        highest = std::max (highest, pitch);
-    }
-
-    line += juce::String (" \xc2\xb7 ") + pitchName (lowest) + "\xe2\x80\x93" + pitchName (highest); // " · lo–hi"
-    return line;
 }
 
 void TrackRowComponent::paint (juce::Graphics& g)
@@ -256,36 +196,6 @@ void TrackRowComponent::paint (juce::Graphics& g)
             }
         }
     }
-
-    const int textLeft = 8;
-    const bool isConductor = (bool) track.getProperty (SongIDs::isConductor, false);
-    // Keep the text clear of the M / S buttons (the conductor has none).
-    auto row = bounds.withWidth (juce::jmin (trackInfoWidth, bounds.getWidth()))
-                      .withTrimmedLeft (textLeft).withTrimmedRight (6)
-                      .withTrimmedRight (isConductor ? 0 : muteSoloWidth);
-    auto firstLine  = row.removeFromTop (row.getHeight() / 2);
-    auto secondLine = row;
-
-    // First line: index, name, swatch square.
-    auto indexArea = firstLine.removeFromLeft (16);
-    g.setColour (juce::Colour (textMuted));
-    g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain)));
-    if (index > 0)
-        g.drawText (juce::String (index), indexArea, juce::Justification::centredLeft);
-
-    auto swatchArea = firstLine.removeFromRight (10).withSizeKeepingCentre (10, 10);
-    g.setColour (juce::Colour (swatch));
-    g.fillRect (swatchArea);
-
-    g.setColour (juce::Colour (isConductor ? textMuted : text));
-    g.setFont (juce::Font (juce::FontOptions (11.0f)));
-    g.drawText (track.getProperty (SongIDs::name).toString(), firstLine.withTrimmedRight (4),
-                juce::Justification::centredLeft);
-
-    // Second line: note count / range.
-    g.setColour (juce::Colour (textMuted));
-    g.setFont (juce::Font (juce::FontOptions (9.0f)));
-    g.drawText (buildSecondLine(), secondLine, juce::Justification::centredLeft);
 }
 
 void TrackRowComponent::mouseDown (const juce::MouseEvent& e)

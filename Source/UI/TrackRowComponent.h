@@ -2,6 +2,7 @@
 
 #include "SongDocument.h"
 #include "TimelineViewState.h"
+#include "TrackHeadComponent.h"
 #include "TrackNotePreview.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -47,10 +48,9 @@ public:
 
     // Row height bounds used by TrackListComponent (Ctrl+wheel resizes the rows
     // within [minRowHeight, maxRowHeight]; defaultRowHeight is where a new list
-    // starts). The minimum is the smallest height at which the info column's two
-    // text lines (11 px and 9 px fonts, each half of the height less the divider),
-    // the M / S buttons (inset 8 px top and bottom) and the 10 px swatch neither
-    // clip nor overlap. Layout and painting derive from the row's actual bounds.
+    // starts). The minimum is the smallest height at which the head's two rows
+    // (name line, mute / solo / volume line) neither clip nor overlap. Layout and
+    // painting derive from the row's actual bounds.
     static constexpr int defaultRowHeight = 34;
     static constexpr int minRowHeight = 30;
     static constexpr int maxRowHeight = 120;
@@ -81,11 +81,11 @@ public:
     std::function<void (juce::int64)> onAutoSplitRequested;
     std::function<void (juce::int64, int)> onSetInstrumentRequested;
 
-    // Fixed width of the left-hand index/name/note-count text column. The
+    // Fixed width of the left-hand head column (index, name, swatch, mute, solo, volume). The
     // embedded TrackNotePreview fills everything to its right, so it grows
     // with the row instead of being pinned to a small fixed width — the
     // note data is the primary content, the text is a label for it.
-    static constexpr int trackInfoWidth = 180;
+    static constexpr int trackInfoWidth = 200;
 
     // Height of the divider line painted along the row's bottom edge, across
     // both the text column and the note preview, so adjacent tracks read as
@@ -128,11 +128,12 @@ public:
     // callbacks; a muted or solo-silenced row is dimmed.
     void setMuteSolo (bool muted, bool soloed, bool silencedBySolo);
 
-    // Width reserved at the right end of the info column for the M / S buttons.
-    static constexpr int muteSoloWidth = 40;
+    // Fired on a user change of the head's volume slider: (trackId, percent, startsGesture).
+    std::function<void (juce::int64, int, bool)> onVolumeChanged;
 
-    juce::TextButton& muteButtonForTesting() { return muteButton; }
-    juce::TextButton& soloButtonForTesting() { return soloButton; }
+    juce::Button& muteButtonForTesting() { return head.muteButtonForTesting(); }
+    juce::Button& soloButtonForTesting() { return head.soloButtonForTesting(); }
+    TrackHeadComponent& headForTesting() { return head; }
 
     // Test-only access to the embedded preview -- avoids needing a separate
     // friend-struct file just for this, since TrackNotePreview's own public
@@ -147,18 +148,15 @@ public:
     // still be opened (to draw new notes), though it can't be dragged to a part.
     bool canOpenEditor() const;
 
-    juce::String buildSecondLineForTesting() const { return buildSecondLine(); }
-
 private:
-    juce::String buildSecondLine() const;
     bool isConductorTrack() const { return (bool) track.getProperty (SongIDs::isConductor, false); }
 
     juce::ValueTree track;
     int             index;
     bool            selected = false;
     const TimelineViewState& timelineView;
+    TrackHeadComponent head;
     TrackNotePreview notePreview;
-    juce::TextButton muteButton { "M" }, soloButton { "S" };
     bool             silencedBySolo = false;
 };
 

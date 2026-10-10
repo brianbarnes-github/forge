@@ -164,7 +164,7 @@ TEST_CASE ("TrackRowComponent: ghost-toggle forwarding reports this row's trackI
 
     TimelineViewState viewState;
     TrackRowComponent row (track, 1, viewState);
-    row.setBounds (0, 0, 200, TrackRowComponent::defaultRowHeight);
+    row.setBounds (0, 0, 300, TrackRowComponent::defaultRowHeight);
 
     juce::int64 firedId = -1;
     bool firedVisible = false;
@@ -239,7 +239,7 @@ TEST_CASE ("TrackRowComponent: a vertical divider separates the info column from
     CHECK (image.getPixelAt (edge, 4) != line);
 }
 
-TEST_CASE ("TrackRowComponent: the conductor row reads 'N events' and can't be dragged", "[trackrow][fidelity]")
+TEST_CASE ("TrackRowComponent: the conductor row can't be dragged", "[trackrow][fidelity]")
 {
     SongDocument doc;
     auto conductor = doc.getConductorTrack();
@@ -248,11 +248,10 @@ TEST_CASE ("TrackRowComponent: the conductor row reads 'N events' and can't be d
 
     TimelineViewState view;
     TrackRowComponent row (conductor, 0, view);
-    CHECK (row.buildSecondLineForTesting() == "3 events");
     CHECK_FALSE (row.canDrag());
 }
 
-TEST_CASE ("TrackRowComponent: a note-less track reads '0 notes, N events' and can't be dragged", "[trackrow][fidelity]")
+TEST_CASE ("TrackRowComponent: a note-less track can't be dragged", "[trackrow][fidelity]")
 {
     SongDocument doc;
     auto track = doc.addTrackBulk ("Lyrics", 0, 0, 1);
@@ -260,7 +259,6 @@ TEST_CASE ("TrackRowComponent: a note-less track reads '0 notes, N events' and c
 
     TimelineViewState view;
     TrackRowComponent row (track, 1, view);
-    CHECK (row.buildSecondLineForTesting() == juce::String::fromUTF8 ("0 notes \xc2\xb7 1 events"));
     CHECK_FALSE (row.canDrag());
 }
 
@@ -410,15 +408,16 @@ TEST_CASE ("TrackRowComponent: at the minimum and maximum row heights nothing cl
         CHECK_FALSE (m.getBounds().intersects (s.getBounds()));
         CHECK_FALSE (m.getBounds().intersects (preview.getBounds()));
         CHECK_FALSE (s.getBounds().intersects (preview.getBounds()));
-        // Buttons stay tall enough to read and click, and centred in the head.
+        // Buttons stay tall enough to read and click, and centred in the head's lower row.
+        const auto lowerRow = inside.withTrimmedTop (inside.getHeight() / 2);
         CHECK (m.getHeight() >= 12);
-        CHECK (m.getY() - inside.getY() == inside.getBottom() - m.getBottom());
+        CHECK (m.getY() - lowerRow.getY() == lowerRow.getBottom() - m.getBottom());
         // The preview sits under the instrument band, over the canvas side only.
         CHECK (preview.getY() == TrackRowComponent::instrumentBandHeight);
         CHECK (preview.getHeight() == height - TrackRowComponent::instrumentBandHeight - TrackRowComponent::dividerThickness);
 
-        // The two text lines (11 px and 9 px fonts) each get half of the head's height:
-        // enough for their glyphs at the minimum.
+        // The head's two rows each get half of its height: enough for the 11 px name
+        // and the icon buttons at the minimum.
         CHECK (inside.getHeight() / 2 >= 13);
     }
 }
@@ -575,4 +574,57 @@ TEST_CASE ("TrackRowComponent: a single-instrument band names the program the tr
     TimelineViewState view;
 
     CHECK (TrackRowComponent (t, 1, view).instrumentLabel() == gmProgramName (40));
+}
+
+TEST_CASE ("TrackRowComponent: the head is 200 px and the note preview starts after it", "[track-row][head]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    row.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+    CHECK (TrackRowComponent::trackInfoWidth == 200);
+    CHECK (row.headForTesting().getRight() <= TrackRowComponent::trackInfoWidth);
+    CHECK (row.notePreviewForTesting().getX() == TrackRowComponent::trackInfoWidth);
+}
+
+TEST_CASE ("TrackRowComponent: volume changes from the head are forwarded with the trackId", "[track-row][head][volume]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    juce::int64 gotId = -1; int gotPercent = -1;
+    row.onVolumeChanged = [&] (juce::int64 i, int p, bool) { gotId = i; gotPercent = p; };
+    row.headForTesting().volumeSliderForTesting().setValue (35, juce::sendNotificationSync);
+    CHECK (gotId == id);
+    CHECK (gotPercent == 35);
+}
+
+TEST_CASE ("TrackRowComponent: a click on the head surface still selects the track", "[track-row][head]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    row.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+
+    juce::ModifierKeys mods;
+    juce::int64 selectedId = -1;
+    row.onTrackSelected = [&] (juce::int64 id, const juce::ModifierKeys& m) { selectedId = id; mods = m; };
+
+    // The head's index area: the head must not swallow the click, so the row is the hit target.
+    const juce::Point<int> onIndex { 10, 5 };
+    CHECK (row.headForTesting().getBounds().contains (onIndex));
+    row.setVisible (true);
+    CHECK (row.getComponentAt (onIndex) == &row);
+
+    row.mouseDown (eventAt (row, onIndex, 1, juce::ModifierKeys (juce::ModifierKeys::ctrlModifier)));
+    CHECK (selectedId == trackId);
+    CHECK (mods.isCtrlDown());
 }
