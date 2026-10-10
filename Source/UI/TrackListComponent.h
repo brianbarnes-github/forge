@@ -314,6 +314,7 @@ private:
 
     struct MergeGesture
     {
+        juce::int64 pressedTrackId = -1;       // the row the drag started on: never a valid target
         std::vector<SectionRef> refs;          // the sections being carried
         std::vector<SectionRange> ghosts;      // their ranges, for the preview
     };

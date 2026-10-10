@@ -659,6 +659,7 @@ void TrackListComponent::mergePressed (juce::int64 trackId, const SectionHit& hi
     }
 
     MergeGesture g;
+    g.pressedTrackId = trackId;
     g.refs.assign (sectionView.selected.begin(), sectionView.selected.end());
     for (const auto& r : g.refs)
     {
@@ -686,7 +687,8 @@ bool TrackListComponent::mergeDragged (juce::Point<int> screenPos, const juce::M
         return false;
     MergeDragPreview preview;
     preview.targetTrackId = rowTrackIdAt (screenPos);
-    preview.valid = preview.targetTrackId >= 0 && canMergeInto (doc, mergeGesture->refs, preview.targetTrackId);
+    preview.valid = preview.targetTrackId >= 0 && preview.targetTrackId != mergeGesture->pressedTrackId
+                    && canMergeInto (doc, mergeGesture->refs, preview.targetTrackId);
     preview.copy = mods.isCtrlDown() || mods.isCommandDown();
     preview.pointerScreen = screenPos;
     preview.ghosts = mergeGesture->ghosts;
@@ -708,7 +710,7 @@ void TrackListComponent::mergeReleased (juce::Point<int> screenPos, const juce::
         return;   // a click: the press already selected the section
 
     const auto target = rowTrackIdAt (screenPos);
-    if (target < 0 || ! canMergeInto (doc, g.refs, target))
+    if (target < 0 || target == g.pressedTrackId || ! canMergeInto (doc, g.refs, target))
         return;
 
     const bool copy = mods.isCtrlDown() || mods.isCommandDown();

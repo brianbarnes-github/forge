@@ -2593,3 +2593,23 @@ TEST_CASE ("TrackListComponent: a press on empty strip or the conductor starts n
     CHECK_FALSE (A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods));
     CHECK_FALSE (A::sectionView (*f.list).merge.has_value());
 }
+
+TEST_CASE ("TrackListComponent: with a multi-track selection, releasing over the pressed row merges nothing", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+    auto other = playbacktest::addTrack (f.doc, "O");
+    playbacktest::addNote (other, 64, 0, 480);
+    const auto otherId = (juce::int64) other.getProperty (SongIDs::trackId);
+    A::rebuild (*f.list);
+    A::sectionView (*f.list).selected = { { f.sourceId, 0 }, { otherId, 0 } };
+
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+    CHECK_FALSE (A::mergeDrag (*f.list, screenOf (*f.list, f.sourceId), altMods));
+    A::mergeRelease (*f.list, screenOf (*f.list, f.sourceId), altMods);
+
+    CHECK (f.notesIn (f.source) == 1);
+    CHECK (f.notesIn (other) == 1);
+    CHECK_FALSE (f.doc.canUndo());
+}

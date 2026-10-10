@@ -1,6 +1,6 @@
 # Songsmith: merge a track's notes into another track — design
 
-Date: 2026-10-10. Status: draft for review.
+Date: 2026-10-10. Status: implemented (see Implementation notes at the end).
 
 ## Goal
 
@@ -144,3 +144,5 @@ re-timing of carried notes, and a Preferences switch for the gesture.
 - Alt starts a merge from any non-empty hit, including the section edge zones; a press on empty strip or the conductor starts none.
 - `MergeResult` counts each carried note in exactly one of inserted/dropped/extended.
 - JUCE has no not-allowed cursor: an invalid target shows the normal cursor and no highlight.
+- A target with no stored sections is **not** materialised (supersedes §6 and its test-list item): inserted notes simply belong to the target's virtual section. Section materialisation in `SectionEdit` is undoable, not "non-undoably" as §6 claimed, and skipping it keeps undo clean.
+- The row the drag started on is never a valid target, even with a multi-track selection (releasing back where you started merges nothing); dropping onto another selected track is allowed and that track's own refs are ignored.
