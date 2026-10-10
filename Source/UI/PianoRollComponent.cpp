@@ -112,7 +112,7 @@ void PianoRollComponent::refreshPlayhead()
 
 void PianoRollComponent::followPlayhead (bool playing)
 {
-    if (! playing || playback == nullptr || playhead == nullptr)
+    if (! followEnabled || ! playing || playback == nullptr || playhead == nullptr)
         return;
 
     const double tick = playback->getPositionTicks();
@@ -174,6 +174,14 @@ void PianoRollComponent::centreOnTrackPitches()
     // Viewport::setViewPosition clamps to the canvas, so pitches near either
     // end of the MIDI range just scroll as far as they can.
     viewport.setViewPosition (0, rowCentreY - viewport.getMaximumVisibleHeight() / 2);
+}
+
+void PianoRollComponent::setShowRangeBand (bool show)
+{
+    if (showRangeBand == show)
+        return;
+    showRangeBand = show;
+    canvas.repaint();
 }
 
 void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
@@ -564,7 +572,7 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
 
 void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const
 {
-    if (role != Role::Preview || rangeBand.isEmpty() || clip.isEmpty())
+    if (! showRangeBand || role != Role::Preview || rangeBand.isEmpty() || clip.isEmpty())
         return;
 
     const int rowHeight = geometry.getRowHeight();

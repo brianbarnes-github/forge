@@ -959,6 +959,32 @@ TEST_CASE ("TrackListComponent: when not playing, seeking never scrolls the view
     CHECK (controller.getPositionTicks() == Catch::Approx (50000.0));
 }
 
+TEST_CASE ("TrackListComponent: with follow switched off a playing seek never scrolls the view; switching it on restores the page-flip", "[track-list][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 96000);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+    Access::zoomIn (list);
+    CHECK (list.getFollowPlayhead());   // default: on
+
+    controller.seekToTick (50000.0);
+    list.setFollowPlayhead (false);
+    list.followPlayheadForTesting (/*playing*/ true);
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (0.0));
+
+    list.setFollowPlayhead (true);
+    list.followPlayheadForTesting (/*playing*/ true);
+    CHECK (Access::scrollOffsetTicks (list) == Catch::Approx (50000.0));
+}
+
 TEST_CASE ("TrackListComponent: zoom, scroll and resize repaint the playhead overlay and move its x", "[track-list][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

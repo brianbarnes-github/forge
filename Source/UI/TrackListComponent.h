@@ -64,6 +64,10 @@ public:
     TimelineRuler* rulerForTesting() noexcept { return ruler.get(); }
     void followPlayheadForTesting (bool playing) { followPlayhead (playing); }
 
+    // Whether a playing playhead scrolls the timeline to stay visible.
+    void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
+    bool getFollowPlayhead() const noexcept { return followEnabled; }
+
     // Escape during a section drag: drops the gesture and its preview so the
     // release commits nothing. The selection the press made stays. Returns false
     // (key not consumed) when no gesture is in flight.
@@ -175,6 +179,7 @@ private:
     // Does nothing when stopped, so a ruler click never scrolls the view.
     void zoomAboutMarker (double factor);
     void followPlayhead (bool playing);
+    bool followEnabled = true;
 
     // The overlay skips repaints when the playhead x is unchanged, so every
     // change to the tick->x mapping (zoom, scroll, resize, fit) must call this.

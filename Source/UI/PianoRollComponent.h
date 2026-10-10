@@ -82,6 +82,12 @@ public:
     // empty range (the default, and Role::Source's permanent state) means
     // "don't paint a band" — never call this for a Role::Source roll.
     void setPreviewRangeBand (juce::Range<int> midiRange);
+    // Preview role: whether the range band and its out-of-range wash are drawn.
+    void setShowRangeBand (bool show);
+    bool getShowRangeBand() const noexcept { return showRangeBand; }
+    // Whether a playing playhead scrolls the view to stay visible.
+    void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
+    bool getFollowPlayhead() const noexcept { return followEnabled; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
     // document): repoints the roll's SourceRollEditor at a different
@@ -241,6 +247,8 @@ private:
     int ticksPerQuarter = 480;
     juce::ValueTree meterMap;
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
+    bool showRangeBand = true;
+    bool followEnabled = true;
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded

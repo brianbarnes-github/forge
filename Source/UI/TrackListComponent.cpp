@@ -118,7 +118,7 @@ void TrackListComponent::refreshOverlay()
 
 void TrackListComponent::followPlayhead (bool playing)
 {
-    if (! playing || playback == nullptr)
+    if (! followEnabled || ! playing || playback == nullptr)
         return;
     const double tick = playback->getPositionTicks();
     const int x = timelineView.xForTick ((int) tick);
