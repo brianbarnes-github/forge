@@ -141,4 +141,15 @@ namespace lotro
         };
         return (program >= 0 && program < 128) ? juce::String (names[program]) : juce::String();
     }
+
+    // The General MIDI family (program / 8) a program belongs to; 0..15.
+    inline const char* gmFamilyName (int family)
+    {
+        static const char* const names[16] =
+        {
+            "Piano", "Chromatic Percussion", "Organ", "Guitar", "Bass", "Strings", "Ensemble", "Brass",
+            "Reed", "Pipe", "Synth Lead", "Synth Pad", "Synth Effects", "Ethnic", "Percussive", "Sound Effects"
+        };
+        return (family >= 0 && family < 16) ? names[family] : "";
+    }
 }

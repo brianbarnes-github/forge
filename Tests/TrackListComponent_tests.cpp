@@ -2613,3 +2613,30 @@ TEST_CASE ("TrackListComponent: with a multi-track selection, releasing over the
     CHECK (f.notesIn (other) == 1);
     CHECK_FALSE (f.doc.canUndo());
 }
+
+TEST_CASE ("TrackListComponent: the band menu callbacks edit the document", "[track-list][instrument]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    t.setProperty (SongIDs::sourceProgram, 73, nullptr);
+    t.setProperty (SongIDs::endTick, 1920, nullptr);
+    playbacktest::addEvent (t, 0, { 0xC0, 73 });
+    playbacktest::addEvent (t, 960, { 0xC0, 40 });
+    playbacktest::addNote (t, 60, 0, 480);
+    playbacktest::addNote (t, 62, 960, 480);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    auto* row = TrackListComponentTestAccess::rowFor (list, id);
+    REQUIRE (row != nullptr);
+
+    row->instrumentMenuChosen (1);
+    CHECK (sectionsOf (doc.findTrackById (id)).size() == 2);
+
+    row = TrackListComponentTestAccess::rowFor (list, id);   // rows are rebuilt on a document change
+    REQUIRE (row != nullptr);
+    row->instrumentMenuChosen (1000 + 24);
+    CHECK ((int) doc.findTrackById (id).getProperty (SongIDs::sourceProgram) == 24);
+}

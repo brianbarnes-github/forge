@@ -1,4 +1,5 @@
 #include "TrackListComponent.h"
+#include "InstrumentEdit.h"
 #include "SongsmithColours.h"
 #include "WheelResize.h"
 
@@ -165,6 +166,8 @@ void TrackListComponent::rebuild()
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
+        row->onAutoSplitRequested = [this] (juce::int64 id) { autoSplitOnInstrumentChange (doc, id); };
+        row->onSetInstrumentRequested = [this] (juce::int64 id, int program) { setTrackInstrument (doc, id, program); };
         row->setSectionView (&sectionView);
         row->onSectionPressed = [this] (juce::int64 trackId, const SectionHit& hit, int tick, const juce::ModifierKeys& m) { sectionPressed (trackId, hit, tick, m); };
         row->onSectionDragged = [this] (int tick) { sectionDragged (tick); };

@@ -65,6 +65,22 @@ public:
     // channel 10, empty for the conductor.
     juce::String instrumentLabel() const;
 
+    // True for a point in the instrument band (the top strip of the canvas side).
+    static bool inInstrumentBand (juce::Point<int> p) noexcept
+    {
+        return p.x >= trackInfoWidth && p.y >= 0 && p.y < instrumentBandHeight;
+    }
+
+    // The band's right-click menu: item 1 "Auto split on instrument change" (enabled
+    // when the track has two or more instrument segments) and a "Set track instrument
+    // to" submenu, families then programs, whose leaf ids are 1000 + program and
+    // whose first-segment program is ticked.
+    juce::PopupMenu buildInstrumentMenu() const;
+    void instrumentMenuChosen (int itemId);
+
+    std::function<void (juce::int64)> onAutoSplitRequested;
+    std::function<void (juce::int64, int)> onSetInstrumentRequested;
+
     // Fixed width of the left-hand index/name/note-count text column. The
     // embedded TrackNotePreview fills everything to its right, so it grows
     // with the row instead of being pinned to a small fixed width — the
@@ -135,10 +151,12 @@ public:
 
 private:
     juce::String buildSecondLine() const;
+    bool isConductorTrack() const { return (bool) track.getProperty (SongIDs::isConductor, false); }
 
     juce::ValueTree track;
     int             index;
     bool            selected = false;
+    const TimelineViewState& timelineView;
     TrackNotePreview notePreview;
     juce::TextButton muteButton { "M" }, soloButton { "S" };
     bool             silencedBySolo = false;

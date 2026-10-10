@@ -1,3 +1,4 @@
+#include "PlaybackTestSupport.h"
 #include "UI/SongDocument.h"
 #include "UI/TrackRowComponent.h"
 #include "UI/TimelineViewState.h"
@@ -458,4 +459,105 @@ TEST_CASE ("TrackRowComponent: the band is painted across the canvas side only, 
     CHECK (image.getPixelAt (canvasX, TrackRowComponent::instrumentBandHeight - 2) == band);
     CHECK (image.getPixelAt (canvasX, TrackRowComponent::instrumentBandHeight + 4) != band);   // notes area below
     CHECK (image.getPixelAt (4, 1) != band);                                          // head column unchanged
+}
+
+namespace
+{
+    // First menu item (searching submenus) with this id, or nullptr.
+    const juce::PopupMenu::Item* findItem (const juce::PopupMenu& menu, int id, std::vector<juce::PopupMenu::Item>& keep)
+    {
+        juce::PopupMenu::MenuItemIterator it (menu);
+        while (it.next())
+        {
+            keep.push_back (it.getItem());
+            if (it.getItem().itemID == id)
+                return &keep.back();
+            if (it.getItem().subMenu != nullptr)
+                if (const auto* sub = findItem (*it.getItem().subMenu, id, keep))
+                    return sub;
+        }
+        return nullptr;
+    }
+}
+
+TEST_CASE ("TrackRowComponent: the band menu offers auto split only when the track changes instrument", "[track-row][instrument]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto multi = playbacktest::addTrack (doc, "Multi");
+    multi.setProperty (SongIDs::sourceProgram, 73, nullptr);
+    multi.setProperty (SongIDs::endTick, 1920, nullptr);
+    playbacktest::addEvent (multi, 0, { 0xC0, 73 });
+    playbacktest::addEvent (multi, 960, { 0xC0, 40 });
+    playbacktest::addNote (multi, 60, 0, 480);
+    auto single = playbacktest::addTrack (doc, "Single");
+    single.setProperty (SongIDs::sourceProgram, 5, nullptr);
+    playbacktest::addNote (single, 60, 0, 480);
+
+    TimelineViewState view;
+    TrackRowComponent multiRow (multi, 1, view);
+    TrackRowComponent singleRow (single, 2, view);
+    std::vector<juce::PopupMenu::Item> keep;
+
+    const auto multiMenu = multiRow.buildInstrumentMenu();
+    const auto* split = findItem (multiMenu, 1, keep);
+    REQUIRE (split != nullptr);
+    CHECK (split->isEnabled);
+
+    const auto singleMenu = singleRow.buildInstrumentMenu();
+    const auto* disabled = findItem (singleMenu, 1, keep);
+    REQUIRE (disabled != nullptr);
+    CHECK_FALSE (disabled->isEnabled);
+}
+
+TEST_CASE ("TrackRowComponent: the set-instrument list ticks the track's first instrument", "[track-row][instrument]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    t.setProperty (SongIDs::sourceProgram, 73, nullptr);
+    playbacktest::addEvent (t, 0, { 0xC0, 73 });
+    playbacktest::addNote (t, 60, 0, 480);
+    TimelineViewState view;
+    TrackRowComponent row (t, 1, view);
+    std::vector<juce::PopupMenu::Item> keep;
+    const auto menu = row.buildInstrumentMenu();
+
+    const auto* flute = findItem (menu, 1000 + 73, keep);
+    const auto* other = findItem (menu, 1000 + 40, keep);
+
+    REQUIRE (flute != nullptr);
+    REQUIRE (other != nullptr);
+    CHECK (flute->isTicked);
+    CHECK_FALSE (other->isTicked);
+}
+
+TEST_CASE ("TrackRowComponent: choosing a band menu item fires the matching callback", "[track-row][instrument]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    playbacktest::addNote (t, 60, 0, 480);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    TimelineViewState view;
+    TrackRowComponent row (t, 1, view);
+    juce::int64 splitId = -1, setId = -1;
+    int setProgram = -1;
+    row.onAutoSplitRequested = [&] (juce::int64 i) { splitId = i; };
+    row.onSetInstrumentRequested = [&] (juce::int64 i, int p) { setId = i; setProgram = p; };
+
+    row.instrumentMenuChosen (1);
+    row.instrumentMenuChosen (1000 + 40);
+    row.instrumentMenuChosen (0);   // dismissed: nothing
+
+    CHECK (splitId == id);
+    CHECK (setId == id);
+    CHECK (setProgram == 40);
+}
+
+TEST_CASE ("TrackRowComponent: the instrument band is the top strip of the canvas side", "[track-row][instrument]")
+{
+    CHECK (TrackRowComponent::inInstrumentBand ({ TrackRowComponent::trackInfoWidth + 5, 3 }));
+    CHECK_FALSE (TrackRowComponent::inInstrumentBand ({ TrackRowComponent::trackInfoWidth - 5, 3 }));
+    CHECK_FALSE (TrackRowComponent::inInstrumentBand ({ TrackRowComponent::trackInfoWidth + 5, TrackRowComponent::instrumentBandHeight }));
 }
