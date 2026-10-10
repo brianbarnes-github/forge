@@ -9,6 +9,7 @@
 #include "Playback/AudioOutput.h"
 #include "Playback/PlaybackController.h"
 #include "Playback/SynthVoice.h"
+#include "Preferences/PreferencesServices.h"
 #include "SongDocument.h"
 #include "SongSession.h"
 
@@ -81,6 +82,16 @@ private:
     std::unique_ptr<juce::PropertiesFile>   settings;
     // Typed view over `settings`; declared after it so it is built from a live file.
     AppSettings                             appSettings { *settings };
+    // The SoundFont currently loaded in `synth` (empty = none). Set on every successful load.
+    juce::File                              activeSoundFont;
+    // What the Preferences pages may ask of this window. Declared after appSettings (it refers to it).
+    PreferencesServices                     preferencesServices
+    {
+        appSettings,
+        [this] (const juce::File& file) { return loadSoundFontAndRemember (file); },
+        [this] { return useBundledSoundFont(); },
+        [this] { return activeSoundFontLabel(); }
+    };
     // The open Preferences window, if any. Closed in ~MainWindow: the dialog holds a
     // reference to `appSettings`, which dies with this window.
     juce::Component::SafePointer<juce::DialogWindow> preferencesWindow;
@@ -91,6 +102,10 @@ private:
 
     void chooseSoundFont();
     void loadStartupSoundFont();
+    juce::File bundledSoundFont() const;
+    SoundFontLoad loadSoundFontAndRemember (const juce::File& file);
+    SoundFontLoad useBundledSoundFont();
+    juce::String activeSoundFontLabel() const;
     bool ensurePlaybackReady();
 
     void openMidiViaDialog();

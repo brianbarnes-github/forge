@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../AppSettings.h"
+#include "PreferencesServices.h"
 #include "../SplitterComponent.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -23,7 +23,7 @@ namespace lotro
     struct PreferencesPage
     {
         juce::String name;
-        std::function<std::unique_ptr<juce::Component> (AppSettings&, std::function<void()>)> make;
+        std::function<std::unique_ptr<juce::Component> (PreferencesServices&, std::function<void()>)> make;
     };
 
     const std::vector<PreferencesPage>& preferencePages();
@@ -32,7 +32,7 @@ namespace lotro
     class PreferencesDialog : public juce::Component
     {
     public:
-        explicit PreferencesDialog (AppSettings& settings);
+        explicit PreferencesDialog (PreferencesServices& services);
         ~PreferencesDialog() override;
 
         void paint (juce::Graphics& g) override;
@@ -67,7 +67,7 @@ namespace lotro
         void layoutPage();
         void refreshSaveNotice();
 
-        AppSettings& settings;
+        PreferencesServices& services;
         juce::TreeView tree;
         std::unique_ptr<RootItem> root;
         PageHost pageHost;
@@ -80,8 +80,8 @@ namespace lotro
     };
 
     // Opens the dialog fully modal (the main window and its menus are blocked
-    // until it closes). `settings` must outlive it; MainWindow owns both.
+    // until it closes). `services` and what it references must outlive it; MainWindow owns both.
     // The returned pointer goes null when the window closes; the owner closes it
     // if still alive when it is destroyed.
-    juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (AppSettings& settings, juce::Component* centreAround);
+    juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (PreferencesServices& services, juce::Component* centreAround);
 }

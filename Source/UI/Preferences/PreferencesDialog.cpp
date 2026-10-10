@@ -9,8 +9,8 @@ namespace lotro
     {
         static const std::vector<PreferencesPage> pages
         {
-            { "General", [] (AppSettings& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<GeneralPreferencesPage> (s, std::move (changed)); } },
-            { "Import",  [] (AppSettings& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<ImportPreferencesPage> (s, std::move (changed)); } },
+            { "General", [] (PreferencesServices& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<GeneralPreferencesPage> (s.settings, std::move (changed)); } },
+            { "Import",  [] (PreferencesServices& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<ImportPreferencesPage> (s.settings, std::move (changed)); } },
         };
         return pages;
     }
@@ -51,7 +51,7 @@ namespace lotro
         bool mightContainSubItems() override { return true; }
     };
 
-    PreferencesDialog::PreferencesDialog (AppSettings& settingsIn) : settings (settingsIn)
+    PreferencesDialog::PreferencesDialog (PreferencesServices& servicesIn) : services (servicesIn)
     {
         root = std::make_unique<RootItem> (*this);
         tree.setRootItem (root.get());
@@ -104,7 +104,7 @@ namespace lotro
         if (index < 0 || index >= (int) pages.size() || index == selectedIndex)
             return;
         selectedIndex = index;
-        page = pages[(size_t) index].make (settings, [this] { refreshSaveNotice(); });
+        page = pages[(size_t) index].make (services, [this] { refreshSaveNotice(); });
         pageHost.addAndMakeVisible (*page);
         pageTitle.setText (pages[(size_t) index].name, juce::dontSendNotification);
         layoutPage();
@@ -127,7 +127,7 @@ namespace lotro
 
     void PreferencesDialog::refreshSaveNotice()
     {
-        saveNotice.setVisible (settings.lastSaveFailed());
+        saveNotice.setVisible (services.settings.lastSaveFailed());
     }
 
     void PreferencesDialog::layoutPage()
@@ -138,9 +138,9 @@ namespace lotro
             page->setBounds (host);
     }
 
-    juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (AppSettings& settings, juce::Component* centreAround)
+    juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (PreferencesServices& services, juce::Component* centreAround)
     {
-        auto content = std::make_unique<PreferencesDialog> (settings);
+        auto content = std::make_unique<PreferencesDialog> (services);
         juce::DialogWindow::LaunchOptions options;
         auto* dialog = content.get();
         options.content.setOwned (content.release());

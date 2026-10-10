@@ -8,11 +8,20 @@ using namespace lotro;
 
 namespace
 {
+    PreferencesServices makeServices (AppSettings& settings)
+    {
+        return { settings,
+                 [] (const juce::File&) { return SoundFontLoad { SoundFontResult::loaded, {} }; },
+                 [] { return SoundFontLoad { SoundFontResult::loaded, {} }; },
+                 [] { return juce::String(); } };
+    }
+
     struct Fixture
     {
         juce::File file = juce::File::createTempFile (".settings");
         std::unique_ptr<juce::PropertiesFile> props = std::make_unique<juce::PropertiesFile> (file, juce::PropertiesFile::Options());
         AppSettings settings { *props };
+        PreferencesServices services = makeServices (settings);
         ~Fixture() { props.reset(); file.deleteFile(); }
     };
 }
@@ -21,7 +30,7 @@ TEST_CASE ("PreferencesDialog: the tree lists the registered pages, General firs
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
 
     REQUIRE (preferencePages().size() >= 1);
     CHECK (preferencePages().front().name == "General");
@@ -34,7 +43,7 @@ TEST_CASE ("PreferencesDialog: tree, splitter and page share the content, tree o
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
     dialog.setSize (640, 400);
 
     auto* page = dialog.currentPage();
@@ -49,7 +58,7 @@ TEST_CASE ("PreferencesDialog: dragging the splitter re-lays out the page to the
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
     dialog.setSize (640, 400);
     auto* page = dialog.currentPage();
     REQUIRE (page != nullptr);
@@ -89,7 +98,7 @@ TEST_CASE ("PreferencesDialog: the Close button asks to close", "[preferences]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
     bool closed = false;
     dialog.onCloseRequested = [&] { closed = true; };
     dialog.closeButtonForTesting().triggerClick();
@@ -101,7 +110,7 @@ TEST_CASE ("PreferencesDialog: the Import page is the second page", "[preference
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
     dialog.selectPage (1);
     CHECK (dialog.getSelectedPageIndex() == 1);
     CHECK (dynamic_cast<ImportPreferencesPage*> (dialog.currentPage()) != nullptr);
@@ -131,7 +140,7 @@ TEST_CASE ("PreferencesDialog: no notice while saves succeed; the notice appears
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
     auto* general = dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage());
     REQUIRE (general != nullptr);
     CHECK_FALSE (dialog.saveNoticeVisibleForTesting());
@@ -148,7 +157,8 @@ TEST_CASE ("PreferencesDialog: a failing settings file shows the notice from eit
     const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
     juce::PropertiesFile props (blocked, {});
     AppSettings settings (props);
-    PreferencesDialog dialog (settings);
+    auto services = makeServices (settings);
+    PreferencesDialog dialog (services);
 
     auto* general = dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage());
     REQUIRE (general != nullptr);
@@ -166,7 +176,8 @@ TEST_CASE ("PreferencesDialog: the Import page also reports a failed save", "[pr
     const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
     juce::PropertiesFile props (blocked, {});
     AppSettings settings (props);
-    PreferencesDialog dialog (settings);
+    auto services = makeServices (settings);
+    PreferencesDialog dialog (services);
     dialog.selectPage (1);
     auto* page = dynamic_cast<ImportPreferencesPage*> (dialog.currentPage());
     REQUIRE (page != nullptr);
@@ -178,7 +189,7 @@ TEST_CASE ("PreferencesDialog: opens at least as large as its minimum size", "[p
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Fixture f;
-    PreferencesDialog dialog (f.settings);
+    PreferencesDialog dialog (f.services);
     CHECK (dialog.getWidth() >= preferencesMinWidth);
     CHECK (dialog.getHeight() >= preferencesMinHeight);
 }
@@ -194,7 +205,8 @@ TEST_CASE ("PreferencesDialog: opening over settings whose last save failed show
     CHECK_FALSE (settings.setAskBeforeReplacingFile (false));   // fails before any dialog exists
     REQUIRE (settings.lastSaveFailed());
 
-    PreferencesDialog dialog (settings);
+    auto services = makeServices (settings);
+    PreferencesDialog dialog (services);
     CHECK (dialog.saveNoticeVisibleForTesting());
 }
 
@@ -206,7 +218,8 @@ TEST_CASE ("PreferencesDialog: the notice clears once a later save succeeds", "[
     const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
     juce::PropertiesFile props (blocked, {});
     AppSettings settings (props);
-    PreferencesDialog dialog (settings);
+    auto services = makeServices (settings);
+    PreferencesDialog dialog (services);
     auto* general = dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage());
     REQUIRE (general != nullptr);
     CHECK_FALSE (dialog.saveNoticeVisibleForTesting());

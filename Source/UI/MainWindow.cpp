@@ -306,7 +306,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case TransportRewindOneBar: playback.rewindOneBar();                                  return;
         case TransportClearMarker:  playback.clearMarker();                                   return;
         case HelpAbout:       showAboutDialog (this);                                         return;
-        case FilePreferences: preferencesWindow = showPreferencesDialog (appSettings, this);    return;
+        case FilePreferences: preferencesWindow = showPreferencesDialog (preferencesServices, this); return;
         case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
         case SongRunConverter:
@@ -591,19 +591,56 @@ bool MainWindow::keyPressed (const juce::KeyPress& key)
     return false;
 }
 
+juce::File MainWindow::bundledSoundFont() const
+{
+    return juce::File::getSpecialLocation (juce::File::currentExecutableFile)
+               .getSiblingFile ("resources").getChildFile ("SongSmith.sf2");
+}
+
 void MainWindow::loadStartupSoundFont()
 {
-    const juce::String configuredPath = settings->getValue ("soundFontPath");
+    const juce::String configuredPath = appSettings.soundFontPath();
     const juce::File configured = configuredPath.isNotEmpty() ? juce::File (configuredPath) : juce::File();
-    const auto bundled = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getSiblingFile ("resources").getChildFile ("SongSmith.sf2");
-    for (const auto& candidate : { configured, bundled })
+    for (const auto& candidate : { configured, bundledSoundFont() })
     {
         if (candidate == juce::File() || ! candidate.existsAsFile())
             continue;
-        try { synth.loadSoundFont (candidate); return; }
+        try { synth.loadSoundFont (candidate); activeSoundFont = candidate; return; }
         catch (const PlaybackError&) { /* fall through to the next candidate */ }
     }
     // No SoundFont: the app still starts; Play explains (ensurePlaybackReady).
+}
+
+SoundFontLoad MainWindow::loadSoundFontAndRemember (const juce::File& file)
+{
+    // Message thread. A failed load leaves the previous SoundFont active (SynthVoice restores
+    // its state) and nothing is written.
+    try { synth.loadSoundFont (file); }
+    catch (const PlaybackError& e) { return { SoundFontResult::failed, e.what() }; }
+    catch (const std::exception& e) { return { SoundFontResult::failed, e.what() }; }
+    activeSoundFont = file;
+    appSettings.setSoundFontPath (file);
+    return { SoundFontResult::loaded, {} };
+}
+
+SoundFontLoad MainWindow::useBundledSoundFont()
+{
+    appSettings.clearSoundFontPath();   // "forget my choice" happens even if the bundled file is unusable
+    const auto bundled = bundledSoundFont();
+    if (! bundled.existsAsFile())
+        return { SoundFontResult::bundledUnavailable, {} };   // no unload exists: the current SoundFont stays
+    try { synth.loadSoundFont (bundled); }
+    catch (const PlaybackError& e) { return { SoundFontResult::failed, e.what() }; }
+    catch (const std::exception& e) { return { SoundFontResult::failed, e.what() }; }
+    activeSoundFont = bundled;
+    return { SoundFontResult::loaded, {} };
+}
+
+juce::String MainWindow::activeSoundFontLabel() const
+{
+    if (activeSoundFont == juce::File())        return "No SoundFont loaded";
+    if (activeSoundFont == bundledSoundFont())  return "Using bundled SongSmith.sf2";
+    return "Using " + activeSoundFont.getFullPathName();
 }
 
 bool MainWindow::ensurePlaybackReady()
@@ -631,16 +668,9 @@ void MainWindow::chooseSoundFont()
             if (safe == nullptr) return;
             const auto file = fc.getResult();
             if (file == juce::File()) return;
-            // Message thread. A failed load leaves the previous SoundFont active
-            // (SynthVoice restores its state), and the setting is only written on success.
-            try
-            {
-                safe->synth.loadSoundFont (file);
-                safe->settings->setValue ("soundFontPath", file.getFullPathName());
-                safe->settings->saveIfNeeded();
-            }
-            catch (const PlaybackError& e) { showError ("SoundFont", e.what()); }
-            catch (const std::exception& e) { showError ("SoundFont", e.what()); }
+            const auto loaded = safe->loadSoundFontAndRemember (file);
+            if (loaded.result == SoundFontResult::failed)
+                showError ("SoundFont", loaded.detail);
         });
 }
 
