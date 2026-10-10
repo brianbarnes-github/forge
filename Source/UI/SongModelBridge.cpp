@@ -107,7 +107,7 @@ namespace
     // Shared by both import paths. `plan` == nullptr is the raw-less path
     // (appendImportedSong): NOTEs only, conductor and EVENTS untouched.
     void appendImport (SongDocument& doc, const Song& imported, const MidiImportPlan* plan,
-                       int importBatch, Diagnostics& diagnostics)
+                       int importBatch, Diagnostics& diagnostics, int startOffsetTicks = 0)
     {
         // R1: only the first import sets the document's time base and
         // TEMPO_MAP/METER_MAP. A later import describes a different timeline,
@@ -142,6 +142,7 @@ namespace
         // and the incoming ticks — over the Phase 3 lossy-downscale-into-docPpq
         // fallback, as long as the LCM stays under a sane cap.
         bool raisedDocumentTimeBase     = false;
+        int  offsetScale                = 1;   // the raise factor, for the caller's pre-raise offset
         const int raisedFromPpq         = docPpq;
         int existingNotesRescaledCount  = 0;
 
@@ -154,6 +155,7 @@ namespace
                 const int existingRescaleFactor = newPpq / docPpq;
 
                 existingNotesRescaledCount = rescaleExistingDocumentTicks (doc, existingRescaleFactor);
+                offsetScale = existingRescaleFactor;
 
                 doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, newPpq, nullptr);
                 // A-R3(c): recorded undo steps hold pre-rescale tick values and
@@ -172,6 +174,11 @@ namespace
         }
 
         const bool needsRescale = ! isFirstImport && importedPpq != docPpq;
+
+        // Where the file's tick 0 lands, in the document's (post-raise) ticks. Tracks, their events and
+        // end ticks all move with it. The file's conductor (tempo and meter changes, song-wide events)
+        // moves too, except what sits at tick 0: that stays the Song's opening tempo and meter.
+        const int placeOffset = plan != nullptr ? std::max (0, startOffsetTicks) * offsetScale : 0;
 
         int roundedValueCount    = 0;
         int zeroLengthNoteCount  = 0;
@@ -200,12 +207,15 @@ namespace
             return rescaleTick (tick, docPpq, importedPpq);
         };
 
-        auto appendEvents = [&] (juce::ValueTree eventsNode, const std::vector<PlannedEvent>& events)
+        // Tick 0 of the conductor stays at 0 (the opening tempo and meter); everything after it moves.
+        auto conductorOffset = [&] (int fileTick) { return fileTick > 0 ? placeOffset : 0; };
+
+        auto appendEvents = [&] (juce::ValueTree eventsNode, const std::vector<PlannedEvent>& events, bool isConductor)
         {
             for (const auto& e : events)
             {
                 juce::ValueTree eventTree (SongIDs::EVENT);
-                eventTree.setProperty (SongIDs::tick, rescaleOther (e.tick), nullptr);
+                eventTree.setProperty (SongIDs::tick, rescaleOther (e.tick) + (isConductor ? conductorOffset (e.tick) : placeOffset), nullptr);
                 eventTree.setProperty (SongIDs::order, e.order, nullptr);
                 if (e.relocatedFrom >= 0)
                     eventTree.setProperty (SongIDs::relocatedFrom, e.relocatedFrom, nullptr);
@@ -250,7 +260,7 @@ namespace
 
                 juce::ValueTree noteTree (SongIDs::NOTE);
                 noteTree.setProperty (SongIDs::pitch, note.pitch, nullptr);
-                noteTree.setProperty (SongIDs::startTick, startTick, nullptr);
+                noteTree.setProperty (SongIDs::startTick, startTick + placeOffset, nullptr);
                 noteTree.setProperty (SongIDs::durationTicks, durationTicks, nullptr);
                 noteTree.setProperty (SongIDs::velocity, note.velocity, nullptr);
                 noteTree.setProperty (SongIDs::isDrum, note.isDrum, nullptr);
@@ -308,8 +318,8 @@ namespace
 
                 trackTree.setProperty (SongIDs::sourceTrackIndex, planned.rawTrackIndex, nullptr);
                 trackTree.setProperty (SongIDs::defaultChannel, planned.defaultChannel, nullptr);
-                trackTree.setProperty (SongIDs::endTick, rescaleOther (planned.endTick), nullptr);
-                appendEvents (SongDocument::getEventsNode (trackTree), planned.events);
+                trackTree.setProperty (SongIDs::endTick, rescaleOther (planned.endTick) + placeOffset, nullptr);
+                appendEvents (SongDocument::getEventsNode (trackTree), planned.events, false);
             }
 
             if (plan->writesConductor) // first import, or a tempo replace
@@ -318,8 +328,8 @@ namespace
                 auto conductorEvents = SongDocument::getEventsNode (conductor);
                 if (replacingTempo)
                     conductorEvents.removeAllChildren (nullptr);   // the file's conductor replaces it wholesale
-                appendEvents (conductorEvents, plan->conductorEvents);   // rescaled when the PPQs differ
-                conductor.setProperty (SongIDs::endTick, rescaleOther (plan->conductorEndTick), nullptr);
+                appendEvents (conductorEvents, plan->conductorEvents, true);   // rescaled when the PPQs differ
+                conductor.setProperty (SongIDs::endTick, rescaleOther (plan->conductorEndTick) + placeOffset, nullptr);
             }
         }
 
@@ -362,6 +372,15 @@ namespace
             diagnostics.push_back (std::move (d));
         }
 
+        if (placeOffset > 0)
+        {
+            Diagnostic d;
+            d.source   = "SongModelBridge";
+            d.severity = Severity::Info;
+            d.message  = "Placed the imported MIDI at tick " + std::to_string (placeOffset);
+            diagnostics.push_back (std::move (d));
+        }
+
         if (isFirstImport || replacingTempo)
         {
             auto tempoMapNode = doc.getTempoMapNode();
@@ -378,7 +397,7 @@ namespace
             for (const auto& change : imported.tempoMap)
             {
                 juce::ValueTree changeTree (SongIDs::TEMPO_CHANGE);
-                changeTree.setProperty (SongIDs::tick, mapTick (change.tick), nullptr);
+                changeTree.setProperty (SongIDs::tick, mapTick (change.tick) + conductorOffset (change.tick), nullptr);
                 changeTree.setProperty (SongIDs::bpm, change.bpm, nullptr);
                 SongDocument::appendChildBulk (tempoMapNode, changeTree);
             }
@@ -386,7 +405,7 @@ namespace
             for (const auto& change : imported.meterMap)
             {
                 juce::ValueTree changeTree (SongIDs::METER_CHANGE);
-                changeTree.setProperty (SongIDs::tick, mapTick (change.tick), nullptr);
+                changeTree.setProperty (SongIDs::tick, mapTick (change.tick) + conductorOffset (change.tick), nullptr);
                 changeTree.setProperty (SongIDs::numerator, change.numerator, nullptr);
                 changeTree.setProperty (SongIDs::denominator, change.denominator, nullptr);
                 SongDocument::appendChildBulk (meterMapNode, changeTree);
@@ -519,7 +538,7 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
     }
     diagnostics.insert (diagnostics.end(), planDiagnostics.begin(), planDiagnostics.end());
 
-    appendImport (doc, imported, &plan, importBatch, diagnostics);
+    appendImport (doc, imported, &plan, importBatch, diagnostics, options.startOffsetTicks);
     return true;
 }
 

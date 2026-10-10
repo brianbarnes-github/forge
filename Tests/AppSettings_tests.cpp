@@ -253,3 +253,39 @@ TEST_CASE ("AppSettings: the merge scope defaults to notes only, round-trips and
     reopened.setValue ("editing.mergeScope", "banana");
     CHECK (settings.mergeScope() == MergeScope::notesOnly);
 }
+
+TEST_CASE ("AppSettings: import placement defaults to the start of the song and round-trips", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    AppSettings settings (props);
+    CHECK (settings.importPlacement() == ImportPlacement::atStart);
+
+    CHECK (settings.setImportPlacement (ImportPlacement::atMarker));
+    juce::PropertiesFile reader (file, {});
+    CHECK (AppSettings (reader).importPlacement() == ImportPlacement::atMarker);
+
+    settings.setImportPlacement (ImportPlacement::atStart);
+    CHECK (settings.importPlacement() == ImportPlacement::atStart);
+
+    props.setValue ("import.placement", "banana");
+    CHECK (settings.importPlacement() == ImportPlacement::atStart);
+    CHECK (settings.importTrackOptions() == ImportTrackOptions::ask);   // the neighbouring setting is unaffected
+}
+
+TEST_CASE ("importStartOffsetTicks: only the marker setting with a marker set places the file later", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    AppSettings settings (props);
+
+    CHECK (importStartOffsetTicks (settings, 480.0) == 0);            // Start of song ignores the marker
+    settings.setImportPlacement (ImportPlacement::atMarker);
+    CHECK (importStartOffsetTicks (settings, 480.0) == 480);
+    CHECK (importStartOffsetTicks (settings, 480.4) == 480);          // marker ticks are fractional; rounded
+    CHECK (importStartOffsetTicks (settings, 480.6) == 481);
+    CHECK (importStartOffsetTicks (settings, std::nullopt) == 0);     // no marker set: the start
+    CHECK (importStartOffsetTicks (settings, -5.0) == 0);
+}

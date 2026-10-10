@@ -374,3 +374,148 @@ TEST_CASE ("ImportOptions: previewImportTrackCount gives no count for a missing 
     TempMidi junk (Bytes { 'n', 'o', 't', ' ', 'm', 'i', 'd', 'i' });
     CHECK_FALSE (previewImportTrackCount (junk.file).has_value());
 }
+
+namespace
+{
+    // (startTick, durationTicks) of every note on the note-bearing rows, in row order.
+    std::vector<std::pair<int, int>> noteSpans (const SongDocument& doc)
+    {
+        std::vector<std::pair<int, int>> spans;
+        for (int i = 0; i < doc.getNumTracks(); ++i)
+            if (SongDocument::isAssignableTrack (doc.getTrack (i)))
+                for (auto n : SongDocument::getNotesNode (doc.getTrack (i)))
+                    spans.emplace_back ((int) n.getProperty (SongIDs::startTick), (int) n.getProperty (SongIDs::durationTicks));
+        return spans;
+    }
+
+    std::vector<int> eventTicks (juce::ValueTree track)
+    {
+        std::vector<int> ticks;
+        for (auto e : SongDocument::getEventsNode (track))
+            ticks.push_back ((int) e.getProperty (SongIDs::tick));
+        return ticks;
+    }
+}
+
+TEST_CASE ("ImportOptions: a start offset places the file's notes, events and end tick later", "[import-options]")
+{
+    TrackBody t;   // a program change at 0 (a track EVENT), a note 0..96, EOT at 96 + 24
+    t.ev (0, { 0xC0, 5 }).ev (0, { 0x90, 60, 100 }).ev (96, { 0x80, 60, 0x40 }).eot (24);
+    TempMidi first  (smf (1, 96, { conductor (usFor120), melody (72) }));
+    TempMidi second (smf (1, 96, { conductor (usFor120), t }));
+
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, first.file, 1, d1));
+    ImportOptions options;
+    options.startOffsetTicks = 192;
+    REQUIRE (importMidiFile (doc, second.file, 2, d2, options));
+
+    const auto spans = noteSpans (doc);
+    REQUIRE (spans.size() == 2);
+    CHECK (spans[0] == std::make_pair (0, 96));      // the earlier import is untouched
+    CHECK (spans[1] == std::make_pair (192, 96));    // start moved, duration did not
+
+    const auto track = doc.getTrack (doc.getNumTracks() - 1);
+    const auto ticks = eventTicks (track);
+    REQUIRE_FALSE (ticks.empty());
+    CHECK (*std::min_element (ticks.begin(), ticks.end()) == 192);   // the program change moves with the notes
+    CHECK ((int) track.getProperty (SongIDs::endTick) == 96 + 24 + 192);
+    CHECK (containsMessage (d2, Severity::Info, "Placed"));
+}
+
+TEST_CASE ("ImportOptions: a zero start offset changes nothing and reports nothing", "[import-options]")
+{
+    TempMidi file (smf (1, 96, { conductor (usFor120), melody (60) }));
+    SongDocument plain, zero;
+    Diagnostics dp, dz;
+    REQUIRE (importMidiFile (plain, file.file, 1, dp));
+    ImportOptions options;
+    options.startOffsetTicks = 0;
+    REQUIRE (importMidiFile (zero, file.file, 1, dz, options));
+
+    CHECK (noteSpans (zero) == noteSpans (plain));
+    CHECK (dz.size() == dp.size());
+    CHECK_FALSE (containsMessage (dz, Severity::Info, "Placed"));
+}
+
+TEST_CASE ("ImportOptions: a start offset moves every note of a merged import", "[import-options]")
+{
+    TempMidi file (smf (1, 96, { conductor (usFor120), melody (60), melody (64) }));
+    SongDocument doc;
+    Diagnostics diags;
+    ImportOptions options;
+    options.tracks = TrackMode::merged;
+    options.startOffsetTicks = 96;
+    REQUIRE (importMidiFile (doc, file.file, 1, diags, options));
+
+    REQUIRE (noteTrackCount (doc) == 1);
+    for (const auto& span : noteSpans (doc))
+        CHECK (span == std::make_pair (96, 96));
+}
+
+TEST_CASE ("ImportOptions: the offset is given in the Song's ticks, so a time-base raise scales it", "[import-options]")
+{
+    // Song at 96 PPQ, file at 120 PPQ: lcm 480, existing x5, incoming x4. The caller's 96 Song ticks (one quarter)
+    // is 480 after the raise.
+    TempMidi first  (smf (1, 96,  { conductor (usFor120), melody (60) }));
+    TempMidi second (smf (1, 120, { conductor (usFor120), melody (64) }));
+
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, first.file, 1, d1));
+    ImportOptions options;
+    options.startOffsetTicks = 96;
+    REQUIRE (importMidiFile (doc, second.file, 2, d2, options));
+
+    CHECK ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
+    const auto spans = noteSpans (doc);
+    REQUIRE (spans.size() == 2);
+    CHECK (spans[1].first == 480);
+    CHECK (spans[1].second == 96 * 4);   // the 96-tick note at 120 PPQ, scaled by 4
+}
+
+TEST_CASE ("ImportOptions: tempo replace with an offset shifts later tempo and meter changes but keeps the opening ones at tick 0", "[import-options]")
+{
+    TempMidi first  (smf (1, 96, { conductor (usFor120), melody (60) }));
+    TempMidi second (smf (1, 96, { conductor (usFor120, 96, usFor100), melody (64) }));   // 100 BPM from tick 96
+
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, first.file, 1, d1));
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    options.startOffsetTicks = 384;
+    REQUIRE (importMidiFile (doc, second.file, 2, d2, options));
+
+    const auto tempoMap = doc.getTempoMapNode();
+    REQUIRE (tempoMap.getNumChildren() == 2);
+    CHECK ((int) tempoMap.getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((double) tempoMap.getChild (0).getProperty (SongIDs::bpm) == Catch::Approx (120.0));
+    CHECK ((int) tempoMap.getChild (1).getProperty (SongIDs::tick) == 96 + 384);
+    CHECK ((double) tempoMap.getChild (1).getProperty (SongIDs::bpm) == Catch::Approx (100.0));
+
+    const auto conductorTrack = doc.getConductorTrack();
+    CHECK (eventTicks (conductorTrack) == std::vector<int> { 0, 96 + 384 });
+    CHECK ((int) conductorTrack.getProperty (SongIDs::endTick) == 96 + 960 + 384);
+
+    const auto spans = noteSpans (doc);
+    REQUIRE (spans.size() == 2);
+    CHECK (spans[1].first == 384);
+}
+
+TEST_CASE ("ImportOptions: tempo keep with an offset leaves the Song's tempo map alone", "[import-options]")
+{
+    TempMidi first  (smf (1, 96, { conductor (usFor120), melody (60) }));
+    TempMidi second (smf (1, 96, { conductor (usFor120, 96, usFor100), melody (64) }));
+
+    SongDocument doc;
+    Diagnostics d1, d2;
+    REQUIRE (importMidiFile (doc, first.file, 1, d1));
+    ImportOptions options;
+    options.startOffsetTicks = 384;
+    REQUIRE (importMidiFile (doc, second.file, 2, d2, options));
+
+    CHECK (doc.getTempoMapNode().getNumChildren() == 1);
+    CHECK (eventTicks (doc.getConductorTrack()) == std::vector<int> { 0 });
+}

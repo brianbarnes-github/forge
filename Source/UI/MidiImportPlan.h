@@ -33,6 +33,7 @@ struct ImportOptions
 {
     TempoMode tempo  = TempoMode::keep;     // replace: the file's conductor replaces the Song's
     TrackMode tracks = TrackMode::expanded; // merged: all the file's note tracks become one track
+    int       startOffsetTicks = 0;         // where the file lands, in the Song's ticks; its tick 0 goes here
 };
 
 struct PlannedEvent

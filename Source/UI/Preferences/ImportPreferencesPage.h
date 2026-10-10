@@ -18,9 +18,13 @@ namespace lotro
 
         juce::ComboBox& trackOptionsForTesting() { return trackOptions; }
 
+        juce::ComboBox& placementForTesting() { return placement; }
+
     private:
         juce::Label    trackOptionsLabel;
         juce::ComboBox trackOptions;
+        juce::Label    placementLabel;
+        juce::ComboBox placement;
         juce::Label    note;
     };
 }

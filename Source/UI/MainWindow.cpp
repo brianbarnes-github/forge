@@ -389,7 +389,9 @@ void MainWindow::openMidiFromPath (const juce::File& file)
 void MainWindow::importMidiWithOptions (const juce::File& file, const ImportOptions& options)
 {
     Diagnostics diags;
-    importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, options);
+    auto placed = options;
+    placed.startOffsetTicks = importStartOffsetTicks (appSettings, playback.getMarkerTick());
+    importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, placed);
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
     body->getSongsmith().fitTrackTimelineToDocument();
 }

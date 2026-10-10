@@ -147,6 +147,26 @@ TEST_CASE ("Import page: the dropdown shows the saved choice and writes straight
     CHECK (reopened.trackOptionsForTesting().getSelectedId() == 2);
 }
 
+TEST_CASE ("Import page: the placement dropdown shows the saved choice and writes straight through", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    {
+        ImportPreferencesPage page (f.settings);
+        CHECK (page.placementForTesting().getSelectedId() == 1);   // Start of song by default
+
+        page.placementForTesting().setSelectedId (2, juce::sendNotificationSync);
+        CHECK (f.settings.importPlacement() == ImportPlacement::atMarker);
+
+        page.placementForTesting().setSelectedId (1, juce::sendNotificationSync);
+        CHECK (f.settings.importPlacement() == ImportPlacement::atStart);
+    }
+
+    f.settings.setImportPlacement (ImportPlacement::atMarker);
+    ImportPreferencesPage reopened (f.settings);
+    CHECK (reopened.placementForTesting().getSelectedId() == 2);
+}
+
 TEST_CASE ("PreferencesDialog: no notice while saves succeed; the notice appears when a toggle cannot be saved", "[preferences]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

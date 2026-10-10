@@ -5,6 +5,10 @@
 #include "GridSize.h"
 #include "MergeScope.h"
 
+#include <algorithm>
+#include <cmath>
+#include <optional>
+
 // Typed view over the per-user settings file (MainWindow's PropertiesFile).
 // Key names and defaults live here and nowhere else. Setters write and save at
 // once (so a toggle survives a crash) and return whether the save succeeded.
@@ -18,6 +22,13 @@ enum class ImportTrackOptions
 {
     ask,            // Import > MIDI shows the tempo map / track choices dialog
     expandedAlways  // no dialog: keep the tempo map, expand the tracks (today's behaviour)
+};
+
+// Preferences > Import > "Place imported MIDI at".
+enum class ImportPlacement
+{
+    atStart,   // the file's tick 0 is the Song's tick 0 (today's behaviour)
+    atMarker   // the file's tick 0 is the position (start) marker, when one is set
 };
 
 class AppSettings
@@ -39,6 +50,16 @@ public:
     bool setImportTrackOptions (ImportTrackOptions value)
     {
         file.setValue (keyImportTrackOptions, value == ImportTrackOptions::expandedAlways ? "expanded" : "ask");
+        return save();
+    }
+
+    ImportPlacement importPlacement() const
+    {
+        return file.getValue (keyImportPlacement) == "marker" ? ImportPlacement::atMarker : ImportPlacement::atStart;
+    }
+    bool setImportPlacement (ImportPlacement value)
+    {
+        file.setValue (keyImportPlacement, value == ImportPlacement::atMarker ? "marker" : "start");
         return save();
     }
 
@@ -105,6 +126,7 @@ private:
     static constexpr const char* keyUnsavedChanges    = "confirm.unsavedChanges";
     static constexpr const char* keyReplaceFile       = "confirm.replaceFile";
     static constexpr const char* keyImportTrackOptions = "import.trackOptions";
+    static constexpr const char* keyImportPlacement    = "import.placement";
     static constexpr const char* keySoundFontPath      = "soundFontPath";
     static constexpr const char* keyRestorePlacement   = "appearance.restoreWindowPlacement";
     static constexpr const char* keyFollowPlayhead     = "editing.followPlayhead";
@@ -148,6 +170,15 @@ inline bool shouldConfirmReplace (const AppSettings& settings)
 inline bool shouldAskImportOptions (const AppSettings& settings)
 {
     return settings.importTrackOptions() == ImportTrackOptions::ask;
+}
+
+// Import > MIDI: where the file's tick 0 lands, in the Song's ticks. Only the marker
+// setting with a marker actually set moves it; otherwise (or with no marker) it is 0.
+inline int importStartOffsetTicks (const AppSettings& settings, std::optional<double> markerTick)
+{
+    if (settings.importPlacement() != ImportPlacement::atMarker || ! markerTick.has_value())
+        return 0;
+    return std::max (0, (int) std::lround (*markerTick));
 }
 
 } // namespace lotro
