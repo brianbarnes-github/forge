@@ -1201,3 +1201,64 @@ TEST_CASE ("SongModelBridge: a track the user emptied but kept assigned still re
     REQUIRE (built.rawSong.tracks.size() == 1);
     CHECK (built.config.instruments[0].sources[0].midiTrackIndex == 0);
 }
+
+// Sections are tick ranges on the same timeline as the notes they own, so the
+// A-R3 time-base raise must rescale SECTION startTick/endTick too — otherwise
+// they stop lining up with the (rescaled) notes while validateLoaded still
+// accepts the file.
+TEST_CASE ("SongModelBridge: raising the document's time base rescales stored section ranges with the notes (120 then 480)", "[songmodelbridge][sections]")
+{
+    Song first;
+    first.ticksPerQuarter = 120;
+    first.tempoMap = { { 0, 100.0 } };
+    first.meterMap = { { 0, 4, 4 } };
+    Track t0;
+    t0.name              = "Existing Track";
+    t0.sourceMidiChannel = 0;
+    t0.notes.push_back (makeNote (60, 10, 20, 100, false, 0, 0));
+    t0.notes.push_back (makeNote (62, 30, 15, 90, false, 0, 1));
+    first.tracks.push_back (t0);
+
+    Song second;
+    second.ticksPerQuarter = 480;
+    second.tempoMap = { { 0, 100.0 } };
+    second.meterMap = { { 0, 4, 4 } };
+    Track t1;
+    t1.name              = "Incoming Track";
+    t1.sourceMidiChannel = 1;
+    t1.notes.push_back (makeNote (64, 5, 3, 80, false, 1, 0));
+    second.tracks.push_back (t1);
+
+    SongDocument doc;
+    Diagnostics diag1;
+    appendImportedSong (doc, first, 1, diag1);
+
+    // Two stored sections on the existing track (half-open, covering both notes).
+    auto existingTrack = doc.getTrack (1);
+    juce::ValueTree sections (SongIDs::SECTIONS);
+    const auto addSection = [&] (juce::int64 id, int start, int end)
+    {
+        juce::ValueTree s (SongIDs::SECTION);
+        s.setProperty (SongIDs::sectionId, id, nullptr);
+        s.setProperty (SongIDs::startTick, start, nullptr);
+        s.setProperty (SongIDs::endTick, end, nullptr);
+        sections.addChild (s, -1, nullptr);
+    };
+    addSection (1, 0, 30);
+    addSection (2, 30, 60);
+    existingTrack.addChild (sections, -1, nullptr);
+
+    Diagnostics diag2;
+    appendImportedSong (doc, second, 2, diag2);
+    REQUIRE ((int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter) == 480);
+
+    const auto rescaled = doc.getTrack (1).getChildWithName (SongIDs::SECTIONS);
+    REQUIRE (rescaled.getNumChildren() == 2);
+    CHECK ((int) rescaled.getChild (0).getProperty (SongIDs::startTick) == 0);
+    CHECK ((int) rescaled.getChild (0).getProperty (SongIDs::endTick) == 120);
+    CHECK ((int) rescaled.getChild (1).getProperty (SongIDs::startTick) == 120);
+    CHECK ((int) rescaled.getChild (1).getProperty (SongIDs::endTick) == 240);
+    // Ids are not ticks: untouched.
+    CHECK ((juce::int64) rescaled.getChild (0).getProperty (SongIDs::sectionId) == 1);
+    CHECK ((juce::int64) rescaled.getChild (1).getProperty (SongIDs::sectionId) == 2);
+}

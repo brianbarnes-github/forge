@@ -39,7 +39,8 @@ namespace
     }
 
     // A-R3(a)/(b): multiplies every existing NOTE start/duration tick, every
-    // EVENT tick and MIDI_TRACK endTick (conductor included), and every
+    // EVENT tick, MIDI_TRACK endTick (conductor included), every stored SECTION
+    // startTick/endTick, and every
     // TEMPO_CHANGE/METER_CHANGE tick by `factor`. The caller guarantees
     // factor == newPpq / docPpq is an exact integer (newPpq is an LCM, hence
     // a multiple of docPpq), so this never rounds. Returns the number of NOTE
@@ -64,6 +65,14 @@ namespace
             for (auto eventTree : SongDocument::getEventsNode (trackTree))
                 eventTree.setProperty (SongIDs::tick, (int) eventTree.getProperty (SongIDs::tick) * factor, nullptr);
             trackTree.setProperty (SongIDs::endTick, (int) trackTree.getProperty (SongIDs::endTick) * factor, nullptr);
+
+            // Stored sections are tick ranges on the same timeline as the notes
+            // they own; leaving them behind would desync them from the notes.
+            for (auto sectionTree : trackTree.getChildWithName (SongIDs::SECTIONS))
+            {
+                sectionTree.setProperty (SongIDs::startTick, (int) sectionTree.getProperty (SongIDs::startTick) * factor, nullptr);
+                sectionTree.setProperty (SongIDs::endTick, (int) sectionTree.getProperty (SongIDs::endTick) * factor, nullptr);
+            }
         }
 
         auto tempoMapNode = doc.getTempoMapNode();
