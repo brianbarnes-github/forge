@@ -149,7 +149,8 @@ target_link_libraries(forge_tests PRIVATE
     forge_core
     juce::juce_audio_basics
     juce::juce_data_structures
-    juce::juce_gui_basics)
+    juce::juce_gui_basics
+    juce::juce_gui_extra)
 
 # TrackListComponent_tests.cpp's real-async-listener-path test needs a
 # bounded, non-blocking way to pump JUCE's message loop once

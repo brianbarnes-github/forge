@@ -1,6 +1,8 @@
 #include "TrackHeadComponent.h"
 #include "SongsmithColours.h"
 
+#include <juce_gui_extra/juce_gui_extra.h>
+
 #include <utility>
 
 namespace lotro
@@ -267,6 +269,60 @@ void TrackHeadComponent::endRename()
     std::shared_ptr<juce::TextEditor> dying (std::move (renameEditor));
     removeChildComponent (dying.get());
     juce::MessageManager::callAsync ([dying] {});
+}
+
+namespace
+{
+    // The callout's content; its destruction (the callout was dismissed) reports the close.
+    class PickerContent : public juce::ColourSelector, private juce::ChangeListener
+    {
+    public:
+        PickerContent (juce::Colour initial, std::function<void (juce::Colour)> onPick, std::function<void()> onClose)
+            : juce::ColourSelector (juce::ColourSelector::showColourspace | juce::ColourSelector::showSliders),
+              pick (std::move (onPick)), onClosed (std::move (onClose))
+        {
+            setCurrentColour (initial, juce::dontSendNotification);
+            setSize (240, 260);
+            addChangeListener (this);
+        }
+        ~PickerContent() override
+        {
+            removeChangeListener (this);
+            if (onClosed)
+                onClosed();
+        }
+    private:
+        void changeListenerCallback (juce::ChangeBroadcaster*) override { pick (getCurrentColour()); }
+        std::function<void (juce::Colour)> pick;
+        std::function<void()> onClosed;
+    };
+}
+
+void TrackHeadComponent::openColourPicker()
+{
+    if (isConductorTrack() || pickerOpen)
+        return;
+
+    pickerOpen = true;
+    pickerFirstChange = true;
+    juce::Component::SafePointer<TrackHeadComponent> safe (this);
+    auto content = std::make_unique<PickerContent> (
+        juce::Colour ((juce::uint32) (int) track.getProperty (SongIDs::colorArgb)),
+        [safe] (juce::Colour c) { if (safe != nullptr) safe->colourPicked (c); },
+        [safe] { if (safe != nullptr) safe->colourPickerClosed(); });
+    juce::CallOutBox::launchAsynchronously (std::move (content), localAreaToGlobal (swatchBounds()), nullptr);
+}
+
+void TrackHeadComponent::colourPicked (juce::Colour c)
+{
+    if (onColourChanged)
+        onColourChanged (c.getARGB(), std::exchange (pickerFirstChange, false));
+}
+
+void TrackHeadComponent::colourPickerClosed()
+{
+    pickerFirstChange = true;
+    pickerOpen = false;
 }
 
 juce::Rectangle<int> TrackHeadComponent::swatchBounds() const

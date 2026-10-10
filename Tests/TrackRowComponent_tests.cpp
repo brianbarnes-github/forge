@@ -681,3 +681,36 @@ TEST_CASE ("TrackRowComponent: a head rename is forwarded with the trackId; the 
     conductor.mouseDown (eventAt (conductor, { 20, 10 }, 1, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier)));
     CHECK (selected == 1);
 }
+
+TEST_CASE ("TrackRowComponent: a left-click on the swatch opens the picker instead of selecting; elsewhere in the head still selects", "[track-row][head][colour]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Lute", (int) 0xFFAABBCC, 1, 1);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    row.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+    int selected = 0;
+    row.onTrackSelected = [&] (juce::int64, const juce::ModifierKeys&) { ++selected; };
+
+    auto& head = row.headForTesting();
+    REQUIRE (! head.swatchBounds().isEmpty());
+    const auto swatch = head.swatchBounds().translated (head.getX(), head.getY()).getCentre();
+
+    row.mouseDown (eventAt (row, swatch, 1));
+    CHECK (selected == 0);
+    CHECK (head.colourPickerOpenForTesting());
+    head.colourPickerClosed();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+
+    row.mouseDown (eventAt (row, { head.getX() + 2, head.getY() + 2 }, 1));
+    CHECK (selected == 1);
+    CHECK (! head.colourPickerOpenForTesting());
+
+    juce::int64 gotId = -1; juce::uint32 gotArgb = 0; bool gotStarts = false;
+    row.onColourChanged = [&] (juce::int64 i, juce::uint32 a, bool s) { gotId = i; gotArgb = a; gotStarts = s; };
+    head.colourPicked (juce::Colour (0xFF123456));
+    CHECK (gotId == (juce::int64) track.getProperty (SongIDs::trackId));
+    CHECK (gotArgb == 0xFF123456u);
+    CHECK (gotStarts);
+}

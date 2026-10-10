@@ -134,6 +134,9 @@ public:
     // Fired when the head's inline rename commits a new name: (trackId, name).
     std::function<void (juce::int64, const juce::String&)> onRenamed;
 
+    // Fired on a user change in the head's colour picker: (trackId, argb, startsGesture).
+    std::function<void (juce::int64, juce::uint32, bool)> onColourChanged;
+
     // True for a point in the head column, where a right-click opens the head's menu.
     static bool inHeadArea (juce::Point<int> p) noexcept
     {

@@ -67,6 +67,16 @@ public:
     void commitRename (const juce::String& newName);
     std::function<void (const juce::String&)> onRenamed;
 
+    // Colour picker, opened by a click on the swatch (a no-op on the
+    // conductor or while already open). colourPicked reports each change with
+    // startsGesture true for the first of a picker session; colourPickerClosed
+    // ends the session.
+    void openColourPicker();
+    void colourPicked (juce::Colour c);
+    void colourPickerClosed();
+    std::function<void (juce::uint32 argb, bool startsGesture)> onColourChanged;
+    bool colourPickerOpenForTesting() const { return pickerOpen; }
+
     // Null when not editing.
     juce::TextEditor* renameEditorForTesting() { return renameEditor.get(); }
 
@@ -106,6 +116,8 @@ private:
     bool            dragging = false;        // between the slider's onDragStart and onDragEnd
     bool            dragHasChanged = false;  // the current drag has already reported a change
     std::unique_ptr<juce::TextEditor> renameEditor;
+    bool            pickerOpen = false;
+    bool            pickerFirstChange = true;  // the next colourPicked starts a gesture
 };
 
 } // namespace lotro

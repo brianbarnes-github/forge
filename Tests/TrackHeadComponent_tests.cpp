@@ -284,3 +284,48 @@ TEST_CASE ("TrackHead: the conductor cannot be renamed", "[track-head][rename]")
     conductor.beginRename();
     CHECK (conductor.renameEditorForTesting() == nullptr);
 }
+
+TEST_CASE ("TrackHead: the first colour change of a picker session starts a gesture, later ones continue it", "[track-head][colour]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    std::vector<std::pair<juce::uint32, bool>> got;
+    head.onColourChanged = [&] (juce::uint32 argb, bool starts) { got.emplace_back (argb, starts); };
+    head.colourPicked (juce::Colour (0xFF112233));
+    head.colourPicked (juce::Colour (0xFF445566));
+    head.colourPickerClosed();
+    head.colourPicked (juce::Colour (0xFF778899));
+    REQUIRE (got.size() == 3);
+    CHECK (got[0].second);
+    CHECK (! got[1].second);
+    CHECK (got[2].second);
+    CHECK (got[0].first == 0xFF112233u);
+    CHECK (got[1].first == 0xFF445566u);
+    CHECK (got[2].first == 0xFF778899u);
+}
+
+TEST_CASE ("TrackHead: the conductor swatch is not clickable", "[track-head][colour]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.getConductorTrack(), 0);
+    head.setBounds (0, 0, 198, 62);
+    CHECK (head.swatchBounds().isEmpty());
+    head.openColourPicker();
+    CHECK (! head.colourPickerOpenForTesting());
+}
+
+TEST_CASE ("TrackHead: the picker is open between openColourPicker and colourPickerClosed", "[track-head][colour]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    CHECK (! head.colourPickerOpenForTesting());
+    head.openColourPicker();
+    CHECK (head.colourPickerOpenForTesting());
+    head.colourPickerClosed();
+    CHECK (! head.colourPickerOpenForTesting());
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
