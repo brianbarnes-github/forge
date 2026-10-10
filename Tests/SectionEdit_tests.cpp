@@ -1070,3 +1070,31 @@ TEST_CASE ("sections: documents edited with the real section operations pass val
     CHECK (moved[0].endTick > moved[1].startTick);   // really overlapping
     CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
 }
+
+TEST_CASE ("sections: notesInSection returns the notes of one section", "[sections]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 480, 480);
+    const auto id = (juce::int64) t.getProperty (SongIDs::trackId);
+    splitAt (doc, { id }, 480);
+
+    const auto sections = sectionsOf (t);
+    REQUIRE (sections.size() == 2);
+    const auto first = notesInSection (t, sections[0].id);
+    const auto second = notesInSection (t, sections[1].id);
+    REQUIRE (first.size() == 1);
+    REQUIRE (second.size() == 1);
+    CHECK ((int) first[0].getProperty (SongIDs::pitch) == 60);
+    CHECK ((int) second[0].getProperty (SongIDs::pitch) == 62);
+}
+
+TEST_CASE ("sections: notesInSection on a virtual section (id 0) returns every note", "[sections]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 480, 480);
+    CHECK (notesInSection (t, 0).size() == 2);
+}

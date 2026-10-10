@@ -47,6 +47,9 @@ std::vector<SectionRange> sectionsOf (const juce::ValueTree& track);
 // startTick, then stored order), else 0.
 juce::int64 sectionIdOfNote (const juce::ValueTree& note, const std::vector<SectionRange>& sections);
 
+// The track's NOTE nodes belonging to `sectionId` (see sectionIdOfNote). Read-only.
+std::vector<juce::ValueTree> notesInSection (const juce::ValueTree& track, juce::int64 sectionId);
+
 // The section under `tick`: an edge when within edgeSlopPixels of a section's
 // start or end (nearest wins), else the narrowest section containing the tick.
 SectionHit hitTestSection (const std::vector<SectionRange>& sections, int tick,

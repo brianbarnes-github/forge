@@ -204,6 +204,11 @@ namespace
     }
 }
 
+std::vector<juce::ValueTree> notesInSection (const juce::ValueTree& track, juce::int64 sectionId)
+{
+    return membersOf (track, sectionId);
+}
+
 std::vector<SectionRange> sectionsOf (const juce::ValueTree& track)
 {
     if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
