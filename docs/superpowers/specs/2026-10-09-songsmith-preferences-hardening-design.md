@@ -1,6 +1,6 @@
 # Songsmith Preferences hardening + loose ends — design
 
-Date: 2026-10-09. Status: draft for review (sub-project 1 of 3).
+Date: 2026-10-09. Status: implemented (sub-project 1 of 3).
 
 Sub-projects, each with its own spec, plan and build, in this order:
 1. **Hardening** (this spec) — lifetime and robustness fixes, plus small loose ends.
