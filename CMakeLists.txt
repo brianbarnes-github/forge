@@ -132,6 +132,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/GridLines.cpp
     Source/UI/SectionEdit.cpp
     Source/UI/NoteMerge.cpp
+    Source/UI/ProgramChanges.cpp
     Source/UI/Playback/PlayheadOverlay.cpp
     Source/UI/Playback/AudioOutput.cpp
     Source/UI/DiscardGuard.cpp
