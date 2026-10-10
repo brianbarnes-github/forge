@@ -539,12 +539,18 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
 
 `File → Preferences…`. Modal: the main window, its menus and shortcuts do nothing until it is closed (Close button, Escape or the title-bar X). Changes apply immediately; there is no OK/Cancel.
 
-- **Left:** a tree of pages (General, selected by default; then Import; then Playback). **Splitter** between tree and page (drag to resize).
+- **Left:** a tree of pages (General, selected by default; then Import; then Playback; then Appearance; then Editing). **Splitter** between tree and page (drag to resize).
 - **General page:**
   - *Ask about unsaved changes* (default on) — off: New / Open / drops / Quit discard unsaved edits silently (no auto-save).
   - *Ask before replacing an existing file* (default on) — off: Save As and Export MIDI / ABC overwrite without the Replace box.
 - **Import page:** one dropdown, *Import Track Options* — *Ask* (default: every import shows the options dialog) or *Import Expanded Always* (no dialog; keeps the existing tempo map and expands the file into separate tracks). Merging into one track is only available through Ask.
 - **Playback page:** the active SoundFont ("Using bundled SongSmith.sf2", "Using <path>" or "No SoundFont loaded"), **Browse…** and **Clear**, with a status line. Browse opens a chooser for `.sf2` files and loads the pick at once (same as Song ▸ SoundFont…) and remembers it; if it cannot be loaded the status says so and the previous SoundFont stays. Clear (enabled only while a chosen SoundFont is remembered) forgets that choice and loads the bundled `SongSmith.sf2`; if the bundled file is missing or cannot be loaded the choice is still forgotten, the status explains, and the current SoundFont stays until you quit.
+- **Appearance page:**
+  - *Show the instrument range band in the LOTRO preview* (default on) — off: hides the pitch range band and the red out-of-range wash in the preview roll; ghost and dropped-note overlays and the view's vertical fit are unchanged. Applies at once.
+  - *Restore the window position and size on launch* (default on) — off: the next launch opens centred at the default size. Takes effect the next time Songsmith starts; quitting still saves the position, so switching it back on restores the last-closed one.
+- **Editing page:**
+  - *Default grid size* (Off by default; 1/4, 1/8, 1/16) — the grid a Track editor starts with. Applies to editors opened afterwards; an open editor keeps its grid, and Edit ▸ Grid size still changes the open editor (it never changes this setting).
+  - *Follow the playhead during playback* (default on) — off: the preview roll, track list and Track editor no longer scroll to keep the playhead in view. Applies at once.
 - All settings persist in the per-user settings file across launches.
 
 ## Import options dialog

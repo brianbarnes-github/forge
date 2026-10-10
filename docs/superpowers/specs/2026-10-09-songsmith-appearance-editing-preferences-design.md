@@ -1,6 +1,6 @@
 # Songsmith Preferences ▸ Appearance and Editing pages — design
 
-Date: 2026-10-09. Status: draft, awaiting review (sub-project 3 of 3; follows
+Date: 2026-10-09. Status: implemented (sub-project 3 of 3; follows
 `2026-10-09-songsmith-playback-preferences-design.md`).
 
 Sub-projects: 1 hardening (done), 2 Playback page (done), **3 Appearance and
