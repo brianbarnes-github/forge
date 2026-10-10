@@ -306,24 +306,11 @@ void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note)
         doc.setProperty (note, SongIDs::offSynthesized, false, false);
 }
 
-void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int tick)
+namespace
 {
-    std::vector<juce::ValueTree> tracks;
-    for (const auto id : trackIds)
-    {
-        auto track = doc.findTrackById (id);
-        if (track.isValid() && ! (bool) track.getProperty (SongIDs::isConductor, false)
-            && containsStrictly (sectionsOf (track), tick))
-            tracks.push_back (track);
-    }
-    if (tracks.empty())
-        return;
-
-    doc.getUndoManager().beginNewTransaction();   // materialising is part of the split's one undo step
-    for (auto track : tracks)
-        materialise (doc, track);
-
-    for (auto track : tracks)
+    // Splits every stored section of `track` that strictly contains `tick`. The caller
+    // has begun the transaction and materialised the track.
+    void splitTrackAt (SongDocument& doc, juce::ValueTree track, int tick)
     {
         auto sectionsNode = track.getChildWithName (SongIDs::SECTIONS);
         auto notesNode = SongDocument::getNotesNode (track);
@@ -368,6 +355,49 @@ void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int t
             }
         }
     }
+}
+
+void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int tick)
+{
+    std::vector<juce::ValueTree> tracks;
+    for (const auto id : trackIds)
+    {
+        auto track = doc.findTrackById (id);
+        if (track.isValid() && ! (bool) track.getProperty (SongIDs::isConductor, false)
+            && containsStrictly (sectionsOf (track), tick))
+            tracks.push_back (track);
+    }
+    if (tracks.empty())
+        return;
+
+    doc.getUndoManager().beginNewTransaction();   // materialising is part of the split's one undo step
+    for (auto track : tracks)
+        materialise (doc, track);
+    for (auto track : tracks)
+        splitTrackAt (doc, track, tick);
+}
+
+void splitAtTicks (SongDocument& doc, juce::int64 trackId, std::vector<int> ticks)
+{
+    auto track = doc.findTrackById (trackId);
+    if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
+        return;
+
+    // A tick strictly inside a section stays so until it is split itself, so filtering
+    // against the sections as they are now is enough.
+    const auto sections = sectionsOf (track);
+    std::sort (ticks.begin(), ticks.end());
+    ticks.erase (std::unique (ticks.begin(), ticks.end()), ticks.end());
+    ticks.erase (std::remove_if (ticks.begin(), ticks.end(),
+                                 [&] (int t) { return ! containsStrictly (sections, t); }),
+                 ticks.end());
+    if (ticks.empty())
+        return;
+
+    doc.getUndoManager().beginNewTransaction();
+    materialise (doc, track);
+    for (const int tick : ticks)
+        splitTrackAt (doc, track, tick);
 }
 
 void moveSections (SongDocument& doc, const std::vector<SectionRef>& refs, int deltaTicks)

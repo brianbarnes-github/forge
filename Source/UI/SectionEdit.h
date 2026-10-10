@@ -69,6 +69,11 @@ void markNoteTimingEdited (SongDocument& doc, juce::ValueTree note);
 // note straddling tick is cut in two (both halves keep their provenance).
 void splitAt (SongDocument& doc, const std::vector<juce::int64>& trackIds, int tick);
 
+// As splitAt for one track and several ticks: every tick strictly inside a section
+// splits it, in one undo transaction. Ticks that split nothing are ignored; if none
+// does, nothing is touched and no transaction opens.
+void splitAtTicks (SongDocument& doc, juce::int64 trackId, std::vector<int> ticks);
+
 // Shifts each section and its notes by one delta, clamped so nothing starts below 0.
 // Stray note-on/off pairs the importer kept in EVENTS (stacked duplicates, zero-length
 // notes) whose note-on lies in a section shift with it; controllers and the like stay.
