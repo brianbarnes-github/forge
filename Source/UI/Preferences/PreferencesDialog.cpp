@@ -9,8 +9,8 @@ namespace lotro
     {
         static const std::vector<PreferencesPage> pages
         {
-            { "General", [] (AppSettings& s) -> std::unique_ptr<juce::Component> { return std::make_unique<GeneralPreferencesPage> (s); } },
-            { "Import",  [] (AppSettings& s) -> std::unique_ptr<juce::Component> { return std::make_unique<ImportPreferencesPage> (s); } },
+            { "General", [] (AppSettings& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<GeneralPreferencesPage> (s, std::move (changed)); } },
+            { "Import",  [] (AppSettings& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<ImportPreferencesPage> (s, std::move (changed)); } },
         };
         return pages;
     }
@@ -73,6 +73,11 @@ namespace lotro
         closeButton.onClick = [this] { if (onCloseRequested) onCloseRequested(); };
         addAndMakeVisible (closeButton);
 
+        saveNotice.setText ("Settings could not be saved; changes last until you quit.", juce::dontSendNotification);
+        saveNotice.setFont (juce::FontOptions (12.0f));
+        saveNotice.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
+        addChildComponent (saveNotice);   // hidden until a save fails
+
         setSize (640, 400);
         selectPage (0);
         if (auto* item = root->getSubItem (0))
@@ -98,7 +103,7 @@ namespace lotro
         if (index < 0 || index >= (int) pages.size() || index == selectedIndex)
             return;
         selectedIndex = index;
-        page = pages[(size_t) index].make (settings);
+        page = pages[(size_t) index].make (settings, [this] { refreshSaveNotice(); });
         pageHost.addAndMakeVisible (*page);
         pageTitle.setText (pages[(size_t) index].name, juce::dontSendNotification);
         layoutPage();
@@ -112,9 +117,16 @@ namespace lotro
     void PreferencesDialog::resized()
     {
         auto area = getLocalBounds();
-        closeButton.setBounds (area.removeFromBottom (44).reduced (8).removeFromRight (80));
+        auto bottom = area.removeFromBottom (44).reduced (8);
+        closeButton.setBounds (bottom.removeFromRight (80));
+        saveNotice.setBounds (bottom.withTrimmedRight (8));
         splitter.setBounds (area);   // lays out tree (left) and pageHost (right)
         layoutPage();
+    }
+
+    void PreferencesDialog::refreshSaveNotice()
+    {
+        saveNotice.setVisible (settings.lastSaveFailed());
     }
 
     void PreferencesDialog::layoutPage()

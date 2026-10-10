@@ -3,7 +3,7 @@
 
 namespace lotro
 {
-    GeneralPreferencesPage::GeneralPreferencesPage (AppSettings& settings)
+    GeneralPreferencesPage::GeneralPreferencesPage (AppSettings& settings, std::function<void()> onChanged)
     {
         for (auto* b : { &unsavedChanges, &replaceFile })
         {
@@ -12,8 +12,16 @@ namespace lotro
         }
         unsavedChanges.setToggleState (settings.askToSaveUnsavedChanges(), juce::dontSendNotification);
         replaceFile.setToggleState (settings.askBeforeReplacingFile(), juce::dontSendNotification);
-        unsavedChanges.onClick = [this, &settings] { settings.setAskToSaveUnsavedChanges (unsavedChanges.getToggleState()); };
-        replaceFile.onClick    = [this, &settings] { settings.setAskBeforeReplacingFile (replaceFile.getToggleState()); };
+        unsavedChanges.onClick = [this, &settings, onChanged]
+        {
+            settings.setAskToSaveUnsavedChanges (unsavedChanges.getToggleState());
+            if (onChanged) onChanged();
+        };
+        replaceFile.onClick = [this, &settings, onChanged]
+        {
+            settings.setAskBeforeReplacingFile (replaceFile.getToggleState());
+            if (onChanged) onChanged();
+        };
 
         unsavedChangesNote.setText ("When off, New, Open and Quit discard unsaved edits without asking.",
                                     juce::dontSendNotification);

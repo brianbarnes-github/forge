@@ -9,7 +9,7 @@ namespace lotro
         constexpr int expandedId = 2;
     }
 
-    ImportPreferencesPage::ImportPreferencesPage (AppSettings& settings)
+    ImportPreferencesPage::ImportPreferencesPage (AppSettings& settings, std::function<void()> onChanged)
     {
         trackOptionsLabel.setText ("Import Track Options", juce::dontSendNotification);
         trackOptionsLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
@@ -19,11 +19,12 @@ namespace lotro
         trackOptions.addItem ("Import Expanded Always", expandedId);
         trackOptions.setSelectedId (settings.importTrackOptions() == ImportTrackOptions::ask ? askId : expandedId,
                                     juce::dontSendNotification);
-        trackOptions.onChange = [this, &settings]
+        trackOptions.onChange = [this, &settings, onChanged]
         {
             settings.setImportTrackOptions (trackOptions.getSelectedId() == expandedId
                                                 ? ImportTrackOptions::expandedAlways
                                                 : ImportTrackOptions::ask);
+            if (onChanged) onChanged();
         };
         addAndMakeVisible (trackOptions);
 

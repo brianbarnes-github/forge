@@ -4,7 +4,7 @@
 
 // Typed view over the per-user settings file (MainWindow's PropertiesFile).
 // Key names and defaults live here and nowhere else. Setters write and save at
-// once, so a toggle survives a crash. Reads are live: callers ask at the moment
+// once (so a toggle survives a crash) and return whether the save succeeded. Reads are live: callers ask at the moment
 // of use, so a change takes effect without a restart.
 namespace lotro
 {
@@ -22,21 +22,25 @@ public:
     explicit AppSettings (juce::PropertiesFile& fileIn) : file (fileIn) {}
 
     bool askToSaveUnsavedChanges() const { return read (keyUnsavedChanges); }
-    void setAskToSaveUnsavedChanges (bool on) { write (keyUnsavedChanges, on); }
+    bool setAskToSaveUnsavedChanges (bool on) { return write (keyUnsavedChanges, on); }
 
     bool askBeforeReplacingFile() const { return read (keyReplaceFile); }
-    void setAskBeforeReplacingFile (bool on) { write (keyReplaceFile, on); }
+    bool setAskBeforeReplacingFile (bool on) { return write (keyReplaceFile, on); }
 
     ImportTrackOptions importTrackOptions() const
     {
         return file.getValue (keyImportTrackOptions) == "expanded" ? ImportTrackOptions::expandedAlways
                                                                    : ImportTrackOptions::ask;
     }
-    void setImportTrackOptions (ImportTrackOptions value)
+    bool setImportTrackOptions (ImportTrackOptions value)
     {
         file.setValue (keyImportTrackOptions, value == ImportTrackOptions::expandedAlways ? "expanded" : "ask");
-        file.saveIfNeeded();
+        return save();
     }
+
+    // True when the most recent setter could not write the settings file. The new
+    // value still applies for this session (PropertiesFile holds it in memory).
+    bool lastSaveFailed() const noexcept { return saveFailed; }
 
 private:
     static constexpr const char* keyUnsavedChanges    = "confirm.unsavedChanges";
@@ -49,13 +53,19 @@ private:
     {
         return file.getValue (key) != "0";
     }
-    void write (const char* key, bool on)
+    bool write (const char* key, bool on)
     {
         file.setValue (key, on ? "1" : "0");
-        file.saveIfNeeded();
+        return save();
+    }
+    bool save()
+    {
+        saveFailed = ! file.saveIfNeeded();
+        return ! saveFailed;
     }
 
     juce::PropertiesFile& file;
+    bool saveFailed = false;
 };
 
 // New / Open / drops / Quit: ask only when the Song is dirty and the user wants asking.

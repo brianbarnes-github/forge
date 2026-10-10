@@ -126,3 +126,59 @@ TEST_CASE ("Import page: the dropdown shows the saved choice and writes straight
     ImportPreferencesPage reopened (f.settings);                     // a fresh page reflects the saved state
     CHECK (reopened.trackOptionsForTesting().getSelectedId() == 2);
 }
+
+TEST_CASE ("PreferencesDialog: no notice while saves succeed; the notice appears when a toggle cannot be saved", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    PreferencesDialog dialog (f.settings);
+    auto* general = dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage());
+    REQUIRE (general != nullptr);
+    CHECK_FALSE (dialog.saveNoticeVisibleForTesting());
+
+    general->unsavedChangesToggleForTesting().setToggleState (false, juce::sendNotification);
+    CHECK_FALSE (dialog.saveNoticeVisibleForTesting());   // saved fine
+}
+
+TEST_CASE ("PreferencesDialog: a failing settings file shows the notice from either page", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+    PreferencesDialog dialog (settings);
+
+    auto* general = dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage());
+    REQUIRE (general != nullptr);
+    general->replaceFileToggleForTesting().setToggleState (false, juce::sendNotification);
+    CHECK (dialog.saveNoticeVisibleForTesting());
+
+    CHECK_FALSE (settings.askBeforeReplacingFile());      // still applied for the session
+}
+
+TEST_CASE ("PreferencesDialog: the Import page also reports a failed save", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+    PreferencesDialog dialog (settings);
+    dialog.selectPage (1);
+    auto* page = dynamic_cast<ImportPreferencesPage*> (dialog.currentPage());
+    REQUIRE (page != nullptr);
+    page->trackOptionsForTesting().setSelectedId (2, juce::sendNotificationSync);
+    CHECK (dialog.saveNoticeVisibleForTesting());
+}
+
+TEST_CASE ("PreferencesDialog: opens at least as large as its minimum size", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    PreferencesDialog dialog (f.settings);
+    CHECK (dialog.getWidth() >= preferencesMinWidth);
+    CHECK (dialog.getHeight() >= preferencesMinHeight);
+}

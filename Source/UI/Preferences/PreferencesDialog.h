@@ -11,12 +11,18 @@
 
 namespace lotro
 {
+    // The Preferences window cannot be resized below this (set on the window by showPreferencesDialog).
+    constexpr int preferencesMinWidth  = 480;
+    constexpr int preferencesMinHeight = 300;
+
+    // A page touches AppSettings only in its constructor and in click handlers,
+    // never in its destructor: the window can outlive its owner's settings during shutdown.
     // One entry per tree item. Adding a page = one entry in preferencePages()
     // plus its component.
     struct PreferencesPage
     {
         juce::String name;
-        std::function<std::unique_ptr<juce::Component> (AppSettings&)> make;
+        std::function<std::unique_ptr<juce::Component> (AppSettings&, std::function<void()>)> make;
     };
 
     const std::vector<PreferencesPage>& preferencePages();
@@ -43,6 +49,7 @@ namespace lotro
         int treeLeftEdgeForTesting() const { return tree.getX(); }
         int treeWidthForTesting() const { return tree.getWidth(); }
         SplitterComponent& splitterForTesting() { return splitter; }
+        bool saveNoticeVisibleForTesting() const { return saveNotice.isVisible(); }
 
     private:
         class RootItem;
@@ -57,6 +64,7 @@ namespace lotro
         };
 
         void layoutPage();
+        void refreshSaveNotice();
 
         AppSettings& settings;
         juce::TreeView tree;
@@ -66,6 +74,7 @@ namespace lotro
         std::unique_ptr<juce::Component> page;
         SplitterComponent splitter { SplitterComponent::Orientation::leftRight };
         juce::TextButton closeButton { "Close" };
+        juce::Label saveNotice;
         int selectedIndex = -1;
     };
 

@@ -4,13 +4,15 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
+
 namespace lotro
 {
     // Preferences > General. Each toggle is applied (and saved) on click.
     class GeneralPreferencesPage : public juce::Component
     {
     public:
-        explicit GeneralPreferencesPage (AppSettings& settings);
+        explicit GeneralPreferencesPage (AppSettings& settings, std::function<void()> onChanged = {});
 
         void resized() override;
 

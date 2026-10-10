@@ -99,3 +99,35 @@ TEST_CASE ("AppSettings: an unrecognised import setting reads as Ask and leaves 
     CHECK (settings.askToSaveUnsavedChanges());
     CHECK (settings.askBeforeReplacingFile());
 }
+
+TEST_CASE ("AppSettings: a failed save is reported, keeps the value for the session and clears on the next good save", "[app-settings]")
+{
+    // A directory where the settings file should be: the PropertiesFile cannot replace it.
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopedJuceInitialiser_GUI juceInit;   // PropertiesFile may touch the message manager
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+    CHECK_FALSE (settings.lastSaveFailed());
+
+    CHECK_FALSE (settings.setAskToSaveUnsavedChanges (false));
+    CHECK (settings.lastSaveFailed());
+    CHECK_FALSE (settings.askToSaveUnsavedChanges());   // still applied for this session
+
+    blocked.deleteRecursively();                         // the path is writable again
+    CHECK (settings.setAskBeforeReplacingFile (false));
+    CHECK_FALSE (settings.lastSaveFailed());
+}
+
+TEST_CASE ("AppSettings: a normal save reports success", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    AppSettings settings (props);
+    CHECK (settings.setAskToSaveUnsavedChanges (false));
+    CHECK (settings.setImportTrackOptions (ImportTrackOptions::expandedAlways));
+    CHECK_FALSE (settings.lastSaveFailed());
+}

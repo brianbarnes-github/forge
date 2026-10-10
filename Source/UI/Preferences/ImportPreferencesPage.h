@@ -4,13 +4,15 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
+
 namespace lotro
 {
     // Preferences > Import. The choice is applied (and saved) as soon as it changes.
     class ImportPreferencesPage : public juce::Component
     {
     public:
-        explicit ImportPreferencesPage (AppSettings& settings);
+        explicit ImportPreferencesPage (AppSettings& settings, std::function<void()> onChanged = {});
 
         void resized() override;
 
