@@ -13,8 +13,7 @@ TEST_CASE ("TrackRowComponent: double-click fires onTrackDoubleClicked with the 
 
     SongDocument doc;
     auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
-    // Only tracks with notes are assignable, i.e. openable by double-click.
-    SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
+        SongDocument::getNotesNode (track).addChild (juce::ValueTree (SongIDs::NOTE), -1, nullptr);
     const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
 
     TimelineViewState viewState;
@@ -30,6 +29,39 @@ TEST_CASE ("TrackRowComponent: double-click fires onTrackDoubleClicked with the 
                                              juce::Time::getCurrentTime(), 2, false));
 
     CHECK (firedId == trackId);
+}
+
+TEST_CASE ("TrackRowComponent: double-click opens a note-less track, but not the conductor", "[track-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto empty = doc.addTrack ("Emptied", (int) 0xFFAABBCC, 0, 0);   // no notes, e.g. all deleted
+    auto conductor = doc.addTrack ("Conductor", (int) 0xFFAABBCC, 0, 0);
+    conductor.setProperty (SongIDs::isConductor, true, nullptr);
+
+    TimelineViewState viewState;
+    TrackRowComponent emptyRow (empty, 1, viewState);
+    TrackRowComponent conductorRow (conductor, 2, viewState);
+
+    int emptyFired = 0, conductorFired = 0;
+    emptyRow.onTrackDoubleClicked = [&] (juce::int64) { ++emptyFired; };
+    conductorRow.onTrackDoubleClicked = [&] (juce::int64) { ++conductorFired; };
+
+    auto doubleClick = [] (TrackRowComponent& row)
+    {
+        row.mouseDoubleClick (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                 juce::Point<float> (5.0f, 5.0f), juce::ModifierKeys(),
+                                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &row, &row,
+                                                 juce::Time::getCurrentTime(), juce::Point<float> (5.0f, 5.0f),
+                                                 juce::Time::getCurrentTime(), 2, false));
+    };
+    doubleClick (emptyRow);
+    doubleClick (conductorRow);
+
+    CHECK (emptyFired == 1);
+    CHECK (conductorFired == 0);
+    CHECK_FALSE (emptyRow.canDrag());   // still can't be dragged to a part
 }
 
 namespace

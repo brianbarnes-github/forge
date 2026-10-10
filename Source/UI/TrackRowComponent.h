@@ -124,6 +124,10 @@ public:
     // a part or opened in the editor.
     bool canDrag() const;
 
+    // False only for the conductor: a track whose notes were all deleted can
+    // still be opened (to draw new notes), though it can't be dragged to a part.
+    bool canOpenEditor() const;
+
     juce::String buildSecondLineForTesting() const { return buildSecondLine(); }
 
 private:

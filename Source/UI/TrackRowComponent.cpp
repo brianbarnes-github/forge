@@ -77,7 +77,7 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     };
     notePreview.onNonToggleDoubleClick = [this]
     {
-        if (canDrag() && onTrackDoubleClicked)
+        if (canOpenEditor() && onTrackDoubleClicked)
             onTrackDoubleClicked (getTrackId());
     };
 }
@@ -85,6 +85,12 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
 bool TrackRowComponent::canDrag() const
 {
     return SongDocument::isAssignableTrack (track);
+}
+
+bool TrackRowComponent::canOpenEditor() const
+{
+    return track.hasType (SongIDs::MIDI_TRACK)
+        && ! (bool) track.getProperty (SongIDs::isConductor, false);
 }
 
 void TrackRowComponent::resized()
@@ -247,7 +253,7 @@ void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
 
 void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)
 {
-    if (canDrag() && onTrackDoubleClicked)
+    if (canOpenEditor() && onTrackDoubleClicked)
         onTrackDoubleClicked (getTrackId());
 }
 
