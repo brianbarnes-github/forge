@@ -80,5 +80,7 @@ namespace lotro
 
     // Opens the dialog fully modal (the main window and its menus are blocked
     // until it closes). `settings` must outlive it; MainWindow owns both.
-    void showPreferencesDialog (AppSettings& settings, juce::Component* centreAround);
+    // The returned pointer goes null when the window closes; the owner closes it
+    // if still alive when it is destroyed.
+    juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (AppSettings& settings, juce::Component* centreAround);
 }

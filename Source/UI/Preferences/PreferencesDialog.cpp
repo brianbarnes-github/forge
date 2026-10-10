@@ -137,7 +137,7 @@ namespace lotro
             page->setBounds (host);
     }
 
-    void showPreferencesDialog (AppSettings& settings, juce::Component* centreAround)
+    juce::Component::SafePointer<juce::DialogWindow> showPreferencesDialog (AppSettings& settings, juce::Component* centreAround)
     {
         auto content = std::make_unique<PreferencesDialog> (settings);
         juce::DialogWindow::LaunchOptions options;
@@ -149,7 +149,11 @@ namespace lotro
         options.useNativeTitleBar = true;
         options.resizable = true;
         auto* window = options.launchAsync();   // enters modal state
+        if (window == nullptr)
+            return {};
+        window->setResizeLimits (preferencesMinWidth, preferencesMinHeight, 1600, 1200);
         // The window owns the content that owns this callback, so it cannot outlive `window`.
         dialog->onCloseRequested = [window] { window->exitModalState (0); };
+        return window;
     }
 }

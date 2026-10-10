@@ -185,6 +185,10 @@ MainWindow::~MainWindow()
     // The audio thread must stop before the engine and synth are destroyed.
     // (Members are destroyed in reverse order, so this is also guaranteed by
     // declaration order; resetting here makes it explicit.)
+    // A modal Preferences window references appSettings; close it while that is still alive.
+    if (auto* prefs = preferencesWindow.getComponent())
+        prefs->exitModalState (0);
+
     synthGc.stopTimer();
     audioOutput.reset();
 
@@ -302,7 +306,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case TransportRewindOneBar: playback.rewindOneBar();                                  return;
         case TransportClearMarker:  playback.clearMarker();                                   return;
         case HelpAbout:       showAboutDialog (this);                                         return;
-        case FilePreferences: showPreferencesDialog (appSettings, this);                         return;
+        case FilePreferences: preferencesWindow = showPreferencesDialog (appSettings, this);    return;
         case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
         case SongRunConverter:

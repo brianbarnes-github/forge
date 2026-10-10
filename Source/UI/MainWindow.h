@@ -81,6 +81,9 @@ private:
     std::unique_ptr<juce::PropertiesFile>   settings;
     // Typed view over `settings`; declared after it so it is built from a live file.
     AppSettings                             appSettings { *settings };
+    // The open Preferences window, if any. Closed in ~MainWindow: the dialog holds a
+    // reference to `appSettings`, which dies with this window.
+    juce::Component::SafePointer<juce::DialogWindow> preferencesWindow;
 
     // Declared after everything it renders from so it is destroyed first.
     // Created lazily on the message thread by ensurePlaybackReady().
