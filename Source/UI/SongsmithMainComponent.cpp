@@ -89,9 +89,9 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       playback (playbackIn),
       trackList (document),
       partStrip (document),
+      transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
       upperRegion (sourceHeader, trackList),
       previewRegion (previewHeader, previewAssignedPanel, previewRoll),
-      transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
       lowerRegion (transportStrip.get(), partStrip, previewRegion, diagnostics),
       splitter (SplitterComponent::Orientation::topBottom)
 {

@@ -260,7 +260,8 @@ SectionHit hitTestSection (const std::vector<SectionRange>& sections, int tick, 
     auto consider = [&] (const SectionRange& s, double distance, SectionZone zone)
     {
         const bool contains = s.startTick <= tick && tick < s.endTick;
-        if (distance < bestDistance || (distance == bestDistance && contains && ! bestContains))
+        // Equal distance without `==` on doubles: not less (handled first) and not greater.
+        if (distance < bestDistance || (! (distance > bestDistance) && contains && ! bestContains))
         {
             best = { s.id, zone };
             bestDistance = distance;

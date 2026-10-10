@@ -185,7 +185,7 @@ namespace
             }
         }
 
-        // Tie-break relies on each source track's notes already being tick-sorted (importMidi guarantees it).
+        // Tie-break relies on each source track's notes already being tick-sorted (the order JUCE's MidiMessageSequence yields them in; importMidi does not sort).
         std::stable_sort (pairs.begin(), pairs.end(), [] (const NoteAndLink& a, const NoteAndLink& b)
                           { return a.note.startTick < b.note.startTick; });
         for (auto& pair : pairs)
