@@ -113,6 +113,12 @@ juce::int64 TrackRowComponent::getTrackId() const
     return (juce::int64) track.getProperty (SongIDs::trackId);
 }
 
+void TrackRowComponent::refreshHead()
+{
+    head.refreshFromTrack();
+    repaint();
+}
+
 void TrackRowComponent::setSelected (bool shouldBeSelected)
 {
     if (selected == shouldBeSelected) return;

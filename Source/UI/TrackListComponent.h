@@ -265,7 +265,10 @@ private:
     // real file. Coalesce via AsyncUpdater: listeners just request a
     // rebuild, and handleAsyncUpdate() performs at most one per message-loop
     // iteration no matter how many notifications land in between.
-    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { triggerAsyncUpdate(); }
+    // Except a track's name / colour / volume: those are edited from the row's
+    // own head, so the row is refreshed in place (refreshHead) instead.
+    void valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property) override;
+    void refreshHead (juce::int64 trackId);
     void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { triggerAsyncUpdate(); }
     void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { triggerAsyncUpdate(); }
     void valueTreeChildOrderChanged (juce::ValueTree&, int, int) override { triggerAsyncUpdate(); }

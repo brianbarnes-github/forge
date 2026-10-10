@@ -178,6 +178,27 @@ void TrackListComponent::rebuild()
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
         row->onMuteToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setMuted (id, s); };
         row->onSoloToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setSoloed (id, s); };
+        // Writing an unchanged value is a no-op in ValueTree, so none of these opens an empty undo step.
+        row->onRenamed = [this] (juce::int64 id, const juce::String& newName)
+        {
+            if (auto t = doc.findTrackById (id); t.isValid())
+                doc.setProperty (t, SongIDs::name, newName);
+        };
+        row->onColourChanged = [this] (juce::int64 id, juce::uint32 argb, bool startsGesture)
+        {
+            if (auto t = doc.findTrackById (id); t.isValid())
+                doc.setProperty (t, SongIDs::colorArgb, (int) argb, startsGesture);
+        };
+        row->onVolumeChanged = [this] (juce::int64 id, int percent, bool startsGesture)
+        {
+            auto t = doc.findTrackById (id);
+            if (! t.isValid())
+                return;
+            if (percent >= 100)
+                doc.removeProperty (t, SongIDs::playbackVolume, startsGesture);   // 100 is the implicit default
+            else
+                doc.setProperty (t, SongIDs::playbackVolume, percent, startsGesture);
+        };
         if (playback != nullptr)
         {
             const auto id = row->getTrackId();
@@ -221,6 +242,26 @@ void TrackListComponent::rebuild()
     applyRowHeight();
     syncHorizontalBar(); // the song may have got longer or shorter.
     repaint(); // M4: empty-state message visibility may have changed.
+}
+
+void TrackListComponent::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
+{
+    // The head edits itself: a rebuild here would destroy the slider / colour picker /
+    // rename editor in the middle of the gesture that caused the change.
+    if (tree.hasType (SongIDs::MIDI_TRACK)
+        && (property == SongIDs::name || property == SongIDs::colorArgb || property == SongIDs::playbackVolume))
+    {
+        refreshHead ((juce::int64) tree.getProperty (SongIDs::trackId, (juce::int64) -1));
+        return;
+    }
+    triggerAsyncUpdate();
+}
+
+void TrackListComponent::refreshHead (juce::int64 trackId)
+{
+    for (auto* row : content.rows)
+        if (row->getTrackId() == trackId)
+            row->refreshHead();
 }
 
 int TrackListComponent::documentEndTick() const

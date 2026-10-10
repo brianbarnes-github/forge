@@ -22,7 +22,8 @@ public:
     // trackNode must be a valid MIDI_TRACK node; displayIndex is the row number
     // shown (the track's SOURCE_MIDI child index; 0 = the conductor, drawn
     // unnumbered), fixed at construction time (TrackListComponent
-    // rebuilds every row from scratch on any SOURCE_MIDI change, so this
+    // rebuilds every row from scratch on any SOURCE_MIDI change other than a
+    // track's name / colour / volume, which refresh the row in place), so this
     // never goes stale in place). viewState is shared with the embedded
     // TrackNotePreview and must outlive this row.
     TrackRowComponent (juce::ValueTree trackNode, int displayIndex, const TimelineViewState& viewState);
@@ -136,6 +137,10 @@ public:
 
     // Fired on a user change in the head's colour picker: (trackId, argb, startsGesture).
     std::function<void (juce::int64, juce::uint32, bool)> onColourChanged;
+
+    // Re-reads the track's name / colour / volume after an in-place change and
+    // repaints the row (its accent bar and note preview use the colour too).
+    void refreshHead();
 
     // True for a point in the head column, where a right-click opens the head's menu.
     static bool inHeadArea (juce::Point<int> p) noexcept

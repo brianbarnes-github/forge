@@ -1071,6 +1071,115 @@ TEST_CASE ("TrackListComponent: solo on one track dims the other row in place, w
     CHECK (rowA->getAlpha() == Catch::Approx (1.0f));
 }
 
+namespace
+{
+    // One named, coloured track with a note, in a laid-out list. `rowBefore`
+    // turns null if that row object is ever destroyed (pointer equality alone
+    // could be fooled by a rebuilt row landing at the same address).
+    struct HeadEditFixture
+    {
+        juce::ScopedJuceInitialiser_GUI juceInit;
+        SongDocument doc;
+        juce::ValueTree track = doc.addTrack ("A", (int) 0xFFAABBCCu, 0, 0);
+        juce::int64 id = (juce::int64) track.getProperty (SongIDs::trackId);
+        std::unique_ptr<TrackListComponent> list;
+        juce::Component::SafePointer<TrackRowComponent> rowBefore;
+
+        HeadEditFixture()
+        {
+            lotro::playbacktest::addNote (track, 60, 0, 480);
+            list = std::make_unique<TrackListComponent> (doc);
+            list->setSize (600, 200);
+            rowBefore = Access::rowFor (*list, id);
+        }
+
+        TrackRowComponent* row() { return Access::rowFor (*list, id); }
+        juce::Slider& slider() { return row()->headForTesting().volumeSliderForTesting(); }
+        juce::uint32 colour() const { return (juce::uint32) (int) track.getProperty (SongIDs::colorArgb); }
+        bool notRebuilt() { return rowBefore != nullptr && row() == rowBefore.getComponent(); }
+        static void pump() { juce::MessageManager::getInstance()->runDispatchLoopUntil (50); }
+    };
+}
+
+TEST_CASE ("TrackList: a volume drag is one undo step and does not rebuild the row", "[track-list][head][volume]")
+{
+    HeadEditFixture f;
+    REQUIRE (f.rowBefore != nullptr);
+    auto& slider = f.slider();
+    slider.onDragStart();
+    slider.setValue (60, juce::sendNotificationSync);
+    slider.setValue (30, juce::sendNotificationSync);
+    slider.onDragEnd();
+    HeadEditFixture::pump();                                   // let any async rebuild run
+    CHECK (f.notRebuilt());
+    CHECK (trackPlaybackVolume (f.track) == 30);
+
+    f.doc.getUndoManager().undo();
+    CHECK (trackPlaybackVolume (f.track) == 100);              // one step undoes the whole drag
+    CHECK (! f.track.hasProperty (SongIDs::playbackVolume));
+    CHECK ((int) f.slider().getValue() == 100);               // the head follows the undo
+    f.doc.getUndoManager().redo();
+    CHECK ((int) f.slider().getValue() == 30);                // ... and the redo
+    HeadEditFixture::pump();
+    CHECK (f.notRebuilt());
+}
+
+TEST_CASE ("TrackList: rename and recolour write the track and undo cleanly", "[track-list][head]")
+{
+    HeadEditFixture f;
+    REQUIRE (f.rowBefore != nullptr);
+    f.row()->onRenamed (f.id, "Flute");
+    CHECK (f.track.getProperty (SongIDs::name).toString() == "Flute");
+    f.row()->onColourChanged (f.id, 0xFF112233u, true);
+    f.row()->onColourChanged (f.id, 0xFF445566u, false);
+    CHECK (f.colour() == 0xFF445566u);
+    HeadEditFixture::pump();
+    CHECK (f.notRebuilt());
+
+    f.doc.getUndoManager().undo();
+    CHECK (f.colour() == 0xFFAABBCCu);                         // both picker changes = one step
+    CHECK (f.track.getProperty (SongIDs::name).toString() == "Flute");
+    f.doc.getUndoManager().undo();
+    CHECK (f.track.getProperty (SongIDs::name).toString() == "A");   // the rename is its own step
+    CHECK (f.doc.findTrackById (f.id).isValid());
+    HeadEditFixture::pump();
+    CHECK (f.notRebuilt());
+}
+
+TEST_CASE ("TrackList: setting volume to 100 removes the property (default is implicit)", "[track-list][head][volume]")
+{
+    HeadEditFixture f;
+    REQUIRE (f.rowBefore != nullptr);
+    f.row()->onVolumeChanged (f.id, 40, true);
+    CHECK ((int) f.track.getProperty (SongIDs::playbackVolume) == 40);
+    f.row()->onVolumeChanged (f.id, 100, true);
+    CHECK (! f.track.hasProperty (SongIDs::playbackVolume));
+
+    f.doc.getUndoManager().undo();                             // back from the implicit default
+    CHECK ((int) f.track.getProperty (SongIDs::playbackVolume, -1) == 40);
+    CHECK ((int) f.slider().getValue() == 40);
+    f.doc.getUndoManager().redo();
+    CHECK (! f.track.hasProperty (SongIDs::playbackVolume));
+    CHECK ((int) f.slider().getValue() == 100);
+}
+
+TEST_CASE ("TrackList: a head edit refreshes in place, any other track property still rebuilds", "[track-list][head]")
+{
+    HeadEditFixture f;
+    REQUIRE (f.rowBefore != nullptr);
+    f.doc.setProperty (f.track, SongIDs::playbackVolume, 25);
+    f.doc.setProperty (f.track, SongIDs::colorArgb, (int) 0xFF445566u);
+    f.doc.setProperty (f.track, SongIDs::name, "Flute");
+    HeadEditFixture::pump();
+    CHECK (f.notRebuilt());
+    CHECK ((int) f.slider().getValue() == 25);
+
+    f.doc.setProperty (f.track, SongIDs::sourceProgram, 73);
+    HeadEditFixture::pump();
+    CHECK (f.rowBefore == nullptr);                            // rebuilt: the old row is gone
+    CHECK (f.row() != nullptr);
+}
+
 TEST_CASE ("TrackListComponent: following a playhead at the end of a fitted song keeps fitted mode", "[track-list][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
