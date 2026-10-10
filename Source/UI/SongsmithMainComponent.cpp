@@ -155,10 +155,33 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
         if (playback != nullptr)
             trackEditorWindow->setPlayback (playback);
         trackEditorWindow->onClosed = [this] { trackEditorWindow.reset(); };
+        trackEditorWindow->setFollowPlayhead (followPlayheadSetting);
+        setActiveEditorGridSize (defaultGridSize);
     }
 
     trackEditorWindow->setTrack (trackNode);
     refreshGhostTracksOnEditor();
+}
+
+void SongsmithMainComponent::setShowRangeBand (bool show)
+{
+    showRangeBandSetting = show;
+    previewRoll.setShowRangeBand (show);
+}
+
+void SongsmithMainComponent::setFollowPlayhead (bool follow)
+{
+    followPlayheadSetting = follow;
+    previewRoll.setFollowPlayhead (follow);
+    trackList.setFollowPlayhead (follow);
+    if (trackEditorWindow != nullptr)
+        trackEditorWindow->setFollowPlayhead (follow);
+}
+
+// Remembered for editors opened later; an editor that is already open keeps its grid.
+void SongsmithMainComponent::setDefaultGridSize (GridSize size)
+{
+    defaultGridSize = size;
 }
 
 void SongsmithMainComponent::trackGhostToggled (juce::int64 trackId, bool visible)

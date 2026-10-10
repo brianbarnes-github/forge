@@ -54,6 +54,11 @@ namespace lotro
         {
             return c.trackList;
         }
+        static PianoRollComponent& previewRoll (SongsmithMainComponent& c) { return c.previewRoll; }
+        static bool activeEditorFollows (const SongsmithMainComponent& c)
+        {
+            return c.trackEditorWindow != nullptr && c.trackEditorWindow->getFollowPlayhead();
+        }
         static int activeEditorGridTicks (const SongsmithMainComponent& c)
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getGridTicks() : -1;
@@ -178,6 +183,67 @@ TEST_CASE ("SongsmithMainComponent: setActiveEditorGridSize resolves ticks again
         main.setActiveEditorGridSize (GridSize::Off);
         CHECK (Access::activeEditorGridTicks (main) == 0);
     }
+}
+
+TEST_CASE ("SongsmithMainComponent: a newly opened editor starts on the default grid; an open one keeps its grid; the menu still overrides", "[track-editor][view-settings]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, 480, nullptr);
+
+    SongsmithMainComponent main (doc);
+    main.setDefaultGridSize (GridSize::Eighth);
+    Access::trackDoubleClicked (main, trackId);
+    REQUIRE (main.isTrackEditorOpen());
+    CHECK (Access::activeEditorGridTicks (main) == 240);
+
+    main.setDefaultGridSize (GridSize::Quarter);          // changing the default...
+    CHECK (Access::activeEditorGridTicks (main) == 240);  // ...leaves the open editor alone
+
+    main.setActiveEditorGridSize (GridSize::Sixteenth);   // the menu overrides for this window
+    CHECK (Access::activeEditorGridTicks (main) == 120);
+}
+
+TEST_CASE ("SongsmithMainComponent: the default grid is Off until set", "[track-editor][view-settings]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    SongsmithMainComponent main (doc);
+    Access::trackDoubleClicked (main, (juce::int64) track.getProperty (SongIDs::trackId));
+    REQUIRE (main.isTrackEditorOpen());
+    CHECK (Access::activeEditorGridTicks (main) == 0);
+}
+
+TEST_CASE ("SongsmithMainComponent: follow reaches the track list, the open editor and an editor opened later", "[track-editor][view-settings]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    SongsmithMainComponent main (doc);
+
+    main.setFollowPlayhead (false);                       // before any editor exists
+    CHECK_FALSE (Access::trackList (main).getFollowPlayhead());
+    Access::trackDoubleClicked (main, trackId);
+    REQUIRE (main.isTrackEditorOpen());
+    CHECK_FALSE (Access::activeEditorFollows (main));     // the later editor got it
+
+    main.setFollowPlayhead (true);                        // live, to the open editor
+    CHECK (Access::activeEditorFollows (main));
+    CHECK (Access::trackList (main).getFollowPlayhead());
+}
+
+TEST_CASE ("SongsmithMainComponent: the band switch reaches the preview roll", "[view-settings]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    CHECK (Access::previewRoll (main).getShowRangeBand());
+    main.setShowRangeBand (false);
+    CHECK_FALSE (Access::previewRoll (main).getShowRangeBand());
 }
 
 TEST_CASE ("SongsmithMainComponent: a ghosted row's eye icon survives a SOURCE_MIDI rebuild", "[track-editor]")

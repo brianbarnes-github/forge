@@ -153,6 +153,9 @@ public:
 
     bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
     void setActiveEditorGridSize (GridSize size);
+    void setShowRangeBand (bool show);
+    void setFollowPlayhead (bool follow);
+    void setDefaultGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }
 
 private:
@@ -193,6 +196,9 @@ private:
 
     std::unique_ptr<TrackEditorWindow> trackEditorWindow;
     std::set<juce::int64>    ghostedTrackIds;
+    bool                     showRangeBandSetting = true;
+    bool                     followPlayheadSetting = true;
+    GridSize                 defaultGridSize = GridSize::Off;
 
     PartStripComponent        partStrip;
 

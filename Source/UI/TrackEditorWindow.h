@@ -30,6 +30,8 @@ namespace lotro
 
         void setGridTicks (int ticks);
         int getGridTicks() const;
+        void setFollowPlayhead (bool on) { roll.setFollowPlayhead (on); }
+        bool getFollowPlayhead() const { return roll.getFollowPlayhead(); }
         void quantizeSelection();
 
         void setGhostTracks (std::vector<juce::ValueTree> tracks);
