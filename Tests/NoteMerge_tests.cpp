@@ -104,6 +104,23 @@ TEST_CASE ("merge: only the referenced section's notes are carried", "[merge]")
     CHECK (notesOf (source) == std::vector<Note> { { 60, 0, 480 } });
 }
 
+TEST_CASE ("merge: a section named twice (as 0 and by its id) is carried once", "[merge]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (source, 60, 0, 480);
+    addNote (source, 62, 480, 480);
+    splitAt (doc, { idOf (source) }, 480);
+    const auto first = sectionsOf (source)[0];
+
+    const auto r = mergeSections (doc, { { idOf (source), 0 }, { idOf (source), first.id } }, idOf (target), true);
+
+    CHECK (r.inserted == 1);
+    CHECK (r.dropped == 0);
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 480 } });
+}
+
 TEST_CASE ("merge: invalid requests change nothing and open no transaction", "[merge]")
 {
     SongDocument doc;

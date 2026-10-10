@@ -93,8 +93,8 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
   gaps are invalid targets.
 - **Feedback.** Valid target: highlight outline and translucent ghosts of the
   carried sections at their original ticks, plus a "Move"/"Copy" label by the
-  pointer that follows Ctrl live. Invalid target: not-allowed cursor, no
-  highlight. Esc cancels.
+  pointer that follows Ctrl live. Invalid target: normal cursor, no
+  highlight (JUCE has no not-allowed cursor). Esc cancels.
 - **Release.** Over a valid target: one call to `mergeSections`, with
   `copy` taken from the modifiers at release. The target track and its sections
   become the selection. Anywhere else: nothing happens.
@@ -108,7 +108,7 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
 
 `mergeSections` is total: invalid input returns `changed == false`. No custom
 exception is needed because there is no failure path that the user can act on;
-the UI shows the not-allowed cursor before release.
+the UI shows no highlight on an invalid target before release.
 
 ## Testing (TDD, integration-first)
 
