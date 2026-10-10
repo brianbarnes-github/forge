@@ -3,6 +3,7 @@
 #include "SongDocument.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_gui_extra/juce_gui_extra.h>
 
 #include <functional>
 #include <memory>
@@ -77,6 +78,13 @@ public:
     std::function<void (juce::uint32 argb, bool startsGesture)> onColourChanged;
     bool colourPickerOpenForTesting() const { return pickerOpen; }
 
+    // The launched callout's selector (null when closed), and a dismissal that
+    // takes the real close path once the message loop has run.
+    juce::ColourSelector* colourSelectorForTesting() const;
+    void dismissColourPickerForTesting();
+
+    ~TrackHeadComponent() override;
+
     // Null when not editing.
     juce::TextEditor* renameEditorForTesting() { return renameEditor.get(); }
 
@@ -116,6 +124,7 @@ private:
     bool            dragging = false;        // between the slider's onDragStart and onDragEnd
     bool            dragHasChanged = false;  // the current drag has already reported a change
     std::unique_ptr<juce::TextEditor> renameEditor;
+    juce::Component::SafePointer<juce::CallOutBox> pickerBox;
     bool            pickerOpen = false;
     bool            pickerFirstChange = true;  // the next colourPicked starts a gesture
 };

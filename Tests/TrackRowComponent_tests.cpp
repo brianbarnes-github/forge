@@ -700,8 +700,9 @@ TEST_CASE ("TrackRowComponent: a left-click on the swatch opens the picker inste
     row.mouseDown (eventAt (row, swatch, 1));
     CHECK (selected == 0);
     CHECK (head.colourPickerOpenForTesting());
-    head.colourPickerClosed();
-    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    head.dismissColourPickerForTesting();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (! head.colourPickerOpenForTesting());
 
     row.mouseDown (eventAt (row, { head.getX() + 2, head.getY() + 2 }, 1));
     CHECK (selected == 1);

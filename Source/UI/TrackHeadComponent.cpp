@@ -310,7 +310,25 @@ void TrackHeadComponent::openColourPicker()
         juce::Colour ((juce::uint32) (int) track.getProperty (SongIDs::colorArgb)),
         [safe] (juce::Colour c) { if (safe != nullptr) safe->colourPicked (c); },
         [safe] { if (safe != nullptr) safe->colourPickerClosed(); });
-    juce::CallOutBox::launchAsynchronously (std::move (content), localAreaToGlobal (swatchBounds()), nullptr);
+    pickerBox = &juce::CallOutBox::launchAsynchronously (std::move (content), localAreaToGlobal (swatchBounds()), nullptr);
+}
+
+juce::ColourSelector* TrackHeadComponent::colourSelectorForTesting() const
+{
+    return pickerBox != nullptr ? dynamic_cast<juce::ColourSelector*> (pickerBox->getChildComponent (0)) : nullptr;
+}
+
+void TrackHeadComponent::dismissColourPickerForTesting()
+{
+    if (pickerBox != nullptr)
+        pickerBox->dismiss();
+}
+
+TrackHeadComponent::~TrackHeadComponent()
+{
+    // The callout deletes itself later; its content's close report finds this head gone.
+    if (pickerBox != nullptr)
+        pickerBox->dismiss();
 }
 
 void TrackHeadComponent::colourPicked (juce::Colour c)

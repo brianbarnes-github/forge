@@ -18,12 +18,12 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     addAndMakeVisible (head);
     head.onMuteToggled = [this] (bool on) { if (onMuteToggled) onMuteToggled (getTrackId(), on); };
     head.onRenamed = [this] (const juce::String& n) { if (onRenamed) onRenamed (getTrackId(), n); };
+    head.onSoloToggled = [this] (bool on) { if (onSoloToggled) onSoloToggled (getTrackId(), on); };
     head.onColourChanged = [this] (juce::uint32 argb, bool startsGesture)
     {
         if (onColourChanged)
             onColourChanged (getTrackId(), argb, startsGesture);
     };
-    head.onSoloToggled =[this] (bool on) { if (onSoloToggled) onSoloToggled (getTrackId(), on); };
     head.onVolumeChanged = [this] (int percent, bool startsGesture)
     {
         if (onVolumeChanged)

@@ -323,9 +323,64 @@ TEST_CASE ("TrackHead: the picker is open between openColourPicker and colourPic
     TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
     head.setBounds (0, 0, 198, 62);
     CHECK (! head.colourPickerOpenForTesting());
+    const auto desktopComponents = juce::Desktop::getInstance().getNumComponents();
     head.openColourPicker();
     CHECK (head.colourPickerOpenForTesting());
-    head.colourPickerClosed();
+    CHECK (head.colourSelectorForTesting() != nullptr);
+    head.dismissColourPickerForTesting();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
     CHECK (! head.colourPickerOpenForTesting());
-    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (head.colourSelectorForTesting() == nullptr);
+    CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
+}
+
+TEST_CASE ("TrackHead: colour changes in the real picker report a gesture start once per session; dismissing ends the session", "[track-head][colour]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    head.setBounds (0, 0, 198, 62);
+    std::vector<std::pair<juce::uint32, bool>> got;
+    head.onColourChanged = [&] (juce::uint32 argb, bool starts) { got.emplace_back (argb, starts); };
+    const auto desktopComponents = juce::Desktop::getInstance().getNumComponents();
+
+    head.openColourPicker();
+    REQUIRE (head.colourSelectorForTesting() != nullptr);
+    CHECK (head.colourSelectorForTesting()->getCurrentColour().getARGB() == 0xFFAABBCCu);
+    head.colourSelectorForTesting()->setCurrentColour (juce::Colour (0xFF112233), juce::sendNotificationSync);
+    head.colourSelectorForTesting()->setCurrentColour (juce::Colour (0xFF445566), juce::sendNotificationSync);
+    REQUIRE (got.size() == 2);
+    // JUCE's selector reports from inside its slider update, so only the red
+    // channel of a programmatic change is current at that point.
+    CHECK (juce::Colour (got[0].first).getRed() == 0x11);
+    CHECK (got[0].second);
+    CHECK (juce::Colour (got[1].first).getRed() == 0x44);
+    CHECK (! got[1].second);
+
+    head.dismissColourPickerForTesting();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (! head.colourPickerOpenForTesting());
+
+    head.openColourPicker();
+    REQUIRE (head.colourSelectorForTesting() != nullptr);
+    head.colourSelectorForTesting()->setCurrentColour (juce::Colour (0xFF778899), juce::sendNotificationSync);
+    REQUIRE (got.size() == 3);
+    CHECK (got[2].second);
+    head.dismissColourPickerForTesting();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
+}
+
+TEST_CASE ("TrackHead: destroying the head with its picker open dismisses the callout", "[track-head][colour]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    const auto desktopComponents = juce::Desktop::getInstance().getNumComponents();
+    {
+        TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+        head.setBounds (0, 0, 198, 62);
+        head.openColourPicker();
+    }
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
 }
