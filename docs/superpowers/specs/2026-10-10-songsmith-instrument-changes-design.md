@@ -144,5 +144,6 @@ actionable by the user.
 
 - `ProgramChange` carries the `EVENT` node (`juce::ValueTree event`) instead of an index, and the scope enum is `MergeScope` in `Source/UI/MergeScope.h`.
 - `splitAtTicks` (one track, several ticks) replaces the spec's `splitAtAll`; the per-track body of `splitAt` is shared as `splitTrackAt`.
+- `setTrackInstrument` also moves a kept first change that lies after tick 0 to tick 0 (otherwise the span before it would still play program 0), and gives inserted or moved changes an `order` below every event and imported note so the export places them before tick-0 notes. The single-segment band label reads the first segment's program, not `sourceProgram`.
 - The Editing radios each act only when they are the button turned on: turning one radio on also notifies the one it turns off, which would otherwise save and apply twice.
 - Open points implemented as proposed, still awaiting the user's review: default `notesOnly`, channel rewrite on carried channel messages, no recolour on Set instrument.

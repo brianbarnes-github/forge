@@ -1,5 +1,6 @@
 #include "PlaybackTestSupport.h"
 #include "UI/InstrumentEdit.h"
+#include "UI/MidiExport.h"
 #include "UI/ProgramChanges.h"
 #include "UI/SectionEdit.h"
 
@@ -171,5 +172,58 @@ TEST_CASE ("set instrument: the conductor and unknown tracks are ignored", "[ins
     setTrackInstrument (doc, idOf (c), 9);
     setTrackInstrument (doc, 9999, 9);
 
+    CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("set instrument: the inserted change exports before imported tick-0 notes", "[instrument][set]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    t.setProperty (SongIDs::sourceProgram, 0, nullptr);
+    addNote (t, 60, 0, 480);
+    auto note = SongDocument::getNotesNode (t).getChild (0);
+    note.setProperty (SongIDs::onOrder, 3, nullptr);       // as an import records them
+    note.setProperty (SongIDs::offOrder, 4, nullptr);
+    addEvent (t, 100, { 0xB0, 7, 100 });
+    SongDocument::getEventsNode (t).getChild (0).setProperty (SongIDs::order, 9, nullptr);
+
+    setTrackInstrument (doc, idOf (t), 40);
+
+    int checked = 0;
+    for (const auto& track : buildRawMidiFile (doc).tracks)
+    {
+        int program = -1, noteOn = -1, i = 0;
+        for (const auto& e : track.events)
+        {
+            if ((e.bytes[0] & 0xF0) == 0xC0 && program < 0) program = i;
+            if ((e.bytes[0] & 0xF0) == 0x90 && noteOn < 0) noteOn = i;
+            ++i;
+        }
+        if (noteOn >= 0)
+        {
+            REQUIRE (program >= 0);
+            CHECK (program < noteOn);
+            ++checked;
+        }
+    }
+    CHECK (checked == 1);
+}
+
+TEST_CASE ("set instrument: a first change after tick 0 moves to tick 0 so the whole track is one instrument", "[instrument][set]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    t.setProperty (SongIDs::sourceProgram, 0, nullptr);
+    addNote (t, 60, 0, 480);
+    addEvent (t, 960, { 0xC0, 40 });
+
+    setTrackInstrument (doc, idOf (t), 24);
+
+    const auto pcs = programChangesOf (t);
+    REQUIRE (pcs.size() == 1);
+    CHECK (pcs[0].tick == 0);
+    CHECK (pcs[0].program == 24);
+    doc.undo();
+    CHECK (programChangesOf (t)[0].tick == 960);
     CHECK_FALSE (doc.canUndo());
 }

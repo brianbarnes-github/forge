@@ -18,13 +18,20 @@ namespace
         return juce::var (juce::MemoryBlock (bytes, 2));
     }
 
-    int nextEventOrder (const juce::ValueTree& track)
+    // An order below every event and imported note in the track: export sorts by
+    // (tick, group, relocatedFrom, order), so a change at tick 0 with this order goes
+    // out before the tick-0 notes it must precede.
+    int lowestOrder (const juce::ValueTree& track)
     {
-        int next = 0;
+        int lowest = 0;
         const auto events = SongDocument::getEventsNode (track);
         for (int i = 0; i < events.getNumChildren(); ++i)
-            next = std::max (next, (int) events.getChild (i).getProperty (SongIDs::order, 0) + 1);
-        return next;
+            lowest = std::min (lowest, (int) events.getChild (i).getProperty (SongIDs::order, 0));
+        const auto notes = SongDocument::getNotesNode (track);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
+            for (const auto& key : { SongIDs::onOrder, SongIDs::offOrder })
+                lowest = std::min (lowest, (int) notes.getChild (i).getProperty (key, 0));
+        return lowest - 1;
     }
 }
 
@@ -56,15 +63,23 @@ void setTrackInstrument (SongDocument& doc, juce::int64 trackId, int program)
         (seenChannels.insert (c.channel).second ? keep : drop).push_back (c);
 
     const bool sourceDiffers = (int) track.getProperty (SongIDs::sourceProgram, 0) != program;
-    const bool keptDiffers = std::any_of (keep.begin(), keep.end(), [program] (const ProgramChange& c) { return c.program != program; });
+    const bool keptDiffers = std::any_of (keep.begin(), keep.end(), [program] (const ProgramChange& c) { return c.program != program || c.tick != 0; });
     if (! sourceDiffers && ! keptDiffers && drop.empty())
         return;
 
     doc.getUndoManager().beginNewTransaction();
     auto events = SongDocument::getEventsNode (track);
+    int order = lowestOrder (track);
     for (const auto& c : keep)
+    {
         if (c.program != program)
             doc.setProperty (c.event, SongIDs::data, programBytes (c.channel, program), false);
+        if (c.tick != 0)   // the whole track is one instrument, so it starts at the start
+        {
+            doc.setProperty (c.event, SongIDs::tick, 0, false);
+            doc.setProperty (c.event, SongIDs::order, order--, false);
+        }
+    }
     for (const auto& c : drop)
         doc.removeChild (events, c.event, false);
 
@@ -72,7 +87,7 @@ void setTrackInstrument (SongDocument& doc, juce::int64 trackId, int program)
     {
         juce::ValueTree event (SongIDs::EVENT);
         event.setProperty (SongIDs::tick, 0, nullptr);
-        event.setProperty (SongIDs::order, nextEventOrder (track), nullptr);
+        event.setProperty (SongIDs::order, order, nullptr);
         event.setProperty (SongIDs::data, programBytes ((int) track.getProperty (SongIDs::defaultChannel, 1), program), nullptr);
         doc.addChild (events, event, false);
     }

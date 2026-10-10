@@ -16,7 +16,7 @@ bool canAutoSplit (const juce::ValueTree& track);
 void autoSplitOnInstrumentChange (SongDocument& doc, juce::int64 trackId);
 
 // Makes the whole track one instrument: the first program change on each channel is
-// set to `program`, the later ones are deleted, a track with none gets one at tick 0
+// set to `program` and moved to tick 0, the later ones are deleted, a track with none gets one at tick 0
 // on its defaultChannel, and sourceProgram follows. The conductor and unknown
 // tracks are ignored.
 void setTrackInstrument (SongDocument& doc, juce::int64 trackId, int program);

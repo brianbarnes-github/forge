@@ -157,7 +157,10 @@ juce::String TrackRowComponent::instrumentLabel() const
         return {};
     if ((int) track.getProperty (SongIDs::sourceMidiChannel) == 10)
         return "Drum Kit";
-    return gmProgramName ((int) track.getProperty (SongIDs::sourceProgram));
+    // The program the track plays at its start (a tick-0 change can differ from sourceProgram).
+    const auto segments = instrumentSegmentsOf (track);
+    return gmProgramName (segments.empty() ? (int) track.getProperty (SongIDs::sourceProgram)
+                                           : segments.front().program);
 }
 
 juce::String TrackRowComponent::buildSecondLine() const

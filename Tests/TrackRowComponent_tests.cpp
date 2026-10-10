@@ -1,5 +1,6 @@
 #include "PlaybackTestSupport.h"
 #include "UI/SongDocument.h"
+#include "UI/GmProgramNames.h"
 #include "UI/TrackRowComponent.h"
 #include "UI/TimelineViewState.h"
 #include "UI/SongsmithColours.h"
@@ -560,4 +561,18 @@ TEST_CASE ("TrackRowComponent: the instrument band is the top strip of the canva
     CHECK (TrackRowComponent::inInstrumentBand ({ TrackRowComponent::trackInfoWidth + 5, 3 }));
     CHECK_FALSE (TrackRowComponent::inInstrumentBand ({ TrackRowComponent::trackInfoWidth - 5, 3 }));
     CHECK_FALSE (TrackRowComponent::inInstrumentBand ({ TrackRowComponent::trackInfoWidth + 5, TrackRowComponent::instrumentBandHeight }));
+}
+
+TEST_CASE ("TrackRowComponent: a single-instrument band names the program the track plays, not sourceProgram", "[track-row][instrument]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto t = playbacktest::addTrack (doc);
+    t.setProperty (SongIDs::sourceProgram, 73, nullptr);
+    playbacktest::addEvent (t, 0, { 0xC0, 73 });
+    playbacktest::addEvent (t, 0, { 0xC0, 40 });   // the later change at the same tick wins
+    playbacktest::addNote (t, 60, 0, 480);
+    TimelineViewState view;
+
+    CHECK (TrackRowComponent (t, 1, view).instrumentLabel() == gmProgramName (40));
 }
