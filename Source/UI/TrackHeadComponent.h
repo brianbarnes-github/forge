@@ -82,7 +82,8 @@ private:
     IconButton      muteButton { IconButton::Kind::Mute, juce::Colours::orangered };
     IconButton      soloButton { IconButton::Kind::Solo, juce::Colours::gold };
     juce::Slider    volumeSlider;
-    bool            startsGesture = true;
+    bool            dragging = false;        // between the slider's onDragStart and onDragEnd
+    bool            dragHasChanged = false;  // the current drag has already reported a change
 };
 
 } // namespace lotro

@@ -113,11 +113,14 @@ TrackHeadComponent::TrackHeadComponent (juce::ValueTree trackNode, int displayIn
     volumeSlider.setDoubleClickReturnValue (true, 100.0);
     volumeSlider.setTooltip ("Playback volume");
     volumeSlider.setValue (trackPlaybackVolume (track), juce::dontSendNotification);
-    volumeSlider.onDragStart = [this] { startsGesture = true; };
-    volumeSlider.onDragEnd = [this] { startsGesture = true; };
+    // JUCE brackets mouse drags, wheel moves and double-clicks with
+    // onDragStart / onDragEnd but not keyboard steps, so any change outside a
+    // bracket starts its own gesture.
+    volumeSlider.onDragStart = [this] { dragging = true; dragHasChanged = false; };
+    volumeSlider.onDragEnd = [this] { dragging = false; };
     volumeSlider.onValueChange = [this]
     {
-        const bool starts = std::exchange (startsGesture, false);
+        const bool starts = ! dragging || ! std::exchange (dragHasChanged, true);
         if (onVolumeChanged)
             onVolumeChanged ((int) volumeSlider.getValue(), starts);
     };

@@ -4,7 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include <utility>
+#include <string>
 #include <vector>
 
 using namespace lotro;
@@ -38,14 +38,16 @@ TEST_CASE ("TrackHead layout: two rows, nothing overlaps or leaves the bounds, a
     }
 }
 
-TEST_CASE ("TrackHead layout: conductor has only the name", "[track-head][layout]")
+TEST_CASE ("TrackHead layout: conductor has only the index slot and the name", "[track-head][layout]")
 {
     const auto l = TrackHeadComponent::layoutFor ({ 0, 0, 198, 62 }, true);
     CHECK (l.swatch.isEmpty());
     CHECK (l.mute.isEmpty());
     CHECK (l.solo.isEmpty());
     CHECK (l.volume.isEmpty());
+    CHECK (! l.index.isEmpty());
     CHECK (! l.name.isEmpty());
+    CHECK (! l.index.intersects (l.name));
 }
 
 TEST_CASE ("TrackHead: M and S fire their callbacks with the new state", "[track-head][mutesolo]")
@@ -96,19 +98,32 @@ TEST_CASE ("TrackHead: the slider shows the saved volume and reports user change
     CHECK (reported == 20);
 }
 
-TEST_CASE ("TrackHead: double-clicking the slider resets it to 100", "[track-head][volume]")
+TEST_CASE ("TrackHead: double-clicking the slider resets it to 100, each as its own gesture", "[track-head][volume]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
     auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
     track.setProperty (SongIDs::playbackVolume, 40, nullptr);
     TrackHeadComponent head (track, 1);
-    int reported = -1;
-    head.onVolumeChanged = [&] (int v, bool) { reported = v; };
-    CHECK_THAT (head.volumeSliderForTesting().getDoubleClickReturnValue(), Catch::Matchers::WithinAbs (100.0, 1e-9));
-    head.volumeSliderForTesting().setValue (head.volumeSliderForTesting().getDoubleClickReturnValue(),
-                                            juce::sendNotificationSync);
-    CHECK (reported == 100);
+    auto& slider = head.volumeSliderForTesting();
+    slider.setBounds (0, 0, 120, 18);
+    std::vector<std::string> reports;   // "+" marks a change that starts a gesture
+    head.onVolumeChanged = [&] (int v, bool starts) { reports.push_back (std::to_string (v) + (starts ? "+" : "")); };
+
+    const auto doubleClick = [&slider]
+    {
+        slider.mouseDoubleClick (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                                   juce::Point<float> (30.0f, 9.0f), juce::ModifierKeys(),
+                                                   0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &slider, &slider,
+                                                   juce::Time::getCurrentTime(), juce::Point<float> (30.0f, 9.0f),
+                                                   juce::Time::getCurrentTime(), 2, false));
+    };
+    doubleClick();
+    slider.setValue (25, juce::sendNotificationSync);
+    doubleClick();
+
+    const std::vector<std::string> expected { "100+", "25+", "100+" };
+    CHECK (reports == expected);
 }
 
 TEST_CASE ("TrackHead: the conductor head has no controls", "[track-head]")
@@ -141,20 +156,35 @@ TEST_CASE ("TrackHead: each drag opens one gesture; changes outside a drag each 
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
-    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+    track.setProperty (SongIDs::playbackVolume, 10, nullptr);
+    TrackHeadComponent head (track, 1);
     auto& slider = head.volumeSliderForTesting();
-    std::vector<std::pair<int, bool>> reports;
-    head.onVolumeChanged = [&] (int v, bool starts) { reports.emplace_back (v, starts); };
+    std::vector<std::string> reports;   // "+" marks a change that starts a gesture
+    head.onVolumeChanged = [&] (int v, bool starts) { reports.push_back (std::to_string (v) + (starts ? "+" : "")); };
 
-    // A drag: start, two value changes, end.
+    // Two lone changes in a row. Keyboard steps are not bracketed by JUCE with
+    // onDragStart / onDragEnd, so each must still open its own step.
+    slider.keyPressed (juce::KeyPress (juce::KeyPress::rightKey));
+    slider.keyPressed (juce::KeyPress (juce::KeyPress::rightKey));
+    slider.setValue (72, juce::sendNotificationSync);
+    slider.setValue (74, juce::sendNotificationSync);
+
+    // A drag: start, three value changes, end.
     slider.onDragStart();
     slider.setValue (61, juce::sendNotificationSync);
     slider.setValue (57, juce::sendNotificationSync);
+    slider.setValue (52, juce::sendNotificationSync);
     slider.onDragEnd();
-    // A lone change after the drag (wheel / keyboard / double-click).
+
+    // Lone changes after the drag.
+    slider.keyPressed (juce::KeyPress (juce::KeyPress::leftKey));
     slider.setValue (33, juce::sendNotificationSync);
 
-    const std::vector<std::pair<int, bool>> expected { { 61, true }, { 57, false }, { 33, true } };
+    const std::vector<std::string> expected {
+        "11+", "12+", "72+", "74+",
+        "61+", "57", "52",
+        "51+", "33+" };
     CHECK (reports == expected);
 }
 
