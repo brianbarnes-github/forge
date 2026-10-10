@@ -236,16 +236,6 @@ TEST_CASE ("SongsmithMainComponent: follow reaches the track list, the open edit
     CHECK (Access::trackList (main).getFollowPlayhead());
 }
 
-TEST_CASE ("SongsmithMainComponent: the band switch reaches the preview roll", "[view-settings]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    SongDocument doc;
-    SongsmithMainComponent main (doc);
-    CHECK (Access::previewRoll (main).getShowRangeBand());
-    main.setShowRangeBand (false);
-    CHECK_FALSE (Access::previewRoll (main).getShowRangeBand());
-}
-
 TEST_CASE ("SongsmithMainComponent: a ghosted row's eye icon survives a SOURCE_MIDI rebuild", "[track-editor]")
 {
     // The end-to-end version of TrackListComponent's own isTrackGhosted test:

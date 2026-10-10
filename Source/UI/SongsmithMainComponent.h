@@ -153,7 +153,6 @@ public:
 
     bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
     void setActiveEditorGridSize (GridSize size);
-    void setShowRangeBand (bool show);
     void setFollowPlayhead (bool follow);
     void setDefaultGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }

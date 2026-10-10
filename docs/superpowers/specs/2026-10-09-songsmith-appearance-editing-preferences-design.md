@@ -1,6 +1,10 @@
 # Songsmith Preferences ▸ Appearance and Editing pages — design
 
-Date: 2026-10-09. Status: implemented (sub-project 3 of 3; follows
+Date: 2026-10-09. **Amended 2026-10-09 (user decision):** the band switch
+(`appearance.showRangeBand`, `setShowRangeBand`, the Appearance toggle) was dropped. The
+instrument range band is essential to making an ABC (every LOTRO instrument has an octave
+limit), so it is always shown and not user-hideable; read the band-switch parts below as
+historical. Status: implemented (sub-project 3 of 3; follows
 `2026-10-09-songsmith-playback-preferences-design.md`).
 
 Sub-projects: 1 hardening (done), 2 Playback page (done), **3 Appearance and

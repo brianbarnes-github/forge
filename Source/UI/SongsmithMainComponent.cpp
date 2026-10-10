@@ -163,11 +163,6 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     refreshGhostTracksOnEditor();
 }
 
-void SongsmithMainComponent::setShowRangeBand (bool show)
-{
-    previewRoll.setShowRangeBand (show);
-}
-
 void SongsmithMainComponent::setFollowPlayhead (bool follow)
 {
     followPlayheadSetting = follow;

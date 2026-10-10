@@ -6,19 +6,10 @@ namespace lotro
     AppearancePreferencesPage::AppearancePreferencesPage (PreferencesServices& servicesIn, std::function<void()> onChangedIn)
         : services (servicesIn), onChanged (std::move (onChangedIn))
     {
-        for (auto* b : { &showBand, &restorePlacement })
-        {
-            b->setColour (juce::ToggleButton::textColourId, juce::Colour (SongsmithColours::text));
-            addAndMakeVisible (*b);
-        }
-        showBand.setToggleState (services.settings.showRangeBand(), juce::dontSendNotification);
+        restorePlacement.setColour (juce::ToggleButton::textColourId, juce::Colour (SongsmithColours::text));
+        addAndMakeVisible (restorePlacement);
         restorePlacement.setToggleState (services.settings.restoreWindowPlacement(), juce::dontSendNotification);
 
-        showBand.onClick = [this]
-        {
-            services.settings.setShowRangeBand (showBand.getToggleState());
-            notify();
-        };
         restorePlacement.onClick = [this]
         {
             services.settings.setRestoreWindowPlacement (restorePlacement.getToggleState());
@@ -42,8 +33,6 @@ namespace lotro
     void AppearancePreferencesPage::resized()
     {
         auto area = getLocalBounds().reduced (12);
-        showBand.setBounds (area.removeFromTop (24));
-        area.removeFromTop (12);
         restorePlacement.setBounds (area.removeFromTop (24));
         restoreNote.setBounds (area.removeFromTop (20).withTrimmedLeft (24));
     }

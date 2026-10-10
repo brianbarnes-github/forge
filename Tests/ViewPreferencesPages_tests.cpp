@@ -29,14 +29,15 @@ namespace
     };
 }
 
-TEST_CASE ("Appearance page: the toggles reflect the settings", "[preferences][appearance-page]")
+TEST_CASE ("Appearance page: the toggle reflects the setting", "[preferences][appearance-page]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     FakeApp app;
-    app.settings.setShowRangeBand (false);
     AppearancePreferencesPage page (app.services);
-    CHECK_FALSE (page.showBandToggleForTesting().getToggleState());
     CHECK (page.restorePlacementToggleForTesting().getToggleState());   // default on
+    app.settings.setRestoreWindowPlacement (false);
+    AppearancePreferencesPage reopened (app.services);
+    CHECK_FALSE (reopened.restorePlacementToggleForTesting().getToggleState());
 }
 
 TEST_CASE ("Appearance page: a click writes the setting, applies the view settings and notifies once", "[preferences][appearance-page]")
@@ -45,15 +46,10 @@ TEST_CASE ("Appearance page: a click writes the setting, applies the view settin
     FakeApp app;
     AppearancePreferencesPage page (app.services, [&] { ++app.changedCalls; });
 
-    page.showBandToggleForTesting().setToggleState (false, juce::sendNotification);
-    CHECK_FALSE (app.settings.showRangeBand());
-    CHECK (app.applyCalls == 1);
-    CHECK (app.changedCalls == 1);
-
     page.restorePlacementToggleForTesting().setToggleState (false, juce::sendNotification);
     CHECK_FALSE (app.settings.restoreWindowPlacement());
-    CHECK (app.applyCalls == 2);
-    CHECK (app.changedCalls == 2);
+    CHECK (app.applyCalls == 1);
+    CHECK (app.changedCalls == 1);
 }
 
 TEST_CASE ("Editing page: the grid dropdown and follow toggle reflect the settings", "[preferences][editing-page]")
@@ -102,9 +98,9 @@ TEST_CASE ("View pages: with an unwritable settings file the change still applie
 
     {
         AppearancePreferencesPage page (services, [&] { ++changedCalls; });
-        page.showBandToggleForTesting().setToggleState (false, juce::sendNotification);
+        page.restorePlacementToggleForTesting().setToggleState (false, juce::sendNotification);
         CHECK (settings.lastSaveFailed());
-        CHECK_FALSE (settings.showRangeBand());   // still applied for the session
+        CHECK_FALSE (settings.restoreWindowPlacement());   // still applied for the session
         CHECK (applyCalls == 1);
         CHECK (changedCalls == 1);
     }

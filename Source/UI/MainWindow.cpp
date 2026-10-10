@@ -606,7 +606,6 @@ juce::File MainWindow::bundledSoundFont() const
 void MainWindow::applyViewSettings()
 {
     auto& songsmith = body->getSongsmith();
-    songsmith.setShowRangeBand (appSettings.showRangeBand());
     songsmith.setFollowPlayhead (appSettings.followPlayhead());
     songsmith.setDefaultGridSize (appSettings.defaultGrid());
 }

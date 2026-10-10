@@ -218,50 +218,6 @@ TEST_CASE ("PianoRollComponent: an upward-folding note's ghost and range band re
     CHECK (image.getPixelAt (sampleX, insideBandY) != image.getPixelAt (sampleX, belowBandY));
 }
 
-TEST_CASE ("PianoRollComponent: switching the band off stops painting it, and switching it on repaints exactly as before", "[piano-roll]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-
-    PreviewNote note;
-    note.prePitch = 60;
-    note.postPitch = 60;
-    note.startTick = 0;
-    note.durationTicks = ticksPerQuarter;
-    note.state = NoteState::Normal;
-    PreviewNoteSource source ({ note });
-
-    PianoRollComponent roll (PianoRollComponent::Role::Preview);
-    roll.setBounds (0, 0, viewportWidth, viewportHeight);
-    roll.setNoteSource (&source, ticksPerQuarter, {});
-    roll.setPreviewRangeBand ({ 55, 66 });
-    CHECK (roll.getShowRangeBand());   // default: on
-
-    const int height = Access::canvas (roll).getHeight();
-    const auto render = [&]
-    {
-        juce::Image image (juce::Image::ARGB, viewportWidth, height, true, juce::SoftwareImageType());
-        juce::Graphics g (image);
-        Access::paintCanvas (roll, g, { 0, 0, viewportWidth, height });
-        return image;
-    };
-    const auto sameImage = [&] (const juce::Image& a, const juce::Image& b)
-    {
-        for (int y = 0; y < height; ++y)
-            for (int x = 0; x < viewportWidth; ++x)
-                if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
-                    return false;
-        return true;
-    };
-
-    const auto withBand = render();
-    roll.setShowRangeBand (false);
-    const auto withoutBand = render();
-    CHECK_FALSE (sameImage (withBand, withoutBand));   // the band and its wash are gone
-
-    roll.setShowRangeBand (true);
-    CHECK (sameImage (withBand, render()));
-}
-
 TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a partial repaint clips out the solid note but not the ghost (I1)", "[piano-roll]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

@@ -56,9 +56,6 @@ public:
     }
 
     // Preferences > Appearance / Editing. Defaults equal the behaviour before the pages existed.
-    bool showRangeBand() const { return read (keyShowRangeBand); }
-    bool setShowRangeBand (bool on) { return write (keyShowRangeBand, on); }
-
     bool restoreWindowPlacement() const { return read (keyRestorePlacement); }
     bool setRestoreWindowPlacement (bool on) { return write (keyRestorePlacement, on); }
 
@@ -97,7 +94,6 @@ private:
     static constexpr const char* keyReplaceFile       = "confirm.replaceFile";
     static constexpr const char* keyImportTrackOptions = "import.trackOptions";
     static constexpr const char* keySoundFontPath      = "soundFontPath";
-    static constexpr const char* keyShowRangeBand      = "appearance.showRangeBand";
     static constexpr const char* keyRestorePlacement   = "appearance.restoreWindowPlacement";
     static constexpr const char* keyFollowPlayhead     = "editing.followPlayhead";
     static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";

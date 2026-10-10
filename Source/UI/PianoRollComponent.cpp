@@ -176,14 +176,6 @@ void PianoRollComponent::centreOnTrackPitches()
     viewport.setViewPosition (0, rowCentreY - viewport.getMaximumVisibleHeight() / 2);
 }
 
-void PianoRollComponent::setShowRangeBand (bool show)
-{
-    if (showRangeBand == show)
-        return;
-    showRangeBand = show;
-    canvas.repaint();
-}
-
 void PianoRollComponent::setPreviewRangeBand (juce::Range<int> midiRange)
 {
     rangeBand = midiRange;
@@ -572,7 +564,7 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
 
 void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const
 {
-    if (! showRangeBand || role != Role::Preview || rangeBand.isEmpty() || clip.isEmpty())
+    if (role != Role::Preview || rangeBand.isEmpty() || clip.isEmpty())
         return;
 
     const int rowHeight = geometry.getRowHeight();

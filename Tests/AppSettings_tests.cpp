@@ -180,23 +180,19 @@ TEST_CASE ("AppSettings: the view settings default to today's behaviour and roun
     {
         juce::PropertiesFile props (file, {});
         AppSettings settings (props);
-        CHECK (settings.showRangeBand());
         CHECK (settings.restoreWindowPlacement());
         CHECK (settings.followPlayhead());
         CHECK (settings.defaultGrid() == GridSize::Off);
 
-        CHECK (settings.setShowRangeBand (false));
         CHECK (settings.setRestoreWindowPlacement (false));
         CHECK (settings.setFollowPlayhead (false));
         CHECK (settings.setDefaultGrid (GridSize::Eighth));
     }
     juce::PropertiesFile reopened (file, {});
     AppSettings settings (reopened);
-    CHECK_FALSE (settings.showRangeBand());
     CHECK_FALSE (settings.restoreWindowPlacement());
     CHECK_FALSE (settings.followPlayhead());
     CHECK (settings.defaultGrid() == GridSize::Eighth);
-    CHECK (reopened.getValue ("appearance.showRangeBand") == "0");
     CHECK (reopened.getValue ("appearance.restoreWindowPlacement") == "0");
     CHECK (reopened.getValue ("editing.followPlayhead") == "0");
     CHECK (reopened.getValue ("editing.defaultGrid") == "eighth");
@@ -230,9 +226,9 @@ TEST_CASE ("AppSettings: the view-setting setters report a failed save but still
     juce::PropertiesFile props (blocked, {});
     AppSettings settings (props);
 
-    CHECK_FALSE (settings.setShowRangeBand (false));
+    CHECK_FALSE (settings.setRestoreWindowPlacement (false));
     CHECK (settings.lastSaveFailed());
-    CHECK_FALSE (settings.showRangeBand());
+    CHECK_FALSE (settings.restoreWindowPlacement());
 
     CHECK_FALSE (settings.setDefaultGrid (GridSize::Quarter));
     CHECK (settings.lastSaveFailed());
