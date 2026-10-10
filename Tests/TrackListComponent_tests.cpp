@@ -72,6 +72,9 @@ namespace lotro
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
         static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
         static SectionViewState& sectionView (TrackListComponent& c) { return c.sectionView; }
+        static void mergePress (TrackListComponent& c, juce::int64 trackId, SectionHit hit, juce::ModifierKeys mods = {}) { c.mergePressed (trackId, hit, mods); }
+        static bool mergeDrag (TrackListComponent& c, juce::Point<int> screen, juce::ModifierKeys mods = {}) { return c.mergeDragged (screen, mods); }
+        static void mergeRelease (TrackListComponent& c, juce::Point<int> screen, juce::ModifierKeys mods = {}) { c.mergeReleased (screen, mods); }
         static void press (TrackListComponent& c, juce::int64 trackId, SectionHit hit, int tick, juce::ModifierKeys mods = {}) { c.sectionPressed (trackId, hit, tick, mods); }
         static void drag (TrackListComponent& c, int tick) { c.sectionDragged (tick); }
         static void release (TrackListComponent& c, int tick) { c.sectionReleased (tick); }
@@ -2442,4 +2445,151 @@ TEST_CASE ("TrackListComponent: canSplitAtMarker needs a marker inside a selecte
     playback.setMarkerTick (300.0);
     CHECK_FALSE (list.hasSelectedSections());
     CHECK_FALSE (list.canSplitAtMarker());           // marker inside a section, but none selected
+}
+
+namespace
+{
+    juce::Point<int> screenOf (TrackListComponent& list, juce::int64 trackId)
+    {
+        auto* row = TrackListComponentTestAccess::rowFor (list, trackId);
+        REQUIRE (row != nullptr);
+        return row->localPointToGlobal (row->getLocalBounds().getCentre());
+    }
+
+    struct MergeFixture
+    {
+        SongDocument doc;
+        juce::ValueTree source, target;
+        juce::int64 sourceId = 0, targetId = 0;
+        std::unique_ptr<TrackListComponent> list;
+
+        MergeFixture()
+        {
+            source = playbacktest::addTrack (doc, "S");
+            target = playbacktest::addTrack (doc, "T");
+            playbacktest::addNote (source, 60, 0, 480);
+            sourceId = (juce::int64) source.getProperty (SongIDs::trackId);
+            targetId = (juce::int64) target.getProperty (SongIDs::trackId);
+            list = std::make_unique<TrackListComponent> (doc);
+            list->setBounds (0, 0, 600, 300);
+            TrackListComponentTestAccess::rebuild (*list);
+        }
+
+        int notesIn (const juce::ValueTree& t) const { return SongDocument::getNotesNode (t).getNumChildren(); }
+    };
+
+    const juce::ModifierKeys altMods { juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::altModifier };
+    const juce::ModifierKeys altCtrlMods { juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::altModifier | juce::ModifierKeys::ctrlModifier };
+}
+
+TEST_CASE ("TrackListComponent: an Alt-drag onto another row moves the notes on release, in one undo step", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+    CHECK (A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods));
+    REQUIRE (A::sectionView (*f.list).merge.has_value());
+    CHECK (A::sectionView (*f.list).merge->valid);
+    CHECK_FALSE (A::sectionView (*f.list).merge->copy);
+    CHECK (f.notesIn (f.target) == 0);   // nothing touched mid-drag
+
+    A::mergeRelease (*f.list, screenOf (*f.list, f.targetId), altMods);
+    CHECK (f.notesIn (f.target) == 1);
+    CHECK (f.notesIn (f.source) == 0);
+    CHECK_FALSE (A::sectionView (*f.list).merge.has_value());
+
+    f.doc.undo();
+    CHECK (f.notesIn (f.source) == 1);
+    CHECK (f.notesIn (f.target) == 0);
+}
+
+TEST_CASE ("TrackListComponent: Ctrl at release makes the merge a copy", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+    A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods);
+    CHECK_FALSE (A::sectionView (*f.list).merge->copy);
+    A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altCtrlMods);   // Ctrl pressed mid-drag
+    CHECK (A::sectionView (*f.list).merge->copy);
+    A::mergeRelease (*f.list, screenOf (*f.list, f.targetId), altCtrlMods);
+
+    CHECK (f.notesIn (f.target) == 1);
+    CHECK (f.notesIn (f.source) == 1);
+}
+
+TEST_CASE ("TrackListComponent: releasing over the source, the conductor or nothing merges nothing", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+    const auto conductorId = (juce::int64) f.doc.getConductorTrack().getProperty (SongIDs::trackId);
+
+    for (const auto where : { screenOf (*f.list, f.sourceId), screenOf (*f.list, conductorId),
+                              f.list->localPointToGlobal (juce::Point<int> (5, 299)) })
+    {
+        A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+        CHECK_FALSE (A::mergeDrag (*f.list, where, altMods));
+        A::mergeRelease (*f.list, where, altMods);
+    }
+    CHECK (f.notesIn (f.target) == 0);
+    CHECK (f.notesIn (f.source) == 1);
+    CHECK_FALSE (f.doc.canUndo());
+}
+
+TEST_CASE ("TrackListComponent: a merge press that never drags, or is cancelled, merges nothing", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+    A::mergeRelease (*f.list, screenOf (*f.list, f.targetId), altMods);   // no drag: a click
+    CHECK (f.notesIn (f.target) == 0);
+
+    CHECK_FALSE (f.list->cancelSectionDrag());   // nothing in flight
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+    A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods);
+    CHECK (f.list->cancelSectionDrag());
+    CHECK_FALSE (A::sectionView (*f.list).merge.has_value());
+    A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods);   // pointer still down after Esc
+    A::mergeRelease (*f.list, screenOf (*f.list, f.targetId), altMods);
+    CHECK (f.notesIn (f.target) == 0);
+    CHECK_FALSE (f.doc.canUndo());
+}
+
+TEST_CASE ("TrackListComponent: a merge carries only the pressed section when it is not in the selection", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+    playbacktest::addNote (f.source, 62, 480, 480);
+    splitAt (f.doc, { f.sourceId }, 480);
+    TrackListComponentTestAccess::rebuild (*f.list);
+    const auto sections = sectionsOf (f.source);
+    REQUIRE (sections.size() == 2);
+
+    A::mergePress (*f.list, f.sourceId, { sections[0].id, SectionZone::Body }, altMods);
+    A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods);
+    A::mergeRelease (*f.list, screenOf (*f.list, f.targetId), altMods);
+    CHECK (f.notesIn (f.target) == 1);
+    CHECK (f.notesIn (f.source) == 1);
+}
+
+TEST_CASE ("TrackListComponent: a press on empty strip or the conductor starts no merge", "[track-list][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    using A = TrackListComponentTestAccess;
+    const auto conductorId = (juce::int64) f.doc.getConductorTrack().getProperty (SongIDs::trackId);
+
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::None }, altMods);
+    CHECK_FALSE (A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods));
+    A::mergePress (*f.list, conductorId, { 0, SectionZone::Body }, altMods);
+    CHECK_FALSE (A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods));
+    CHECK_FALSE (A::sectionView (*f.list).merge.has_value());
 }

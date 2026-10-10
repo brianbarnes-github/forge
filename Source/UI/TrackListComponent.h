@@ -3,6 +3,7 @@
 #include "Playback/PlaybackController.h"
 #include "Playback/PlayheadOverlay.h"
 #include "Playback/TimelineRuler.h"
+#include "NoteMerge.h"
 #include "SectionViewState.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
@@ -68,7 +69,7 @@ public:
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
 
-    // Escape during a section drag: drops the gesture and its preview so the
+    // Escape during a section or merge drag: drops the gesture and its preview so the
     // release commits nothing. The selection the press made stays. Returns false
     // (key not consumed) when no gesture is in flight.
     bool cancelSectionDrag();
@@ -209,6 +210,14 @@ private:
     void sectionDragged (int tick);
     void sectionReleased (int tick);
 
+    // Alt-drag of section(s) onto another row (merge). Like the section gestures, the
+    // press only records the gesture, the drag only updates sectionView.merge, and the
+    // release commits once through mergeSections; a release with no preview is a click.
+    void mergePressed (juce::int64 trackId, const SectionHit& hit, const juce::ModifierKeys& mods);
+    bool mergeDragged (juce::Point<int> screenPos, const juce::ModifierKeys& mods);
+    void mergeReleased (juce::Point<int> screenPos, const juce::ModifierKeys& mods);
+    juce::int64 rowTrackIdAt (juce::Point<int> screenPos) const;
+
     // Content width for `content`, accounting for the viewport's vertical
     // scrollbar (M2: rebuild() used to set the un-subtracted viewport width,
     // clipping rows under the scrollbar until the next resize; both call
@@ -302,6 +311,13 @@ private:
     // The last plain/Ctrl-clicked section: the start of a Shift range.
     std::optional<SectionRef> canvasAnchor;
     std::optional<SectionGesture> gesture;
+
+    struct MergeGesture
+    {
+        std::vector<SectionRef> refs;          // the sections being carried
+        std::vector<SectionRange> ghosts;      // their ranges, for the preview
+    };
+    std::optional<MergeGesture> mergeGesture;
 
     static SectionDragPreview previewFor (const SectionGesture& g, int tick);
 

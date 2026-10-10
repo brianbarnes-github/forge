@@ -154,6 +154,8 @@ void TrackListComponent::rebuild()
     // arrive: drop any section drag uncommitted.
     gesture.reset();
     sectionView.drag.reset();
+    mergeGesture.reset();
+    sectionView.merge.reset();
     content.rows.clear();
 
     for (int i = 0; i < doc.getNumTracks(); ++i)
@@ -167,6 +169,9 @@ void TrackListComponent::rebuild()
         row->onSectionPressed = [this] (juce::int64 trackId, const SectionHit& hit, int tick, const juce::ModifierKeys& m) { sectionPressed (trackId, hit, tick, m); };
         row->onSectionDragged = [this] (int tick) { sectionDragged (tick); };
         row->onSectionReleased = [this] (int tick) { sectionReleased (tick); };
+        row->onMergePressed = [this] (juce::int64 trackId, const SectionHit& hit, const juce::ModifierKeys& m) { mergePressed (trackId, hit, m); };
+        row->onMergeDragged = [this] (juce::Point<int> p, const juce::ModifierKeys& m) { return mergeDragged (p, m); };
+        row->onMergeReleased = [this] (juce::Point<int> p, const juce::ModifierKeys& m) { mergeReleased (p, m); };
         row->onGhostToggled = [this] (juce::int64 trackId, bool visible) { if (onGhostToggled) onGhostToggled (trackId, visible); };
         row->onMuteToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setMuted (id, s); };
         row->onSoloToggled = [this] (juce::int64 id, bool s) { if (playback != nullptr) playback->setSoloed (id, s); };
@@ -586,10 +591,12 @@ void TrackListComponent::sectionPressed (juce::int64 trackId, const SectionHit& 
 
 bool TrackListComponent::cancelSectionDrag()
 {
-    if (! gesture)
+    if (! gesture && ! mergeGesture)
         return false;
     gesture.reset();
+    mergeGesture.reset();
     sectionView.drag.reset();
+    sectionView.merge.reset();
     content.repaint();
     return true;
 }
@@ -632,6 +639,88 @@ void TrackListComponent::sectionReleased (int tick)
     else
         resizeSectionsBy (doc, g.refs, d.kind == SectionDragPreview::Kind::ResizeLeft ? SectionEdge::Left : SectionEdge::Right,
                           d.deltaTicks);
+}
+
+void TrackListComponent::mergePressed (juce::int64 trackId, const SectionHit& hit, const juce::ModifierKeys&)
+{
+    gesture.reset();
+    mergeGesture.reset();
+    sectionView.drag.reset();
+    sectionView.merge.reset();
+    if (hit.zone == SectionZone::None || isConductorTrack (trackId))
+        return;
+
+    const SectionRef ref { trackId, hit.sectionId };
+    if (sectionView.selected.count (ref) == 0)
+    {
+        sectionView.selected = { ref };
+        canvasAnchor = ref;
+        mirrorCanvasToHeads (trackId);
+    }
+
+    MergeGesture g;
+    g.refs.assign (sectionView.selected.begin(), sectionView.selected.end());
+    for (const auto& r : g.refs)
+    {
+        const auto sections = sectionsOf (doc.findTrackById (r.trackId));
+        for (const auto& s : sections)
+            if (s.id == (r.sectionId == 0 && ! sections.empty() ? sections.front().id : r.sectionId))
+                g.ghosts.push_back (s);
+    }
+    mergeGesture = std::move (g);
+    content.repaint();
+}
+
+juce::int64 TrackListComponent::rowTrackIdAt (juce::Point<int> screenPos) const
+{
+    const auto p = content.getLocalPoint (nullptr, screenPos);
+    for (auto* row : content.rows)
+        if (row->getBounds().contains (p))
+            return row->getTrackId();
+    return -1;
+}
+
+bool TrackListComponent::mergeDragged (juce::Point<int> screenPos, const juce::ModifierKeys& mods)
+{
+    if (! mergeGesture)
+        return false;
+    MergeDragPreview preview;
+    preview.targetTrackId = rowTrackIdAt (screenPos);
+    preview.valid = preview.targetTrackId >= 0 && canMergeInto (doc, mergeGesture->refs, preview.targetTrackId);
+    preview.copy = mods.isCtrlDown() || mods.isCommandDown();
+    preview.pointerScreen = screenPos;
+    preview.ghosts = mergeGesture->ghosts;
+    sectionView.merge = std::move (preview);
+    content.repaint();
+    return sectionView.merge->valid;
+}
+
+void TrackListComponent::mergeReleased (juce::Point<int> screenPos, const juce::ModifierKeys& mods)
+{
+    if (! mergeGesture)
+        return;
+    const auto g = *mergeGesture;
+    const bool dragged = sectionView.merge.has_value();
+    mergeGesture.reset();
+    sectionView.merge.reset();
+    content.repaint();
+    if (! dragged)
+        return;   // a click: the press already selected the section
+
+    const auto target = rowTrackIdAt (screenPos);
+    if (target < 0 || ! canMergeInto (doc, g.refs, target))
+        return;
+
+    const bool copy = mods.isCtrlDown() || mods.isCommandDown();
+    if (! mergeSections (doc, g.refs, target, copy).changed)
+        return;
+
+    // Select what was merged into, so the result can be moved or merged again.
+    sectionView.selected.clear();
+    for (const auto& s : sectionsOf (doc.findTrackById (target)))
+        sectionView.selected.insert ({ target, s.id });
+    canvasAnchor.reset();
+    mirrorCanvasToHeads (target);
 }
 
 SectionDragPreview TrackListComponent::previewFor (const SectionGesture& g, int tick)
