@@ -179,7 +179,6 @@ private:
     // Does nothing when stopped, so a ruler click never scrolls the view.
     void zoomAboutMarker (double factor);
     void followPlayhead (bool playing);
-    bool followEnabled = true;
 
     // The overlay skips repaints when the playhead x is unchanged, so every
     // change to the tick->x mapping (zoom, scroll, resize, fit) must call this.
@@ -288,6 +287,7 @@ private:
     juce::int64     selectedTrackId = -1;
     std::set<juce::int64> selectedTrackIds;
     PlaybackController* playback = nullptr;
+    bool                followEnabled = true;
 
     struct SectionGesture
     {

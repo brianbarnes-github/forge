@@ -165,14 +165,13 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
 
 void SongsmithMainComponent::setShowRangeBand (bool show)
 {
-    showRangeBandSetting = show;
     previewRoll.setShowRangeBand (show);
 }
 
 void SongsmithMainComponent::setFollowPlayhead (bool follow)
 {
     followPlayheadSetting = follow;
-    previewRoll.setFollowPlayhead (follow);
+    previewRoll.setFollowPlayhead (follow); // no effect today (no playback controller); kept for symmetry
     trackList.setFollowPlayhead (follow);
     if (trackEditorWindow != nullptr)
         trackEditorWindow->setFollowPlayhead (follow);

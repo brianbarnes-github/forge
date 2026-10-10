@@ -550,7 +550,7 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
   - *Restore the window position and size on launch* (default on) — off: the next launch opens centred at the default size. Takes effect the next time Songsmith starts; quitting still saves the position, so switching it back on restores the last-closed one.
 - **Editing page:**
   - *Default grid size* (Off by default; 1/4, 1/8, 1/16) — the grid a Track editor starts with. Applies to editors opened afterwards; an open editor keeps its grid, and Edit ▸ Grid size still changes the open editor (it never changes this setting).
-  - *Follow the playhead during playback* (default on) — off: the preview roll, track list and Track editor no longer scroll to keep the playhead in view. Applies at once.
+  - *Follow the playhead during playback* (default on) — off: the track list and Track editor no longer scroll to keep the playhead in view. Applies at once.
 - All settings persist in the per-user settings file across launches.
 
 ## Import options dialog

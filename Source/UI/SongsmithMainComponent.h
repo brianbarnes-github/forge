@@ -196,7 +196,6 @@ private:
 
     std::unique_ptr<TrackEditorWindow> trackEditorWindow;
     std::set<juce::int64>    ghostedTrackIds;
-    bool                     showRangeBandSetting = true;
     bool                     followPlayheadSetting = true;
     GridSize                 defaultGridSize = GridSize::Off;
 
