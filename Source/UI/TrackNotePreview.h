@@ -84,6 +84,7 @@ namespace lotro
     private:
         void paintGrid (juce::Graphics& g) const;
         void paintSections (juce::Graphics& g) const;
+        void paintMergePreview (juce::Graphics& g) const;
         int sectionDragTick (const juce::MouseEvent& e);
 
         static constexpr int sectionDragThresholdPixels = 3;

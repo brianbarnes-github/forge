@@ -133,6 +133,32 @@ namespace lotro
             g.setColour (juce::Colour (textMuted));
             g.drawEllipse (toggleBounds.reduced (1.0f), 1.5f);
         }
+
+        paintMergePreview (g);
+    }
+
+    void TrackNotePreview::paintMergePreview (juce::Graphics& g) const
+    {
+        if (sectionView == nullptr || ! sectionView->merge)
+            return;
+        const auto& m = *sectionView->merge;
+        if (! m.valid || m.targetTrackId != trackId)
+            return;
+
+        const auto bounds = getLocalBounds();
+        for (const auto& s : m.ghosts)
+        {
+            const int x0 = viewState.xForTick (s.startTick);
+            const int x1 = std::max (x0 + 1, viewState.xForTick (s.endTick));
+            g.setColour (juce::Colour (SongsmithColours::mergeTargetFill));
+            g.fillRect (x0, bounds.getY(), x1 - x0, bounds.getHeight());
+        }
+        g.setColour (juce::Colour (SongsmithColours::mergeTarget));
+        g.drawRect (bounds, 2);
+
+        const int labelX = std::clamp (getLocalPoint (nullptr, m.pointerScreen).x + 12, 0, std::max (0, bounds.getWidth() - 48));
+        g.setFont (12.0f);
+        g.drawText (m.copy ? "Copy" : "Move", labelX, bounds.getY() + 2, 48, 14, juce::Justification::centredLeft);
     }
 
     juce::Rectangle<int> TrackNotePreview::ghostToggleBounds() const

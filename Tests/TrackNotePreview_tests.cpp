@@ -592,3 +592,42 @@ TEST_CASE ("TrackNotePreview: a press without Alt still starts a section gesture
     CHECK (sectionPresses == 1);
     CHECK (mergePresses == 0);
 }
+TEST_CASE ("TrackNotePreview: the merge target row is outlined and shows ghosts; other rows are not", "[track-note-preview][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, id);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    auto render = [&]
+    {
+        juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        preview.paint (g);
+        return image;
+    };
+
+    const auto plain = render();
+
+    MergeDragPreview m;
+    m.targetTrackId = id + 1;   // some other row
+    m.valid = true;
+    m.ghosts = { { 1, 0, 480 } };
+    sectionView.merge = m;
+    CHECK (render().getPixelAt (0, previewHeight / 2) == plain.getPixelAt (0, previewHeight / 2));   // not the target: unchanged
+
+    sectionView.merge->targetTrackId = id;
+    const auto outlined = render();
+    CHECK (outlined.getPixelAt (0, previewHeight / 2) != plain.getPixelAt (0, previewHeight / 2));   // outline at the edge
+    CHECK (outlined.getPixelAt (viewState.xForTick (240), previewHeight / 2)
+           != plain.getPixelAt (viewState.xForTick (240), previewHeight / 2));                         // ghost fill
+
+    sectionView.merge->valid = false;
+    CHECK (render().getPixelAt (0, previewHeight / 2) == plain.getPixelAt (0, previewHeight / 2));    // invalid target: no highlight
+}

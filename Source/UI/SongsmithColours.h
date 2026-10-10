@@ -48,6 +48,8 @@ namespace lotro::SongsmithColours
     // Track sections on the main canvas's note strips.
     constexpr juce::uint32 sectionFill          = 0x22FFFFFF;
     constexpr juce::uint32 sectionSelectedFill  = 0x44FFD27F;
+    constexpr juce::uint32 mergeTarget          = 0xFF7FD2FF;
+    constexpr juce::uint32 mergeTargetFill      = 0x337FD2FF;
     constexpr juce::uint32 sectionEdge          = 0xAAFFFFFF;
     constexpr juce::uint32 sectionSelectedEdge  = 0xFFFFD27F;
 
