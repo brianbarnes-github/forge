@@ -1,6 +1,7 @@
 #include "UI/NoteMerge.h"
 
 #include <algorithm>
+#include <map>
 
 namespace lotro
 {
@@ -45,6 +46,18 @@ namespace
         }
         return out;
     }
+
+    // One span of a given pitch in the target while planning: an existing NOTE
+    // (node valid) or a note to be created (node invalid).
+    struct Item
+    {
+        juce::ValueTree node;
+        juce::ValueTree source;   // the carried note a new item is built from
+        int start = 0;
+        int end = 0;
+        bool removed = false;
+        bool grown = false;       // an existing item whose span changed
+    };
 
     int startOf (const juce::ValueTree& n) { return (int) n.getProperty (SongIDs::startTick); }
     int endOf (const juce::ValueTree& n) { return startOf (n) + (int) n.getProperty (SongIDs::durationTicks); }
@@ -100,13 +113,93 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
                       [] (const Carried& a, const Carried& b) { return startOf (a.note) < startOf (b.note); });
 
     // Plan on plain data first, so a call that changes nothing never opens a transaction.
-    result.inserted = (int) carried.size();
-    result.changed = true;
+    auto targetNotes = SongDocument::getNotesNode (target);
+    std::map<int, std::vector<Item>> byPitch;
+    for (int i = 0; i < targetNotes.getNumChildren(); ++i)
+    {
+        const auto n = targetNotes.getChild (i);
+        byPitch[(int) n.getProperty (SongIDs::pitch)].push_back ({ n, {}, startOf (n), endOf (n) });
+    }
+
+    for (const auto& c : carried)
+    {
+        const int s = startOf (c.note), e = endOf (c.note);
+        auto& items = byPitch[(int) c.note.getProperty (SongIDs::pitch)];
+
+        std::vector<size_t> hits;   // live spans this note overlaps or touches
+        for (size_t i = 0; i < items.size(); ++i)
+            if (! items[i].removed && items[i].start <= e && s <= items[i].end)
+                hits.push_back (i);
+
+        if (hits.empty())
+        {
+            items.push_back ({ {}, c.note, s, e });
+            ++result.inserted;
+            continue;
+        }
+
+        if (std::any_of (hits.begin(), hits.end(), [&] (size_t i) { return items[i].start <= s && e <= items[i].end; }))
+        {
+            ++result.dropped;   // already inside one
+            continue;
+        }
+
+        int unionStart = s, unionEnd = e;
+        size_t earliest = hits.front();
+        for (const auto i : hits)
+        {
+            unionStart = std::min (unionStart, items[i].start);
+            unionEnd = std::max (unionEnd, items[i].end);
+            if (items[i].start < items[earliest].start)
+                earliest = i;
+        }
+
+        if (s < items[earliest].start)
+        {
+            // The carried note starts first: its properties win, so it replaces what it joined.
+            for (const auto i : hits)
+                items[i].removed = true;
+            items.push_back ({ {}, c.note, unionStart, unionEnd });
+        }
+        else
+        {
+            // The earliest existing span keeps its properties and absorbs the rest.
+            for (const auto i : hits)
+                if (i != earliest)
+                    items[i].removed = true;
+            items[earliest].start = unionStart;
+            items[earliest].end = unionEnd;
+            items[earliest].grown = true;
+        }
+        ++result.extended;
+    }
+
+    result.changed = result.inserted > 0 || result.extended > 0 || (! copy && ! carried.empty());
+    if (! result.changed)
+        return result;
 
     doc.getUndoManager().beginNewTransaction();
-    auto targetNotes = SongDocument::getNotesNode (target);
-    for (const auto& c : carried)
-        doc.addChild (targetNotes, makeNote (c.note, startOf (c.note), endOf (c.note), target), false);
+    for (auto& [pitch, items] : byPitch)
+    {
+        for (auto& item : items)
+        {
+            if (item.removed)
+            {
+                if (item.node.isValid())
+                    doc.removeChild (targetNotes, item.node, false);
+            }
+            else if (! item.node.isValid())
+            {
+                doc.addChild (targetNotes, makeNote (item.source, item.start, item.end, target), false);
+            }
+            else if (item.grown)
+            {
+                doc.setProperty (item.node, SongIDs::startTick, item.start, false);
+                doc.setProperty (item.node, SongIDs::durationTicks, item.end - item.start, false);
+                markNoteTimingEdited (doc, item.node);
+            }
+        }
+    }
     if (! copy)
         for (const auto& c : carried)
             doc.removeChild (SongDocument::getNotesNode (c.sourceTrack), c.note, false);

@@ -191,3 +191,147 @@ TEST_CASE ("merge: an inserted note is tagged with the target section that holds
             CHECK ((juce::int64) n.getProperty (SongIDs::sectionId) == (juce::int64) s2.getProperty (SongIDs::sectionId));
     }
 }
+
+TEST_CASE ("merge: a note inside an existing same-pitch note is dropped", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 960);
+    addNote (source, 60, 240, 240);
+
+    const auto r = mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    CHECK (r.dropped == 1);
+    CHECK_FALSE (r.changed);        // a copy that adds nothing
+    CHECK_FALSE (doc.canUndo());    // and opens no transaction
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 960 } });
+}
+
+TEST_CASE ("merge: a move of a contained note still removes it from the source", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 960);
+    addNote (source, 60, 240, 240);
+
+    const auto r = mergeSections (doc, { wholeTrack (source) }, idOf (target), false);
+
+    CHECK (r.changed);
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 960 } });
+    CHECK (notesOf (source).empty());
+}
+
+TEST_CASE ("merge: an overlapping same-pitch note extends the existing one", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 480);
+    SongDocument::getNotesNode (target).getChild (0).setProperty (SongIDs::onOrder, 5, nullptr);
+    addNote (source, 60, 240, 480);
+
+    const auto r = mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    CHECK (r.extended == 1);
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 720 } });
+    CHECK_FALSE (SongDocument::getNotesNode (target).getChild (0).hasProperty (SongIDs::onOrder));   // timing edited
+}
+
+TEST_CASE ("merge: touching same-pitch notes join", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 480);
+    addNote (source, 60, 480, 480);
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 960 } });
+}
+
+TEST_CASE ("merge: a note bridging two existing notes collapses them into one", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 480);
+    addNote (target, 60, 960, 480);
+    addNote (source, 60, 240, 960);
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 1440 } });
+    doc.undo();
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 480 }, { 60, 960, 480 } });   // one undo step
+}
+
+TEST_CASE ("merge: notes of different pitch coexist as a chord", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 480);
+    addNote (source, 64, 0, 480);
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 480 }, { 64, 0, 480 } });
+}
+
+TEST_CASE ("merge: the earliest-starting note's properties win", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 240, 480, 90);
+    addNote (source, 60, 0, 300, 50);   // starts earlier than the target's note
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    REQUIRE (notesOf (target) == std::vector<Note> { { 60, 0, 720 } });
+    CHECK ((int) SongDocument::getNotesNode (target).getChild (0).getProperty (SongIDs::velocity) == 50);
+
+    SongDocument doc2;
+    auto source2 = addTrack (doc2, "S");
+    auto target2 = addTrack (doc2, "T");
+    addNote (target2, 60, 0, 480, 90);
+    addNote (source2, 60, 240, 480, 50);   // starts later: the existing note keeps its velocity
+
+    mergeSections (doc2, { wholeTrack (source2) }, idOf (target2), true);
+
+    REQUIRE (notesOf (target2) == std::vector<Note> { { 60, 0, 720 } });
+    CHECK ((int) SongDocument::getNotesNode (target2).getChild (0).getProperty (SongIDs::velocity) == 90);
+}
+
+TEST_CASE ("merge: overlaps that already exist in the target are left alone", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (target, 60, 0, 960);
+    addNote (target, 60, 480, 960);   // already overlaps the first
+    addNote (source, 62, 0, 480);
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), true);
+
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 960 }, { 60, 480, 960 }, { 62, 0, 480 } });
+}
+
+TEST_CASE ("merge: carried notes that collide with each other are joined too", "[merge][overlap]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S");
+    auto target = addTrack (doc, "T");
+    addNote (source, 60, 0, 480);
+    addNote (source, 60, 240, 480);   // a stacked duplicate in the same source
+
+    const auto r = mergeSections (doc, { wholeTrack (source) }, idOf (target), false);
+
+    CHECK (notesOf (target) == std::vector<Note> { { 60, 0, 720 } });
+    CHECK (r.inserted == 1);
+    CHECK (r.extended == 1);
+    CHECK (notesOf (source).empty());
+}
