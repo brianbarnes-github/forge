@@ -782,6 +782,32 @@ A track's notes are divided into **sections** that the user can split, move, res
 **Keys.** `MainWindow::keyPressed` forwards plain `S`, `Delete`/`Backspace` and Ctrl/Cmd+A through `SongsmithMainComponent::splitSections/deleteSections/selectAll` to `TrackListComponent::splitAtPointer` / `splitSections(pointerTick, pointerTrackId)` / `deleteSelectedSections` / `selectAll`. `selectAll` is a thin wrapper that resolves the real pointer (`pointerIsOverNoteStrips`: inside the viewport and a row's note strip) and calls `selectAllCanvases` or `selectAllHeads`, the two testable entry points. The decision logic (pointer tick, else start marker, else nothing; tracks owning a selected section, else the pointer's track, never the head selection; delete clears the stored selection) is all in `TrackListComponent` so it is testable; `splitSections` and `deleteSelectedSections` return whether they acted, and `keyPressed` returns true only then (Ctrl/Cmd+A always acts). The new keys are skipped while an editable component (`juce::TextInputTarget`) has focus.
 
 
+**Merging into another track** (`Source/UI/NoteMerge.{h,cpp}`; spec
+`docs/superpowers/specs/2026-10-10-songsmith-merge-tracks-design.md`).
+`mergeSections(doc, refs, targetTrackId, copy)` carries the notes of the
+referenced sections (`notesInSection`) into a non-conductor target at their own
+ticks, in one undo transaction; `canMergeInto` answers whether a target can take
+them. Rules are per pitch: a carried note inside an existing same-pitch note is
+dropped, one that overlaps or touches joins with it (the earliest-starting note's
+properties win, a grown existing note is `markNoteTimingEdited`), a bridging note
+collapses the two notes it joins, and different pitches coexist. Pre-existing
+overlaps in the target are never rewritten. Inserted notes lose `onOrder`/`offOrder`/
+`sectionId`, get `sourceTrackIndex`/`sourceEventIndex` = -1, take the target's
+`defaultChannel` (1 if unset) with `isDrum = (channel == 10)`, and are tagged with
+the target section holding their start or the nearest (a note outside every target
+section does not resize it). A move removes the carried notes from the source (its
+sections are left as they are); a call that changes nothing opens no transaction.
+`MergeResult` counts each carried note in exactly one of inserted/dropped/extended.
+The gesture lives in `TrackListComponent` (`MergeGesture`): an Alt + left press on a
+strip (`TrackNotePreview::onMergePressed`, forwarded by `TrackRowComponent`) records
+the carried sections (the canvas selection if the pressed section is in it, else
+just that section); dragging (after 3 px) only updates `SectionViewState::merge`
+(`MergeDragPreview`: target row, valid, copy, ghosts), which `TrackNotePreview::
+paintMergePreview` draws on the target row; release commits once through
+`mergeSections`, reading Ctrl/Cmd then for copy, and selects the target's sections.
+**Esc** (`cancelSectionDrag`) and `rebuild()` drop the gesture and preview. Known
+limits: stray note-on/off pairs kept in `EVENTS` are not carried.
+
 ### 9.16 Preferences — `Source/UI/AppSettings.h`, `Source/UI/Preferences/{PreferencesDialog,PreferencesServices,GeneralPreferencesPage,PlaybackPreferencesPage,AppearancePreferencesPage,EditingPreferencesPage}.{h,cpp}` (the Import page is §9.17) (+ `MainWindow`)
 
 `File → Preferences…` (`FilePreferences`, between Export ▸ and Quit, no shortcut, always enabled) opens a fully modal `juce::DialogWindow` via `launchAsync` (like `AboutBox`) through `showPreferencesDialog (PreferencesServices&, juce::Component*)`. Changes apply immediately; there is no OK/Cancel, only a Close button (Escape and the title-bar X also dismiss it).

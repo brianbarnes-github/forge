@@ -136,3 +136,11 @@ active. This cannot be verified headlessly.
 
 Merging whole tracks from the header, merging tracks into the conductor, any
 re-timing of carried notes, and a Preferences switch for the gesture.
+
+## Implementation notes (2026-10-10)
+
+- The Move/Copy label sits at the pointer's x on the target row, not floating by the cursor.
+- The preview threshold is 3 px of distance in any direction (measured from the stored press position), not vertical only.
+- Alt starts a merge from any non-empty hit, including the section edge zones; a press on empty strip or the conductor starts none.
+- `MergeResult` counts each carried note in exactly one of inserted/dropped/extended.
+- JUCE has no not-allowed cursor: an invalid target shows the normal cursor and no highlight.

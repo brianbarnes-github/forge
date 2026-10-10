@@ -167,6 +167,13 @@ When you say…       …I'll know you mean
   pixels of jitter is a click. The drag is a preview only and commits once on
   mouse-up as one undo step; **Esc** during the drag cancels it (nothing is
   committed, the press-time selection stays).
+  **Alt-drag** from a section onto another track's row merges its notes into that
+  track (the selected sections if the pressed one is selected, else just the
+  pressed one): the target row is outlined with ghosts of the carried sections and
+  a **Move** label by the pointer; hold **Ctrl/Cmd** (read live, also at release)
+  to **Copy** instead. Same-pitch notes that overlap or touch are joined and
+  contained ones dropped. Over the source row, the conductor or no row nothing is
+  highlighted and nothing happens on release; **Esc** cancels. One undo step.
   Keys on the track canvas (never while a text field has focus; Ctrl/Cmd+S
   stays Save): **S** splits at the tick under the pointer when it is over a
   track's note strip (else at the start marker, else nothing — the key is not
