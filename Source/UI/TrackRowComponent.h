@@ -94,6 +94,9 @@ public:
     std::function<void (juce::int64, const SectionHit&, int, const juce::ModifierKeys&)> onSectionPressed;
     std::function<void (int)> onSectionDragged;
     std::function<void (int)> onSectionReleased;
+    std::function<void (juce::int64, const SectionHit&, const juce::ModifierKeys&)> onMergePressed;
+    std::function<bool (juce::Point<int>, const juce::ModifierKeys&)> onMergeDragged;
+    std::function<void (juce::Point<int>, const juce::ModifierKeys&)> onMergeReleased;
 
     // Fired on a double-click, with this row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;

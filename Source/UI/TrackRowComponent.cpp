@@ -75,6 +75,20 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onSectionReleased)
             onSectionReleased (tick);
     };
+    notePreview.onMergePressed = [this] (const SectionHit& hit, const juce::ModifierKeys& mods)
+    {
+        if (onMergePressed)
+            onMergePressed (getTrackId(), hit, mods);
+    };
+    notePreview.onMergeDragged = [this] (juce::Point<int> p, const juce::ModifierKeys& mods)
+    {
+        return onMergeDragged && onMergeDragged (p, mods);
+    };
+    notePreview.onMergeReleased = [this] (juce::Point<int> p, const juce::ModifierKeys& mods)
+    {
+        if (onMergeReleased)
+            onMergeReleased (p, mods);
+    };
     notePreview.onNonToggleDoubleClick = [this]
     {
         if (canOpenEditor() && onTrackDoubleClicked)

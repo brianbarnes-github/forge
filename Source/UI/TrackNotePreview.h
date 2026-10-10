@@ -73,12 +73,21 @@ namespace lotro
         std::function<void (int tick)> onSectionDragged;
         std::function<void (int tick)> onSectionReleased;
 
+        // An Alt + left press on the strip starts a merge instead of a section gesture:
+        // press (with the section under it), then drags once the pointer is
+        // mergeDragThresholdPixels from the press (returns whether the row under the
+        // pointer can take the notes), then release. The cursor follows the return value.
+        std::function<void (const SectionHit&, const juce::ModifierKeys&)> onMergePressed;
+        std::function<bool (juce::Point<int> screenPos, const juce::ModifierKeys&)> onMergeDragged;
+        std::function<void (juce::Point<int> screenPos, const juce::ModifierKeys&)> onMergeReleased;
+
     private:
         void paintGrid (juce::Graphics& g) const;
         void paintSections (juce::Graphics& g) const;
         int sectionDragTick (const juce::MouseEvent& e);
 
         static constexpr int sectionDragThresholdPixels = 3;
+        static constexpr int mergeDragThresholdPixels = 3;
 
         juce::ValueTree track;
         const TimelineViewState& viewState;
@@ -89,5 +98,8 @@ namespace lotro
         bool sectionDragStarted = false;
         int sectionPressX = 0;
         int sectionPressTick = 0;
+        bool mergePressActive = false;
+        bool mergeDragStarted = false;
+        juce::Point<int> mergePressPos;
     };
 }

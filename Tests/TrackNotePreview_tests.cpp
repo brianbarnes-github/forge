@@ -536,3 +536,59 @@ TEST_CASE ("TrackNotePreview: notes stay put for an unselected section, a resize
     idle.selected.insert ({ dragTrackId, 0 });
     CHECK (noteBarAt (track, idle, 0));
 }
+
+TEST_CASE ("TrackNotePreview: an Alt press starts a merge instead of a section gesture", "[track-note-preview][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 960);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    int sectionPresses = 0, mergePresses = 0, mergeDrags = 0, mergeReleases = 0;
+    preview.onSectionPressed = [&] (const SectionHit&, int, const juce::ModifierKeys&) { ++sectionPresses; };
+    preview.onMergePressed = [&] (const SectionHit& h, const juce::ModifierKeys&) { ++mergePresses; CHECK (h.zone == SectionZone::Body); };
+    preview.onMergeDragged = [&] (juce::Point<int>, const juce::ModifierKeys&) { ++mergeDrags; return true; };
+    preview.onMergeReleased = [&] (juce::Point<int>, const juce::ModifierKeys&) { ++mergeReleases; };
+
+    const auto alt = juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::altModifier);
+    const juce::Point<int> p (50, previewHeight / 2);   // inside the 0..960 section (96 px)
+    preview.mouseDown (previewMouseAt (preview, p.x, p.y, alt));
+    CHECK (mergePresses == 1);
+    CHECK (sectionPresses == 0);
+
+    preview.mouseDrag (previewMouseAt (preview, p.x, p.y + 1, alt));   // under the threshold
+    CHECK (mergeDrags == 0);
+    preview.mouseDrag (previewMouseAt (preview, p.x, p.y + 10, alt));
+    CHECK (mergeDrags == 1);
+
+    preview.mouseUp (previewMouseAt (preview, p.x, p.y + 10, alt));
+    CHECK (mergeReleases == 1);
+}
+
+TEST_CASE ("TrackNotePreview: a press without Alt still starts a section gesture", "[track-note-preview][merge]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 960);
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    SectionViewState sectionView;
+    TrackNotePreview preview (track, viewState);
+    preview.setSectionView (&sectionView, (juce::int64) track.getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    int sectionPresses = 0, mergePresses = 0;
+    preview.onSectionPressed = [&] (const SectionHit&, int, const juce::ModifierKeys&) { ++sectionPresses; };
+    preview.onMergePressed = [&] (const SectionHit&, const juce::ModifierKeys&) { ++mergePresses; };
+
+    preview.mouseDown (previewMouseAt (preview, 200, previewHeight / 2));
+    CHECK (sectionPresses == 1);
+    CHECK (mergePresses == 0);
+}

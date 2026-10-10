@@ -152,14 +152,25 @@ namespace lotro
 
         // Only the left button picks up a section, so another button can never drag one.
         sectionPressActive = false;
-        if (sectionView != nullptr && onSectionPressed && e.mods.isLeftButtonDown())
+        mergePressActive = false;
+        if (sectionView != nullptr && e.mods.isLeftButtonDown())
         {
             const auto hit = hitTestSection (sectionsOf (track), tick, viewState.getPixelsPerTick(), 5);
-            sectionPressActive = true;
-            sectionDragStarted = false;
-            sectionPressX = e.getPosition().x;
-            sectionPressTick = tick;
-            onSectionPressed (hit, tick, e.mods);
+            if (e.mods.isAltDown() && onMergePressed)
+            {
+                mergePressActive = true;
+                mergeDragStarted = false;
+                mergePressPos = e.getPosition();
+                onMergePressed (hit, e.mods);
+            }
+            else if (onSectionPressed)
+            {
+                sectionPressActive = true;
+                sectionDragStarted = false;
+                sectionPressX = e.getPosition().x;
+                sectionPressTick = tick;
+                onSectionPressed (hit, tick, e.mods);
+            }
         }
     }
 
@@ -174,6 +185,18 @@ namespace lotro
 
     void TrackNotePreview::mouseDrag (const juce::MouseEvent& e)
     {
+        if (mergePressActive)
+        {
+            if (! mergeDragStarted && e.getPosition().getDistanceFrom (mergePressPos) < mergeDragThresholdPixels)
+                return;
+            mergeDragStarted = true;
+            const bool valid = onMergeDragged && onMergeDragged (e.getScreenPosition(), e.mods);
+            const bool copy = e.mods.isCtrlDown() || e.mods.isCommandDown();
+            setMouseCursor (! valid ? juce::MouseCursor::NormalCursor
+                                    : copy ? juce::MouseCursor::CopyingCursor
+                                           : juce::MouseCursor::DraggingHandCursor);
+            return;
+        }
         if (! sectionPressActive)
             return;
         const int tick = sectionDragTick (e);
@@ -183,6 +206,15 @@ namespace lotro
 
     void TrackNotePreview::mouseUp (const juce::MouseEvent& e)
     {
+        if (mergePressActive)
+        {
+            mergePressActive = false;
+            mergeDragStarted = false;
+            setMouseCursor (juce::MouseCursor::NormalCursor);
+            if (onMergeReleased)
+                onMergeReleased (e.getScreenPosition(), e.mods);
+            return;
+        }
         if (! sectionPressActive)
             return;
         sectionPressActive = false;
