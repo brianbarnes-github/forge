@@ -38,7 +38,7 @@ instrument change and move or copy the parts onto other existing tracks.
 | Cross-track Move/Copy | A preference: **Notes only** or **All events** |
 | "All events" | Literal. Events inside the section's range travel; nothing is synthesized for the instrument in effect before the section |
 | New tracks | Not in this feature |
-| Preference default | **Notes only** (today's behaviour) — proposed, confirm on review |
+| Preference default | **Notes only** (today's behaviour) — confirmed |
 
 ## Program changes (`ProgramChanges`, pure document logic)
 
@@ -146,4 +146,5 @@ actionable by the user.
 - `splitAtTicks` (one track, several ticks) replaces the spec's `splitAtAll`; the per-track body of `splitAt` is shared as `splitTrackAt`.
 - `setTrackInstrument` also moves a kept first change that lies after tick 0 to tick 0 (otherwise the span before it would still play program 0), and gives inserted or moved changes an `order` below every event and imported note so the export places them before tick-0 notes. The single-segment band label reads the first segment's program, not `sourceProgram`.
 - The Editing radios each act only when they are the button turned on: turning one radio on also notifies the one it turns off, which would otherwise save and apply twice.
-- Open points implemented as proposed, still awaiting the user's review: default `notesOnly`, channel rewrite on carried channel messages, no recolour on Set instrument.
+- Open points confirmed by the user (2026-10-10): default `notesOnly`, channel rewrite on carried channel messages, no recolour on Set instrument.
+- A stretch before a track's first program change is labelled with `sourceProgram` even when that program is not the one playing (program 0). Accepted: after a Move the stretch holds no notes, and a late first change in an imported file is rare.
