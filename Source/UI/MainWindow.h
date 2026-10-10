@@ -90,7 +90,8 @@ private:
         appSettings,
         [this] (const juce::File& file) { return loadSoundFontAndRemember (file); },
         [this] { return useBundledSoundFont(); },
-        [this] { return activeSoundFontLabel(); }
+        [this] { return activeSoundFontLabel(); },
+        [this] { applyViewSettings(); }
     };
     // The open Preferences window, if any. Closed in ~MainWindow: the dialog holds
     // `preferencesServices`, whose lambdas capture `this` and which refers to `appSettings`.
@@ -102,6 +103,7 @@ private:
 
     void chooseSoundFont();
     void loadStartupSoundFont();
+    void applyViewSettings();
     juce::File bundledSoundFont() const;
     SoundFontLoad loadSoundFontAndRemember (const juce::File& file);
     SoundFontLoad useBundledSoundFont();

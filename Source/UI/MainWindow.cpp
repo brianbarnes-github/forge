@@ -164,12 +164,15 @@ MainWindow::MainWindow()
     host->setSize (1000, 700);
     setContentOwned (host, /*useBoundsForComponent=*/true);
 
-    // Where it was last closed -- or centred on the primary monitor if that
-    // monitor is gone (WindowPlacement::resolve) or nothing was saved yet.
-    if (! WindowPlacement::restoreWindow (*settings, mainWindowPlacementKey, *this))
+    // Where it was last closed -- or centred on the primary monitor if that monitor is gone
+    // (WindowPlacement::resolve), nothing was saved yet, or the user switched restoring off
+    // (quit still saves, so switching it back on restores the last-closed position).
+    const bool restorePlacement = appSettings.restoreWindowPlacement();
+    if (! restorePlacement || ! WindowPlacement::restoreWindow (*settings, mainWindowPlacementKey, *this))
         centreWithSize (getWidth(), getHeight());
     setVisible (true);
-    WindowPlacement::applyMaximised (*settings, mainWindowPlacementKey, *this);
+    if (restorePlacement)
+        WindowPlacement::applyMaximised (*settings, mainWindowPlacementKey, *this);
 
     // Fires synchronously inside ValueTree callbacks, so refreshTitle() must
     // never touch the tree.
@@ -178,6 +181,7 @@ MainWindow::MainWindow()
 
     playback.onBeforePlay = [this] { return ensurePlaybackReady(); };
     loadStartupSoundFont();
+    applyViewSettings();
 }
 
 MainWindow::~MainWindow()
@@ -595,6 +599,16 @@ juce::File MainWindow::bundledSoundFont() const
 {
     return juce::File::getSpecialLocation (juce::File::currentExecutableFile)
                .getSiblingFile ("resources").getChildFile ("SongSmith.sf2");
+}
+
+// Pushes the view-affecting settings into the Songsmith view. Called once at startup and
+// whenever a Preferences page changes one.
+void MainWindow::applyViewSettings()
+{
+    auto& songsmith = body->getSongsmith();
+    songsmith.setShowRangeBand (appSettings.showRangeBand());
+    songsmith.setFollowPlayhead (appSettings.followPlayhead());
+    songsmith.setDefaultGridSize (appSettings.defaultGrid());
 }
 
 void MainWindow::loadStartupSoundFont()
