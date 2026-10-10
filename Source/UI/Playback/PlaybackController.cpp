@@ -32,11 +32,25 @@ bool PlaybackController::isPlaybackRelevant (const juce::ValueTree& tree) const
 
 void PlaybackController::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
 {
+    if (property == SongIDs::playbackVolume)
+    {
+        applyTrackGain (tree);
+        return;   // audition gain only: a rebuild would cut held notes
+    }
     // Cosmetic track properties never change what is heard; rebuilding would cut held notes.
     if (property == SongIDs::name || property == SongIDs::colorArgb)
         return;
     if (isPlaybackRelevant (tree))
         triggerAsyncUpdate();
+}
+
+void PlaybackController::applyTrackGain (const juce::ValueTree& track)
+{
+    if (snapshot == nullptr || ! track.hasType (SongIDs::MIDI_TRACK))
+        return;
+    const int index = snapshot->trackIndexForId ((juce::int64) track.getProperty (SongIDs::trackId, (juce::int64) -1));
+    if (index >= 0)
+        snapshot->setGainPercent (index, trackPlaybackVolume (track));
 }
 
 void PlaybackController::handleAsyncUpdate() { rebuild(); }

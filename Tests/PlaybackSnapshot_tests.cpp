@@ -212,3 +212,24 @@ TEST_CASE ("buildSnapshot: more than 256 (track, channel) pairs are dropped with
     const auto snap = buildSnapshot (doc);
     CHECK ((int) snap->channels().size() == kMaxVirtualChannels);
 }
+
+TEST_CASE ("scaleVelocity: 100 is identity, 0 silences, otherwise at least 1", "[playback][gain]")
+{
+    CHECK (scaleVelocity (100, 100) == 100);
+    CHECK (scaleVelocity (100, 50) == 50);
+    CHECK (scaleVelocity (1, 10) == 1);     // quiet but still sounds
+    CHECK (scaleVelocity (100, 0) == 0);
+}
+
+TEST_CASE ("buildSnapshot: gain comes from the track's playbackVolume, default 100", "[playback][gain]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc);
+    auto b = addTrack (doc);
+    a.setProperty (SongIDs::playbackVolume, 30, nullptr);
+    addNote (a, 60, 0, 480);
+    addNote (b, 62, 0, 480);
+    const auto snap = buildSnapshot (doc);
+    CHECK (snap->gainPercent (snap->trackIndexForId ((juce::int64) a.getProperty (SongIDs::trackId))) == 30);
+    CHECK (snap->gainPercent (snap->trackIndexForId ((juce::int64) b.getProperty (SongIDs::trackId))) == 100);
+}

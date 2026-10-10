@@ -18,6 +18,12 @@ namespace
 {
     constexpr double sr = 48000.0;
 
+    // A fresh SongDocument already holds a track, so the added track is not index 0.
+    int trackIndexOf (const PlaybackSnapshot& s, const juce::ValueTree& track)
+    {
+        return s.trackIndexForId ((juce::int64) track.getProperty (SongIDs::trackId));
+    }
+
     struct Rig
     {
         Transport transport;
@@ -615,4 +621,40 @@ TEST_CASE ("PlaybackEngine: continuous playback does not reset channels after th
     rig.render (20);
     REQUIRE (rig.transport.isPlaying());
     CHECK (rig.sink.resets.size() == 2);
+}
+
+TEST_CASE ("PlaybackEngine: a track at 50% plays NoteOn at half velocity, NoteOff unchanged", "[playback][engine][gain]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 240, 90);
+    Rig rig (doc);
+    rig.snapshot->setGainPercent (trackIndexOf (*rig.snapshot, t), 50);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (60);
+    bool sawOn = false, sawOff = false;
+    for (const auto& r : rig.sink.records)
+    {
+        if (r.event.kind == PlaybackEventKind::NoteOn)  { sawOn = true;  CHECK (r.event.data2 == 45); }
+        if (r.event.kind == PlaybackEventKind::NoteOff) { sawOff = true; CHECK (r.event.data1 == 60); }
+    }
+    CHECK (sawOn);
+    CHECK (sawOff);
+}
+
+TEST_CASE ("PlaybackEngine: gain 0 drops NoteOn but a sounding note still gets its NoteOff", "[playback][engine][gain]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 960, 100);       // 0 - 1 s: sounding when the gain drops
+    addNote (t, 62, 1440, 240, 100);    // 1.5 s: starts after the gain drops
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);                     // ~21 ms: note 1 has started, not ended
+    REQUIRE (rig.sink.count (PlaybackEventKind::NoteOn) == 1);
+    REQUIRE (rig.sink.count (PlaybackEventKind::NoteOff) == 0);
+    rig.snapshot->setGainPercent (trackIndexOf (*rig.snapshot, t), 0);
+    rig.render (300);                   // ~3.2 s: past both notes
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 1);    // only the first
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOff) == 2);   // both offs delivered
 }

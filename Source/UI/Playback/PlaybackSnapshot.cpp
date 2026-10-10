@@ -14,15 +14,26 @@ PlaybackSnapshot::PlaybackSnapshot (TempoMap tempoIn, std::vector<PlaybackEvent>
       channelList (std::move (channelsIn)), trackIdList (std::move (trackIdsIn)),
       byTrack (trackIdList.size()),
       audible (new std::atomic<std::uint8_t>[trackIdList.size()]),
+      gain (new std::atomic<std::uint8_t>[trackIdList.size()]),
       applied (trackIdList.size(), 1)
 {
     for (size_t i = 0; i < trackIdList.size(); ++i)
+    {
         audible[i].store (1, std::memory_order_relaxed);
+        gain[i].store (100, std::memory_order_relaxed);
+    }
     for (size_t c = 0; c < channelList.size(); ++c)
         byTrack[(size_t) channelList[c].trackIndex].push_back ((int) c);
     for (const auto& e : eventList)
         if (e.kind == PlaybackEventKind::NoteOff)
             endTime = std::max (endTime, e.seconds);
+}
+
+int scaleVelocity (int velocity, int gainPercent) noexcept
+{
+    if (gainPercent >= 100) return velocity;
+    if (gainPercent <= 0) return 0;
+    return std::max (1, (velocity * gainPercent + 50) / 100);
 }
 
 int PlaybackSnapshot::trackIndexForId (juce::int64 trackId) const noexcept
@@ -143,7 +154,10 @@ std::shared_ptr<PlaybackSnapshot> buildSnapshot (const SongDocument& doc)
         return (int) a.kind < (int) b.kind;
     });
 
-    return std::make_shared<PlaybackSnapshot> (tempo, std::move (all), std::move (channels), std::move (trackIds));
+    auto snapshot = std::make_shared<PlaybackSnapshot> (tempo, std::move (all), std::move (channels), std::move (trackIds));
+    for (int i = 0; i < doc.getNumTracks(); ++i)
+        snapshot->setGainPercent (i, trackPlaybackVolume (doc.getTrack (i)));
+    return snapshot;
 }
 
 } // namespace lotro

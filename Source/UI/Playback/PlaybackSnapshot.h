@@ -62,6 +62,12 @@ public:
     bool isAudible (int trackIndex) const noexcept { return audible[(size_t) trackIndex].load (std::memory_order_acquire) != 0; }
     void setAudible (int trackIndex, bool shouldBeAudible) noexcept { audible[(size_t) trackIndex].store (shouldBeAudible ? 1 : 0, std::memory_order_release); }
 
+    int gainPercent (int trackIndex) const noexcept { return gain[(size_t) trackIndex].load (std::memory_order_acquire); }
+    void setGainPercent (int trackIndex, int percent) noexcept
+    {
+        gain[(size_t) trackIndex].store ((std::uint8_t) juce::jlimit (0, 100, percent), std::memory_order_release);
+    }
+
     // Audio-thread-only: which tracks the engine has already released voices for.
     bool appliedAudible (int trackIndex) const noexcept { return applied[(size_t) trackIndex] != 0; }
     void setAppliedAudible (int trackIndex, bool value) const noexcept { applied[(size_t) trackIndex] = value ? 1 : 0; }
@@ -73,9 +79,14 @@ private:
     std::vector<juce::int64> trackIdList;
     std::vector<std::vector<int>> byTrack;
     std::unique_ptr<std::atomic<std::uint8_t>[]> audible;
+    std::unique_ptr<std::atomic<std::uint8_t>[]> gain;
     mutable std::vector<std::uint8_t> applied;
     double endTime = 0.0;
 };
+
+// The audition gain applied to a NoteOn velocity: identity at 100, silence at 0,
+// otherwise never below 1 so a quiet track still sounds.
+int scaleVelocity (int velocity, int gainPercent) noexcept;
 
 TempoMap tempoMapFromDocument (const SongDocument& doc);
 std::shared_ptr<PlaybackSnapshot> buildSnapshot (const SongDocument& doc);

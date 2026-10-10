@@ -108,8 +108,18 @@ void PlaybackEngine::renderBlock (juce::AudioBuffer<float>& buffer, int startSam
             sink.render (left + rendered, right + rendered, offset - rendered);
             rendered = offset;
         }
-        if (e.kind != PlaybackEventKind::NoteOn || snapshot->isAudible (e.trackIndex))
+        if (e.kind != PlaybackEventKind::NoteOn)
             sink.handle (e);
+        else if (snapshot->isAudible (e.trackIndex))
+        {
+            const int scaled = scaleVelocity (e.data2, snapshot->gainPercent (e.trackIndex));
+            if (scaled > 0)
+            {
+                PlaybackEvent heard = e;
+                heard.data2 = scaled;
+                sink.handle (heard);
+            }
+        }
         ++nextEvent;
     }
     if (rendered < numSamples)

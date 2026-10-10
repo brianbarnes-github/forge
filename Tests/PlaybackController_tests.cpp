@@ -372,3 +372,19 @@ TEST_CASE ("PlaybackController: with no MIDI open (nothing to play) a marker can
     CHECK (*r.controller.getMarkerTick() == Approx (480.0));
     CHECK (counter.markerChanges == 1);
 }
+
+TEST_CASE ("PlaybackController: changing playbackVolume updates the live snapshot without rebuilding", "[playback][controller][gain]")
+{
+    Rig r;
+    auto t = addTrack (r.doc);
+    addNote (t, 60, 0, 480);
+    r.controller.flushRebuild();
+    const auto before = r.controller.currentSnapshot();
+    const int index = before->trackIndexForId ((juce::int64) t.getProperty (SongIDs::trackId));
+    REQUIRE (index >= 0);
+    REQUIRE (before->gainPercent (index) == 100);
+    t.setProperty (SongIDs::playbackVolume, 25, nullptr);
+    r.controller.flushRebuild();
+    CHECK (r.controller.currentSnapshot() == before);
+    CHECK (before->gainPercent (index) == 25);
+}

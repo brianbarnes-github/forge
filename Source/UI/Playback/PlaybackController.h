@@ -80,6 +80,7 @@ public:
 private:
     bool isPlaybackRelevant (const juce::ValueTree& tree) const;
     void rebuild();
+    void applyTrackGain (const juce::ValueTree& track);
     void applyMuteSolo();
     void handleAsyncUpdate() override;
     void timerCallback() override;
