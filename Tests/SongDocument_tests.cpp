@@ -838,3 +838,90 @@ TEST_CASE ("SongDocument: mintSectionId starts above existing ids when the count
 
     CHECK (doc.mintSectionId() == 8);
 }
+
+namespace
+{
+    juce::ValueTree makeSection (juce::int64 id, int start, int end)
+    {
+        juce::ValueTree s (SongIDs::SECTION);
+        s.setProperty (SongIDs::sectionId, id, nullptr);
+        s.setProperty (SongIDs::startTick, start, nullptr);
+        s.setProperty (SongIDs::endTick, end, nullptr);
+        return s;
+    }
+
+    // A copy of `good` whose first non-conductor track carries these sections.
+    // `nextSectionId` < 0 leaves the root property absent (a file that predates sections).
+    juce::ValueTree withSections (const juce::ValueTree& good, std::vector<juce::ValueTree> sections, int nextSectionId = 10)
+    {
+        auto t = good.createCopy();
+        auto track = t.getChildWithName (SongIDs::SOURCE_MIDI).getChild (1);
+        juce::ValueTree node (SongIDs::SECTIONS);
+        for (auto& s : sections)
+            node.addChild (s, -1, nullptr);
+        track.addChild (node, -1, nullptr);
+        if (nextSectionId >= 0)
+            t.setProperty (juce::Identifier ("nextSectionId"), nextSectionId, nullptr);
+        return t;
+    }
+}
+
+TEST_CASE ("SongDocument: validateLoaded accepts well-formed sections, overlap, an empty node and no counter", "[songdocument]")
+{
+    SongDocument doc;
+    arrange (doc);
+    const auto good = doc.getTree();
+
+    CHECK_FALSE (SongDocument::validateLoaded (withSections (good, { makeSection (1, 0, 480), makeSection (2, 480, 960) })).has_value());
+    CHECK_FALSE (SongDocument::validateLoaded (withSections (good, { makeSection (1, 0, 960), makeSection (2, 480, 1440) })).has_value());   // overlap is allowed
+    CHECK_FALSE (SongDocument::validateLoaded (withSections (good, {})).has_value());                                                       // empty SECTIONS
+    CHECK_FALSE (SongDocument::validateLoaded (withSections (good, { makeSection (1, 0, 480) }, -1)).has_value());                          // no counter: mintSectionId repairs it
+}
+
+TEST_CASE ("SongDocument: validateLoaded rejects damaged SECTION nodes", "[songdocument]")
+{
+    SongDocument doc;
+    arrange (doc);
+    const auto good = doc.getTree();
+
+    SECTION ("a SECTIONS child that is not a SECTION")
+    {
+        CHECK (isInvalid (withSections (good, { juce::ValueTree ("SURPRISE") })));
+    }
+    SECTION ("a section id below 1, or missing")
+    {
+        CHECK (isInvalid (withSections (good, { makeSection (0, 0, 480) })));
+        auto noId = makeSection (1, 0, 480);
+        noId.removeProperty (SongIDs::sectionId, nullptr);
+        CHECK (isInvalid (withSections (good, { noId })));
+    }
+    SECTION ("a section id at or above nextSectionId")
+    {
+        CHECK (isInvalid (withSections (good, { makeSection (5, 0, 480) }, 5)));
+    }
+    SECTION ("two sections share an id")
+    {
+        CHECK (isInvalid (withSections (good, { makeSection (1, 0, 480), makeSection (1, 480, 960) })));
+    }
+    SECTION ("a negative start, an empty range, a reversed range, a missing tick")
+    {
+        CHECK (isInvalid (withSections (good, { makeSection (1, -1, 480) })));
+        CHECK (isInvalid (withSections (good, { makeSection (1, 480, 480) })));
+        CHECK (isInvalid (withSections (good, { makeSection (1, 960, 480) })));
+        auto noEnd = makeSection (1, 0, 480);
+        noEnd.removeProperty (SongIDs::endTick, nullptr);
+        CHECK (isInvalid (withSections (good, { noEnd })));
+    }
+    SECTION ("ids must be unique across tracks, not just within one")
+    {
+        SongDocument two;
+        arrange (two);
+        two.addTrack ("Harmony", (int) 0xFF445566u, 2, two.mintImportBatch());
+        auto t = withSections (two.getTree(), { makeSection (1, 0, 480) });
+        auto track2 = t.getChildWithName (SongIDs::SOURCE_MIDI).getChild (2);
+        juce::ValueTree node (SongIDs::SECTIONS);
+        node.addChild (makeSection (1, 0, 480), -1, nullptr);
+        track2.addChild (node, -1, nullptr);
+        CHECK (isInvalid (t));
+    }
+}

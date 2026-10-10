@@ -307,6 +307,7 @@ std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree
     const auto nextBatch = (juce::int64) t.getProperty (SongIDs::nextImportBatch);
 
     std::vector<juce::int64> trackIds;
+    std::vector<juce::int64> sectionIds;
     for (int i = 0; i < sourceMidi.getNumChildren(); ++i)
     {
         const auto track = sourceMidi.getChild (i);
@@ -326,6 +327,27 @@ std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree
 
         if ((juce::int64) track.getProperty (SongIDs::importBatch, 0) >= nextBatch)
             return bad ("an import batch number is out of range.");
+
+        const auto sections = track.getChildWithName (SongIDs::SECTIONS);
+        for (int s = 0; s < sections.getNumChildren(); ++s)
+        {
+            const auto section = sections.getChild (s);
+            if (! section.hasType (SongIDs::SECTION))
+                return bad ("a section entry is not a section.");
+
+            const auto sid = (juce::int64) section.getProperty (SongIDs::sectionId, -1);
+            if (sid < 1 || (t.hasProperty (SongIDs::nextSectionId)
+                            && sid >= (juce::int64) t.getProperty (SongIDs::nextSectionId)))
+                return bad ("a section id is out of range.");
+            if (std::find (sectionIds.begin(), sectionIds.end(), sid) != sectionIds.end())
+                return bad ("two sections share an id.");
+            sectionIds.push_back (sid);
+
+            const auto start = (int) section.getProperty (SongIDs::startTick, -1);
+            const auto end   = (int) section.getProperty (SongIDs::endTick, -1);
+            if (start < 0 || end <= start)
+                return bad ("a section has an invalid tick range.");
+        }
     }
 
     std::vector<juce::int64> partIds;
