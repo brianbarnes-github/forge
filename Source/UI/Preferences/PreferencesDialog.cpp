@@ -1,6 +1,7 @@
 #include "PreferencesDialog.h"
 #include "GeneralPreferencesPage.h"
 #include "ImportPreferencesPage.h"
+#include "PlaybackPreferencesPage.h"
 #include "../SongsmithColours.h"
 
 namespace lotro
@@ -11,6 +12,7 @@ namespace lotro
         {
             { "General", [] (PreferencesServices& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<GeneralPreferencesPage> (s.settings, std::move (changed)); } },
             { "Import",  [] (PreferencesServices& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<ImportPreferencesPage> (s.settings, std::move (changed)); } },
+            { "Playback", [] (PreferencesServices& s, std::function<void()> changed) -> std::unique_ptr<juce::Component> { return std::make_unique<PlaybackPreferencesPage> (s, std::move (changed)); } },
         };
         return pages;
     }

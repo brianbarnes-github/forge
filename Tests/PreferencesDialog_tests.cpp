@@ -1,6 +1,7 @@
 #include "UI/Preferences/PreferencesDialog.h"
 #include "UI/Preferences/GeneralPreferencesPage.h"
 #include "UI/Preferences/ImportPreferencesPage.h"
+#include "UI/Preferences/PlaybackPreferencesPage.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -34,7 +35,7 @@ TEST_CASE ("PreferencesDialog: the tree lists the registered pages, General firs
 
     REQUIRE (preferencePages().size() >= 1);
     CHECK (preferencePages().front().name == "General");
-    CHECK (dialog.pageNames() == juce::StringArray { "General", "Import" });
+    CHECK (dialog.pageNames() == juce::StringArray { "General", "Import", "Playback" });
     CHECK (dialog.getSelectedPageIndex() == 0);
     CHECK (dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage()) != nullptr);
 }
@@ -114,6 +115,16 @@ TEST_CASE ("PreferencesDialog: the Import page is the second page", "[preference
     dialog.selectPage (1);
     CHECK (dialog.getSelectedPageIndex() == 1);
     CHECK (dynamic_cast<ImportPreferencesPage*> (dialog.currentPage()) != nullptr);
+}
+
+TEST_CASE ("PreferencesDialog: the Playback page is the third page", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    PreferencesDialog dialog (f.services);
+    dialog.selectPage (2);
+    CHECK (dialog.getSelectedPageIndex() == 2);
+    CHECK (dynamic_cast<PlaybackPreferencesPage*> (dialog.currentPage()) != nullptr);
 }
 
 TEST_CASE ("Import page: the dropdown shows the saved choice and writes straight through", "[preferences]")
