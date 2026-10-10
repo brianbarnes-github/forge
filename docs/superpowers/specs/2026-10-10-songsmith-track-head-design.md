@@ -1,6 +1,7 @@
 # Songsmith: track head redesign — design
 
-Date: 2026-10-10. Status: proposed (awaiting review).
+Date: 2026-10-10. Status: implemented. The amendments below (marked *Amended*) record where
+the implementation differs from the original proposal.
 
 ## Goal
 
@@ -84,9 +85,13 @@ Public surface (callbacks mirror the row's existing style):
 - `muteButtonForTesting()`, `soloButtonForTesting()` — kept on the row and
   delegated, so existing tests survive (return type changes from
   `juce::TextButton&` to the icon button type; tests adjusted).
-- Edits (colour, name, volume) are written to the track node via the
-  document's undo manager, so the head needs the `SongDocument` (or an undo
-  manager + node) at construction.
+- *Amended (callbacks, not a `SongDocument` handle).* The head takes only the
+  track node and display index, so `TrackRowComponent`'s constructor is
+  unchanged. Edits (colour, name, volume) are reported through callbacks
+  (`onColourChanged`, `onRenamed`, `onVolumeChanged`) that `TrackListComponent`,
+  which owns the `SongDocument`, turns into undoable writes, the same pattern
+  as `onSetInstrumentRequested`. A commit that leaves the value unchanged
+  writes nothing; setting the volume to 100 removes the property.
 
 ### Icon buttons
 
@@ -144,15 +149,17 @@ on `ASSIGNMENT` nodes.
   does for mute/solo). The slider therefore changes loudness mid-playback
   without restarting or rebuilding. `isPlaybackRelevant` must not trigger a
   full rebuild for this property.
-- The engine scales each `NoteOn` velocity by the track's gain and scales
-  CC7 / CC11 values for that track's channels as they pass to the synth, so
-  later controller events from the MIDI cannot undo the gain. Velocity is
-  clamped to at least 1 for a non-zero source velocity at non-zero gain;
-  gain 0 suppresses NoteOn (same as inaudible, without the voice release).
-- Open item for planning: velocity scaling can change timbre in velocity-
-  layered SoundFont presets. If a quick listening test shows an audible
-  difference, switch to a post-synth per-channel mix gain; the snapshot and UI
-  surface are identical either way, so the spec's interfaces do not change.
+- *Amended (no CC7 / CC11 scaling).* The engine scales each `NoteOn`
+  velocity by the track's gain (`scaleVelocity`) and nothing else. Controllers
+  cannot undo a velocity multiplier, which was the original reason for scaling
+  CC7 / CC11 too, and scaling CCs would go stale mid-playback. The gain applies
+  to notes that start after the change; sounding notes finish at their old
+  level. Velocity is clamped to at least 1 for a non-zero source velocity at
+  non-zero gain; gain 0 drops the `NoteOn` (the matching `NoteOff` still
+  passes, which is harmless).
+- Open item: velocity scaling can change timbre in velocity-layered SoundFont
+  presets. If listening shows an audible difference, switch to a post-synth
+  per-channel mix gain; the snapshot and UI surface are identical either way.
 - Mute/solo behaviour is unchanged and takes precedence: an inaudible track
   stays silent whatever its gain.
 
@@ -185,8 +192,18 @@ and `docs/TESTING.md`.
 
 ## Risks
 
-- Two-row layout at `minRowHeight` 30 is tight; if it does not fit, raise
-  `minRowHeight` (a visible change to Ctrl+wheel resizing) rather than
-  shrinking the controls below a usable size.
+- *Amended (smaller than first stated).* The info column spans the row plus
+  the 16 px instrument band, so at `minRowHeight` 30 each head row is about
+  22 px and the icons and slider fit; `minRowHeight` stays 30.
 - The velocity-versus-mix-gain choice above.
 - The `muteButtonForTesting()` type change touches existing tests.
+
+## Known limitations
+
+- An open rename editor does not update when the name changes underneath it
+  (for example on undo); it keeps the text being typed until it commits or
+  cancels.
+- An open `TrackEditorWindow` keeps its old title after a rename (pre-existing:
+  the title is set when the window is pointed at the track).
+- The head's tooltips ("Mute", "Solo", "Playback volume") are inert, like all
+  tooltips in the app, because no `juce::TooltipWindow` is created.

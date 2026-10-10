@@ -84,15 +84,21 @@ When you say…       …I'll know you mean
 | 28 | **Track editor window**         | `TrackEditorWindow` (`Source/UI/TrackEditorWindow.{h,cpp}`) — floating, single-instance `juce::DocumentWindow` (native title bar with minimise/maximise/close) opened by double-clicking a track row (#10); a second double-click on a different row re-points it (`setTrack`) rather than opening another window. Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, plus the playback transport strip (#30), a seek ruler (#32) and the playhead overlay (#33) above/over the roll (the window is 42 px taller than before playback). Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
 | 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
-| 31 | **Mute / Solo buttons**      | `TrackRowComponent`'s `M` / `S` toggle buttons at the right end of the 180 px info column of every non-conductor row (#10); session-only, never saved or undoable |
+| 31 | **Mute / Solo buttons**      | drawn speaker (mute) and headphone (solo) toggle icons on the second line of the track head (`TrackHeadComponent`, see #10) of every non-conductor row (#10); session-only, never saved or undoable |
 | 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the first meter entry's denominator (6/8 = six eighth-note beats); clock times follow the tempo map. Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
 
 ## Songsmith view
 
-- **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — index, name,
-  colour swatch, and a `"<n> notes · <lo>–<hi>"` (or `"· ch 10"` for drums)
-  second line fill a fixed 180px-wide left column; the inline
+- **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — a fixed
+  200px-wide left column (`TrackRowComponent::trackInfoWidth`; 198px usable
+  after the 2px column divider) holds the **track head**
+  (`TrackHeadComponent`, `Source/UI/TrackHeadComponent.{h,cpp}`), in two rows:
+  index, colour swatch and name on top; drawn mute (speaker) and solo
+  (headphones) icon toggles and a playback volume slider below. There is no
+  note-count / pitch-range line. The head takes no clicks itself, so
+  selection, drag-to-part and double-click still work on it; only its own
+  controls react. The inline
   `TrackNotePreview` (read-only, notes drawn in the track's colour) fills
   everything to its right — the note
   data is the primary content, so it grows with the window instead of being
@@ -104,11 +110,24 @@ When you say…       …I'll know you mean
   successive same-family tracks cycling through 4 shades of that family's
   hue; the swatch, preview notes, assignment chips and ghost overlays all
   use it.
+  **Head controls.** Click the swatch to pick a new track colour (a
+  `ColourSelector` in a callout; one undo step per picker session, none if the
+  colour is not changed). Right-click the head for a menu with **Rename…**: an
+  inline editor over the name where Enter commits, Escape or losing focus
+  cancels, and a blank or unchanged name is rejected (one undo step on commit).
+  The volume slider runs 0–100 (default 100); double-click resets it to 100;
+  one drag is one undo step, and a lone change (arrow keys, wheel, reset) is
+  one step each. Volume is a saved `MIDI_TRACK` property (`playbackVolume`,
+  absent = 100, removed when set back to 100); it scales the velocity of notes
+  that start after the change during playback only and never reaches MIDI or
+  ABC export. Mute / solo stay session-only. Editing the name, colour or
+  volume refreshes the head in place; other property changes still rebuild the
+  rows. Known limits: an open rename editor does not follow an undo, and an
+  open Track editor window keeps its old title after a rename.
   The first row is always the song's **conductor** (`isConductor`): no
-  index number, name "Conductor", muted text, and a second line of just
-  `"<N> events"` (the song-wide tempo/meter/key/marker events and anything
-  else it holds). A track with no notes (e.g. only controllers) shows
-  `"0 notes · <N> events"`. Neither kind is draggable onto a part slot or
+  index number, name "Conductor", muted text, and a head that shows the name
+  only (no swatch picker, rename, mute / solo or volume). A track with no
+  notes (e.g. only controllers) has the normal head. Neither kind is draggable onto a part slot or
   openable in the Track editor window (double-click does nothing) — only
   tracks with at least one note are assignable. They stay in the document
   and are written by File → Export ▸ MIDI….
@@ -460,6 +479,7 @@ Passing a `.songsmith` path on the command line opens it at startup.
 | Node          | Right-click menu                                    |
 |---------------|-------------------------------------------------------|
 | Part slot (#16) | `Instrument ▸` (LOTRO instrument picker); `Rename…`; `Remove part` |
+| Track head (#10) | `Rename…` (disabled on the conductor) |
 
 ## Drag-drop targets
 

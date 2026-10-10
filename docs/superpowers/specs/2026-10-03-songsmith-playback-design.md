@@ -178,7 +178,7 @@ notes on one channel end early.
   `TimelineViewState::setScrollOffsetTicks` plus the horizontal-bar sync, and
   must not fight `fitTimelineToDocument`'s `timelineFitted` refit on resize.
 - **Mute/solo buttons**: small M and S toggles in `TrackRowComponent`'s left
-  info column (`trackInfoWidth`, 180 px) after the name; none on the conductor
+  info column (`trackInfoWidth`, 180 px at the time; now 200 px with drawn icons, see the track-head spec) after the name; none on the conductor
   row. A muted row dims; a soloed row is highlighted; rows silenced by another
   track's solo dim.
 - **SoundFont…** menu item: a file chooser; the chosen path is stored in
