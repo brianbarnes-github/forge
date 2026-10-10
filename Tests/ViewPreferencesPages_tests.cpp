@@ -113,3 +113,21 @@ TEST_CASE ("View pages: with an unwritable settings file the change still applie
         CHECK (changedCalls == 2);
     }
 }
+
+TEST_CASE ("Editing page: the merge scope radios reflect and change the setting", "[preferences][editing-page]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    FakeApp app;
+    EditingPreferencesPage page (app.services, [&] { ++app.changedCalls; });
+    CHECK (page.notesOnlyRadioForTesting().getToggleState());
+    CHECK_FALSE (page.allEventsRadioForTesting().getToggleState());
+
+    page.allEventsRadioForTesting().setToggleState (true, juce::sendNotification);
+
+    CHECK (app.settings.mergeScope() == MergeScope::allEvents);
+    CHECK (app.applyCalls == 1);
+    CHECK (app.changedCalls == 1);
+
+    EditingPreferencesPage reopened (app.services);
+    CHECK (reopened.allEventsRadioForTesting().getToggleState());
+}

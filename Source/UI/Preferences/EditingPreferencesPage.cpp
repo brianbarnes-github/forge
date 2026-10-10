@@ -34,6 +34,31 @@ namespace lotro
             notify();
         };
         addAndMakeVisible (follow);
+
+        scopeLabel.setText ("When moving or copying sections to another track (Alt-drag), carry", juce::dontSendNotification);
+        scopeLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
+        addAndMakeVisible (scopeLabel);
+
+        constexpr int radioGroup = 4201;
+        for (auto* b : { &notesOnly, &allEvents })
+        {
+            b->setRadioGroupId (radioGroup);
+            b->setColour (juce::ToggleButton::textColourId, juce::Colour (SongsmithColours::text));
+            addAndMakeVisible (*b);
+        }
+        const bool all = services.settings.mergeScope() == MergeScope::allEvents;
+        notesOnly.setToggleState (! all, juce::dontSendNotification);
+        allEvents.setToggleState (all, juce::dontSendNotification);
+        // Turning one radio on also notifies the one it turns off; only the button that is now on acts.
+        const auto chooseScope = [this] (juce::ToggleButton& button, MergeScope scope)
+        {
+            if (! button.getToggleState())
+                return;
+            services.settings.setMergeScope (scope);
+            notify();
+        };
+        notesOnly.onClick = [this, chooseScope] { chooseScope (notesOnly, MergeScope::notesOnly); };
+        allEvents.onClick = [this, chooseScope] { chooseScope (allEvents, MergeScope::allEvents); };
     }
 
     void EditingPreferencesPage::notify()
@@ -53,5 +78,9 @@ namespace lotro
         gridNote.setBounds (area.removeFromTop (36));
         area.removeFromTop (12);
         follow.setBounds (area.removeFromTop (24));
+        area.removeFromTop (16);
+        scopeLabel.setBounds (area.removeFromTop (22));
+        notesOnly.setBounds (area.removeFromTop (24));
+        allEvents.setBounds (area.removeFromTop (24));
     }
 }

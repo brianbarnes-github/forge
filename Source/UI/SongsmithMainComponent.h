@@ -2,6 +2,7 @@
 
 #include "DiagnosticListView.h"
 #include "GridSize.h"
+#include "MergeScope.h"
 #include "PartStripComponent.h"
 #include "PianoRollComponent.h"
 #include "Playback/PlaybackController.h"
@@ -154,6 +155,7 @@ public:
     bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
     void setActiveEditorGridSize (GridSize size);
     void setFollowPlayhead (bool follow);
+    void setMergeScope (MergeScope scope);
     void setDefaultGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }
 

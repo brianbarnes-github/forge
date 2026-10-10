@@ -4,6 +4,7 @@
 #include "Playback/PlayheadOverlay.h"
 #include "Playback/TimelineRuler.h"
 #include "NoteMerge.h"
+#include "MergeScope.h"
 #include "SectionViewState.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
@@ -68,6 +69,10 @@ public:
     // Whether a playing playhead scrolls the timeline to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
+
+    // What an Alt-drag Move/Copy to another track carries.
+    void setMergeScope (MergeScope scope) noexcept { mergeScope = scope; }
+    MergeScope getMergeScope() const noexcept { return mergeScope; }
 
     // Escape during a section or merge drag: drops the gesture and its preview so the
     // release commits nothing. The selection the press made stays. Returns false
@@ -297,6 +302,7 @@ private:
     std::set<juce::int64> selectedTrackIds;
     PlaybackController* playback = nullptr;
     bool                followEnabled = true;
+    MergeScope          mergeScope = MergeScope::notesOnly;
 
     struct SectionGesture
     {

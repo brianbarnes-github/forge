@@ -607,6 +607,7 @@ void MainWindow::applyViewSettings()
 {
     auto& songsmith = body->getSongsmith();
     songsmith.setFollowPlayhead (appSettings.followPlayhead());
+    songsmith.setMergeScope (appSettings.mergeScope());
     songsmith.setDefaultGridSize (appSettings.defaultGrid());
 }
 

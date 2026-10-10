@@ -444,3 +444,14 @@ TEST_CASE ("SongsmithMainComponent: the section keys forward to the track list a
     CHECK (a.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
     CHECK (b.getChildWithName (SongIDs::SECTIONS).getNumChildren() == 0);
 }
+
+TEST_CASE ("SongsmithMainComponent: the merge scope reaches the track list", "[track-editor][view-settings]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+
+    CHECK (Access::trackList (main).getMergeScope() == MergeScope::notesOnly);
+    main.setMergeScope (MergeScope::allEvents);
+    CHECK (Access::trackList (main).getMergeScope() == MergeScope::allEvents);
+}

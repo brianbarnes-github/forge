@@ -3,6 +3,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 
 #include "GridSize.h"
+#include "MergeScope.h"
 
 // Typed view over the per-user settings file (MainWindow's PropertiesFile).
 // Key names and defaults live here and nowhere else. Setters write and save at
@@ -85,6 +86,17 @@ public:
         return save();
     }
 
+    // What moving or copying sections to another track carries. Absent or unrecognised reads notesOnly.
+    MergeScope mergeScope() const
+    {
+        return file.getValue (keyMergeScope) == "all" ? MergeScope::allEvents : MergeScope::notesOnly;
+    }
+    bool setMergeScope (MergeScope scope)
+    {
+        file.setValue (keyMergeScope, scope == MergeScope::allEvents ? "all" : "notes");
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -97,6 +109,7 @@ private:
     static constexpr const char* keyRestorePlacement   = "appearance.restoreWindowPlacement";
     static constexpr const char* keyFollowPlayhead     = "editing.followPlayhead";
     static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";
+    static constexpr const char* keyMergeScope         = "editing.mergeScope";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.

@@ -234,3 +234,22 @@ TEST_CASE ("AppSettings: the view-setting setters report a failed save but still
     CHECK (settings.lastSaveFailed());
     CHECK (settings.defaultGrid() == GridSize::Quarter);
 }
+
+TEST_CASE ("AppSettings: the merge scope defaults to notes only, round-trips and ignores junk", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.mergeScope() == MergeScope::notesOnly);
+        CHECK (settings.setMergeScope (MergeScope::allEvents));
+    }
+    juce::PropertiesFile reopened (file, {});
+    AppSettings settings (reopened);
+    CHECK (settings.mergeScope() == MergeScope::allEvents);
+    CHECK (reopened.getValue ("editing.mergeScope") == "all");
+
+    reopened.setValue ("editing.mergeScope", "banana");
+    CHECK (settings.mergeScope() == MergeScope::notesOnly);
+}

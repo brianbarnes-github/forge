@@ -163,6 +163,11 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     refreshGhostTracksOnEditor();
 }
 
+void SongsmithMainComponent::setMergeScope (MergeScope scope)
+{
+    trackList.setMergeScope (scope);
+}
+
 void SongsmithMainComponent::setFollowPlayhead (bool follow)
 {
     followPlayheadSetting = follow;
