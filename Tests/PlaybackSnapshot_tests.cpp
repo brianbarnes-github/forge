@@ -221,6 +221,15 @@ TEST_CASE ("scaleVelocity: 100 is identity, 0 silences, otherwise at least 1", "
     CHECK (scaleVelocity (100, 0) == 0);
 }
 
+TEST_CASE ("scaleVelocity: rounds to the nearest velocity, halves up", "[playback][gain]")
+{
+    CHECK (scaleVelocity (1, 50) == 1);      // 0.5 rounds up (the floor of 1 agrees)
+    CHECK (scaleVelocity (3, 50) == 2);      // 1.5: truncation would give 1
+    CHECK (scaleVelocity (101, 50) == 51);   // 50.5
+    CHECK (scaleVelocity (127, 33) == 42);   // 41.91: truncation would give 41
+    CHECK (scaleVelocity (127, 30) == 38);   // 38.1: rounding up would give 39
+}
+
 TEST_CASE ("buildSnapshot: gain comes from the track's playbackVolume, default 100", "[playback][gain]")
 {
     SongDocument doc;

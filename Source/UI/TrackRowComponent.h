@@ -169,7 +169,6 @@ private:
     bool isConductorTrack() const { return (bool) track.getProperty (SongIDs::isConductor, false); }
 
     juce::ValueTree track;
-    int             index;
     bool            selected = false;
     const TimelineViewState& timelineView;
     TrackHeadComponent head;

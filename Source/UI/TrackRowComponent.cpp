@@ -8,7 +8,7 @@ namespace lotro
 {
 
 TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayIndex, const TimelineViewState& viewState)
-    : track (trackNode), index (displayIndex), timelineView (viewState), head (trackNode, displayIndex), notePreview (trackNode, viewState)
+    : track (trackNode), timelineView (viewState), head (trackNode, displayIndex), notePreview (trackNode, viewState)
 {
     jassert (track.hasType (SongIDs::MIDI_TRACK));
     setInterceptsMouseClicks (true, false);
