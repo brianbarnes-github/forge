@@ -182,7 +182,7 @@ MainWindow::MainWindow()
 
 MainWindow::~MainWindow()
 {
-    // A modal Preferences window references appSettings; close it while that is still alive.
+    // A modal Preferences window holds preferencesServices (lambdas capturing this, plus appSettings); close it while those are still alive.
     if (auto* prefs = preferencesWindow.getComponent())
         prefs->exitModalState (0);
 

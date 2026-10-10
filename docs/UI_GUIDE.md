@@ -335,7 +335,7 @@ Song
                                            export panel
   ────────────────
   SoundFont...                         ← FileChooser, *.sf2; loads it and
-                                           remembers the path (see Playback)
+                                           remembers the path (see Playback; also Preferences ▸ Playback)
 
 View
   Export ABC panel                     ← toggles the export panel
@@ -539,11 +539,12 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
 
 `File → Preferences…`. Modal: the main window, its menus and shortcuts do nothing until it is closed (Close button, Escape or the title-bar X). Changes apply immediately; there is no OK/Cancel.
 
-- **Left:** a tree of pages (General, selected by default; then Import). **Splitter** between tree and page (drag to resize).
+- **Left:** a tree of pages (General, selected by default; then Import; then Playback). **Splitter** between tree and page (drag to resize).
 - **General page:**
   - *Ask about unsaved changes* (default on) — off: New / Open / drops / Quit discard unsaved edits silently (no auto-save).
   - *Ask before replacing an existing file* (default on) — off: Save As and Export MIDI / ABC overwrite without the Replace box.
 - **Import page:** one dropdown, *Import Track Options* — *Ask* (default: every import shows the options dialog) or *Import Expanded Always* (no dialog; keeps the existing tempo map and expands the file into separate tracks). Merging into one track is only available through Ask.
+- **Playback page:** the active SoundFont ("Using bundled SongSmith.sf2", "Using <path>" or "No SoundFont loaded"), **Browse…** and **Clear**, with a status line. Browse opens a chooser for `.sf2` files and loads the pick at once (same as Song ▸ SoundFont…) and remembers it; if it cannot be loaded the status says so and the previous SoundFont stays. Clear (enabled only while a chosen SoundFont is remembered) forgets that choice and loads the bundled `SongSmith.sf2`; if the bundled file is missing or cannot be loaded the choice is still forgotten, the status explains, and the current SoundFont stays until you quit.
 - All settings persist in the per-user settings file across launches.
 
 ## Import options dialog

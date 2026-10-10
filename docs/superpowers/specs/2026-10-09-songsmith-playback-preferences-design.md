@@ -1,6 +1,6 @@
 # Songsmith Preferences ▸ Playback page + SongSmith.sf2 — design
 
-Date: 2026-10-09. Status: draft for review (sub-project 2 of 3; follows
+Date: 2026-10-09. Status: implemented (sub-project 2 of 3; follows
 `2026-10-09-songsmith-preferences-hardening-design.md`).
 
 Sub-projects: 1 hardening (done), **2 Playback page (this spec)**, 3 Appearance /

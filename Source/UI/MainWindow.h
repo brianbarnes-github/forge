@@ -92,8 +92,8 @@ private:
         [this] { return useBundledSoundFont(); },
         [this] { return activeSoundFontLabel(); }
     };
-    // The open Preferences window, if any. Closed in ~MainWindow: the dialog holds a
-    // reference to `appSettings`, which dies with this window.
+    // The open Preferences window, if any. Closed in ~MainWindow: the dialog holds
+    // `preferencesServices`, whose lambdas capture `this` and which refers to `appSettings`.
     juce::Component::SafePointer<juce::DialogWindow> preferencesWindow;
 
     // Declared after everything it renders from so it is destroyed first.
