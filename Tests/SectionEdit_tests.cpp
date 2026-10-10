@@ -1033,3 +1033,40 @@ TEST_CASE ("sections: undoing delete, draw and split back to the start leaves ju
     CHECK (after[0].endTick == stored[0].endTick);
     CHECK (notesOf (t).size() == 1);
 }
+
+TEST_CASE ("sections: documents edited with the real section operations pass validateLoaded", "[sections][songdocument]")
+{
+    SongDocument doc;
+    doc.mintImportBatch();   // addTrack() tags its track with batch 1, which validateLoaded requires to have been minted
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    addNote (t, 62, 960, 480);
+    addNote (t, 64, 1920, 480);
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());   // virtual section only
+
+    splitAt (doc, { idOf (t) }, 720);          // materialises two stored sections
+    REQUIRE (sectionsOf (t).size() == 2);
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+
+    splitAt (doc, { idOf (t) }, 1500);
+    REQUIRE (sectionsOf (t).size() == 3);
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+
+    const auto sections = sectionsOf (t);
+    resizeSections (doc, { { idOf (t), sections[1].id } }, SectionEdge::Right, 1400);
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+
+    resizeSections (doc, { { idOf (t), sections[2].id } }, SectionEdge::Right, 0);   // clamped to one tick wide
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+
+    resizeSectionsBy (doc, { { idOf (t), sections[0].id } }, SectionEdge::Left, 100);
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+
+    // Overlap: move the first section onto the second.
+    moveSections (doc, { { idOf (t), sections[0].id } }, 800);
+    const auto moved = sectionsOf (t);
+    REQUIRE (moved.size() == 3);
+    CHECK (moved[0].startTick < moved[1].endTick);
+    CHECK (moved[0].endTick > moved[1].startTick);   // really overlapping
+    CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+}

@@ -182,13 +182,13 @@ MainWindow::MainWindow()
 
 MainWindow::~MainWindow()
 {
-    // The audio thread must stop before the engine and synth are destroyed.
-    // (Members are destroyed in reverse order, so this is also guaranteed by
-    // declaration order; resetting here makes it explicit.)
     // A modal Preferences window references appSettings; close it while that is still alive.
     if (auto* prefs = preferencesWindow.getComponent())
         prefs->exitModalState (0);
 
+    // The audio thread must stop before the engine and synth are destroyed.
+    // (Members are destroyed in reverse order, so this is also guaranteed by
+    // declaration order; resetting here makes it explicit.)
     synthGc.stopTimer();
     audioOutput.reset();
 

@@ -182,3 +182,39 @@ TEST_CASE ("PreferencesDialog: opens at least as large as its minimum size", "[p
     CHECK (dialog.getWidth() >= preferencesMinWidth);
     CHECK (dialog.getHeight() >= preferencesMinHeight);
 }
+
+TEST_CASE ("PreferencesDialog: opening over settings whose last save failed shows the notice at once", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+    CHECK_FALSE (settings.setAskBeforeReplacingFile (false));   // fails before any dialog exists
+    REQUIRE (settings.lastSaveFailed());
+
+    PreferencesDialog dialog (settings);
+    CHECK (dialog.saveNoticeVisibleForTesting());
+}
+
+TEST_CASE ("PreferencesDialog: the notice clears once a later save succeeds", "[preferences]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+    PreferencesDialog dialog (settings);
+    auto* general = dynamic_cast<GeneralPreferencesPage*> (dialog.currentPage());
+    REQUIRE (general != nullptr);
+    CHECK_FALSE (dialog.saveNoticeVisibleForTesting());
+
+    general->replaceFileToggleForTesting().setToggleState (false, juce::sendNotification);
+    REQUIRE (dialog.saveNoticeVisibleForTesting());
+
+    REQUIRE (blocked.deleteRecursively());                    // the path is writable again
+    general->replaceFileToggleForTesting().setToggleState (true, juce::sendNotification);
+    CHECK_FALSE (dialog.saveNoticeVisibleForTesting());
+}

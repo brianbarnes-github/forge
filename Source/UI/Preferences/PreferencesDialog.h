@@ -15,10 +15,11 @@ namespace lotro
     constexpr int preferencesMinWidth  = 480;
     constexpr int preferencesMinHeight = 300;
 
-    // A page touches AppSettings only in its constructor and in click handlers,
-    // never in its destructor: the window can outlive its owner's settings during shutdown.
     // One entry per tree item. Adding a page = one entry in preferencePages()
     // plus its component.
+
+    // A page touches AppSettings only in its constructor and in click handlers,
+    // never in its destructor: the window can outlive its owner's settings during shutdown.
     struct PreferencesPage
     {
         juce::String name;

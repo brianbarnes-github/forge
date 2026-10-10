@@ -100,8 +100,8 @@ namespace lotro
         // The window owns the content that owns these callbacks, so it cannot outlive `window`.
         component->onAccepted = [window, accepted = std::move (onAccepted)] (const ImportOptions& chosen)
         {
-            window->setVisible (false);   // a long import must not run under a still-painted dialog
             window->exitModalState (1);
+            window->setVisible (false);   // dismiss before the (possibly long) import runs, so it is not left painted under it
             if (accepted) accepted (chosen);
         };
         component->onCancelled = [window] { window->exitModalState (0); };

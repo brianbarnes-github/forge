@@ -82,6 +82,7 @@ namespace lotro
         selectPage (0);
         if (auto* item = root->getSubItem (0))
             item->setSelected (true, false, juce::dontSendNotification);
+        refreshSaveNotice();   // a save that failed before the dialog opened must show at once
     }
 
     PreferencesDialog::~PreferencesDialog()

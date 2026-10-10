@@ -4,8 +4,9 @@
 
 // Typed view over the per-user settings file (MainWindow's PropertiesFile).
 // Key names and defaults live here and nowhere else. Setters write and save at
-// once (so a toggle survives a crash) and return whether the save succeeded. Reads are live: callers ask at the moment
-// of use, so a change takes effect without a restart.
+// once (so a toggle survives a crash) and return whether the save succeeded.
+// Reads are live: callers ask at the moment of use, so a change takes effect
+// without a restart.
 namespace lotro
 {
 
