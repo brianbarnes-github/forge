@@ -51,6 +51,7 @@ namespace SongIDs
     extern const juce::Identifier sourceMidiChannel;
     extern const juce::Identifier sourceProgram;
     extern const juce::Identifier importBatch;
+    extern const juce::Identifier playbackVolume;   // MIDI_TRACK: 0..100 audition gain; absent = 100
 
     // NOTE properties — mirror lotro::Note's field names 1:1 (see
     // Source/Core/Note.h) so the Phase 2 translation layer is a straight
@@ -96,6 +97,9 @@ namespace SongIDs
     extern const juce::Identifier numerator;   // METER_CHANGE only
     extern const juce::Identifier denominator; // METER_CHANGE only
 }
+
+// A MIDI_TRACK's saved audition volume, 0..100; 100 when the property is absent.
+int trackPlaybackVolume (const juce::ValueTree& track);
 
 /**
  * Owns the Songsmith document ValueTree (rooted at a SONG node) and the

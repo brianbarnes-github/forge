@@ -142,3 +142,33 @@ TEST_CASE ("song file: a song saved before sections existed still loads", "[song
     SongDocument reloaded;
     REQUIRE_NOTHROW (reloaded.replaceContents (readSongBytes (writeSongBytes (doc.getTree()))));
 }
+
+TEST_CASE ("song file: playbackVolume round-trips, absent means 100", "[song-file][track-head]")
+{
+    SongDocument doc;
+    const auto batch = doc.mintImportBatch();
+    auto a = doc.addTrack ("A", (int) 0xFFAABBCC, 1, batch);
+    auto b = doc.addTrack ("B", (int) 0xFFAABBCC, 2, batch);
+    doc.setProperty (a, SongIDs::playbackVolume, 40);
+    CHECK (trackPlaybackVolume (a) == 40);
+    CHECK (trackPlaybackVolume (b) == 100);        // never set
+
+    SongDocument reloaded;
+    reloaded.replaceContents (readSongBytes (writeSongBytes (doc.getTree())));
+    CHECK (trackPlaybackVolume (reloaded.getTrack (1)) == 40);
+    CHECK (trackPlaybackVolume (reloaded.getTrack (2)) == 100);
+}
+
+TEST_CASE ("song file: out-of-range or non-integer playbackVolume is rejected", "[song-file][track-head]")
+{
+    for (const juce::var bad : { juce::var (101), juce::var (-1), juce::var ("loud") })
+    {
+        SongDocument doc;
+        auto t = doc.addTrack ("A", (int) 0xFFAABBCC, 1, doc.mintImportBatch());
+        REQUIRE_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());   // only the volume can make it invalid
+        t.setProperty (SongIDs::playbackVolume, bad, nullptr);
+        const auto error = SongDocument::validateLoaded (doc.getTree());
+        REQUIRE (error.has_value());
+        CHECK (error->kind() == SongFileErrorKind::InvalidStructure);
+    }
+}

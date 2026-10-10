@@ -39,6 +39,7 @@ namespace SongIDs
     const juce::Identifier sourceMidiChannel ("sourceMidiChannel");
     const juce::Identifier sourceProgram ("sourceProgram");
     const juce::Identifier importBatch ("importBatch");
+    const juce::Identifier playbackVolume ("playbackVolume");
 
     const juce::Identifier pitch ("pitch");
     const juce::Identifier startTick ("startTick");
@@ -83,6 +84,12 @@ namespace SongIDs
     static const juce::Identifier nextPartId ("nextPartId");
     static const juce::Identifier nextImportBatch ("nextImportBatch");
     static const juce::Identifier nextSectionId ("nextSectionId");
+}
+
+int trackPlaybackVolume (const juce::ValueTree& track)
+{
+    const auto v = track.getProperty (SongIDs::playbackVolume);
+    return v.isInt() ? juce::jlimit (0, 100, (int) v) : 100;
 }
 
 SongDocument::SongDocument()
@@ -327,6 +334,13 @@ std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree
 
         if ((juce::int64) track.getProperty (SongIDs::importBatch, 0) >= nextBatch)
             return bad ("an import batch number is out of range.");
+
+        if (track.hasProperty (SongIDs::playbackVolume))
+        {
+            const auto volume = track.getProperty (SongIDs::playbackVolume);
+            if (! volume.isInt() || (int) volume < 0 || (int) volume > 100)
+                return bad ("a track volume is out of range.");
+        }
 
         const auto sections = track.getChildWithName (SongIDs::SECTIONS);
         for (int s = 0; s < sections.getNumChildren(); ++s)
