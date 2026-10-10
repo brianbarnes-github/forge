@@ -134,7 +134,12 @@ When you say…       …I'll know you mean
   auto-hides whenever the whole song fits. Each preview also has a per-row ghost-visibility
   toggle (an eye icon in its top-right corner). Across the top of each row's canvas side
   runs a 16 px instrument band (like Reaper's item label bar) naming the track's General MIDI
-  instrument ("Drum Kit" on channel 10, blank for the conductor); it is extra height, so the
+  instrument ("Drum Kit" on channel 10, blank for the conductor); when the track changes instrument
+  part-way (Program Change events) it shows a coloured, named segment per instrument at the
+  current zoom. Right-click the band for **Auto split on instrument change** (disabled with
+  fewer than two instruments) and **Set track instrument to ▸** (a General MIDI list; the track's
+  first instrument is ticked; the whole track becomes that one instrument, undoable in one
+  step). It is extra height, so the
   notes area keeps its size: toggling it on/off is
   transient (never persisted) and adds/removes that track from the set of
   translucent ghost overlays shown in the Track
@@ -557,6 +562,7 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
 - **Editing page:**
   - *Default grid size* (Off by default; 1/4, 1/8, 1/16) — the grid a Track editor starts with. Applies to editors opened afterwards; an open editor keeps its grid, and Edit ▸ Grid size still changes the open editor (it never changes this setting).
   - *Follow the playhead during playback* (default on) — off: the track list and Track editor no longer scroll to keep the playhead in view. Applies at once.
+  - *When moving or copying sections to another track (Alt-drag), carry* **Notes only** (default) / **All events** — All events also carries the controllers, program changes and pitch bend that lie inside the section (End-of-Track and track-name events never travel), re-addressed to the target track's channel; Move removes them from the source. Applies to the next Alt-drag.
 - All settings persist in the per-user settings file across launches.
 
 ## Import options dialog

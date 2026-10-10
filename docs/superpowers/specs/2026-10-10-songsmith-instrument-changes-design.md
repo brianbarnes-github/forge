@@ -1,6 +1,6 @@
 # Songsmith: instrument changes in a track — design
 
-Date: 2026-10-10. Status: draft for review.
+Date: 2026-10-10. Status: implemented.
 
 ## Goal
 
@@ -45,7 +45,7 @@ instrument change and move or copy the parts onto other existing tracks.
 New `Source/UI/ProgramChanges.{h,cpp}`, no UI, no Source/Core.
 
 ```cpp
-struct ProgramChange { juce::int64 eventIndex; int tick; int channel; int program; };
+struct ProgramChange { int tick; int channel; int program; juce::ValueTree event; };
 std::vector<ProgramChange> programChangesOf (const juce::ValueTree& track);
 ```
 
@@ -87,9 +87,9 @@ Right-click on the band opens a `juce::PopupMenu`.
 
 ## Cross-track Move/Copy preference
 
-`AppSettings` gains `moveCopyScope()` / `setMoveCopyScope()` with a
-`MoveCopyScope { notesOnly, allEvents }` enum, stored under
-`editing.moveCopyScope` (`"notes"` / `"all"`; absent or unrecognised reads
+`AppSettings` gains `moveCopyScope()` / `setMergeScope()` with a
+`MergeScope { notesOnly, allEvents }` enum, stored under
+`editing.mergeScope` (`"notes"` / `"all"`; absent or unrecognised reads
 `notesOnly`). Preferences ▸ Editing gets a radio pair labelled "When moving or
 copying sections to another track: Notes only / All events".
 
@@ -139,3 +139,10 @@ actionable by the user.
   channel byte, which can sound on the wrong virtual channel in the target).
 - Whether "Set track instrument to" should also colour the track by the new GM
   family (not proposed: `colorArgb` is the user's).
+
+## Implementation notes
+
+- `ProgramChange` carries the `EVENT` node (`juce::ValueTree event`) instead of an index, and the scope enum is `MergeScope` in `Source/UI/MergeScope.h`.
+- `splitAtTicks` (one track, several ticks) replaces the spec's `splitAtAll`; the per-track body of `splitAt` is shared as `splitTrackAt`.
+- The Editing radios each act only when they are the button turned on: turning one radio on also notifies the one it turns off, which would otherwise save and apply twice.
+- Open points implemented as proposed, still awaiting the user's review: default `notesOnly`, channel rewrite on carried channel messages, no recolour on Set instrument.
