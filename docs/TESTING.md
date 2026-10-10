@@ -126,7 +126,7 @@
   cases. `SynthVoice_tests.cpp`: the missing-file, garbage-bytes and no-font
   cases always run; the three smoke tests that need real audio return early
   with a `WARN` (and still pass) when the local, untracked
-  `resources/soundfonts/TimGM6mb.sf2` is absent — always the case on CI.
+  `resources/soundfonts/SongSmith.sf2` is absent — always the case on CI.
   `MainWindow`, `AudioOutput`, the Song-menu item and the Space shortcut
   are build-verified only.
 - `PianoRollGeometry_tests.cpp`/`SourceTrackNoteSource_tests.cpp` cover

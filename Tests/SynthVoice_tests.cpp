@@ -14,7 +14,7 @@ namespace
     juce::File localSoundFont()
     {
         return juce::File (__FILE__).getParentDirectory().getParentDirectory()
-                   .getChildFile ("resources/soundfonts/TimGM6mb.sf2");
+                   .getChildFile ("resources/soundfonts/SongSmith.sf2");
     }
 
     PlaybackEvent ev (PlaybackEventKind k, int vch, int d1, int d2)

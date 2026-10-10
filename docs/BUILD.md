@@ -127,8 +127,8 @@ checks out with `fetch-depth: 0` — a shallow clone would count 1.
 - **`juce_audio_devices`** is linked into `forge_ui`. On Linux it needs the ALSA dev headers
   (`libasound2-dev`).
 - **SoundFont**: a local, git-ignored GPL-2 file, never committed or shipped by CI:
-  `mkdir -p resources/soundfonts && cp /mnt/c/Apps/NewPlayer/resources/TimGM6mb.sf2 resources/soundfonts/ && md5sum resources/soundfonts/TimGM6mb.sf2`
-  must print `1f1ad87ae6f87033d9a591eca567d919`. When present, the build copies it into `resources/` beside the
+  `mkdir -p resources/soundfonts && cp /mnt/c/Apps/NewPlayer/resources/TimGM6mb.sf2 resources/soundfonts/SongSmith.sf2 && md5sum resources/soundfonts/SongSmith.sf2`
+  must print `1f1ad87ae6f87033d9a591eca567d919`. `SongSmith.sf2` is the TimGM6mb bank (GPL-2) under the app's own name. When present, the build copies it into `resources/` beside the
   `forge_ui` executable. The check is made at **configure time**, so re-run `cmake -B build` after
   adding the file. Without it the app still starts and Play shows a "No SoundFont" dialog; the
   SoundFont-dependent playback tests return early with a warning (reported as passed).

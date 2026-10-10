@@ -298,7 +298,7 @@ When you say…       …I'll know you mean
   Track editor window has no M/S controls but plays what they allow. Edits,
   undo and redo during playback take effect without a restart (a held note is
   cut). **Song → SoundFont…** chooses a `.sf2`; the path is stored in the
-  app settings. At startup the stored path is tried, then `TimGM6mb.sf2` next
+  app settings. At startup the stored path is tried, then `SongSmith.sf2` next
   to the exe; with neither the app still starts and Play shows a "No
   SoundFont" dialog. The audio device opens on the first Play, not at
   startup. The Track editor window is 56 px taller than it was before

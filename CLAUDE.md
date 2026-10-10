@@ -84,7 +84,7 @@ gate. Full details: `docs/BUILD.md`.
 **Deploy for the user's manual testing:** `./build-windows.sh forge_ui &&
 cp build-windows/forge_ui_artefacts/Release/song-smith.exe
 /mnt/c/Apps/SongSmith/ && mkdir -p /mnt/c/Apps/SongSmith/resources && cp
-resources/soundfonts/TimGM6mb.sf2 /mnt/c/Apps/SongSmith/resources/` (the SoundFont is a local-only file; first-time
+resources/soundfonts/SongSmith.sf2 /mnt/c/Apps/SongSmith/resources/` (the SoundFont is a local-only file; first-time
 setup is in `docs/BUILD.md`).
 
 ## Git
@@ -97,7 +97,8 @@ approval.
 
 - JUCE's license tier depends on distribution; re-check before any
   public release.
-- `TimGM6mb.sf2` is GPL-2 and is never committed or shipped by CI — it is
+- `SongSmith.sf2` is the GPL-2 TimGM6mb bank renamed (md5
+  `1f1ad87ae6f87033d9a591eca567d919`) and is never committed or shipped by CI — it is
   a git-ignored local file under `resources/soundfonts/` copied next to
   the exe by a CMake post-build step. TinySoundFont (MIT) is vendored at
   `Source/ThirdParty/tinysoundfont/`.

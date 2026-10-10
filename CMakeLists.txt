@@ -186,7 +186,7 @@ target_include_directories(forge_ui SYSTEM PRIVATE Source/ThirdParty/tinysoundfo
 
 # The GPL-2 SoundFont is deliberately not in the repo or in CI. When a local copy
 # exists, copy it into resources/ beside the exe so the default SoundFont lookup finds it.
-set(FORGE_SOUNDFONT "${CMAKE_SOURCE_DIR}/resources/soundfonts/TimGM6mb.sf2")
+set(FORGE_SOUNDFONT "${CMAKE_SOURCE_DIR}/resources/soundfonts/SongSmith.sf2")
 if(EXISTS "${FORGE_SOUNDFONT}")
     add_custom_command(TARGET forge_ui POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:forge_ui>/resources"
