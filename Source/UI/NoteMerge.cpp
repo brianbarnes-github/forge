@@ -1,6 +1,7 @@
 #include "UI/NoteMerge.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 
 namespace lotro
@@ -45,6 +46,100 @@ namespace
                 out.push_back ({ note, track });
         }
         return out;
+    }
+
+    struct CarriedEvent
+    {
+        juce::ValueTree event;
+        juce::ValueTree sourceTrack;
+    };
+
+    std::vector<std::uint8_t> bytesOf (const juce::ValueTree& event)
+    {
+        if (const auto* block = event.getProperty (SongIDs::data).getBinaryData())
+        {
+            const auto* d = static_cast<const std::uint8_t*> (block->getData());
+            return std::vector<std::uint8_t> (d, d + block->getSize());
+        }
+        return {};
+    }
+
+    // Notes (and the importer's stray note pairs), End-of-Track and track-name metas stay put.
+    bool travels (const std::vector<std::uint8_t>& b)
+    {
+        if (b.empty())
+            return false;
+        const int kind = b[0] & 0xF0;
+        if (kind == 0x80 || kind == 0x90)
+            return false;
+        if (b[0] == 0xFF && b.size() >= 2 && (b[1] == 0x2F || b[1] == 0x03))
+            return false;
+        return true;
+    }
+
+    // The travelling events inside every ref'd section's [start, end), once each,
+    // with the same ref rules as carriedNotes.
+    std::vector<CarriedEvent> carriedEvents (const SongDocument& doc, const std::vector<SectionRef>& refs,
+                                             juce::int64 targetTrackId)
+    {
+        std::vector<CarriedEvent> out;
+        std::vector<SectionRef> seen;
+        for (const auto& r : refs)
+        {
+            const auto track = doc.findTrackById (r.trackId);
+            if (! isMergeTrack (track) || r.trackId == targetTrackId)
+                continue;
+            const auto sections = sectionsOf (track);
+            if (sections.empty())
+                continue;
+            const auto id = r.sectionId == 0 ? sections.front().id : r.sectionId;
+            const auto found = std::find_if (sections.begin(), sections.end(), [id] (const SectionRange& s) { return s.id == id; });
+            if (found == sections.end())
+                continue;
+            const SectionRef key { r.trackId, id };
+            if (std::find (seen.begin(), seen.end(), key) != seen.end())
+                continue;
+            seen.push_back (key);
+
+            const auto events = SongDocument::getEventsNode (track);
+            for (int i = 0; i < events.getNumChildren(); ++i)
+            {
+                const auto event = events.getChild (i);
+                const int tick = (int) event.getProperty (SongIDs::tick);
+                if (tick < found->startTick || tick >= found->endTick || ! travels (bytesOf (event)))
+                    continue;
+                if (std::any_of (out.begin(), out.end(), [&] (const CarriedEvent& c) { return c.event == event; }))
+                    continue;   // two overlapping sections hold it
+                out.push_back ({ event, track });
+            }
+        }
+        return out;
+    }
+
+    int nextEventOrder (const juce::ValueTree& track)
+    {
+        int next = 0;
+        const auto events = SongDocument::getEventsNode (track);
+        for (int i = 0; i < events.getNumChildren(); ++i)
+            next = std::max (next, (int) events.getChild (i).getProperty (SongIDs::order, 0) + 1);
+        return next;
+    }
+
+    // A detached copy of `src` for `target`: a channel message is re-addressed to the
+    // target's channel (the notes inserted by the merge take it too).
+    juce::ValueTree makeEvent (const juce::ValueTree& src, const juce::ValueTree& target, int order)
+    {
+        auto e = src.createCopy();
+        e.removeProperty (SongIDs::relocatedFrom, nullptr);
+        e.setProperty (SongIDs::order, order, nullptr);
+        auto bytes = bytesOf (src);
+        if ((bytes[0] & 0xF0) >= 0x80 && (bytes[0] & 0xF0) <= 0xE0)
+        {
+            const int channel = (int) target.getProperty (SongIDs::defaultChannel, 1);
+            bytes[0] = (std::uint8_t) ((bytes[0] & 0xF0) | ((channel - 1) & 0x0F));
+        }
+        e.setProperty (SongIDs::data, juce::var (juce::MemoryBlock (bytes.data(), bytes.size())), nullptr);
+        return e;
     }
 
     // One span of a given pitch in the target while planning: an existing NOTE
@@ -99,7 +194,7 @@ bool canMergeInto (const SongDocument& doc, const std::vector<SectionRef>& refs,
 }
 
 MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& refs,
-                           juce::int64 targetTrackId, bool copy)
+                           juce::int64 targetTrackId, bool copy, MergeScope scope)
 {
     MergeResult result;
     const auto target = doc.findTrackById (targetTrackId);
@@ -107,7 +202,9 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
         return result;
 
     auto carried = carriedNotes (doc, refs, targetTrackId);
-    if (carried.empty())
+    const auto events = scope == MergeScope::allEvents ? carriedEvents (doc, refs, targetTrackId)
+                                                       : std::vector<CarriedEvent> {};
+    if (carried.empty() && events.empty())
         return result;
     std::stable_sort (carried.begin(), carried.end(),
                       [] (const Carried& a, const Carried& b) { return startOf (a.note) < startOf (b.note); });
@@ -174,7 +271,8 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
         ++result.extended;
     }
 
-    result.changed = result.inserted > 0 || result.extended > 0 || (! copy && ! carried.empty());
+    result.eventsCarried = (int) events.size();
+    result.changed = result.inserted > 0 || result.extended > 0 || (! copy && ! carried.empty()) || ! events.empty();
     if (! result.changed)
         return result;
 
@@ -203,6 +301,17 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
     if (! copy)
         for (const auto& c : carried)
             doc.removeChild (SongDocument::getNotesNode (c.sourceTrack), c.note, false);
+
+    if (! events.empty())
+    {
+        auto targetEvents = SongDocument::getEventsNode (target);
+        int order = nextEventOrder (target);
+        for (const auto& c : events)
+            doc.addChild (targetEvents, makeEvent (c.event, target, order++), false);
+        if (! copy)
+            for (const auto& c : events)
+                doc.removeChild (SongDocument::getEventsNode (c.sourceTrack), c.event, false);
+    }
     return result;
 }
 

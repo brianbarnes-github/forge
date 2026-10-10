@@ -717,7 +717,7 @@ void TrackListComponent::mergeReleased (juce::Point<int> screenPos, const juce::
         return;
 
     const bool copy = mods.isCtrlDown() || mods.isCommandDown();
-    if (! mergeSections (doc, g.refs, target, copy).changed)
+    if (! mergeSections (doc, g.refs, target, copy, mergeScope).changed)
         return;
 
     // Select what was merged into, so the result can be moved or merged again.

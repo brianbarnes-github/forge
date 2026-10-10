@@ -2640,3 +2640,19 @@ TEST_CASE ("TrackListComponent: the band menu callbacks edit the document", "[tr
     row->instrumentMenuChosen (1000 + 24);
     CHECK ((int) doc.findTrackById (id).getProperty (SongIDs::sourceProgram) == 24);
 }
+
+TEST_CASE ("TrackListComponent: an Alt-drag carries events when the merge scope is All events", "[track-list][merge][events]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    MergeFixture f;
+    playbacktest::addEvent (f.source, 100, { 0xB0, 7, 90 });
+    f.list->setMergeScope (MergeScope::allEvents);
+    using A = TrackListComponentTestAccess;
+
+    A::mergePress (*f.list, f.sourceId, { 0, SectionZone::Body }, altMods);
+    A::mergeDrag (*f.list, screenOf (*f.list, f.targetId), altMods);
+    A::mergeRelease (*f.list, screenOf (*f.list, f.targetId), altMods);
+
+    CHECK (SongDocument::getEventsNode (f.target).getNumChildren() == 1);
+    CHECK (SongDocument::getEventsNode (f.source).getNumChildren() == 0);
+}

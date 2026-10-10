@@ -1,5 +1,7 @@
 #include "PlaybackTestSupport.h"
+#include "UI/MergeScope.h"
 #include "UI/NoteMerge.h"
+#include "UI/ProgramChanges.h"
 #include "UI/SectionEdit.h"
 #include "UI/SongDocument.h"
 
@@ -7,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 
 using namespace lotro;
 using namespace lotro::playbacktest;
@@ -351,4 +354,132 @@ TEST_CASE ("merge: carried notes that collide with each other are joined too", "
     CHECK (r.inserted == 1);
     CHECK (r.extended == 1);
     CHECK (notesOf (source).empty());
+}
+
+namespace
+{
+    std::vector<std::vector<std::uint8_t>> eventBytesOf (const juce::ValueTree& track)
+    {
+        std::vector<std::vector<std::uint8_t>> out;
+        const auto events = SongDocument::getEventsNode (track);
+        for (int i = 0; i < events.getNumChildren(); ++i)
+        {
+            const auto* b = events.getChild (i).getProperty (SongIDs::data).getBinaryData();
+            const auto* d = static_cast<const std::uint8_t*> (b->getData());
+            out.emplace_back (d, d + b->getSize());
+        }
+        return out;
+    }
+}
+
+TEST_CASE ("merge all events: events inside the section travel, others stay", "[merge][events]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S", 1);
+    auto target = addTrack (doc, "T", 3);
+    target.setProperty (SongIDs::defaultChannel, 3, nullptr);
+    addNote (source, 60, 0, 480);
+    addNote (source, 62, 960, 480);
+    addEvent (source, 0, { 0xB0, 7, 100 });      // in the first section
+    addEvent (source, 960, { 0xC0, 40 });        // at the second section's start
+    addEvent (source, 1200, { 0xE0, 0, 64 });    // in the second section
+    splitAt (doc, { idOf (source) }, 960);
+    const auto second = sectionsOf (source)[1];
+
+    const auto r = mergeSections (doc, { { idOf (source), second.id } }, idOf (target), false, MergeScope::allEvents);
+
+    CHECK (r.changed);
+    CHECK (r.eventsCarried == 2);
+    // Channel rewritten to the target's (3 -> nibble 2).
+    CHECK (eventBytesOf (target) == std::vector<std::vector<std::uint8_t>> { { 0xC2, 40 }, { 0xE2, 0, 64 } });
+    CHECK (eventBytesOf (source) == std::vector<std::vector<std::uint8_t>> { { 0xB0, 7, 100 } });
+}
+
+TEST_CASE ("merge all events: nothing is synthesized for an instrument set before the section", "[merge][events]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc, "S", 1);
+    auto target = addTrack (doc, "T", 1);
+    addEvent (source, 0, { 0xC0, 73 });          // before the section
+    addNote (source, 60, 0, 480);
+    addNote (source, 62, 960, 480);
+    splitAt (doc, { idOf (source) }, 960);
+    const auto second = sectionsOf (source)[1];
+
+    mergeSections (doc, { { idOf (source), second.id } }, idOf (target), true, MergeScope::allEvents);
+
+    CHECK (programChangesOf (target).empty());
+}
+
+TEST_CASE ("merge all events: the section end is exclusive and track-name/end-of-track metas never travel", "[merge][events]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc);
+    auto target = addTrack (doc);
+    addNote (source, 60, 0, 480);
+    addNote (source, 62, 960, 480);
+    splitAt (doc, { idOf (source) }, 960);
+    const auto first = sectionsOf (source)[0];   // [0, 960)
+    addEvent (source, 959, { 0xB0, 10, 64 });    // last tick inside
+    addEvent (source, 960, { 0xB0, 11, 64 });    // at the end: excluded
+    addEvent (source, 0, { 0xFF, 0x03, 0x01, 'x' });   // track name
+    addEvent (source, 500, { 0xFF, 0x2F, 0x00 });      // end of track
+
+    const auto r = mergeSections (doc, { { idOf (source), first.id } }, idOf (target), true, MergeScope::allEvents);
+
+    CHECK (r.eventsCarried == 1);
+    CHECK (eventBytesOf (target) == std::vector<std::vector<std::uint8_t>> { { 0xB0, 10, 64 } });
+}
+
+TEST_CASE ("merge all events: a copy keeps the source's events and a move undoes in one step", "[merge][events]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc);
+    auto target = addTrack (doc);
+    addNote (source, 60, 0, 480);
+    addEvent (source, 100, { 0xB0, 7, 90 });
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), true, MergeScope::allEvents);
+    CHECK (eventBytesOf (source).size() == 1);
+    CHECK (eventBytesOf (target).size() == 1);
+    doc.undo();
+    CHECK (eventBytesOf (target).empty());
+
+    mergeSections (doc, { wholeTrack (source) }, idOf (target), false, MergeScope::allEvents);
+    CHECK (eventBytesOf (source).empty());
+    CHECK (eventBytesOf (target).size() == 1);
+    doc.undo();
+    CHECK (eventBytesOf (source).size() == 1);
+    CHECK (eventBytesOf (target).empty());
+}
+
+TEST_CASE ("merge all events: events alone make the merge a change even when every note is dropped", "[merge][events]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc);
+    auto target = addTrack (doc);
+    addNote (source, 60, 0, 480);
+    addNote (target, 60, 0, 480);                // the carried note lies inside this one
+    addEvent (source, 100, { 0xB0, 7, 90 });
+
+    const auto r = mergeSections (doc, { wholeTrack (source) }, idOf (target), true, MergeScope::allEvents);
+
+    CHECK (r.dropped == 1);
+    CHECK (r.changed);
+    CHECK (eventBytesOf (target).size() == 1);
+}
+
+TEST_CASE ("merge notes only: events never travel", "[merge][events]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc);
+    auto target = addTrack (doc);
+    addNote (source, 60, 0, 480);
+    addEvent (source, 100, { 0xB0, 7, 90 });
+
+    const auto r = mergeSections (doc, { wholeTrack (source) }, idOf (target), false);
+
+    CHECK (r.eventsCarried == 0);
+    CHECK (eventBytesOf (target).empty());
+    CHECK (eventBytesOf (source).size() == 1);
 }
