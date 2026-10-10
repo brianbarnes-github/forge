@@ -39,6 +39,20 @@ public:
         return save();
     }
 
+    // The SoundFont the user chose (full path); empty when never chosen or cleared,
+    // in which case the bundled default is used. Key unchanged since before Preferences.
+    juce::String soundFontPath() const { return file.getValue (keySoundFontPath); }
+    bool setSoundFontPath (const juce::File& soundFont)
+    {
+        file.setValue (keySoundFontPath, soundFont.getFullPathName());
+        return save();
+    }
+    bool clearSoundFontPath()
+    {
+        file.removeValue (keySoundFontPath);
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -47,6 +61,7 @@ private:
     static constexpr const char* keyUnsavedChanges    = "confirm.unsavedChanges";
     static constexpr const char* keyReplaceFile       = "confirm.replaceFile";
     static constexpr const char* keyImportTrackOptions = "import.trackOptions";
+    static constexpr const char* keySoundFontPath      = "soundFontPath";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.

@@ -131,3 +131,44 @@ TEST_CASE ("AppSettings: a normal save reports success", "[app-settings]")
     CHECK (settings.setImportTrackOptions (ImportTrackOptions::expandedAlways));
     CHECK_FALSE (settings.lastSaveFailed());
 }
+
+TEST_CASE ("AppSettings: the SoundFont path defaults to empty, round-trips, persists and clears", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    const auto chosen = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Chosen.sf2");
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.soundFontPath().isEmpty());
+        CHECK (settings.setSoundFontPath (chosen));
+        CHECK (settings.soundFontPath() == chosen.getFullPathName());
+    }
+    juce::PropertiesFile reopened (file, {});
+    AppSettings settings (reopened);
+    CHECK (settings.soundFontPath() == chosen.getFullPathName());   // persisted under the existing key
+    CHECK (reopened.getValue ("soundFontPath") == chosen.getFullPathName());
+
+    CHECK (settings.clearSoundFontPath());
+    CHECK (settings.soundFontPath().isEmpty());
+    juce::PropertiesFile third (file, {});
+    CHECK (AppSettings (third).soundFontPath().isEmpty());
+}
+
+TEST_CASE ("AppSettings: SoundFont setters report a failed save", "[app-settings]")
+{
+    auto blocked = juce::File::createTempFile (".settings");
+    REQUIRE (blocked.createDirectory().wasOk());
+    const juce::ScopedJuceInitialiser_GUI juceInit;
+    const juce::ScopeGuard cleanup { [&] { blocked.deleteRecursively(); } };
+    juce::PropertiesFile props (blocked, {});
+    AppSettings settings (props);
+
+    CHECK_FALSE (settings.setSoundFontPath (juce::File ("/tmp/x.sf2")));
+    CHECK (settings.lastSaveFailed());
+    CHECK (settings.soundFontPath().isNotEmpty());   // still applied for the session
+
+    CHECK_FALSE (settings.clearSoundFontPath());
+    CHECK (settings.lastSaveFailed());
+    CHECK (settings.soundFontPath().isEmpty());
+}
