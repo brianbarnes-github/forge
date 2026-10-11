@@ -134,6 +134,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/TempoMapSync.cpp
     Source/UI/ConductorMarkers.cpp
     Source/UI/TempoEdit.cpp
+    Source/UI/TempoMeterTable.cpp
     Source/UI/SectionEdit.cpp
     Source/UI/NoteMerge.cpp
     Source/UI/ProgramChanges.cpp

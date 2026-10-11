@@ -36,6 +36,7 @@ add_executable(forge_tests
     TempoMapSync_tests.cpp
     ConductorMarkers_tests.cpp
     TempoEdit_tests.cpp
+    TempoMeterTable_tests.cpp
     TempoMapInvariant_tests.cpp
     SectionEdit_tests.cpp
     NoteMerge_tests.cpp
@@ -111,6 +112,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoMapSync.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ConductorMarkers.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoEdit.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/TempoMeterTable.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SectionEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/NoteMerge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ProgramChanges.cpp
