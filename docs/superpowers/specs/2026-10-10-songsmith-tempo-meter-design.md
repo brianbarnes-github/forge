@@ -139,7 +139,8 @@ single-meter results to today's.
 The row stays unmuteable and non-editable as a track. It now draws, aligned
 with the ruler and the tracks, a marker at each tempo event (`♩=120`) and each
 meter event (`3/4`), read from the derived maps, and a faint change of
-background at each. A single-click does nothing new; **double-click opens the
+background at each (tempo changes alternate the shade of the top half of the row, meter
+changes of the bottom half, where the labels sit). A single-click does nothing new; **double-click opens the
 Tempo/Meter editor window**; the window is also reachable from a new
 Edit ▸ Tempo and Meter… menu item and the Conductor head's right-click menu.
 

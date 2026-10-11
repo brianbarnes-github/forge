@@ -5,10 +5,10 @@
 // sections 1 and 2). Each successful call is one undo transaction; a rejected
 // call changes nothing and opens none.
 
-#include <juce_data_structures/juce_data_structures.h>
-
 #include <optional>
 #include <vector>
+
+namespace juce { class ValueTree; }
 
 namespace lotro
 {

@@ -4,6 +4,8 @@
 #include "UI/SongDocument.h"
 #include "UI/TempoMapSync.h"
 
+#include <juce_data_structures/juce_data_structures.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>

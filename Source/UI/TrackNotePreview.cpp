@@ -80,24 +80,34 @@ namespace lotro
                                                                : SongsmithColours::conductorMeter);
         };
 
-        // Each tempo change flips the background shade: odd tempo segments are tinted.
-        std::vector<int> tempoXs;
-        for (const auto& e : events)
-            if (e.kind == TempoMeterKind::tempo)
-                tempoXs.push_back (viewState.xForTick (e.tick));
-        g.setColour (juce::Colours::white.withAlpha (0.04f));
-        for (size_t i = 1; i < tempoXs.size(); i += 2)
+        // Each tempo change flips the background shade in the top half, each meter change
+        // in the bottom half (where the labels sit): odd segments, between distinct ticks, are tinted.
+        const int half = bounds.getHeight() / 2;
+        const auto tint = [&] (TempoMeterKind kind, int y, int height)
         {
-            const int x0 = tempoXs[i];
-            const int x1 = i + 1 < tempoXs.size() ? tempoXs[i + 1] : bounds.getRight();
-            g.fillRect (x0, bounds.getY(), x1 - x0, bounds.getHeight());
-        }
+            std::vector<int> ticks;
+            for (const auto& e : events)
+                if (e.kind == kind && (ticks.empty() || ticks.back() != e.tick))
+                    ticks.push_back (e.tick);
+            g.setColour (juce::Colours::white.withAlpha (0.04f));
+            for (size_t i = 1; i < ticks.size(); i += 2)
+            {
+                const int x0 = viewState.xForTick (ticks[i]);
+                const int x1 = i + 1 < ticks.size() ? viewState.xForTick (ticks[i + 1]) : bounds.getRight();
+                g.fillRect (x0, y, x1 - x0, height);
+            }
+        };
+        tint (TempoMeterKind::tempo, bounds.getY(), half);
+        tint (TempoMeterKind::meter, bounds.getY() + half, bounds.getHeight() - half);
 
+        // Markers right of the clip can neither draw nor hide a label inside it.
+        const auto clip = g.getClipBounds();
         const juce::Font labelFont (juce::FontOptions (10.0f));
         const auto placed = placeMarkers (conductorMarkers (events),
                                           [this] (int tick) { return viewState.xForTick (tick); },
                                           [&labelFont] (const std::string& s)
-                                          { return juce::GlyphArrangement::getStringWidthInt (labelFont, juce::String::fromUTF8 (s.c_str())); });
+                                          { return juce::GlyphArrangement::getStringWidthInt (labelFont, juce::String::fromUTF8 (s.c_str())); },
+                                          3, 4, clip.getRight());
 
         // Meter lines first so a tempo on the same tick keeps its colour on top.
         for (const auto kind : { TempoMeterKind::meter, TempoMeterKind::tempo })
@@ -108,21 +118,17 @@ namespace lotro
                     g.fillRect (p.x, bounds.getY(), 1, bounds.getHeight());
                 }
 
-        const int half = bounds.getHeight() / 2;
-        const auto clip = g.getClipBounds();
         g.setFont (labelFont);
         for (const auto& p : placed)
         {
             if (! p.labelShown)
                 continue;
-            const auto text = juce::String::fromUTF8 (p.marker.label.c_str());
-            const int width = juce::GlyphArrangement::getStringWidthInt (labelFont, text) + 2;
             const bool isTempo = p.marker.kind == TempoMeterKind::tempo;
-            const juce::Rectangle<int> area (p.x + 3, isTempo ? bounds.getY() : bounds.getY() + half, width, half);
+            const juce::Rectangle<int> area (p.x + 3, isTempo ? bounds.getY() : bounds.getY() + half, p.labelWidth + 2, half);
             if (! area.intersects (clip))
                 continue;
             g.setColour (colourOf (p.marker.kind));
-            g.drawText (text, area, juce::Justification::centredLeft, false);
+            g.drawText (juce::String::fromUTF8 (p.marker.label.c_str()), area, juce::Justification::centredLeft, false);
         }
     }
 

@@ -736,7 +736,8 @@ TEST_CASE ("TrackNotePreview: a tempo change draws its line and flips the backgr
 
     const auto image = renderPreview (f.doc.getConductorTrack(), view, 600);
     CHECK (image.getPixelAt (view.xForTick (960), previewHeight - 1) == juce::Colour (SongsmithColours::conductorTempo));
-    CHECK (image.getPixelAt (view.xForTick (960) + 60, 3) != juce::Colour (SongsmithColours::background));
+    CHECK (image.getPixelAt (view.xForTick (960) + 61, 3) != juce::Colour (SongsmithColours::background));
+    CHECK (image.getPixelAt (view.xForTick (960) + 61, previewHeight - 3) == juce::Colour (SongsmithColours::background));   // tempo tint is top half only
     CHECK (image.getPixelAt (view.xForTick (480) - 4, 3) == juce::Colour (SongsmithColours::background));
 }
 
@@ -802,7 +803,7 @@ TEST_CASE ("TrackNotePreview: three tempos tint only the odd segment, which ends
 
     const auto image = renderPreview (f.doc.getConductorTrack(), view, 600);
     const juce::Colour bg (SongsmithColours::background);
-    CHECK (image.getPixelAt (view.xForTick (960) + 60, 3) != bg);      // segment 1: tinted
+    CHECK (image.getPixelAt (view.xForTick (960) + 61, 3) != bg);      // segment 1: tinted
     CHECK (image.getPixelAt (view.xForTick (1920) - 6, 3) != bg);      // ... up to the next tempo
     // Segment 2 is plain again: same shade as the same grid phase in segment 0 (1920 ticks = 192 px
     // is a whole number of grid cells, so a grid line would fall on both or neither).
@@ -832,4 +833,92 @@ TEST_CASE ("TrackNotePreview: a tempo and a meter on the same tick both show the
     const int half = previewHeight / 2;
     CHECK (hasPixelNear (image, SongsmithColours::conductorTempo, 2, 60, 0, half));
     CHECK (hasPixelNear (image, SongsmithColours::conductorMeter, 2, 60, half, previewHeight));
+}
+
+TEST_CASE ("TrackNotePreview: a meter change tints the bottom half after it, not the top", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view);
+    const juce::Colour bg (SongsmithColours::background);
+    const int x = view.xForTick (1920) + 61;
+    CHECK (image.getPixelAt (x, previewHeight - 3) != bg);
+    CHECK (image.getPixelAt (x, 3) == bg);
+    CHECK (image.getPixelAt (61, previewHeight - 3) == bg);   // before the change: plain
+}
+
+TEST_CASE ("TrackNotePreview: three meters tint only the odd segment", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+    REQUIRE_FALSE (setMeter (f.doc, 3360, 6, 8).has_value());
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view, 600);
+    const juce::Colour bg (SongsmithColours::background);
+    CHECK (image.getPixelAt (view.xForTick (1920) + 61, previewHeight - 3) != bg);
+    CHECK (image.getPixelAt (view.xForTick (3360) + 61, previewHeight - 3) == bg);
+}
+
+TEST_CASE ("TrackNotePreview: two tempos on one tick make no zero-width segment and do not invert later shades", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 960, 90.0).has_value());
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 140.0).has_value());
+    auto map = f.doc.getTempoMapNode();
+    map.appendChild (map.getChild (1).createCopy(), nullptr);   // a second tempo on tick 960
+    REQUIRE (map.getNumChildren() == 4);
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view, 600);
+    const juce::Colour bg (SongsmithColours::background);
+    CHECK (image.getPixelAt (view.xForTick (960) + 61, 3) != bg);
+    CHECK (image.getPixelAt (view.xForTick (1920) + 61, 3) == image.getPixelAt (61, 3));
+}
+
+TEST_CASE ("TrackNotePreview: the implicit tick-0 tempo and meter of a file without them are drawn", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    miditest::TrackBody c;
+    c.eot (3840);
+    miditest::TrackBody n;
+    n.ev (0, { 0x90, 60, 100 }).ev (480, { 0x80, 60, 0x40 }).eot();
+    const auto bytes = miditest::smf (1, 480, { c, n });
+    TempMidi midi (bytes);
+    SongDocument doc;
+    Diagnostics d;
+    REQUIRE (importMidiFile (doc, midi.file, 1, d));
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (doc.getConductorTrack(), view);
+    CHECK (image.getPixelAt (0, previewHeight - 1) == juce::Colour (SongsmithColours::conductorTempo));   // tempo wins the shared line
+    CHECK (hasPixelNear (image, SongsmithColours::conductorTempo, 2, 60, 0, previewHeight / 2));
+    CHECK (hasPixelNear (image, SongsmithColours::conductorMeter, 2, 60, previewHeight / 2, previewHeight));
+}
+
+TEST_CASE ("TrackNotePreview: with thousands of tempos a narrow clip still draws its own markers", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    for (int i = 1; i <= 2000; ++i)
+        REQUIRE_FALSE (setTempo (f.doc, i * 10, 60.0 + (i % 100)).has_value());
+    const auto view = tenthPixelView();   // one tempo per pixel
+
+    constexpr int width = 2200;
+    TrackNotePreview preview (f.doc.getConductorTrack(), view);
+    preview.setBounds (0, 0, width, previewHeight);
+    juce::Image image (juce::Image::ARGB, width, previewHeight, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    g.reduceClipRegion (1500, 0, 60, previewHeight);
+    preview.paint (g);
+
+    for (int x = 1500; x < 1560; ++x)
+        CHECK (image.getPixelAt (x, previewHeight - 1) == juce::Colour (SongsmithColours::conductorTempo));
+    CHECK (image.getPixelAt (100, previewHeight - 1).isTransparent());
+    CHECK (image.getPixelAt (1700, previewHeight - 1).isTransparent());
 }

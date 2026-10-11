@@ -9,7 +9,7 @@
 namespace lotro
 {
 
-std::string formatBpm (double bpm)
+std::string formatMarkerBpm (double bpm)
 {
     char buffer[32];
     std::snprintf (buffer, sizeof buffer, "%.2f", bpm);
@@ -23,7 +23,7 @@ std::string formatBpm (double bpm)
 std::string markerLabel (const TempoMeterEvent& event)
 {
     if (event.kind == TempoMeterKind::tempo)
-        return "\xe2\x99\xa9=" + formatBpm (event.bpm);
+        return "\xe2\x99\xa9=" + formatMarkerBpm (event.bpm);
     return std::to_string (event.numerator) + "/" + std::to_string (event.denominator);
 }
 
@@ -39,7 +39,7 @@ std::vector<ConductorMarker> conductorMarkers (const std::vector<TempoMeterEvent
 std::vector<PlacedMarker> placeMarkers (const std::vector<ConductorMarker>& markers,
                                         const std::function<int (int)>& xForTick,
                                         const std::function<int (const std::string&)>& textWidth,
-                                        int labelInset, int labelGap)
+                                        int labelInset, int labelGap, int stopAfterX)
 {
     std::array<int, 2> shownRight { INT_MIN / 2, INT_MIN / 2 };   // per TempoMeterKind
     std::vector<PlacedMarker> out;
@@ -47,11 +47,14 @@ std::vector<PlacedMarker> placeMarkers (const std::vector<ConductorMarker>& mark
     for (const auto& marker : markers)
     {
         const int x     = xForTick (marker.tick);
+        if (x > stopAfterX)
+            break;
         int&      right = shownRight[(size_t) marker.kind];
         const bool shown = x + labelInset >= right + labelGap;
+        const int  width = shown ? textWidth (marker.label) : 0;
         if (shown)
-            right = x + labelInset + textWidth (marker.label);
-        out.push_back ({ marker, x, shown });
+            right = x + labelInset + width;
+        out.push_back ({ marker, x, shown, width });
     }
     return out;
 }

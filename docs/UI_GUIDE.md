@@ -63,7 +63,7 @@ When you say…       …I'll know you mean
 | 7 | **Upper region**               | `SongsmithMainComponent::UpperRegion` — source header + a full-width `TrackListComponent`; no embedded piano roll (moved to the floating Track editor window, #28) |
 | 8 | **Upper region header**        | The "▲ MIDI SOURCE · drag tracks down to assign" label row only — the grid-size combo and Quantize button that used to sit here moved to the **Edit** menu (see #11/#12) |
 | 9 | **Track list**                  | `TrackListComponent`/`TrackRowComponent` (`Source/UI/TrackListComponent.{h,cpp}`, `TrackRowComponent.{h,cpp}`) — spans the Upper region's full width; owns the shared `TimelineViewState` (`Source/UI/TimelineViewState.{h,cpp}`) that every row's note preview reads |
-| 10 | **Track row**                  | `TrackRowComponent` — one row inside the track list: index/name/note-range text on the left, an inline `TrackNotePreview` (`Source/UI/TrackNotePreview.{h,cpp}`) plus a per-row ghost-visibility toggle on the right; double-click opens the floating Track editor window (#28) on this track (assignable tracks only; conductor and note-less rows ignore double-click) |
+| 10 | **Track row**                  | `TrackRowComponent` — one row inside the track list: index/name/note-range text on the left, an inline `TrackNotePreview` (`Source/UI/TrackNotePreview.{h,cpp}`) plus a per-row ghost-visibility toggle on the right; double-click opens the floating Track editor window (#28) on this track (assignable tracks only; conductor and note-less rows ignore double-click); the conductor row's strip shows the tempo / meter markers |
 | 11 | **Grid Size menu**              | **Edit → Grid Size** submenu (`Off`/`1/4`/`1/8`/`1/16`) in the main menu bar (`MainWindow`'s `EditGridSizeBase` items) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::setActiveEditorGridSize (GridSize)`, translated to ticks by `GridSize.h`'s `gridSizeToTicks()` |
 | 12 | **Quantize menu item**          | **Edit → Quantize** in the main menu bar (`MainWindow`'s `EditQuantize`) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::quantizeActiveEditor()`, which calls the open editor's `SourceRollEditor::quantizeSelection()` |
 | 13 | **Source piano roll**           | `PianoRollComponent` constructed with `Role::Source` (`Source/UI/PianoRollComponent.{h,cpp}`) — unchanged internally, but no longer embedded in the Upper region; now hosted inside the floating Track editor window (#28) |
@@ -131,7 +131,7 @@ When you say…       …I'll know you mean
   only (no swatch picker, rename, mute / solo or volume). Its note strip shows the song's
   tempo (amber, top half) and meter (blue, bottom half) changes as 1 px lines with labels
   (`♩=120`, `3/4`; labels that would overlap are hidden, the lines stay), and the background
-  shade alternates at every tempo change. Display only: the editor entry points arrive in a
+  shade alternates at every tempo change (top half) and every meter change (bottom half). Display only: the editor entry points arrive in a
   later phase. A track with no
   notes (e.g. only controllers) has the normal head. Neither kind is draggable onto a part slot or
   openable in the Track editor window (double-click does nothing) — only

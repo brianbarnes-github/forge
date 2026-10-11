@@ -55,10 +55,10 @@ namespace
 
 TEST_CASE ("ConductorMarkers: BPM is shown with up to two decimals, trailing zeros trimmed", "[conductor-markers]")
 {
-    CHECK (formatBpm (120.0) == "120");
-    CHECK (formatBpm (93.75) == "93.75");
-    CHECK (formatBpm (100.5) == "100.5");
-    CHECK (formatBpm (60e6 / 500001.0) == "120");      // rounds, never "119.999998"
+    CHECK (formatMarkerBpm (120.0) == "120");
+    CHECK (formatMarkerBpm (93.75) == "93.75");
+    CHECK (formatMarkerBpm (100.5) == "100.5");
+    CHECK (formatMarkerBpm (60e6 / 500001.0) == "120");      // rounds, never "119.999998"
 }
 
 TEST_CASE ("ConductorMarkers: labels", "[conductor-markers]")
@@ -125,4 +125,19 @@ TEST_CASE ("ConductorMarkers: listing from the tree equals listing from the docu
         CHECK (fromTree[i].denominator == fromDoc[i].denominator);
     }
     CHECK (fromTree[1].numerator == 3);
+}
+
+TEST_CASE ("ConductorMarkers: placeMarkers stops after stopAfterX, measuring nothing beyond it, and records label widths", "[conductor-markers]")
+{
+    const auto m = conductorMarkers ({ tempo (0, 100), tempo (200, 110), tempo (400, 120), tempo (600, 130) });   // x = 0, 20, 40, 60
+    int measured = 0;
+    const auto counting = [&] (const std::string& s) { ++measured; return wide (s); };
+    const auto p = placeMarkers (m, xOf, counting, 3, 4, 40);
+    REQUIRE (p.size() == 3);                 // x = 60 is past the stop
+    CHECK (measured == 2);                   // shown: x = 0 and 40 only
+    CHECK (p[0].labelWidth == 30);
+    CHECK (p[1].labelWidth == 0);
+    CHECK (p[2].labelWidth == 30);
+    const auto full = placeMarkers (m, xOf, wide);
+    CHECK (full[2].labelShown == p[2].labelShown);   // identical decisions up to the stop
 }
