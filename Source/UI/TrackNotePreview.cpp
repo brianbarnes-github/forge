@@ -1,6 +1,8 @@
 #include "TrackNotePreview.h"
 #include "GridLinePaint.h"
+#include "ConductorMarkers.h"
 #include "SongsmithColours.h"
+#include "TempoEdit.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -62,6 +64,67 @@ namespace lotro
         }
     }
 
+    void TrackNotePreview::paintConductorMarkers (juce::Graphics& g) const
+    {
+        if (! (bool) track.getProperty (SongIDs::isConductor, false))
+            return;
+
+        const auto events = listTempoMeterEvents (track.getRoot());
+        if (events.empty())
+            return;
+
+        const auto bounds = getLocalBounds();
+        const auto colourOf = [] (TempoMeterKind kind)
+        {
+            return juce::Colour (kind == TempoMeterKind::tempo ? SongsmithColours::conductorTempo
+                                                               : SongsmithColours::conductorMeter);
+        };
+
+        // Each tempo change flips the background shade: odd tempo segments are tinted.
+        std::vector<int> tempoXs;
+        for (const auto& e : events)
+            if (e.kind == TempoMeterKind::tempo)
+                tempoXs.push_back (viewState.xForTick (e.tick));
+        g.setColour (juce::Colours::white.withAlpha (0.04f));
+        for (size_t i = 1; i < tempoXs.size(); i += 2)
+        {
+            const int x0 = tempoXs[i];
+            const int x1 = i + 1 < tempoXs.size() ? tempoXs[i + 1] : bounds.getRight();
+            g.fillRect (x0, bounds.getY(), x1 - x0, bounds.getHeight());
+        }
+
+        const auto placed = placeMarkers (conductorMarkers (events),
+                                          [this] (int tick) { return viewState.xForTick (tick); },
+                                          [] (const std::string& s)
+                                          { return juce::Font (juce::FontOptions (10.0f)).getStringWidth (juce::String::fromUTF8 (s.c_str())); });
+
+        // Meter lines first so a tempo on the same tick keeps its colour on top.
+        for (const auto kind : { TempoMeterKind::meter, TempoMeterKind::tempo })
+            for (const auto& p : placed)
+                if (p.marker.kind == kind && p.x >= -1 && p.x <= bounds.getWidth())
+                {
+                    g.setColour (colourOf (kind));
+                    g.fillRect (p.x, bounds.getY(), 1, bounds.getHeight());
+                }
+
+        const int half = bounds.getHeight() / 2;
+        const auto clip = g.getClipBounds();
+        g.setFont (juce::Font (juce::FontOptions (10.0f)));
+        for (const auto& p : placed)
+        {
+            if (! p.labelShown)
+                continue;
+            const auto text = juce::String::fromUTF8 (p.marker.label.c_str());
+            const int width = g.getCurrentFont().getStringWidth (text) + 2;
+            const bool isTempo = p.marker.kind == TempoMeterKind::tempo;
+            const juce::Rectangle<int> area (p.x + 3, isTempo ? bounds.getY() : bounds.getY() + half, width, half);
+            if (! area.intersects (clip))
+                continue;
+            g.setColour (colourOf (p.marker.kind));
+            g.drawText (text, area, juce::Justification::centredLeft, false);
+        }
+    }
+
     void TrackNotePreview::paint (juce::Graphics& g)
     {
         using namespace SongsmithColours;
@@ -72,6 +135,7 @@ namespace lotro
 
         paintGrid (g);
         paintSections (g);
+        paintConductorMarkers (g);
 
         int minPitch = 127;
         int maxPitch = 0;

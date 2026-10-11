@@ -36,6 +36,9 @@ namespace lotro::SongsmithColours
     // session lead decided during Phase 6 not to deviate from that (see
     // the plan's "Multi-track-per-part preview legibility" deferred
     // decision, resolved 2026-09-14).
+    // Conductor row tempo / meter markers (opaque).
+    constexpr juce::uint32 conductorTempo       = 0xFFE0B080;
+    constexpr juce::uint32 conductorMeter       = 0xFF7FA8D0;
     constexpr juce::uint32 previewNoteNormal    = 0xFF7FA8D0;
     constexpr juce::uint32 previewNoteBorder    = 0xFFA0C0E0;
     constexpr juce::uint32 outOfRangeFill       = 0xFFC06060;

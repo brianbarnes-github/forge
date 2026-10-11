@@ -5,6 +5,9 @@
 #include "UI/SectionEdit.h"
 #include "UI/SectionViewState.h"
 #include "PlaybackTestSupport.h"
+#include "MidiTestBytes.h"
+#include "UI/SongModelBridge.h"
+#include "UI/TempoEdit.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -630,4 +633,171 @@ TEST_CASE ("TrackNotePreview: the merge target row is outlined and shows ghosts;
 
     sectionView.merge->valid = false;
     CHECK (render().getPixelAt (0, previewHeight / 2) == plain.getPixelAt (0, previewHeight / 2));    // invalid target: no highlight
+}
+
+// --- Conductor row: tempo and meter markers ---
+
+namespace
+{
+    struct TempMidi
+    {
+        juce::File file = juce::File::createTempFile (".mid");
+        explicit TempMidi (const miditest::Bytes& bytes) { REQUIRE (file.replaceWithData (bytes.data(), bytes.size())); }
+        ~TempMidi() { file.deleteFile(); }
+    };
+
+    // 120 BPM and 4/4 at tick 0, one note, PPQ 480.
+    miditest::Bytes standardSong()
+    {
+        miditest::TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08 })
+         .ev (0, { 0xFF, 0x59, 0x02, 0x00, 0x00 }).eot (3840);
+        miditest::TrackBody n;
+        n.ev (0, { 0x90, 60, 100 }).ev (480, { 0x80, 60, 0x40 }).eot();
+        return miditest::smf (1, 480, { c, n });
+    }
+
+    struct Loaded
+    {
+        TempMidi midi { standardSong() };
+        SongDocument doc;
+        Loaded()
+        {
+            Diagnostics d;
+            REQUIRE (importMidiFile (doc, midi.file, 1, d));
+        }
+    };
+
+    juce::Image renderPreview (const juce::ValueTree& track, const TimelineViewState& view, int width = previewWidth)
+    {
+        TrackNotePreview preview (track, view);
+        preview.setBounds (0, 0, width, previewHeight);
+        juce::Image image (juce::Image::ARGB, width, previewHeight, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        preview.paint (g);
+        return image;
+    }
+
+    bool hasPixel (const juce::Image& image, juce::uint32 colour, int x0, int x1, int y0, int y1)
+    {
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                if (image.getPixelAt (x, y) == juce::Colour (colour))
+                    return true;
+        return false;
+    }
+
+    // Antialiased glyph cores are close to, not exactly, the text colour.
+    bool hasPixelNear (const juce::Image& image, juce::uint32 colour, int x0, int x1, int y0, int y1, int tolerance = 40)
+    {
+        const juce::Colour want (colour);
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+            {
+                const auto got = image.getPixelAt (x, y);
+                if (std::abs (got.getRed() - want.getRed()) <= tolerance && std::abs (got.getGreen() - want.getGreen()) <= tolerance
+                    && std::abs (got.getBlue() - want.getBlue()) <= tolerance)
+                    return true;
+            }
+        return false;
+    }
+
+    TimelineViewState tenthPixelView (double scrollTicks = 0.0)
+    {
+        TimelineViewState v;
+        v.setPixelsPerTick (0.1);
+        v.setScrollOffsetTicks (scrollTicks);
+        return v;
+    }
+}
+
+TEST_CASE ("TrackNotePreview: the Conductor row draws a tempo line at the tempo's tick; other rows do not", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    const auto view = tenthPixelView();
+
+    const auto conductor = renderPreview (f.doc.getConductorTrack(), view);
+    CHECK (conductor.getPixelAt (view.xForTick (0), 1) == juce::Colour (SongsmithColours::conductorTempo));
+
+    const auto other = f.doc.getConductorTrack().getParent().getChild (1);
+    REQUIRE (other.isValid());
+    const auto plain = renderPreview (other, view);
+    CHECK_FALSE (hasPixel (plain, SongsmithColours::conductorTempo, 0, 4, 0, 8));
+    CHECK_FALSE (hasPixel (plain, SongsmithColours::conductorMeter, 0, previewWidth, 0, previewHeight));
+}
+
+TEST_CASE ("TrackNotePreview: a tempo change draws its line and flips the background shade after it", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 960, 90.0).has_value());
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view, 600);
+    CHECK (image.getPixelAt (view.xForTick (960), previewHeight - 1) == juce::Colour (SongsmithColours::conductorTempo));
+    CHECK (image.getPixelAt (view.xForTick (960) + 60, 3) != juce::Colour (SongsmithColours::background));
+    CHECK (image.getPixelAt (view.xForTick (480) - 4, 3) == juce::Colour (SongsmithColours::background));
+}
+
+TEST_CASE ("TrackNotePreview: a meter change draws a meter line", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view);
+    CHECK (image.getPixelAt (view.xForTick (1920), previewHeight - 1) == juce::Colour (SongsmithColours::conductorMeter));
+    CHECK (image.getPixelAt (view.xForTick (1920), 1) != juce::Colour (SongsmithColours::conductorTempo));
+}
+
+TEST_CASE ("TrackNotePreview: a tempo scrolled off the left still tints the visible row", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 960, 90.0).has_value());
+    const auto view = tenthPixelView (2000.0);
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view);
+    CHECK (view.xForTick (960) < 0);
+    CHECK (image.getPixelAt (150, 3) != juce::Colour (SongsmithColours::background));
+    CHECK_FALSE (hasPixel (image, SongsmithColours::conductorTempo, 0, previewWidth, previewHeight - 4, previewHeight));
+}
+
+TEST_CASE ("TrackNotePreview: dense tempo changes all get lines even when labels are thinned", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    for (int i = 1; i <= 40; ++i)
+        REQUIRE_FALSE (setTempo (f.doc, i * 10, 100.0 + i).has_value());
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view);
+    for (int i = 0; i <= 40; ++i)
+        CHECK (image.getPixelAt (view.xForTick (i * 10), previewHeight - 1) == juce::Colour (SongsmithColours::conductorTempo));
+}
+
+TEST_CASE ("TrackNotePreview: a Conductor row with no document events paints only the background", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto conductor = doc.addTrack ("Conductor", (int) 0xFFAABBCC, 0, 0);
+    conductor.setProperty (SongIDs::isConductor, true, nullptr);
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (conductor, view);
+    CHECK (image.getPixelAt (previewWidth / 2, previewHeight / 2) == juce::Colour (SongsmithColours::background));
+}
+
+TEST_CASE ("TrackNotePreview: a tempo and a meter on the same tick both show their labels", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view);
+    const int half = previewHeight / 2;
+    CHECK (hasPixelNear (image, SongsmithColours::conductorTempo, 2, 60, 0, half));
+    CHECK (hasPixelNear (image, SongsmithColours::conductorMeter, 2, 60, half, previewHeight));
 }
