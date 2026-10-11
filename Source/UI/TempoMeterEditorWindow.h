@@ -4,6 +4,9 @@
 
 #include "SongDocument.h"
 #include "TempoMeterTable.h"
+#include "TimelineViewState.h"
+
+namespace lotro { class TempoGraphComponent; }
 
 #include <functional>
 #include <memory>
@@ -40,6 +43,18 @@ namespace lotro
         // leaving the selection alone, when there is no such event.
         bool selectEvent (TempoMeterKind kind, int tick);
 
+        // Shows the tempo graph above the table, sharing `view`'s horizontal axis (not
+        // owned; must outlive the window or be cleared first). nullptr hides it again and
+        // restores the plain table layout.
+        void setTimelineView (const TimelineViewState* view);
+
+        // The shared view was zoomed or scrolled: repaints the graph.
+        void timelineViewChanged();
+
+        // Repaints requested of the graph so far (0 without a graph); lets tests observe
+        // timelineViewChanged without a native peer.
+        int graphRepaintRequestsForTesting() const;
+
         // The event of the first selected row, if any.
         std::optional<TempoMeterEvent> selectedEvent() const;
 
@@ -55,6 +70,7 @@ namespace lotro
         {
         public:
             Content();
+            ~Content() override;
             void resized() override;
 
             // ListBox treats Backspace like Delete (both reach deleteKeyPressed); only
@@ -67,6 +83,7 @@ namespace lotro
                 }
             };
             Table table;
+            std::unique_ptr<TempoGraphComponent> graph;   // null until setTimelineView
             juce::TextButton   addTempo { "Add Tempo" }, addMeter { "Add Meter" }, remove { "Remove" };
             juce::Label        message;
         };
@@ -93,6 +110,7 @@ namespace lotro
         // if still present, otherwise clears it, and updateContent()s.
         void refreshNow();
         void notifySelectedTick();
+        bool selectRowFor (TempoMeterKind kind, int tick);   // selectEvent without toFront
 
         void commitCell (int row, int column, const juce::String& text);
         void showResult (const TableEditResult& result);

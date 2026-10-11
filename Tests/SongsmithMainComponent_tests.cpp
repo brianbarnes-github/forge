@@ -46,6 +46,7 @@ namespace lotro
             return c.tempoMeterWindow != nullptr ? c.tempoMeterWindow->selectedEvent() : std::nullopt;
         }
         static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
+        static int tempoGraphRepaints (SongsmithMainComponent& c) { return c.tempoMeterWindow->graphRepaintRequestsForTesting(); }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
@@ -635,4 +636,37 @@ TEST_CASE ("SongsmithMainComponent: a marker single-click does nothing while the
     CHECK (Access::tempoMeterSelection (main)->kind == TempoMeterKind::meter);
     main.openTempoMeterEditor();
     CHECK (Access::tempoMeterSelection (main)->tick == 3840);
+}
+
+TEST_CASE ("SongsmithMainComponent: zooming the track list repaints the open Tempo/Meter graph, and zooming after the window closes is safe", "[tempo-meter][graph]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    main.setBounds (0, 0, 1000, 700);
+    main.openTempoMeterEditor();
+    REQUIRE (main.isTempoMeterEditorOpen());
+
+    auto& list = Access::trackList (main);
+    const double ppt = list.getTimelineView().getPixelsPerTick();
+    const int before = Access::tempoGraphRepaints (main);
+
+    // Ctrl+wheel resizes rows; the plain wheel over the note preview zooms.
+    juce::MouseWheelDetails wheel {};
+    wheel.deltaY = 1.0f;
+    const auto pos = juce::Point<float> (list.getWidth() - 20.0f, 10.0f);
+    list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos, {},
+                                           0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
+                                           juce::Time::getCurrentTime(), pos, juce::Time::getCurrentTime(), 1, false),
+                         wheel);
+    CHECK (list.getTimelineView().getPixelsPerTick() != ppt);
+    CHECK (Access::tempoGraphRepaints (main) > before);
+
+    Access::closeTempoMeterWindow (main);
+    REQUIRE_FALSE (main.isTempoMeterEditorOpen());
+    list.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos, {},
+                                           0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &list, &list,
+                                           juce::Time::getCurrentTime(), pos, juce::Time::getCurrentTime(), 1, false),
+                         wheel);
+    main.fitTrackTimelineToDocument();
 }

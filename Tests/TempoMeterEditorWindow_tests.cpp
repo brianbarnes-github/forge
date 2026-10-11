@@ -4,7 +4,9 @@
 #include "UI/SongDocument.h"
 #include "UI/SongModelBridge.h"
 #include "UI/TempoEdit.h"
+#include "UI/TempoGraphComponent.h"
 #include "UI/TempoMeterEditorWindow.h"
+#include "UI/TimelineViewState.h"
 #include "UI/TempoMeterTable.h"
 
 #include <catch2/catch_approx.hpp>
@@ -94,6 +96,13 @@ namespace lotro
                                       &c, &c, now, juce::Point<float> (2.0f, 2.0f), now, 1, false);
             c.mouseDown (e);
         }
+        static bool graphVisible (TempoMeterEditorWindow& w) { return w.content->graph != nullptr && w.content->graph->isVisible(); }
+        static std::vector<TempoMeterEvent> graphSelected (TempoMeterEditorWindow& w) { return w.content->graph->selectedForTesting(); }
+        static std::vector<TempoMeterEvent> graphEvents (TempoMeterEditorWindow& w) { return w.content->graph->eventsForTesting(); }
+        static int graphRepaintCount (TempoMeterEditorWindow& w) { return w.content->graph->repaintRequestsForTesting(); }
+        static int tableHeight (TempoMeterEditorWindow& w) { return w.content->table.getHeight(); }
+        static juce::Rectangle<int> tableBounds (TempoMeterEditorWindow& w) { return w.content->table.getBounds(); }
+        static juce::Rectangle<int> graphBounds (TempoMeterEditorWindow& w) { return w.content->graph->getBounds(); }
         static bool keyOnTable (TempoMeterEditorWindow& w, const juce::KeyPress& k)
         {
             return w.content->table.keyPressed (k);
@@ -774,4 +783,112 @@ TEST_CASE ("TempoMeterEditorWindow: a refresh keeps a multi-selection by (kind, 
     REQUIRE_FALSE (setTempo (doc, 960, 95));   // a new row appears above them
     pump();
     CHECK (Access::selectedRows (w) == std::vector<int> { 4, 5 });
+}
+
+TEST_CASE ("TempoMeterEditorWindow: without a timeline view there is no graph and the layout is unchanged", "[tempo-meter-window][graph]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    CHECK_FALSE (Access::graphVisible (w));
+    CHECK (Access::tableBounds (w) == juce::Rectangle<int> (8, 8, 504, 420 - 8 - 8 - 24 - 4 - 28 - 6));
+    CHECK (Access::rowVisible (w, 0));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: setTimelineView shows a graph above a shorter table and null hides it again", "[tempo-meter-window][graph]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+    const auto baseline = Access::tableBounds (w);
+    const int baselineHeight = w.getContentComponent()->getHeight();
+
+    TimelineViewState view;
+    w.setTimelineView (&view);
+    REQUIRE (Access::graphVisible (w));
+    CHECK (Access::rowCount (w) == 2);
+    CHECK (w.getContentComponent()->getHeight() == 620);
+    CHECK (Access::graphBounds (w).getHeight() == 160);
+    CHECK (Access::tableBounds (w).getY() == Access::graphBounds (w).getBottom() + 6);
+    CHECK (Access::tableHeight (w) > 0);
+    // The window grew by 200 px and the graph (160 + 6 gap) took 166 of them.
+    CHECK (Access::tableHeight (w) == baseline.getHeight() + (620 - baselineHeight) - 166);
+    CHECK (Access::graphEvents (w).size() == 2);
+
+    w.setTimelineView (nullptr);
+    CHECK_FALSE (Access::graphVisible (w));
+    CHECK (w.getContentComponent()->getHeight() == baselineHeight);
+    CHECK (Access::tableBounds (w) == baseline);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: table selection reaches the graph, tempo entries only", "[tempo-meter-window][graph]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TimelineViewState view;
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+    REQUIRE (Access::rowCount (w) == 3);   // tempo@0, meter@0, tempo@1920
+
+    Access::selectRow (w, 2);
+    {
+        const auto sel = Access::graphSelected (w);
+        REQUIRE (sel.size() == 1);
+        CHECK (sel[0].kind == TempoMeterKind::tempo);
+        CHECK (sel[0].tick == 1920);
+    }
+
+    // A meter row sharing tick 0 with a tempo must not highlight that tempo.
+    Access::selectRow (w, 1);
+    CHECK (Access::graphSelected (w).empty());
+    Access::selectRow (w, 0);
+    REQUIRE (Access::graphSelected (w).size() == 1);
+    CHECK (Access::graphSelected (w)[0].tick == 0);
+
+    Access::deselectAll (w);
+    CHECK (Access::graphSelected (w).empty());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: the graph follows edits, undo and redo", "[tempo-meter-window][graph]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TimelineViewState view;
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    REQUIRE (Access::graphEvents (w).size() == 2);
+
+    REQUIRE_FALSE (setTempo (doc, 960, 95));
+    pump();
+    CHECK (Access::graphEvents (w).size() == 3);
+    CHECK (Access::graphEvents (w).size() == (size_t) Access::rowCount (w));
+    doc.undo();
+    pump();
+    CHECK (Access::graphEvents (w).size() == 2);
+    doc.redo();
+    pump();
+    CHECK (Access::graphEvents (w).size() == 3);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: timelineViewChanged repaints the graph", "[tempo-meter-window][graph]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TimelineViewState view;
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.timelineViewChanged();   // no view yet: harmless
+    w.setTimelineView (&view);
+
+    const int before = Access::graphRepaintCount (w);
+    view.setPixelsPerTick (0.2);
+    w.timelineViewChanged();
+    CHECK (Access::graphRepaintCount (w) == before + 1);
 }

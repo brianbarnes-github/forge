@@ -212,6 +212,8 @@ private:
     TrackListComponent       trackList;
 
     std::unique_ptr<TrackEditorWindow> trackEditorWindow;
+    // Must stay declared AFTER trackList: the window's graph reads trackList's TimelineViewState,
+    // so the window has to be destroyed first.
     std::unique_ptr<TempoMeterEditorWindow> tempoMeterWindow;
     std::set<juce::int64>    ghostedTrackIds;
     bool                     followPlayheadSetting = true;

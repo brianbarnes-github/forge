@@ -1,6 +1,9 @@
 #include "TempoMeterEditorWindow.h"
 #include "HistoryKeys.h"
 #include "SongsmithColours.h"
+#include "TempoGraphComponent.h"
+
+#include <algorithm>
 
 namespace lotro
 {
@@ -64,9 +67,16 @@ namespace lotro
         addAndMakeVisible (message);
     }
 
+    TempoMeterEditorWindow::Content::~Content() = default;
+
     void TempoMeterEditorWindow::Content::resized()
     {
         auto area = getLocalBounds().reduced (8);
+        if (graph != nullptr)
+        {
+            graph->setBounds (area.removeFromTop (160));
+            area.removeFromTop (6);
+        }
         message.setBounds (area.removeFromBottom (24));
         area.removeFromBottom (4);
         auto buttons = area.removeFromBottom (28);
@@ -189,13 +199,57 @@ namespace lotro
 
     void TempoMeterEditorWindow::selectedRowsChanged (int)
     {
+        if (content->graph != nullptr)
+            content->graph->setSelected (selectedEvents());
         notifySelectedTick();
+    }
+
+    void TempoMeterEditorWindow::setTimelineView (const TimelineViewState* view)
+    {
+        if (view == nullptr)
+        {
+            if (content->graph == nullptr)
+                return;
+            content->graph.reset();
+            setResizeLimits (360, 240, 900, 800);
+            content->setSize (content->getWidth(), std::max (240, content->getHeight() - 200));
+            content->resized();
+            return;
+        }
+
+        content->graph = std::make_unique<TempoGraphComponent> (doc, *view);
+        content->addAndMakeVisible (*content->graph);
+        content->graph->onSelect = [this] (TempoMeterKind kind, int tick) { selectRowFor (kind, tick); };
+        content->graph->onEdited = [this] (const TableEditResult& r) { showResult (r); };
+        content->graph->setEvents (events);
+        content->graph->setSelected (selectedEvents());
+        setResizeLimits (360, 420, 900, 900);
+        content->setSize (content->getWidth(), 620);
+        content->resized();
+    }
+
+    int TempoMeterEditorWindow::graphRepaintRequestsForTesting() const
+    {
+        return content->graph != nullptr ? content->graph->repaintRequestsForTesting() : 0;
+    }
+
+    void TempoMeterEditorWindow::timelineViewChanged()
+    {
+        if (content->graph != nullptr)
+            content->graph->requestRepaint();
     }
 
     bool TempoMeterEditorWindow::selectEvent (TempoMeterKind kind, int tick)
     {
         handleUpdateNowIfNeeded();   // a just-made edit must be listed before it is looked up
+        if (! selectRowFor (kind, tick))
+            return false;
+        toFront (true);
+        return true;
+    }
 
+    bool TempoMeterEditorWindow::selectRowFor (TempoMeterKind kind, int tick)
+    {
         for (size_t i = 0; i < events.size(); ++i)
             if (events[i].kind == kind && events[i].tick == tick)
             {
@@ -203,7 +257,6 @@ namespace lotro
                 table.selectRow ((int) i);
                 table.scrollToEnsureRowIsOnscreen ((int) i);
                 notifySelectedTick();   // idempotent when the row was already selected
-                toFront (true);
                 return true;
             }
         return false;
@@ -303,6 +356,8 @@ namespace lotro
         if (sameRows (newRows, rows))
         {
             events = std::move (newEvents);   // the stored values may differ below display precision
+            if (content->graph != nullptr)
+                content->graph->setEvents (events);   // the graph draws exact values
             return;   // keeps an open cell editor alive
         }
 
@@ -321,6 +376,11 @@ namespace lotro
 
         table.setSelectedRows (restored, juce::dontSendNotification);
         table.repaint();
+        if (content->graph != nullptr)
+        {
+            content->graph->setEvents (events);
+            content->graph->setSelected (selectedEvents());
+        }
         notifySelectedTick();   // idempotent; covers a restore that changed no row index
     }
 

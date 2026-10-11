@@ -112,6 +112,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     trackList.onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { return selectTempoMeterEvent (kind, tick); };
     trackList.onConductorMarkerOpened = [this] (TempoMeterKind kind, int tick) { openTempoMeterEditorOnEvent (kind, tick); };
     trackList.onTempoMeterRequested = [this] { openTempoMeterEditor(); };
+    trackList.onViewChanged = [this] { if (tempoMeterWindow != nullptr) tempoMeterWindow->timelineViewChanged(); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
     trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
     trackList.onTrackAppearanceChanged = [this] (juce::int64 trackId)
@@ -234,6 +235,7 @@ void SongsmithMainComponent::openTempoMeterEditor()
     if (tempoMeterWindow == nullptr)
     {
         tempoMeterWindow = std::make_unique<TempoMeterEditorWindow> (doc, getTopLevelComponent());
+        tempoMeterWindow->setTimelineView (&trackList.getTimelineView());
         tempoMeterWindow->onSelectedTickChanged = [this] (std::optional<int> tick) { trackList.setEventMarkerTick (tick); };
         tempoMeterWindow->onClosed = [this]
         {
