@@ -177,6 +177,7 @@ void TrackListComponent::rebuild()
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
         row->onConductorActivated = [this] { if (onTempoMeterRequested) onTempoMeterRequested(); };
+        row->onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { if (onConductorMarkerClicked) onConductorMarkerClicked (kind, tick); };
         row->onTrackDoubleClicked = [this] (juce::int64 trackId) { if (onTrackDoubleClicked) onTrackDoubleClicked (trackId); };
         row->onAutoSplitRequested = [this] (juce::int64 id) { autoSplitOnInstrumentChange (doc, id); };
         row->onSetInstrumentRequested = [this] (juce::int64 id, int program) { setTrackInstrument (doc, id, program); };

@@ -125,6 +125,7 @@ public:
 
     // Fired when a row is double-clicked, with that row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;
+    std::function<void (TempoMeterKind, int)> onConductorMarkerClicked;   // a tempo/meter marker on the Conductor row was clicked (kind, tick)
     std::function<void()> onTempoMeterRequested;   // the Conductor row was double-clicked or its head menu chose Tempo and Meter
 
     // Fired when a row's ghost toggle is clicked: (trackId, newVisibility).

@@ -4,12 +4,16 @@
 // removed node itself. See juce-valuetree-conventions and the fix in
 // SongsmithMainComponent::valueTreeParentChanged.
 
+#include "MidiTestBytes.h"
 #include "PartStripTestAccess.h"
 #include "UI/SongDocument.h"
 #include "PlaybackTestSupport.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/Playback/TransportStrip.h"
+#include "UI/SongModelBridge.h"
 #include "UI/SongsmithMainComponent.h"
+#include "UI/TempoEdit.h"
+#include "UI/TempoMeterEditorWindow.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -37,6 +41,10 @@ namespace lotro
         static const void* tempoMeterWindow (const SongsmithMainComponent& c) { return c.tempoMeterWindow.get(); }
         static std::optional<int> eventMarkerTick (SongsmithMainComponent& c) { return c.trackList.getEventMarkerTick(); }
         static void selectInTempoMeterWindow (SongsmithMainComponent& c, std::optional<int> tick) { c.tempoMeterWindow->onSelectedTickChanged (tick); }
+        static std::optional<TempoMeterEvent> tempoMeterSelection (SongsmithMainComponent& c)
+        {
+            return c.tempoMeterWindow != nullptr ? c.tempoMeterWindow->selectedEvent() : std::nullopt;
+        }
         static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
@@ -577,4 +585,43 @@ TEST_CASE ("SongsmithMainComponent: the Tempo/Meter window's selected tick drive
     REQUIRE (Access::eventMarkerTick (main) == std::optional<int> (480));
     main.documentReplaced();
     CHECK (Access::eventMarkerTick (main) == std::nullopt);
+}
+
+TEST_CASE ("SongsmithMainComponent: a Conductor marker click opens a closed Tempo/Meter editor with that event selected, and moves the selection of an open one", "[tempo-meter][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    {
+        miditest::TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08 }).eot (3840);
+        miditest::TrackBody n;
+        n.ev (0, { 0x90, 60, 100 }).ev (480, { 0x80, 60, 0x40 }).eot();
+        const auto bytes = miditest::smf (1, 480, { c, n });
+        auto file = juce::File::createTempFile (".mid");
+        REQUIRE (file.replaceWithData (bytes.data(), bytes.size()));
+        Diagnostics d;
+        REQUIRE (importMidiFile (doc, file, 1, d));
+        file.deleteFile();
+    }
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));
+    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
+    SongsmithMainComponent main (doc);
+
+    REQUIRE_FALSE (main.isTempoMeterEditorOpen());
+    main.selectTempoMeterEvent (TempoMeterKind::meter, 3840);
+    REQUIRE (main.isTempoMeterEditorOpen());
+    const auto first = Access::tempoMeterSelection (main);
+    REQUIRE (first);
+    CHECK (first->kind == TempoMeterKind::meter);
+    CHECK (first->tick == 3840);
+    CHECK (Access::eventMarkerTick (main) == std::optional<int> (3840));
+
+    const auto* window = Access::tempoMeterWindow (main);
+    main.selectTempoMeterEvent (TempoMeterKind::tempo, 1920);
+    CHECK (Access::tempoMeterWindow (main) == window);   // same window, selection moved
+    const auto second = Access::tempoMeterSelection (main);
+    REQUIRE (second);
+    CHECK (second->kind == TempoMeterKind::tempo);
+    CHECK (second->tick == 1920);
+    CHECK (Access::eventMarkerTick (main) == std::optional<int> (1920));
 }

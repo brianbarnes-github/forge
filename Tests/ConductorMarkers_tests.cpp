@@ -141,3 +141,80 @@ TEST_CASE ("ConductorMarkers: placeMarkers stops after stopAfterX, measuring not
     const auto full = placeMarkers (m, xOf, wide);
     CHECK (full[2].labelShown == p[2].labelShown);   // identical decisions up to the stop
 }
+
+namespace
+{
+    PlacedMarker placedAt (TempoMeterKind kind, int tick, int x, int labelWidth = 0)
+    {
+        return { { kind, tick, "L" }, x, labelWidth > 0, labelWidth };
+    }
+    constexpr int rowH = 40;   // tempo half y < 20, meter half y >= 20
+}
+
+TEST_CASE ("markerAt: a click on a line hits it; empty space and far-off clicks hit nothing", "[conductor-markers][hit]")
+{
+    const std::vector<PlacedMarker> placed { placedAt (TempoMeterKind::tempo, 480, 100) };
+    const auto hit = markerAt (placed, 102, 5, rowH);
+    REQUIRE (hit);
+    CHECK (hit->kind == TempoMeterKind::tempo);
+    CHECK (hit->tick == 480);
+    CHECK (markerAt (placed, 96, 5, rowH));
+    CHECK_FALSE (markerAt (placed, 105, 5, rowH));
+    CHECK_FALSE (markerAt (placed, 95, 5, rowH));
+    CHECK_FALSE (markerAt ({}, 100, 5, rowH));
+    CHECK (markerAt (placed, 109, 5, rowH, 10));   // tolerance is a parameter
+}
+
+TEST_CASE ("markerAt: a tempo and a meter on the same tick are told apart by the half clicked", "[conductor-markers][hit]")
+{
+    const std::vector<PlacedMarker> placed { placedAt (TempoMeterKind::tempo, 960, 200), placedAt (TempoMeterKind::meter, 960, 200) };
+    CHECK (markerAt (placed, 200, 3, rowH)->kind == TempoMeterKind::tempo);
+    CHECK (markerAt (placed, 200, 19, rowH)->kind == TempoMeterKind::tempo);
+    CHECK (markerAt (placed, 200, 20, rowH)->kind == TempoMeterKind::meter);
+    CHECK (markerAt (placed, 200, 39, rowH)->kind == TempoMeterKind::meter);
+    // Order in the vector does not matter.
+    const std::vector<PlacedMarker> flipped { placed[1], placed[0] };
+    CHECK (markerAt (flipped, 200, 3, rowH)->kind == TempoMeterKind::tempo);
+}
+
+TEST_CASE ("markerAt: only the kinds present can be hit, whichever half is clicked", "[conductor-markers][hit]")
+{
+    const std::vector<PlacedMarker> onlyTempo { placedAt (TempoMeterKind::tempo, 480, 100) };
+    CHECK (markerAt (onlyTempo, 100, 30, rowH)->kind == TempoMeterKind::tempo);
+    const std::vector<PlacedMarker> onlyMeter { placedAt (TempoMeterKind::meter, 480, 100) };
+    CHECK (markerAt (onlyMeter, 100, 5, rowH)->kind == TempoMeterKind::meter);
+}
+
+TEST_CASE ("markerAt: of two lines within tolerance the nearer wins; a half match beats distance", "[conductor-markers][hit]")
+{
+    const std::vector<PlacedMarker> twoTempos { placedAt (TempoMeterKind::tempo, 100, 100), placedAt (TempoMeterKind::tempo, 130, 103) };
+    CHECK (markerAt (twoTempos, 101, 5, rowH)->tick == 100);
+    CHECK (markerAt (twoTempos, 102, 5, rowH)->tick == 130);
+    CHECK (markerAt (twoTempos, 103, 5, rowH)->tick == 130);
+
+    const std::vector<PlacedMarker> mixed { placedAt (TempoMeterKind::tempo, 100, 100), placedAt (TempoMeterKind::meter, 130, 103) };
+    CHECK (markerAt (mixed, 100, 30, rowH)->kind == TempoMeterKind::meter);   // meter half, farther but matching
+    CHECK (markerAt (mixed, 103, 5, rowH)->kind == TempoMeterKind::tempo);
+}
+
+TEST_CASE ("markerAt: a shown label is a hit area in its own half only", "[conductor-markers][hit]")
+{
+    const std::vector<PlacedMarker> placed { placedAt (TempoMeterKind::tempo, 480, 100, 30), placedAt (TempoMeterKind::meter, 480, 100, 24) };
+    // tempo label spans x 103 .. 135, meter label 103 .. 129
+    CHECK (markerAt (placed, 120, 5, rowH)->kind == TempoMeterKind::tempo);
+    CHECK (markerAt (placed, 120, 30, rowH)->kind == TempoMeterKind::meter);
+    CHECK (markerAt (placed, 133, 5, rowH)->kind == TempoMeterKind::tempo);
+    CHECK_FALSE (markerAt (placed, 133, 30, rowH));   // past the meter label
+    CHECK_FALSE (markerAt (placed, 136, 5, rowH));
+    // A hidden label (width 0) has no area.
+    const std::vector<PlacedMarker> hidden { placedAt (TempoMeterKind::tempo, 480, 100) };
+    CHECK_FALSE (markerAt (hidden, 120, 5, rowH));
+}
+
+TEST_CASE ("markerAt: markers scrolled just off the left edge still hit within tolerance; the far edge is plain x", "[conductor-markers][hit]")
+{
+    const std::vector<PlacedMarker> placed { placedAt (TempoMeterKind::tempo, 0, -2), placedAt (TempoMeterKind::meter, 9000, 600) };
+    CHECK (markerAt (placed, 0, 5, rowH)->tick == 0);
+    CHECK_FALSE (markerAt (placed, 3, 5, rowH));
+    CHECK (markerAt (placed, 599, 30, rowH)->tick == 9000);
+}

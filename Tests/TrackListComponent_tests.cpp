@@ -3048,3 +3048,48 @@ TEST_CASE ("EventMarkerOverlay: never takes clicks", "[track-list][event-marker]
     CHECK (! onThis);
     CHECK (! onChildren);
 }
+
+TEST_CASE ("TrackListComponent: clicking a marker on the Conductor row fires onConductorMarkerClicked; a normal row and empty space do not", "[track-list][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    {
+        const auto bytes = conductorSong();
+        auto file = juce::File::createTempFile (".mid");
+        REQUIRE (file.replaceWithData (bytes.data(), bytes.size()));
+        Diagnostics d;
+        REQUIRE (importMidiFile (doc, file, 1, d));
+        file.deleteFile();
+    }
+    REQUIRE_FALSE (setTempo (doc, 1920, 100.0).has_value());
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 800, 400);
+    list.fitTimelineToDocument();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    std::vector<std::pair<TempoMeterKind, int>> clicks;
+    list.onConductorMarkerClicked = [&] (TempoMeterKind k, int t) { clicks.emplace_back (k, t); };
+
+    const auto& view = TrackListComponentTestAccess::timelineView (list);
+    auto& conductor = *TrackListComponentTestAccess::rowFor (list, (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId));
+    auto& preview = conductor.notePreviewForTesting();
+    const auto press = [&] (TrackNotePreview& p, int x, int y)
+    {
+        const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), { (float) x, (float) y },
+                                  juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                  &p, &p, juce::Time::getCurrentTime(), { (float) x, (float) y }, juce::Time::getCurrentTime(), 1, false);
+        p.mouseDown (e);
+    };
+
+    press (preview, view.xForTick (1920), 2);
+    REQUIRE (clicks.size() == 1);
+    CHECK (clicks[0] == std::make_pair (TempoMeterKind::tempo, 1920));
+
+    press (preview, view.xForTick (960), 2);   // empty space
+    CHECK (clicks.size() == 1);
+
+    auto* normal = TrackListComponentTestAccess::rows (list)[1];
+    REQUIRE (normal != &conductor);
+    press (normal->notePreviewForTesting(), view.xForTick (1920), 2);
+    CHECK (clicks.size() == 1);
+}

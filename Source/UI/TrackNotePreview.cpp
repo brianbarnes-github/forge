@@ -64,6 +64,34 @@ namespace lotro
         }
     }
 
+    namespace
+    {
+        juce::Font conductorLabelFont() { return juce::Font (juce::FontOptions (10.0f)); }
+
+        // The one placement both painting and hit-testing use.
+        std::vector<PlacedMarker> placeConductorMarkers (const std::vector<TempoMeterEvent>& events,
+                                                         const TimelineViewState& viewState,
+                                                         const juce::Font& labelFont, int stopAfterX)
+        {
+            return placeMarkers (conductorMarkers (events),
+                                 [&viewState] (int tick) { return viewState.xForTick (tick); },
+                                 [&labelFont] (const std::string& s)
+                                 { return juce::GlyphArrangement::getStringWidthInt (labelFont, juce::String::fromUTF8 (s.c_str())); },
+                                 3, 4, stopAfterX);
+        }
+    }
+
+    std::optional<MarkerHit> TrackNotePreview::conductorMarkerAt (juce::Point<int> pos) const
+    {
+        if (! (bool) track.getProperty (SongIDs::isConductor, false))
+            return std::nullopt;
+        const auto events = listTempoMeterEvents (track.getRoot());
+        if (events.empty())
+            return std::nullopt;
+        const auto placed = placeConductorMarkers (events, viewState, conductorLabelFont(), pos.x + 64);
+        return markerAt (placed, pos.x, pos.y, getHeight());
+    }
+
     void TrackNotePreview::paintConductorMarkers (juce::Graphics& g) const
     {
         if (! (bool) track.getProperty (SongIDs::isConductor, false))
@@ -102,12 +130,8 @@ namespace lotro
 
         // Markers right of the clip can neither draw nor hide a label inside it.
         const auto clip = g.getClipBounds();
-        const juce::Font labelFont (juce::FontOptions (10.0f));
-        const auto placed = placeMarkers (conductorMarkers (events),
-                                          [this] (int tick) { return viewState.xForTick (tick); },
-                                          [&labelFont] (const std::string& s)
-                                          { return juce::GlyphArrangement::getStringWidthInt (labelFont, juce::String::fromUTF8 (s.c_str())); },
-                                          3, 4, clip.getRight());
+        const juce::Font labelFont = conductorLabelFont();
+        const auto placed = placeConductorMarkers (events, viewState, labelFont, clip.getRight());
 
         // Meter lines first so a tempo on the same tick keeps its colour on top.
         for (const auto kind : { TempoMeterKind::meter, TempoMeterKind::tempo })
@@ -235,6 +259,18 @@ namespace lotro
     {
         if (toggleGhostIfHit (e.getPosition()))
             return;
+
+        // A plain left press on a Conductor marker selects that event and is consumed.
+        if (onMarkerClicked && e.mods.isLeftButtonDown() && ! e.mods.isPopupMenu()
+            && ! e.mods.isAnyModifierKeyDown())
+            if (const auto hit = conductorMarkerAt (e.getPosition()))
+            {
+                sectionPressActive = false;
+                mergePressActive = false;
+                onMarkerClicked (hit->kind, hit->tick);
+                return;
+            }
+
         if (onNonToggleClick)
             onNonToggleClick (e.mods);
         const int tick = viewState.tickForX (e.getPosition().x);

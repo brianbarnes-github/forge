@@ -154,6 +154,10 @@ public:
 
     // Opens the Tempo/Meter editor, or re-fronts it when already open.
     void openTempoMeterEditor();
+
+    // Opens the Tempo and Meter editor if needed and selects that event's row in it
+    // (the Conductor row's marker click). A no-op selection if the event is gone.
+    void selectTempoMeterEvent (TempoMeterKind kind, int tick);
     bool isTempoMeterEditorOpen() const noexcept { return tempoMeterWindow != nullptr; }
     void trackGhostToggled (juce::int64 trackId, bool visible);
 

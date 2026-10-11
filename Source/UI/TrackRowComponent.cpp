@@ -40,6 +40,11 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
         if (onStripSelected)
             onStripSelected (getTrackId(), mods);
     };
+    notePreview.onMarkerClicked = [this] (TempoMeterKind kind, int tick)
+    {
+        if (onConductorMarkerClicked)
+            onConductorMarkerClicked (kind, tick);
+    };
     notePreview.onTimelineClicked = [this] (int tick)
     {
         if (onTimelineClicked)

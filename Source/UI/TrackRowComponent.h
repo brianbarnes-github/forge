@@ -122,6 +122,9 @@ public:
     // Conductor head menu's "Tempo and Meter" item.
     std::function<void()> onConductorActivated;
 
+    // Conductor row: a plain click on a tempo or meter marker (kind, tick).
+    std::function<void (TempoMeterKind, int)> onConductorMarkerClicked;
+
     // Fired when this row's ghost toggle is clicked: (trackId, newVisibility).
     std::function<void (juce::int64, bool)> onGhostToggled;
 

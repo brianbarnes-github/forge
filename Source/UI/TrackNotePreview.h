@@ -2,9 +2,13 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "ConductorMarkers.h"
 #include "SectionViewState.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
+
+#include <functional>
+#include <optional>
 
 namespace lotro
 {
@@ -64,6 +68,11 @@ namespace lotro
         std::function<void (int tick)> onTimelineClicked;
         std::function<void()> onNonToggleDoubleClick;
 
+        // Conductor row only: a plain left press (no Shift/Ctrl/Alt/Cmd) on a tempo or meter
+        // marker fires this with the marker's kind and tick, INSTEAD of onNonToggleClick,
+        // onTimelineClicked and the section press (the click is consumed).
+        std::function<void (TempoMeterKind, int tick)> onMarkerClicked;
+
         // A left press on the strip (after onNonToggleClick/onTimelineClicked) with
         // the section under it (zone None when there is none), then the tick under
         // the pointer while dragging and on release. Only fired with a section view.
@@ -85,6 +94,7 @@ namespace lotro
         void paintGrid (juce::Graphics& g) const;
         void paintSections (juce::Graphics& g) const;
         void paintConductorMarkers (juce::Graphics& g) const;
+        std::optional<MarkerHit> conductorMarkerAt (juce::Point<int> pos) const;
         void paintMergePreview (juce::Graphics& g) const;
         int sectionDragTick (const juce::MouseEvent& e);
 

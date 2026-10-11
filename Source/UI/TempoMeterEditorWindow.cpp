@@ -185,6 +185,23 @@ namespace lotro
         notifySelectedTick();
     }
 
+    bool TempoMeterEditorWindow::selectEvent (TempoMeterKind kind, int tick)
+    {
+        handleUpdateNowIfNeeded();   // a just-made edit must be listed before it is looked up
+
+        for (size_t i = 0; i < events.size(); ++i)
+            if (events[i].kind == kind && events[i].tick == tick)
+            {
+                auto& table = content->table;
+                table.selectRow ((int) i);
+                table.scrollToEnsureRowIsOnscreen ((int) i);
+                notifySelectedTick();   // idempotent when the row was already selected
+                toFront (true);
+                return true;
+            }
+        return false;
+    }
+
     void TempoMeterEditorWindow::notifySelectedTick()
     {
         if (! onSelectedTickChanged)

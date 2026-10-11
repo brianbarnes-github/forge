@@ -922,3 +922,103 @@ TEST_CASE ("TrackNotePreview: with thousands of tempos a narrow clip still draws
     CHECK (image.getPixelAt (100, previewHeight - 1).isTransparent());
     CHECK (image.getPixelAt (1700, previewHeight - 1).isTransparent());
 }
+
+// --- Conductor row: clicking a marker ---
+
+namespace
+{
+    struct MarkerClickProbe
+    {
+        std::vector<std::pair<TempoMeterKind, int>> markers;
+        std::vector<int> timelineTicks;
+        int nonToggleClicks = 0;
+        int sectionPresses = 0;
+
+        void attach (TrackNotePreview& p)
+        {
+            p.onMarkerClicked = [this] (TempoMeterKind k, int t) { markers.emplace_back (k, t); };
+            p.onTimelineClicked = [this] (int t) { timelineTicks.push_back (t); };
+            p.onNonToggleClick = [this] (const juce::ModifierKeys&) { ++nonToggleClicks; };
+            p.onSectionPressed = [this] (const SectionHit&, int, const juce::ModifierKeys&) { ++sectionPresses; };
+        }
+    };
+}
+
+TEST_CASE ("TrackNotePreview: a plain click on a Conductor marker fires onMarkerClicked and nothing else; the half picks the kind", "[track-note-preview][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 90.0).has_value());
+    REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+    const auto view = tenthPixelView();
+    SectionViewState sectionView;
+    TrackNotePreview preview (f.doc.getConductorTrack(), view);
+    preview.setSectionView (&sectionView, (juce::int64) f.doc.getConductorTrack().getProperty (SongIDs::trackId));
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+    MarkerClickProbe probe;
+    probe.attach (preview);
+
+    preview.mouseDown (previewMouseAt (preview, view.xForTick (1920) + 1, 3));
+    preview.mouseDown (previewMouseAt (preview, view.xForTick (1920), previewHeight - 3));
+    REQUIRE (probe.markers.size() == 2);
+    CHECK (probe.markers[0] == std::make_pair (TempoMeterKind::tempo, 1920));
+    CHECK (probe.markers[1] == std::make_pair (TempoMeterKind::meter, 1920));
+    CHECK (probe.timelineTicks.empty());
+    CHECK (probe.nonToggleClicks == 0);
+    CHECK (probe.sectionPresses == 0);
+}
+
+TEST_CASE ("TrackNotePreview: a Conductor click away from every marker still seeks and selects as before", "[track-note-preview][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 90.0).has_value());
+    const auto view = tenthPixelView();
+    TrackNotePreview preview (f.doc.getConductorTrack(), view);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+    MarkerClickProbe probe;
+    probe.attach (preview);
+
+    preview.mouseDown (previewMouseAt (preview, view.xForTick (2400), 3));
+    CHECK (probe.markers.empty());
+    REQUIRE (probe.timelineTicks.size() == 1);
+    CHECK (probe.timelineTicks[0] == 2400);
+    CHECK (probe.nonToggleClicks == 1);
+}
+
+TEST_CASE ("TrackNotePreview: only a plain left press takes a marker; modified and right presses fall through", "[track-note-preview][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 90.0).has_value());
+    const auto view = tenthPixelView();
+    TrackNotePreview preview (f.doc.getConductorTrack(), view);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+    MarkerClickProbe probe;
+    probe.attach (preview);
+
+    const int x = view.xForTick (1920);
+    preview.mouseDown (previewMouseAt (preview, x, 3, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier)));
+    preview.mouseDown (previewMouseAt (preview, x, 3, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::shiftModifier)));
+    preview.mouseDown (previewMouseAt (preview, x, 3, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier)));
+    CHECK (probe.markers.empty());
+    CHECK (probe.timelineTicks.size() == 3);
+}
+
+TEST_CASE ("TrackNotePreview: a non-Conductor row never reports a marker click, even where the Conductor's marker would be", "[track-note-preview][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 90.0).has_value());
+    const auto view = tenthPixelView();
+    const auto other = f.doc.getConductorTrack().getParent().getChild (1);
+    TrackNotePreview preview (other, view);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+    MarkerClickProbe probe;
+    probe.attach (preview);
+
+    preview.mouseDown (previewMouseAt (preview, view.xForTick (1920), 3));
+    preview.mouseDown (previewMouseAt (preview, view.xForTick (0), 3));
+    CHECK (probe.markers.empty());
+    CHECK (probe.timelineTicks.size() == 2);
+}

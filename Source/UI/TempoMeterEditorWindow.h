@@ -35,6 +35,14 @@ namespace lotro
         // closed (nullopt). Used to mark the event on the main timeline.
         std::function<void (std::optional<int> tick)> onSelectedTickChanged;
 
+        // Selects the row of the event (kind, tick), scrolls it into view and brings the
+        // window to the front. Pending document changes are applied first. Returns false,
+        // leaving the selection alone, when there is no such event.
+        bool selectEvent (TempoMeterKind kind, int tick);
+
+        // The event of the selected row, if any.
+        std::optional<TempoMeterEvent> selectedEvent() const;
+
     private:
         friend struct TempoMeterEditorWindowTestAccess;
 
@@ -81,7 +89,6 @@ namespace lotro
         // cell editor alive). Else replaces it, restores the selection by (kind, tick)
         // if still present, otherwise clears it, and updateContent()s.
         void refreshNow();
-        std::optional<TempoMeterEvent> selectedEvent() const;
         void notifySelectedTick();
 
         void commitCell (int row, int column, const juce::String& text);

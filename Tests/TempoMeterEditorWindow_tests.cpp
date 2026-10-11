@@ -40,6 +40,12 @@ namespace lotro
         static int  styleFlags (TempoMeterEditorWindow& w) { return w.getDesktopWindowStyleFlags(); }
         static void deselectAll (TempoMeterEditorWindow& w) { w.content->table.deselectAllRows(); }
         static int  selectedRow (TempoMeterEditorWindow& w) { return w.content->table.getSelectedRow(); }
+        static bool rowVisible (TempoMeterEditorWindow& w, int row)
+        {
+            auto& table = w.content->table;
+            const juce::Rectangle<int> rowArea (0, row * table.getRowHeight(), 1, table.getRowHeight());
+            return table.getViewport()->getViewArea().contains (rowArea);   // wholly inside
+        }
         static void commitCell (TempoMeterEditorWindow& w, int row, int column, const std::string& text)
         {
             w.commitCell (row, column, text);
@@ -577,4 +583,79 @@ TEST_CASE ("TempoMeterEditorWindow: closing reports no selected tick", "[tempo-m
     w.closeButtonPressed();
     REQUIRE (! seen.empty());
     CHECK (seen.back() == std::nullopt);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: selectEvent selects the row of that kind and tick, scrolls it into view and reports the tick", "[tempo-meter-window][select-event]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    for (int i = 1; i <= 40; ++i)
+        REQUIRE_FALSE (setTempo (doc, i * 1920, 60.0 + i));
+    REQUIRE_FALSE (setMeter (doc, 20 * 1920, 3, 4));   // shares a tick with a tempo
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 43);
+    REQUIRE (Access::selectedRow (w) == -1);
+
+    std::vector<std::optional<int>> seen;
+    w.onSelectedTickChanged = [&seen] (std::optional<int> t) { seen.push_back (t); };
+
+    // Sorted: T0 M0 T1920 ... ; at 20*1920 the tempo and meter rows are adjacent.
+    int tempoRow = -1, meterRow = -1, lastRow = -1;
+    for (int r = 0; r < Access::rowCount (w); ++r)
+    {
+        const auto& row = Access::rowAt (w, r);
+        if (row.tick == 20 * 1920)
+            (row.kind == TempoMeterKind::tempo ? tempoRow : meterRow) = r;
+        if (row.tick == 40 * 1920)
+            lastRow = r;
+    }
+    REQUIRE (tempoRow >= 0);
+    REQUIRE (meterRow >= 0);
+    REQUIRE (tempoRow != meterRow);
+    REQUIRE (lastRow >= 0);
+    REQUIRE_FALSE (Access::rowVisible (w, lastRow));   // so scrolling is observable
+
+    CHECK (w.selectEvent (TempoMeterKind::meter, 20 * 1920));
+    CHECK (Access::selectedRow (w) == meterRow);
+    CHECK (seen.back() == std::optional<int> (20 * 1920));
+    CHECK (Access::rowVisible (w, meterRow));
+
+    CHECK (w.selectEvent (TempoMeterKind::tempo, 20 * 1920));
+    CHECK (Access::selectedRow (w) == tempoRow);
+
+    CHECK (w.selectEvent (TempoMeterKind::tempo, 40 * 1920));
+    CHECK (Access::selectedRow (w) == lastRow);
+    CHECK (Access::rowVisible (w, lastRow));
+    CHECK (seen.back() == std::optional<int> (40 * 1920));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: selectEvent for an event that does not exist returns false and changes nothing", "[tempo-meter-window][select-event]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (w.selectEvent (TempoMeterKind::tempo, 1920));
+    const int before = Access::selectedRow (w);
+
+    std::vector<std::optional<int>> seen;
+    w.onSelectedTickChanged = [&seen] (std::optional<int> t) { seen.push_back (t); };
+    CHECK_FALSE (w.selectEvent (TempoMeterKind::meter, 1920));   // right tick, wrong kind
+    CHECK_FALSE (w.selectEvent (TempoMeterKind::tempo, 777));
+    CHECK (Access::selectedRow (w) == before);
+    CHECK (seen.empty());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: selectEvent sees an event added a moment ago, before the coalesced refresh ran", "[tempo-meter-window][select-event]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 2);
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));   // refresh is pending, not yet run
+    CHECK (w.selectEvent (TempoMeterKind::tempo, 1920));
+    CHECK (Access::rowAt (w, Access::selectedRow (w)).tick == 1920);
 }

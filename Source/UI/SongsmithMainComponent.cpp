@@ -109,6 +109,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     trackList.setPlayback (playback);
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
+    trackList.onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { selectTempoMeterEvent (kind, tick); };
     trackList.onTempoMeterRequested = [this] { openTempoMeterEditor(); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
     trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
@@ -240,6 +241,12 @@ void SongsmithMainComponent::openTempoMeterEditor()
         };
     }
     tempoMeterWindow->toFront (true);
+}
+
+void SongsmithMainComponent::selectTempoMeterEvent (TempoMeterKind kind, int tick)
+{
+    openTempoMeterEditor();
+    tempoMeterWindow->selectEvent (kind, tick);
 }
 
 void SongsmithMainComponent::documentReplaced()

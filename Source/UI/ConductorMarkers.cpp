@@ -4,6 +4,7 @@
 #include <array>
 #include <climits>
 #include <cstdio>
+#include <cstdlib>
 #include <iterator>
 
 namespace lotro
@@ -57,6 +58,39 @@ std::vector<PlacedMarker> placeMarkers (const std::vector<ConductorMarker>& mark
         out.push_back ({ marker, x, shown, width });
     }
     return out;
+}
+
+std::optional<MarkerHit> markerAt (const std::vector<PlacedMarker>& placed, int x, int y, int rowHeight,
+                                   int tolerancePx, int labelInset)
+{
+    const auto halfKind = y < rowHeight / 2 ? TempoMeterKind::tempo : TempoMeterKind::meter;
+
+    std::optional<MarkerHit> best;
+    int bestMismatch = 0;
+    int bestDistance = 0;
+    for (const auto& p : placed)
+    {
+        const bool ownHalf = p.marker.kind == halfKind;
+        const int lineDistance = std::abs (x - p.x);
+        int distance = lineDistance;
+        bool hit = lineDistance <= tolerancePx;
+        if (ownHalf && p.labelShown && x >= p.x + labelInset && x < p.x + labelInset + p.labelWidth + 2)
+        {
+            hit = true;
+            distance = 0;
+        }
+        if (! hit)
+            continue;
+
+        const int mismatch = ownHalf ? 0 : 1;
+        if (! best || mismatch < bestMismatch || (mismatch == bestMismatch && distance < bestDistance))
+        {
+            best = MarkerHit { p.marker.kind, p.marker.tick };
+            bestMismatch = mismatch;
+            bestDistance = distance;
+        }
+    }
+    return best;
 }
 
 } // namespace lotro
