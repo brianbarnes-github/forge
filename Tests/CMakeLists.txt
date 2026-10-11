@@ -34,6 +34,7 @@ add_executable(forge_tests
     GridLines_tests.cpp
     MeterSegments_tests.cpp
     TempoMapSync_tests.cpp
+    TempoEdit_tests.cpp
     TempoMapInvariant_tests.cpp
     SectionEdit_tests.cpp
     NoteMerge_tests.cpp
@@ -107,6 +108,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/GridLines.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/MeterSegments.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoMapSync.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/TempoEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SectionEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/NoteMerge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ProgramChanges.cpp

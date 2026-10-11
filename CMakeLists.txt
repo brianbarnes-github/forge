@@ -132,6 +132,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/GridLines.cpp
     Source/UI/MeterSegments.cpp
     Source/UI/TempoMapSync.cpp
+    Source/UI/TempoEdit.cpp
     Source/UI/SectionEdit.cpp
     Source/UI/NoteMerge.cpp
     Source/UI/ProgramChanges.cpp
