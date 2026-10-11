@@ -72,8 +72,7 @@ public:
     // resize until the user wheel-zooms. Does not take ownership of `source` — the caller
     // (SongsmithMainComponent) owns the SourceTrackNoteSource and must keep
     // it alive at least as long as it stays set here. ticksPerQuarter and
-    // meterMapNode drive bar-boundary gridlines (first meter entry only, per
-    // this project's one-meter-timeline convention elsewhere).
+    // meterMapNode drive bar-boundary gridlines (every meter change).
     void setNoteSource (PianoRollNoteSource* source, int ticksPerQuarter, juce::ValueTree meterMapNode);
 
     // Preview role only: the instrument's playable MIDI range (half-open,

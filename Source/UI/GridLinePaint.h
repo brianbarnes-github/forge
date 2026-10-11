@@ -19,14 +19,14 @@ inline juce::Colour gridLineColour (GridLevel level)
 // `xForTick` maps a tick to a component x; `tickForX` is its inverse.
 template <typename XForTick, typename TickForX>
 void paintGridLines (juce::Graphics& g, juce::Rectangle<int> clip, double pixelsPerTick, int ticksPerQuarter,
-                     RulerMeter meter, XForTick xForTick, TickForX tickForX)
+                     const std::vector<MeterChange>& meters, XForTick xForTick, TickForX tickForX)
 {
     if (clip.isEmpty())
         return;
 
     // One tick of slack either side so a line sitting on the clip edge is kept.
     const auto lines = computeGridLines (tickForX (clip.getX()) - 1, tickForX (clip.getRight()) + 1,
-                                         pixelsPerTick, ticksPerQuarter, meter);
+                                         pixelsPerTick, ticksPerQuarter, meters);
     for (const auto& line : lines)
     {
         const int x = xForTick (line.tick);
@@ -35,6 +35,15 @@ void paintGridLines (juce::Graphics& g, juce::Rectangle<int> clip, double pixels
         g.setColour (gridLineColour (line.level));
         g.drawVerticalLine (x, (float) clip.getY(), (float) clip.getBottom());
     }
+}
+
+// One meter for the whole timeline.
+template <typename XForTick, typename TickForX>
+void paintGridLines (juce::Graphics& g, juce::Rectangle<int> clip, double pixelsPerTick, int ticksPerQuarter,
+                     RulerMeter meter, XForTick xForTick, TickForX tickForX)
+{
+    paintGridLines (g, clip, pixelsPerTick, ticksPerQuarter,
+                    std::vector<MeterChange> { { 0, meter.numerator, meter.denominator } }, xForTick, tickForX);
 }
 
 } // namespace lotro

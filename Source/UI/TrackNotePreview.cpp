@@ -19,16 +19,10 @@ namespace lotro
         const int ticksPerQuarter = (int) root.getChildWithName (SongIDs::SOURCE_MIDI)
                                          .getProperty (SongIDs::ticksPerQuarter, 480);
 
-        RulerMeter meter;
-        const auto meterMap = root.getChildWithName (SongIDs::METER_MAP);
-        if (meterMap.getNumChildren() > 0)
-        {
-            meter.numerator = (int) meterMap.getChild (0).getProperty (SongIDs::numerator, 4);
-            meter.denominator = (int) meterMap.getChild (0).getProperty (SongIDs::denominator, 4);
-        }
+        const auto meters = SongDocument::meterChangesOf (root.getChildWithName (SongIDs::METER_MAP));
 
         paintGridLines (g, g.getClipBounds().withY (0).withHeight (getHeight()), viewState.getPixelsPerTick(),
-                        ticksPerQuarter, meter,
+                        ticksPerQuarter, meters,
                         [this] (int tick) { return viewState.xForTick (tick); },
                         [this] (int x) { return viewState.tickForX (x); });
     }

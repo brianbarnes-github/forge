@@ -587,17 +587,8 @@ void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> 
 
 void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const
 {
-    int numerator = 4;
-    int denominator = 4;
-    if (meterMap.isValid() && meterMap.getNumChildren() > 0)
-    {
-        auto first = meterMap.getChild (0);
-        numerator = (int) first.getProperty (SongIDs::numerator, 4);
-        denominator = (int) first.getProperty (SongIDs::denominator, 4);
-    }
-
     paintGridLines (g, clip, geometry.getPixelsPerQuarterNote() / (double) ticksPerQuarter, ticksPerQuarter,
-                    { numerator, denominator },
+                    SongDocument::meterChangesOf (meterMap),
                     [this] (int tick) { return geometry.xForTick (tick); },
                     [this] (int x) { return geometry.tickForX (x); });
 }

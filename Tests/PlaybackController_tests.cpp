@@ -192,6 +192,33 @@ TEST_CASE ("PlaybackController: rewindOneBar steps back to the previous bar line
     CHECK (r.controller.getPositionTicks() == Approx (1920.0));
 }
 
+TEST_CASE ("rewindOneBar steps back across a meter change", "[playback][tempo-sync]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 19200);
+    r.doc.setTimeBase (true);
+    auto events = SongDocument::getEventsNode (r.doc.getConductorTrack());
+    const auto addMeter = [&events] (int tick, std::uint8_t numerator)
+    {
+        juce::ValueTree event (SongIDs::EVENT);
+        event.setProperty (SongIDs::tick, tick, nullptr);
+        event.setProperty (SongIDs::order, events.getNumChildren(), nullptr);
+        const std::uint8_t bytes[] = { 0xFF, 0x58, numerator, 2, 24, 8 };   // numerator/4
+        event.setProperty (SongIDs::data, juce::var (juce::MemoryBlock (bytes, sizeof bytes)), nullptr);
+        SongDocument::appendChildBulk (events, event);
+    };
+    addMeter (0, 4);
+    addMeter (3840, 3);
+    r.controller.flushRebuild();
+    r.controller.seekToTick (5380.0);     // 100 ticks into the second 3/4 bar (1440 ticks each)
+    r.controller.rewindOneBar();
+    CHECK (r.controller.getPositionTicks() == Approx (5280.0));
+    r.controller.rewindOneBar();
+    CHECK (r.controller.getPositionTicks() == Approx (3840.0));
+    r.controller.rewindOneBar();
+    CHECK (r.controller.getPositionTicks() == Approx (1920.0));   // the last 4/4 bar
+}
+
 TEST_CASE ("PlaybackController: onBeforePlay can veto Play", "[playback][controller]")
 {
     Rig r;

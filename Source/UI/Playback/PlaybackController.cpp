@@ -1,5 +1,7 @@
 #include "UI/Playback/PlaybackController.h"
 
+#include "UI/MeterSegments.h"
+
 #include <cmath>
 
 namespace lotro
@@ -123,14 +125,8 @@ void PlaybackController::rewindOneBar()
 {
     if (snapshot == nullptr)
         return;
-    int numerator = 4, denominator = 4;
-    const auto meter = doc.getMeterMapNode().getChild (0);   // first entry only: one-meter-timeline convention
-    if (meter.isValid())
-    {
-        numerator = (int) meter.getProperty (SongIDs::numerator, 4);
-        denominator = (int) meter.getProperty (SongIDs::denominator, 4);
-    }
-    seekToTick (previousBarTick (getPositionTicks(), snapshot->tempo().getTicksPerQuarter(), numerator, denominator));
+    const auto segments = meterSegments (doc.getMeterChanges(), snapshot->tempo().getTicksPerQuarter());
+    seekToTick (previousBarStart (segments, getPositionTicks()));
 }
 
 void PlaybackController::seekToTick (double tick)

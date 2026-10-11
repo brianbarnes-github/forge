@@ -1,6 +1,8 @@
 #include "UI/GridLines.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 
 namespace lotro
@@ -30,19 +32,29 @@ namespace
 }
 
 std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
-                                        int ticksPerQuarter, RulerMeter meter)
+                                        int ticksPerQuarter, const std::vector<MeterChange>& meters)
 {
     firstTick = std::max (firstTick, 0);
     if (ticksPerQuarter <= 0 || ! (pixelsPerTick > 0.0) || lastTick < firstTick)
         return {};
 
-    if (meter.numerator <= 0 || meter.denominator <= 0)
-        meter = {};
-
     std::map<int, GridLevel> lines;
 
-    const double barTicks = (double) ticksPerQuarter * 4.0 * (double) meter.numerator / (double) meter.denominator;
-    addLines (lines, barTicks, GridLevel::Bar, firstTick, lastTick);
+    const auto segments = meterSegments (meters, ticksPerQuarter);
+    for (size_t i = 0; i < segments.size(); ++i)
+    {
+        const auto& s = segments[i];
+        const double end = i + 1 < segments.size() ? segments[i + 1].startTick : std::numeric_limits<double>::infinity();
+        for (long long k = std::max (0LL, (long long) std::floor (((double) firstTick - s.startTick) / s.ticksPerBar));; ++k)
+        {
+            const double barTick = s.startTick + (double) k * s.ticksPerBar;
+            if (barTick >= end - 1e-9 || barTick > (double) lastTick)
+                break;
+            const long long tick = std::llround (barTick);
+            if (tick >= firstTick)
+                lines.emplace ((int) tick, GridLevel::Bar);
+        }
+    }
 
     const double wholeTicks = 4.0 * (double) ticksPerQuarter;
     double spacing = wholeTicks;
@@ -59,6 +71,15 @@ std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixe
     for (const auto& [tick, level] : lines)
         result.push_back ({ tick, level });
     return result;
+}
+
+std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
+                                        int ticksPerQuarter, RulerMeter meter)
+{
+    if (meter.numerator <= 0 || meter.denominator <= 0)
+        meter = {};
+    return computeGridLines (firstTick, lastTick, pixelsPerTick, ticksPerQuarter,
+                             std::vector<MeterChange> { { 0, meter.numerator, meter.denominator } });
 }
 
 } // namespace lotro

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "UI/MeterSegments.h"
 #include "UI/Playback/TimelineRulerMarks.h"
 
 #include <vector>
@@ -38,5 +39,9 @@ constexpr double minGridLinePixels = 8.0;
 // 1/64 note is not a whole number of ticks (odd PPQ) positions are rounded.
 std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
                                         int ticksPerQuarter, RulerMeter meter);
+
+// As above, with bar lines following every meter change (segments from meterSegments).
+std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
+                                        int ticksPerQuarter, const std::vector<MeterChange>& meters);
 
 } // namespace lotro

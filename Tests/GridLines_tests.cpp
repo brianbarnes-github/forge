@@ -141,3 +141,27 @@ TEST_CASE ("grid lines: a ppq the 1/64 note does not divide evenly rounds to who
         CHECK (lines[i - 1].tick < lines[i].tick);
     CHECK (hasLevel (lines, GridLevel::SixtyFourth));
 }
+
+TEST_CASE ("computeGridLines: bar lines follow a meter change", "[grid][tempo-sync]")
+{
+    const int ppq = 480;
+    const auto lines = computeGridLines (0, 6720, 0.001, ppq, std::vector<MeterChange> { { 0, 4, 4 }, { 3840, 3, 4 } });
+    std::vector<int> bars;
+    for (const auto& l : lines)
+        if (l.level == GridLevel::Bar)
+            bars.push_back (l.tick);
+    CHECK (bars == std::vector<int> { 0, 1920, 3840, 5280, 6720 });   // 4/4 bars, then 1440-tick bars
+}
+
+TEST_CASE ("computeGridLines: one meter through the list overload equals the single-meter overload", "[grid][tempo-sync]")
+{
+    const int ppq = 480;
+    const auto a = computeGridLines (0, 4000, 0.05, ppq, RulerMeter { 6, 8 });
+    const auto b = computeGridLines (0, 4000, 0.05, ppq, std::vector<MeterChange> { { 0, 6, 8 } });
+    REQUIRE (a.size() == b.size());
+    for (size_t i = 0; i < a.size(); ++i)
+    {
+        CHECK (a[i].tick == b[i].tick);
+        CHECK (a[i].level == b[i].level);
+    }
+}
