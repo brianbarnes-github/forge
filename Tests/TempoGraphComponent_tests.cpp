@@ -623,6 +623,90 @@ TEST_CASE ("TempoGraphComponent: undo mid-drag drops the drag and mouse-up write
         CHECK (tempos (r.doc) == afterUndo);
         CHECK (r.doc.getUndoManager().canRedo());
         CHECK_FALSE (r.graph->isDraggingForTesting());
+        CHECK (r.edits.empty());   // abandoned silently, as the meter strip does
+    }
+}
+
+TEST_CASE ("TempoGraphComponent: undo mid-drag that changes the dragged tempo's BPM writes nothing", "[tempo-graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Rig r;   // 120 @ 0, 90 @ 1920, 150 @ 3840
+    const auto original = tempos (r.doc);
+
+    // Commit 90 -> 100 with a vertical drag.
+    {
+        const auto p  = r.at (1920, 90);
+        const juce::Point<int> to (p.x, r.graph->yForBpm (100));
+        press (*r.graph, p);
+        dragTo (*r.graph, to, p);
+        release (*r.graph, to, p);
+        REQUIRE (r.edits.size() == 1);
+        REQUIRE_FALSE (r.edits[0].has_value());
+        REQUIRE (*tempoAt (r.doc, 1920) == Approx (100.0).margin (0.01));
+    }
+    r.edits.clear();
+
+    // A sideways drag of the same point (|dy| < 3 keeps the stored BPM, 100).
+    const auto p = r.at (1920, 100);
+    const juce::Point<int> to (r.graph->xForTick (2400), p.y + 1);
+
+    SECTION ("the listing is refreshed before mouse-up")
+    {
+        press (*r.graph, p);
+        dragTo (*r.graph, to, p);
+        REQUIRE (r.graph->isDraggingForTesting());
+        r.doc.undo();   // back to 90 @ 1920: same tick, different BPM
+        REQUIRE (tempos (r.doc) == original);
+        r.sync();
+        release (*r.graph, to, p);
+        CHECK (tempos (r.doc) == original);
+        CHECK (r.doc.getUndoManager().canRedo());
+        CHECK (r.edits.empty());
+    }
+
+    SECTION ("mouse-up arrives before the refresh")
+    {
+        press (*r.graph, p);
+        dragTo (*r.graph, to, p);
+        r.doc.undo();
+        REQUIRE (tempos (r.doc) == original);
+        release (*r.graph, to, p);
+        CHECK (tempos (r.doc) == original);
+        CHECK (r.doc.getUndoManager().canRedo());
+        CHECK (r.edits.empty());
+    }
+}
+
+TEST_CASE ("TempoGraphComponent: only the left button selects, drags or adds", "[tempo-graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    for (const auto button : { juce::ModifierKeys::rightButtonModifier, juce::ModifierKeys::middleButtonModifier })
+    {
+        Rig r;
+        const auto before = tempos (r.doc);
+        const auto p  = r.at (1920, 90);
+        const juce::Point<int> to (r.graph->xForTick (2400), r.graph->yForBpm (130));
+        const auto mouse = [&] (juce::Point<int> pos, juce::Point<int> down)
+        {
+            const auto now = juce::Time::getCurrentTime();
+            return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos.toFloat(),
+                                     juce::ModifierKeys (button), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, r.graph.get(), r.graph.get(),
+                                     now, down.toFloat(), now, 1, pos != down);
+        };
+
+        r.graph->mouseDown (mouse (p, p));
+        CHECK_FALSE (r.graph->isDraggingForTesting());
+        r.graph->mouseDrag (mouse (to, p));
+        r.graph->mouseUp (mouse (to, p));
+
+        const juce::Point<int> empty (r.graph->xForTick (960), r.graph->yForBpm (110));
+        r.graph->mouseDown (mouse (empty, empty));
+        r.graph->mouseUp (mouse (empty, empty));
+
+        CHECK (r.edits.empty());
+        CHECK (r.selects.empty());
+        CHECK (tempos (r.doc) == before);
+        CHECK_FALSE (r.doc.getUndoManager().canUndo());
     }
 }
 

@@ -34,6 +34,15 @@ namespace lotro
             return true;
         }
 
+        // True when `listing` holds a tempo at `event`'s tick with `event`'s BPM (both are
+        // read from the same stored microseconds, so an unchanged event matches exactly).
+        bool listsTempo (const std::vector<TempoMeterEvent>& listing, const TempoMeterEvent& event)
+        {
+            return std::any_of (listing.begin(), listing.end(), [&event] (const TempoMeterEvent& e)
+                                { return e.kind == TempoMeterKind::tempo && e.tick == event.tick
+                                         && std::abs (e.bpm - event.bpm) < 1e-9; });
+        }
+
         // Smallest "round" step whose spacing is at least 28 px (else the largest).
         double gridStepFor (const BpmRange& range, int plotHeight)
         {
@@ -61,10 +70,9 @@ namespace lotro
 
     void TempoGraphComponent::setEvents (std::vector<TempoMeterEvent> newEvents)
     {
-        // The dragged event vanished (undo / redo / New mid-drag): drop the drag, so the
-        // coming mouse-up commits nothing.
-        if (drag && std::none_of (newEvents.begin(), newEvents.end(), [this] (const TempoMeterEvent& e)
-                                  { return e.kind == drag->event.kind && e.tick == drag->event.tick; }))
+        // The dragged event vanished or its BPM changed (undo / redo / New mid-drag): drop
+        // the drag, so the coming mouse-up commits nothing stale.
+        if (drag && ! listsTempo (newEvents, drag->event))
         {
             drag.reset();
             requestRepaint();
@@ -226,6 +234,8 @@ namespace lotro
     void TempoGraphComponent::mouseDown (const juce::MouseEvent& e)
     {
         drag.reset();
+        if (! e.mods.isLeftButtonDown())
+            return;
         const auto pos    = e.getPosition();
         const auto tempos = tempoEntries (events);
 
@@ -302,6 +312,10 @@ namespace lotro
         requestRepaint();
         if (! done.moved)
             return;          // a click: nothing is written
+        // The tempo vanished or changed before the refresh reached us (undo mid-drag):
+        // write nothing, silently, as the meter strip does.
+        if (! doc.hasTimeBase() || ! listsTempo (listTempoMeterEvents (doc), done.event))
+            return;
         const auto result = moveTempoTo (doc, done.event, done.previewTick, done.previewBpm);
         if (onEdited)
             onEdited (result);
