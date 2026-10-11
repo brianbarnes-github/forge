@@ -6,6 +6,8 @@
 #include "PlaybackTestSupport.h"
 #include "UI/SongDocument.h"
 #include "UI/SongModelBridge.h"
+#include "UI/TempoEdit.h"
+#include "MidiTestBytes.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/TrackListComponent.h"
 #include "UI/SectionEdit.h"
@@ -2813,4 +2815,83 @@ TEST_CASE ("TrackListComponent: an Alt-drag carries events when the merge scope 
 
     CHECK (SongDocument::getEventsNode (f.target).getNumChildren() == 1);
     CHECK (SongDocument::getEventsNode (f.source).getNumChildren() == 0);
+}
+
+// --- Conductor row markers follow tempo edits (phase 2) ---
+
+namespace
+{
+    miditest::Bytes conductorSong()
+    {
+        miditest::TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08 }).eot (3840);
+        miditest::TrackBody n;
+        n.ev (0, { 0x90, 60, 100 }).ev (480, { 0x80, 60, 0x40 }).eot();
+        return miditest::smf (1, 480, { c, n });
+    }
+
+    juce::Image renderOf (TrackNotePreview& preview)
+    {
+        juce::Image image (juce::Image::ARGB, preview.getWidth(), preview.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        preview.paint (g);
+        return image;
+    }
+
+    bool sameImage (const juce::Image& a, const juce::Image& b)
+    {
+        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight())
+            return false;
+        for (int y = 0; y < a.getHeight(); ++y)
+            for (int x = 0; x < a.getWidth(); ++x)
+                if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
+                    return false;
+        return true;
+    }
+}
+
+TEST_CASE ("TrackListComponent: the Conductor row's markers follow setTempo, undo and redo", "[track-list][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    const auto file = juce::File::createTempFile (".mid");
+    const auto bytes = conductorSong();
+    REQUIRE (file.replaceWithData (bytes.data(), bytes.size()));
+    SongDocument doc;
+    Diagnostics diags;
+    REQUIRE (importMidiFile (doc, file, 1, diags));
+    file.deleteFile();
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 900, 400);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (100);
+
+    const auto& view = Access::timelineView (list);
+    const auto pump = [] { juce::MessageManager::getInstance()->runDispatchLoopUntil (100); };
+    const auto lineAt960 = [&]
+    {
+        auto& preview = Access::rows (list)[0]->notePreviewForTesting();
+        const auto image = renderOf (preview);
+        const int x = view.xForTick (960);
+        REQUIRE (x >= 0);
+        REQUIRE (x < image.getWidth());
+        return image.getPixelAt (x, image.getHeight() - 1) == juce::Colour (SongsmithColours::conductorTempo);
+    };
+
+    REQUIRE (Access::rows (list)[0]->getTrackId() == (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId));
+    const auto otherBefore = renderOf (Access::rows (list)[1]->notePreviewForTesting());
+    CHECK_FALSE (lineAt960());
+
+    REQUIRE_FALSE (setTempo (doc, 960, 90.0).has_value());
+    pump();
+    CHECK (lineAt960());
+    CHECK (sameImage (otherBefore, renderOf (Access::rows (list)[1]->notePreviewForTesting())));
+
+    doc.undo();
+    pump();
+    CHECK_FALSE (lineAt960());
+
+    doc.redo();
+    pump();
+    CHECK (lineAt960());
 }
