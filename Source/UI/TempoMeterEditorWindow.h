@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "SongDocument.h"
+#include "TempoMeterPositionStrip.h"
 #include "TempoMeterTable.h"
 
 #include <functional>
@@ -55,6 +56,8 @@ namespace lotro
                     return k.isKeyCode (juce::KeyPress::backspaceKey) ? false : juce::TableListBox::keyPressed (k);
                 }
             };
+            PositionStrip strip;    // where the selected event sits in the song
+            juce::Label   readout;  // "Selected: bar 5.2  ·  tick 7680  ·  0:12.5"
             Table table;
             juce::TextButton   addTempo { "Add Tempo" }, addMeter { "Add Meter" }, remove { "Remove" };
             juce::Label        message;
@@ -83,6 +86,8 @@ namespace lotro
         void refreshNow();
         std::optional<TempoMeterEvent> selectedEvent() const;
         void notifySelectedTick();
+        // Readout text and strip for the current events / selection.
+        void updatePositionIndicators();
 
         void commitCell (int row, int column, const juce::String& text);
         void showResult (const TableEditResult& result);

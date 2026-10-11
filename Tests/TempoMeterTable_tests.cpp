@@ -389,3 +389,28 @@ TEST_CASE ("TempoMeterTable: every message from describe is non-empty and distin
     CHECK (describe ({ TableEditError::Kind::UnparsableBpm, std::nullopt }) == "Enter a tempo in BPM, e.g. 120");
     CHECK (describe ({ TableEditError::Kind::Rejected, TempoEditError::BpmOutOfRange }) == "Tempo must be between 3.58 and 1000 BPM");
 }
+
+TEST_CASE ("TempoMeterTable: selectedPositionText gives bar.beat, tick and m:ss.s", "[tempo-meter-table][position]")
+{
+    const std::string dot = "  \xC2\xB7  ";
+    const std::vector<MeterChange> fourFour { { 0, 4, 4 } };
+
+    CHECK (selectedPositionText (0, 0.0, fourFour, 480) == "Selected: bar 1.1" + dot + "tick 0" + dot + "0:00.0");
+    // Bar 2 spans 1920..3840; 2400 is its second beat.
+    CHECK (selectedPositionText (2400, 2.5, fourFour, 480) == "Selected: bar 2.2" + dot + "tick 2400" + dot + "0:02.5");
+    CHECK (selectedPositionText (8640, 72.54, fourFour, 480) == "Selected: bar 5.3" + dot + "tick 8640" + dot + "1:12.5");
+    // Rounds to a tenth, carrying into the minute.
+    CHECK (selectedPositionText (0, 59.96, fourFour, 480).find ("1:00.0") != std::string::npos);
+
+    // 3/4 from tick 1920: bars of 1440, so 3840 is the second beat of bar 3.
+    const std::vector<MeterChange> change { { 0, 4, 4 }, { 1920, 3, 4 } };
+    CHECK (selectedPositionText (3840, 4.0, change, 480) == "Selected: bar 3.2" + dot + "tick 3840" + dot + "0:04.0");
+}
+
+TEST_CASE ("TempoMeterTable: selectedPositionText shows the seconds it is given, not a constant-tempo guess", "[tempo-meter-table][position]")
+{
+    const std::vector<MeterChange> fourFour { { 0, 4, 4 } };
+    // Tick 3840 at a constant 120 BPM is 4.0 s; after a slower tempo it is later.
+    CHECK (selectedPositionText (3840, 6.0, fourFour, 480).find ("0:06.0") != std::string::npos);
+    CHECK (selectedPositionText (3840, 6.0, fourFour, 480).find ("0:04.0") == std::string::npos);
+}

@@ -1,5 +1,6 @@
 #include "TempoMeterEditorWindow.h"
 #include "HistoryKeys.h"
+#include "Playback/PlaybackSnapshot.h"
 #include "SongsmithColours.h"
 
 namespace lotro
@@ -50,6 +51,12 @@ namespace lotro
         message.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::accentAmber));
         message.setMinimumHorizontalScale (1.0f);
 
+        readout.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
+        readout.setFont (juce::FontOptions (14.0f));
+        readout.setMinimumHorizontalScale (1.0f);
+
+        addAndMakeVisible (strip);
+        addAndMakeVisible (readout);
         addAndMakeVisible (table);
         addAndMakeVisible (addTempo);
         addAndMakeVisible (addMeter);
@@ -60,6 +67,9 @@ namespace lotro
     void TempoMeterEditorWindow::Content::resized()
     {
         auto area = getLocalBounds().reduced (8);
+        strip.setBounds (area.removeFromTop (PositionStrip::height));
+        readout.setBounds (area.removeFromTop (22));
+        area.removeFromTop (4);
         message.setBounds (area.removeFromBottom (24));
         area.removeFromBottom (4);
         auto buttons = area.removeFromBottom (28);
@@ -97,7 +107,7 @@ namespace lotro
         content->setSize (520, 420);
         setUsingNativeTitleBar (true);
         setResizable (true, false);
-        setResizeLimits (360, 240, 900, 800);   // no maximise button; keep it from being dragged huge
+        setResizeLimits (360, 300, 900, 800);   // no maximise button; keep it from being dragged huge
         setContentNonOwned (content.get(), true);
 
         sourceMidiNode.addListener (this);
@@ -182,6 +192,7 @@ namespace lotro
 
     void TempoMeterEditorWindow::selectedRowsChanged (int)
     {
+        updatePositionIndicators();
         notifySelectedTick();
     }
 
@@ -191,6 +202,27 @@ namespace lotro
             return;
         const auto selected = selectedEvent();
         onSelectedTickChanged (selected ? std::optional<int> (selected->tick) : std::nullopt);
+    }
+
+    void TempoMeterEditorWindow::updatePositionIndicators()
+    {
+        const int ticksPerQuarter = (int) sourceMidiNode.getProperty (SongIDs::ticksPerQuarter, 480);
+        const auto selected = selectedEvent();
+        const auto meterMap = doc.getMeterChanges();
+
+        if (selected)
+        {
+            const double seconds = tempoMapFromDocument (doc).ticksToSeconds ((double) selected->tick);
+            content->readout.setText (selectedPositionText (selected->tick, seconds, meterMap, ticksPerQuarter),
+                                      juce::dontSendNotification);
+        }
+        else
+        {
+            content->readout.setText ("No event selected", juce::dontSendNotification);
+        }
+
+        content->strip.update (events, meterMap, ticksPerQuarter, lastNoteEndTick (doc),
+                               selected ? std::optional<int> (selected->tick) : std::nullopt);
     }
 
     juce::Component* TempoMeterEditorWindow::refreshComponentForCell (int row, int column, bool,
@@ -266,6 +298,7 @@ namespace lotro
         if (sameRows (newRows, rows))
         {
             events = std::move (newEvents);   // the stored values may differ below display precision
+            updatePositionIndicators();
             return;   // keeps an open cell editor alive
         }
 
@@ -287,6 +320,7 @@ namespace lotro
         else
             table.deselectAllRows();
         table.repaint();
+        updatePositionIndicators();
         notifySelectedTick();   // idempotent; covers a restore that changed no row index
     }
 

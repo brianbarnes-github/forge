@@ -7,6 +7,7 @@
 #include "UI/TempoEdit.h"
 
 #include "Core/Song.h" // MeterChange
+#include "UI/MeterSegments.h"
 
 #include <optional>
 #include <string>
@@ -32,6 +33,18 @@ struct TableRow
 std::vector<TableRow> tableRows (const std::vector<TempoMeterEvent>& events,
                                  const std::vector<MeterChange>& meterMap,
                                  int ticksPerQuarter);
+
+// "3.2" = bar 3, beat 2 (1-based) at `tick`, counted through the segments; empty when
+// there are none. The Position column and the window's readout share this.
+std::string barBeatTextAt (const std::vector<MeterSegment>& segments, int tick);
+
+// "0:12.5": minutes, then seconds rounded to a tenth (negative reads as 0).
+std::string formatClock (double seconds);
+
+// The window's readout for a selected event: "Selected: bar 5.2  ·  tick 7680  ·  0:12.5".
+// `seconds` is the tick's time from the tempo map.
+std::string selectedPositionText (int tick, double seconds, const std::vector<MeterChange>& meterMap,
+                                  int ticksPerQuarter);
 
 std::optional<double>             parseBpm   (const std::string& text);   // finite, > 0, whole text
 std::optional<std::pair<int,int>> parseMeter (const std::string& text);   // "n/d", both positive ints

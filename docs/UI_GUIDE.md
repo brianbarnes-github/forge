@@ -503,6 +503,14 @@ the first free bar start after the selected row, with the value already in force
 cannot be removed. Every edit is one undo step: Ctrl+Z / Ctrl+Y work in the window and in the main
 window's Edit menu, and the Conductor row's markers, the ruler and the grid follow.
 
+Above the table a **position strip** (28 px) shows the whole song from tick 0 to its end (the later
+of the last note and the last tempo / meter event, at least four bars): light bar lines (thinned when
+crowded, following meter changes), an amber notch for every tempo event, a blue notch for every meter
+event, and the selected event as a full-height green line. Under it a readout gives the selected
+event's place as text, `Selected: bar 5.2  ·  tick 7680  ·  0:12.5` (bar.beat, tick, and the time from
+the tempo map, so it follows tempo edits), or `No event selected`. The strip is display only. The
+window's minimum size is 360 x 300 so the table keeps at least six rows beside them.
+
 Selecting a row draws a green vertical line at that event's tick across every track row of the main
 window's timeline (aligned with the ruler and following scroll and zoom), so you can see where the event
 sits among the tracks. No selection (or a refresh that drops the selected event, closing the window, or

@@ -136,6 +136,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/TempoEdit.cpp
     Source/UI/TempoMeterTable.cpp
     Source/UI/TempoMeterEditorWindow.cpp
+    Source/UI/TempoMeterPositionStrip.cpp
     Source/UI/EventMarkerOverlay.cpp
     Source/UI/SectionEdit.cpp
     Source/UI/NoteMerge.cpp
