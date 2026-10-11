@@ -35,6 +35,7 @@ namespace lotro
             return c.watchedPartNode.isValid();
         }
         static const void* tempoMeterWindow (const SongsmithMainComponent& c) { return c.tempoMeterWindow.get(); }
+        static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
@@ -535,4 +536,18 @@ TEST_CASE ("SongsmithMainComponent: openTempoMeterEditor opens one window, re-fr
 
     main.documentReplaced();
     CHECK_FALSE (main.isTempoMeterEditorOpen());
+}
+
+TEST_CASE ("SongsmithMainComponent: closing the Tempo/Meter window lets the next open create a fresh one", "[tempo-meter]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+
+    main.openTempoMeterEditor();
+    REQUIRE (main.isTempoMeterEditorOpen());
+    Access::closeTempoMeterWindow (main);
+    CHECK_FALSE (main.isTempoMeterEditorOpen());
+    main.openTempoMeterEditor();
+    CHECK (main.isTempoMeterEditorOpen());
 }

@@ -1,10 +1,23 @@
 #include "TempoMeterEditorWindow.h"
+#include "HistoryKeys.h"
 #include "SongsmithColours.h"
 
 namespace lotro
 {
     namespace
     {
+        // A cell editor Label that also tells the table which row was pressed.
+        struct CellLabel : juce::Label
+        {
+            std::function<void()> onPressed;
+            void mouseDown (const juce::MouseEvent& e) override
+            {
+                if (onPressed)
+                    onPressed();
+                juce::Label::mouseDown (e);
+            }
+        };
+
         const juce::Identifier rowProperty ("tmRow");
         const juce::Identifier columnProperty ("tmColumn");
 
@@ -110,24 +123,12 @@ namespace lotro
 
     bool TempoMeterEditorWindow::keyPressed (const juce::KeyPress& key)
     {
-        const auto mods = key.getModifiers();
-        const int  code = key.getKeyCode();
-        const bool isZ = code == 'z' || code == 'Z';
-        const bool isY = code == 'y' || code == 'Y';
-
-        if (mods.isCommandDown() && isZ && mods.isShiftDown())
+        if (const auto action = historyActionFor (key))
         {
-            doc.redo();
-            return true;
-        }
-        if (mods.isCommandDown() && isZ)
-        {
-            doc.undo();
-            return true;
-        }
-        if (mods.isCommandDown() && isY)
-        {
-            doc.redo();
+            if (*action == HistoryAction::Undo)
+                doc.undo();
+            else
+                doc.redo();
             return true;
         }
         // With the table focused ListBox consumes Delete (deleteKeyPressed); this covers
@@ -191,8 +192,15 @@ namespace lotro
         if (label == nullptr)
         {
             delete existing;
-            label = new juce::Label();
-            label->setEditable (false, true);   // a single click edits
+            auto* cell = new CellLabel();
+            label = cell;
+            // Label swallows the mouse-down, so select the row ourselves.
+            cell->onPressed = [this, safe = juce::Component::SafePointer<juce::Label> (cell)]
+            {
+                if (safe != nullptr)
+                    content->table.selectRow ((int) safe->getProperties()[rowProperty]);
+            };
+            label->setEditable (true, false);   // a single click edits
             label->setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
             label->setColour (juce::Label::backgroundWhenEditingColourId, juce::Colour (SongsmithColours::panelHeader));
             label->setColour (juce::Label::textWhenEditingColourId, juce::Colour (SongsmithColours::text));
@@ -240,7 +248,10 @@ namespace lotro
         auto newEvents = listTempoMeterEvents (doc);
         auto newRows   = tableRows (newEvents, doc.getMeterChanges(), ticksPerQuarter);
         if (sameRows (newRows, rows))
+        {
+            events = std::move (newEvents);   // the stored values may differ below display precision
             return;   // keeps an open cell editor alive
+        }
 
         const auto previous = selectedEvent();
         events = std::move (newEvents);

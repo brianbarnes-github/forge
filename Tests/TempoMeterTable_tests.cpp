@@ -341,6 +341,27 @@ TEST_CASE ("TempoMeterTable: removeEvent removes by tick and refuses tick 0", "[
     CHECK (sameList (events (f.doc), before));
 }
 
+TEST_CASE ("TempoMeterTable: edits re-find the event and use its stored value, not the caller's copy", "[tempo-meter-table]")
+{
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 120.004).has_value());
+
+    // A stale copy (as a displayed row would keep): the stored bpm is 120.004.
+    auto stale = find (f.doc, TempoMeterKind::tempo, 1920);
+    stale.bpm = 120.0;
+    REQUIRE_FALSE (editTick (f.doc, stale, "960").has_value());
+    CHECK (find (f.doc, TempoMeterKind::tempo, 960).bpm == Approx (120.004).margin (0.0001));
+
+    // An event that is gone: nothing is recreated, and NoSuchEvent is reported.
+    const auto gone = find (f.doc, TempoMeterKind::tempo, 960);
+    REQUIRE_FALSE (removeTempo (f.doc, 960).has_value());
+    const auto before = events (f.doc);
+    CHECK (rejectedWith (editValue (f.doc, gone, "70"), TempoEditError::NoSuchEvent));
+    CHECK (rejectedWith (editTick (f.doc, gone, "480"), TempoEditError::NoSuchEvent));
+    CHECK (rejectedWith (removeEvent (f.doc, gone), TempoEditError::NoSuchEvent));
+    CHECK (sameList (events (f.doc), before));
+}
+
 TEST_CASE ("TempoMeterTable: every message from describe is non-empty and distinct", "[tempo-meter-table]")
 {
     std::set<std::string> messages;

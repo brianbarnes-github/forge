@@ -63,6 +63,15 @@ namespace
     TableEditResult rejected (TempoEditError cause) { return TableEditError { TableEditError::Kind::Rejected, cause }; }
     TableEditResult fail (TableEditError::Kind kind) { return TableEditError { kind, std::nullopt }; }
 
+    // The event of `row`'s (kind, tick) as the document holds it now.
+    std::optional<TempoMeterEvent> findCurrent (const SongDocument& doc, const TempoMeterEvent& row)
+    {
+        for (const auto& e : listTempoMeterEvents (doc))
+            if (e.kind == row.kind && e.tick == row.tick)
+                return e;
+        return std::nullopt;
+    }
+
     TableEditResult fromTempoEdit (const TempoEditResult& r)
     {
         return r ? rejected (*r) : TableEditResult {};
@@ -168,14 +177,21 @@ std::string describe (const TableEditError& error)
 
 TableEditResult editValue (SongDocument& doc, const TempoMeterEvent& row, const std::string& text)
 {
+    // `row` may be a stale copy: only its (kind, tick) identity is used, and the event must
+    // still exist (setTempo / setMeter would otherwise recreate a deleted one).
+    const auto current = findCurrent (doc, row);
     if (row.kind == TempoMeterKind::tempo)
     {
         const auto bpm = parseBpm (text);
-        return bpm ? fromTempoEdit (setTempo (doc, row.tick, *bpm)) : fail (TableEditError::Kind::UnparsableBpm);
+        if (! bpm)
+            return fail (TableEditError::Kind::UnparsableBpm);
+        return current ? fromTempoEdit (setTempo (doc, row.tick, *bpm)) : rejected (TempoEditError::NoSuchEvent);
     }
     const auto meter = parseMeter (text);
-    return meter ? fromTempoEdit (setMeter (doc, row.tick, meter->first, meter->second))
-                 : fail (TableEditError::Kind::UnparsableMeter);
+    if (! meter)
+        return fail (TableEditError::Kind::UnparsableMeter);
+    return current ? fromTempoEdit (setMeter (doc, row.tick, meter->first, meter->second))
+                   : rejected (TempoEditError::NoSuchEvent);
 }
 
 TableEditResult editTick (SongDocument& doc, const TempoMeterEvent& row, const std::string& text)
@@ -183,9 +199,12 @@ TableEditResult editTick (SongDocument& doc, const TempoMeterEvent& row, const s
     const auto tick = parseTick (text);
     if (! tick)
         return fail (TableEditError::Kind::UnparsableTick);
+    const auto current = findCurrent (doc, row);   // the stored value, not the caller's copy
+    if (! current)
+        return rejected (TempoEditError::NoSuchEvent);
     return fromTempoEdit (row.kind == TempoMeterKind::tempo
-                              ? moveTempo (doc, row.tick, *tick, row.bpm)
-                              : moveMeter (doc, row.tick, *tick, row.numerator, row.denominator));
+                              ? moveTempo (doc, row.tick, *tick, current->bpm)
+                              : moveMeter (doc, row.tick, *tick, current->numerator, current->denominator));
 }
 
 TableEditResult addEvent (SongDocument& doc, TempoMeterKind kind, std::optional<TempoMeterEvent> selected)
@@ -228,6 +247,8 @@ TableEditResult addEvent (SongDocument& doc, TempoMeterKind kind, std::optional<
 
 TableEditResult removeEvent (SongDocument& doc, const TempoMeterEvent& row)
 {
+    if (! findCurrent (doc, row))
+        return rejected (TempoEditError::NoSuchEvent);
     return fromTempoEdit (row.kind == TempoMeterKind::tempo ? removeTempo (doc, row.tick) : removeMeter (doc, row.tick));
 }
 

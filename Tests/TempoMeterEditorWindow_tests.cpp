@@ -64,6 +64,14 @@ namespace lotro
         {
             return dynamic_cast<juce::Label*> (w.content->table.getCellComponent (column, row));
         }
+        static void mouseDown (juce::Component& c)
+        {
+            const auto now = juce::Time::getCurrentTime();
+            const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), juce::Point<float> (2.0f, 2.0f),
+                                      juce::ModifierKeys::leftButtonModifier, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                      &c, &c, now, juce::Point<float> (2.0f, 2.0f), now, 1, false);
+            c.mouseDown (e);
+        }
         static bool keyOnTable (TempoMeterEditorWindow& w, const juce::KeyPress& k)
         {
             return w.content->table.keyPressed (k);
@@ -390,4 +398,101 @@ TEST_CASE ("TempoMeterEditorWindow: Delete on the table removes the selected eve
     CHECK (Access::rowCount (w) == 2);
 
     CHECK_FALSE (w.keyPressed (juce::KeyPress (juce::KeyPress::backspaceKey)));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a Tick edit keeps the stored bpm when the displayed text did not change", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 120.0));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 3);
+
+    Access::commitCell (w, 2, valueCol, "120.004");   // stored 120.004, still displays "120"
+    pump();
+    REQUIRE (Access::cellText (w, 2, valueCol) == "120");
+    double stored = 0.0;
+    for (const auto& e : listTempoMeterEvents (doc))
+        if (e.kind == TempoMeterKind::tempo && e.tick == 1920)
+            stored = e.bpm;
+    REQUIRE (stored == Approx (120.004).margin (0.0001));
+
+    Access::commitCell (w, 2, tickCol, "960");
+    bool found = false;
+    for (const auto& e : listTempoMeterEvents (doc))
+        if (e.kind == TempoMeterKind::tempo && e.tick == 960)
+        {
+            found = true;
+            CHECK (e.bpm == Approx (120.004).margin (0.0001));
+        }
+    CHECK (found);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a Value edit on an event removed behind the window's back does not recreate it", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 3);
+
+    REQUIRE_FALSE (removeTempo (doc, 1920));   // no pump: the window still shows the row
+    Access::commitCell (w, 2, valueCol, "70");
+    CHECK (listTempoMeterEvents (doc).size() == 2);
+    CHECK (Access::message (w)
+           == describe (TableEditError { TableEditError::Kind::Rejected, TempoEditError::NoSuchEvent }));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: mouse-down on a Value or Tick cell selects its row", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 3);
+
+    Access::selectRow (w, 0);
+    auto* label = Access::cellLabel (w, 2, valueCol);
+    REQUIRE (label != nullptr);
+    CHECK (label->isEditableOnSingleClick());
+    Access::mouseDown (*label);
+    CHECK (Access::selectedRow (w) == 2);
+
+    Access::selectRow (w, 0);
+    auto* tickLabel = Access::cellLabel (w, 2, tickCol);
+    REQUIRE (tickLabel != nullptr);
+    Access::mouseDown (*tickLabel);
+    CHECK (Access::selectedRow (w) == 2);
+
+    Access::pressRemove (w);
+    CHECK (listTempoMeterEvents (doc).size() == 2);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Shift+Backspace and Ctrl+Backspace do not remove", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::selectRow (w, 2);
+    Access::keyOnTable (w, juce::KeyPress (juce::KeyPress::backspaceKey, juce::ModifierKeys::shiftModifier, 0));
+    Access::keyOnTable (w, juce::KeyPress (juce::KeyPress::backspaceKey, juce::ModifierKeys::ctrlModifier, 0));
+    CHECK (listTempoMeterEvents (doc).size() == 3);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Ctrl+Alt+Z does not undo", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+
+    w.keyPressed (juce::KeyPress ('z', juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::altModifier, 0));
+    CHECK (listTempoMeterEvents (doc).size() == 3);
 }

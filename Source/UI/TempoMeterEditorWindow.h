@@ -47,7 +47,7 @@ namespace lotro
             {
                 bool keyPressed (const juce::KeyPress& k) override
                 {
-                    return k == juce::KeyPress::backspaceKey ? false : juce::TableListBox::keyPressed (k);
+                    return k.isKeyCode (juce::KeyPress::backspaceKey) ? false : juce::TableListBox::keyPressed (k);
                 }
             };
             Table table;
