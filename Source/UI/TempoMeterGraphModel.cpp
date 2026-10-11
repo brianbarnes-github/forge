@@ -65,7 +65,12 @@ int snapToBeat (const std::vector<MeterSegment>& segments, int tick)
     const auto next = std::find_if (segments.begin(), segments.end(),
                                     [&] (const MeterSegment& s) { return s.startTick > seg.startTick; });
     if (next != segments.end())
-        snapped = std::min (snapped, next->startTick - beat);
+    {
+        // last beat of this segment strictly before the next segment starts
+        const long long span = (long long) std::llround (next->startTick - 1.0 - seg.startTick);
+        const long long beatI = std::max (1LL, (long long) std::llround (beat));
+        snapped = std::min (snapped, seg.startTick + (double) ((span / beatI) * beatI));
+    }
     snapped = std::max (snapped, seg.startTick);
     return std::max (0, (int) std::llround (snapped));
 }

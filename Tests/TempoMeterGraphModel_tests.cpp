@@ -130,10 +130,15 @@ TEST_CASE ("snapToBeat: beats are measured from the segment start", "[tempo-grap
 
 TEST_CASE ("snapToBeat: never past the segment end", "[tempo-graph-model]")
 {
-    // second segment starts at 1900; 1890 would round to 1920, past the end -> last beat inside = 1420
+    // second segment starts at 1900; 1890 would round to 1920, past the end -> last beat of the
+    // first segment (beats 0, 480, 960, 1440) = 1440
     const auto segs = meterSegments ({ { 0, 4, 4 }, { 1900, 3, 4 } }, 480);
-    CHECK (snapToBeat (segs, 1890) == 1420);
+    CHECK (snapToBeat (segs, 1890) == 1440);
     CHECK (snapToBeat (segs, 1900) == 1900);
+
+    // segment boundary exactly on a beat: 1900 rounds to 1920 (the next segment), clamps to 1440
+    const auto onBeat = meterSegments ({ { 0, 4, 4 }, { 1920, 3, 4 } }, 480);
+    CHECK (snapToBeat (onBeat, 1900) == 1440);
 }
 
 TEST_CASE ("snapMeterTick: bars of the meters without the moved one", "[tempo-graph-model]")
