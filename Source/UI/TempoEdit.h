@@ -5,6 +5,8 @@
 // sections 1 and 2). Each successful call is one undo transaction; a rejected
 // call changes nothing and opens none.
 
+#include <juce_data_structures/juce_data_structures.h>
+
 #include <optional>
 #include <vector>
 
@@ -63,5 +65,7 @@ struct TempoMeterEvent
 // (and the first setX at a later tick writes the default at tick 0 explicitly, in the
 // same undo step), while moveX at tick 0 gives NoSuchEvent and removeX(0) CannotRemoveFirst.
 std::vector<TempoMeterEvent> listTempoMeterEvents (const SongDocument&);
+// The same listing read straight from a song root tree (e.g. a snapshot of the tree).
+std::vector<TempoMeterEvent> listTempoMeterEvents (const juce::ValueTree& songRoot);
 
 } // namespace lotro

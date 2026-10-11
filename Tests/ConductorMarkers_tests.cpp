@@ -1,0 +1,128 @@
+#include "MidiTestBytes.h"
+#include "UI/ConductorMarkers.h"
+#include "UI/MidiExport.h"
+#include "UI/SongDocument.h"
+#include "UI/SongModelBridge.h"
+#include "UI/TempoEdit.h"
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <juce_core/juce_core.h>
+
+#include <algorithm>
+
+using namespace lotro;
+using namespace miditest;
+
+namespace
+{
+    TempoMeterEvent tempo (int tick, double bpm) { return { TempoMeterKind::tempo, tick, bpm, 0, 0 }; }
+    TempoMeterEvent meter (int tick, int n, int d) { return { TempoMeterKind::meter, tick, 0.0, n, d }; }
+    const auto xOf  = [] (int tick) { return tick / 10; };          // 0.1 px per tick
+    // 6 px per character; the note glyph is three UTF-8 bytes, so count code points, not bytes.
+    const auto wide = [] (const std::string& s)
+    {
+        return (int) std::count_if (s.begin(), s.end(), [] (char c) { return ((unsigned char) c & 0xC0) != 0x80; }) * 6;
+    };
+
+    struct TempMidi
+    {
+        juce::File file = juce::File::createTempFile (".mid");
+        explicit TempMidi (const Bytes& bytes) { REQUIRE (file.replaceWithData (bytes.data(), bytes.size())); }
+        ~TempMidi() { file.deleteFile(); }
+    };
+
+    Bytes threeFourSong()
+    {
+        TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x58, 0x04, 0x03, 0x02, 0x18, 0x08 }).eot (3840);
+        TrackBody n;
+        n.ev (0, { 0x90, 60, 100 }).ev (480, { 0x80, 60, 0x40 }).eot();
+        return smf (1, 480, { c, n });
+    }
+
+    struct Loaded
+    {
+        TempMidi midi;
+        SongDocument doc;
+        Loaded() : midi (threeFourSong())
+        {
+            Diagnostics d;
+            REQUIRE (importMidiFile (doc, midi.file, 1, d));
+        }
+    };
+}
+
+TEST_CASE ("ConductorMarkers: BPM is shown with up to two decimals, trailing zeros trimmed", "[conductor-markers]")
+{
+    CHECK (formatBpm (120.0) == "120");
+    CHECK (formatBpm (93.75) == "93.75");
+    CHECK (formatBpm (100.5) == "100.5");
+    CHECK (formatBpm (60e6 / 500001.0) == "120");      // rounds, never "119.999998"
+}
+
+TEST_CASE ("ConductorMarkers: labels", "[conductor-markers]")
+{
+    CHECK (markerLabel (tempo (0, 120.0)) == "\xe2\x99\xa9=120");
+    CHECK (markerLabel (meter (0, 6, 8)) == "6/8");
+}
+
+TEST_CASE ("ConductorMarkers: one marker per event, order and ticks kept", "[conductor-markers]")
+{
+    const auto m = conductorMarkers ({ tempo (0, 120), meter (0, 4, 4), tempo (960, 90) });
+    REQUIRE (m.size() == 3);
+    CHECK (m[1].kind == TempoMeterKind::meter);
+    CHECK (m[2].tick == 960);
+    CHECK (conductorMarkers ({}).empty());
+}
+
+TEST_CASE ("ConductorMarkers: placeMarkers thins labels per kind but keeps every marker", "[conductor-markers]")
+{
+    // Marker x = 0, 20, 40, 60. A label is 5 chars * 6 = 30 px wide and starts 3 px after its marker.
+    // Label 0 ends at 33, so the next may start at 33 + 4 = 37: marker 1 (23) hides, marker 2 (43) shows
+    // and ends at 73, so marker 3 (63) hides.
+    const auto m = conductorMarkers ({ tempo (0, 100), tempo (200, 110), tempo (400, 120), tempo (600, 130) });
+    const auto p = placeMarkers (m, xOf, wide);
+    REQUIRE (p.size() == 4);
+    CHECK (p[0].labelShown);
+    CHECK_FALSE (p[1].labelShown);
+    CHECK (p[2].labelShown);
+    CHECK_FALSE (p[3].labelShown);
+    CHECK (p[3].x == 60);
+}
+
+TEST_CASE ("ConductorMarkers: a label exactly labelGap after the previous one is shown", "[conductor-markers]")
+{
+    // Label 0 ends at 3 + 30 = 33; a marker at x = 34 starts at 37 = 33 + 4 (shown), one at x = 33 starts at 36 (hidden).
+    const auto shown  = placeMarkers (conductorMarkers ({ tempo (0, 100), tempo (340, 110) }), xOf, wide);
+    const auto hidden = placeMarkers (conductorMarkers ({ tempo (0, 100), tempo (330, 110) }), xOf, wide);
+    CHECK (shown[1].labelShown);
+    CHECK_FALSE (hidden[1].labelShown);
+}
+
+TEST_CASE ("ConductorMarkers: thinning is per kind, so a same-tick tempo and meter both show", "[conductor-markers]")
+{
+    const auto p = placeMarkers (conductorMarkers ({ tempo (0, 120), meter (0, 4, 4) }), xOf, wide);
+    REQUIRE (p.size() == 2);
+    CHECK (p[0].labelShown);
+    CHECK (p[1].labelShown);
+    CHECK (placeMarkers ({}, xOf, wide).empty());
+}
+
+TEST_CASE ("ConductorMarkers: listing from the tree equals listing from the document", "[conductor-markers]")
+{
+    Loaded f;
+    const auto fromTree = listTempoMeterEvents (f.doc.getTree());
+    const auto fromDoc  = listTempoMeterEvents (f.doc);
+    REQUIRE (fromTree.size() == 2);
+    REQUIRE (fromTree.size() == fromDoc.size());
+    for (size_t i = 0; i < fromTree.size(); ++i)
+    {
+        CHECK (fromTree[i].kind == fromDoc[i].kind);
+        CHECK (fromTree[i].tick == fromDoc[i].tick);
+        CHECK (fromTree[i].bpm == fromDoc[i].bpm);
+        CHECK (fromTree[i].numerator == fromDoc[i].numerator);
+        CHECK (fromTree[i].denominator == fromDoc[i].denominator);
+    }
+    CHECK (fromTree[1].numerator == 3);
+}

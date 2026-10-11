@@ -275,10 +275,15 @@ TempoEditResult removeMeter (SongDocument& doc, int tick) { return remove (doc, 
 
 std::vector<TempoMeterEvent> listTempoMeterEvents (const SongDocument& doc)
 {
+    return listTempoMeterEvents (doc.getTree());
+}
+
+std::vector<TempoMeterEvent> listTempoMeterEvents (const juce::ValueTree& songRoot)
+{
     std::vector<TempoMeterEvent> out;
-    for (auto change : doc.getTempoMapNode())
+    for (auto change : songRoot.getChildWithName (SongIDs::TEMPO_MAP))
         out.push_back ({ TempoMeterKind::tempo, (int) change.getProperty (SongIDs::tick), (double) change.getProperty (SongIDs::bpm), 0, 0 });
-    for (auto change : doc.getMeterMapNode())
+    for (auto change : songRoot.getChildWithName (SongIDs::METER_MAP))
         out.push_back ({ TempoMeterKind::meter, (int) change.getProperty (SongIDs::tick), 0.0,
                          (int) change.getProperty (SongIDs::numerator), (int) change.getProperty (SongIDs::denominator) });
     std::stable_sort (out.begin(), out.end(), [] (const TempoMeterEvent& a, const TempoMeterEvent& b)
