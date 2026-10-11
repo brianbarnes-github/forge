@@ -11,6 +11,7 @@
 #include "SongDocument.h"
 #include "SplitterComponent.h"
 #include "TrackEditorWindow.h"
+#include "TempoMeterEditorWindow.h"
 #include "TrackListComponent.h"
 
 #include "Playback/TransportStrip.h"
@@ -150,6 +151,10 @@ private:
 
 public:
     void trackDoubleClicked (juce::int64 trackId);
+
+    // Opens the Tempo/Meter editor, or re-fronts it when already open.
+    void openTempoMeterEditor();
+    bool isTempoMeterEditorOpen() const noexcept { return tempoMeterWindow != nullptr; }
     void trackGhostToggled (juce::int64 trackId, bool visible);
 
     bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
@@ -201,6 +206,7 @@ private:
     TrackListComponent       trackList;
 
     std::unique_ptr<TrackEditorWindow> trackEditorWindow;
+    std::unique_ptr<TempoMeterEditorWindow> tempoMeterWindow;
     std::set<juce::int64>    ghostedTrackIds;
     bool                     followPlayheadSetting = true;
     GridSize                 defaultGridSize = GridSize::Off;

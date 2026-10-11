@@ -68,6 +68,9 @@ public:
     void commitRename (const juce::String& newName);
     std::function<void (const juce::String&)> onRenamed;
 
+    // Fired by the Conductor head menu's "Tempo and Meter" item.
+    std::function<void()> onTempoMeterRequested;
+
     // Colour picker, opened by a click on the swatch (a no-op on the
     // conductor or while already open). colourPicked reports each change with
     // startsGesture true for the first of a picker session; colourPickerClosed

@@ -120,7 +120,8 @@ TEST_CASE ("MenuModel: Edit menu layout and shortcut hints", "[menu-model]")
 {
     const auto edit = menuNamed (buildMenus ({}), "Edit");
     CHECK (labels (edit) == V { "Undo", "Redo", "-", "Split", "Delete", "Select All", "Select All Tracks",
-                                "Select All Sections", "-", "Quantize", "Grid Size>" });
+                                "Select All Sections", "-", "Quantize", "Grid Size>", "-",
+                                "Tempo and Meter..." });
     CHECK (itemWith (edit, EditUndo).shortcut == "Ctrl+Z");
     CHECK (itemWith (edit, EditRedo).shortcut == "Ctrl+Y");
     CHECK (itemWith (edit, EditSplit).shortcut == "S");
@@ -169,7 +170,7 @@ TEST_CASE ("MenuModel: Quantize and the Grid Size submenu need an open track edi
         MenuState s; s.trackEditorOpen = open;
         const auto edit = menuNamed (buildMenus (s), "Edit");
         return std::make_pair (itemWith (edit, EditQuantize).enabled,
-                               edit.items.back());
+                               edit.items[edit.items.size() - 3]);   // Grid Size sits before the separator and Tempo and Meter
     };
     for (const bool open : { false, true })
     {
@@ -267,4 +268,12 @@ TEST_CASE ("MenuModel: every command id is unique and listed in allCommandIds", 
     // Every plain command is reachable from some menu.
     for (const int id : known)
         CHECK (seen.count (id) == 1);
+}
+
+TEST_CASE ("MenuModel: Tempo and Meter... needs a time base", "[menu-model]")
+{
+    CHECK_FALSE (itemWith (menuNamed (buildMenus ({}), "Edit"), EditTempoMeter).enabled);
+    MenuState s; s.hasTimeBase = true;
+    CHECK (itemWith (menuNamed (buildMenus (s), "Edit"), EditTempoMeter).enabled);
+    CHECK (allCommandIds.size() == 30);
 }

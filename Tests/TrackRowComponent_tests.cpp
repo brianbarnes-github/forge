@@ -658,7 +658,7 @@ TEST_CASE ("TrackRowComponent: a right-click on the head opens the menu instead 
     juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 }
 
-TEST_CASE ("TrackRowComponent: a head rename is forwarded with the trackId; the conductor's right-click still selects", "[track-row][head][rename]")
+TEST_CASE ("TrackRowComponent: a head rename is forwarded with the trackId; the conductor's right-click opens its menu", "[track-row][head][rename]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -681,8 +681,13 @@ TEST_CASE ("TrackRowComponent: a head rename is forwarded with the trackId; the 
     conductor.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
     int selected = 0;
     conductor.onTrackSelected = [&] (juce::int64, const juce::ModifierKeys&) { ++selected; };
+    // A right-click on the Conductor's head now opens its menu (Tempo and Meter...) instead of selecting.
     conductor.mouseDown (eventAt (conductor, { 20, 10 }, 1, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier)));
-    CHECK (selected == 1);
+    CHECK (selected == 0);
+    juce::PopupMenu::dismissAllActiveMenus();
+    conductor.mouseDown (eventAt (conductor, { 20, 10 }, 1));
+    CHECK (selected == 1);   // a plain click still selects
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 }
 
 TEST_CASE ("TrackRowComponent: a left-click on the swatch opens the picker instead of selecting; elsewhere in the head still selects", "[track-row][head][colour]")

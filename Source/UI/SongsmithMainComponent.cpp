@@ -109,6 +109,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     trackList.setPlayback (playback);
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
+    trackList.onTempoMeterRequested = [this] { openTempoMeterEditor(); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
     trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
     trackList.onTrackAppearanceChanged = [this] (juce::int64 trackId)
@@ -226,8 +227,19 @@ void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
     trackEditorWindow->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
 }
 
+void SongsmithMainComponent::openTempoMeterEditor()
+{
+    if (tempoMeterWindow == nullptr)
+    {
+        tempoMeterWindow = std::make_unique<TempoMeterEditorWindow> (doc, getTopLevelComponent());
+        tempoMeterWindow->onClosed = [this] { tempoMeterWindow.reset(); };
+    }
+    tempoMeterWindow->toFront (true);
+}
+
 void SongsmithMainComponent::documentReplaced()
 {
+    tempoMeterWindow.reset();
     trackEditorWindow.reset();
     ghostedTrackIds.clear();
     trackList.clearSelection();

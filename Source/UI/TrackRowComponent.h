@@ -118,6 +118,10 @@ public:
     // Fired on a double-click, with this row's trackId.
     std::function<void (juce::int64)> onTrackDoubleClicked;
 
+    // Fired instead of onTrackDoubleClicked on a Conductor row (double-click), and by the
+    // Conductor head menu's "Tempo and Meter" item.
+    std::function<void()> onConductorActivated;
+
     // Fired when this row's ghost toggle is clicked: (trackId, newVisibility).
     std::function<void (juce::int64, bool)> onGhostToggled;
 

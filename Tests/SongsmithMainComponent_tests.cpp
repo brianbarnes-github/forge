@@ -34,6 +34,7 @@ namespace lotro
         {
             return c.watchedPartNode.isValid();
         }
+        static const void* tempoMeterWindow (const SongsmithMainComponent& c) { return c.tempoMeterWindow.get(); }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
@@ -517,4 +518,21 @@ TEST_CASE ("SongsmithMainComponent: the merge scope reaches the track list", "[t
     CHECK (Access::trackList (main).getMergeScope() == MergeScope::notesOnly);
     main.setMergeScope (MergeScope::allEvents);
     CHECK (Access::trackList (main).getMergeScope() == MergeScope::allEvents);
+}
+
+TEST_CASE ("SongsmithMainComponent: openTempoMeterEditor opens one window, re-fronts it, and documentReplaced closes it", "[tempo-meter][session-reset]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+
+    CHECK_FALSE (main.isTempoMeterEditorOpen());
+    main.openTempoMeterEditor();
+    REQUIRE (main.isTempoMeterEditorOpen());
+    const auto* first = Access::tempoMeterWindow (main);
+    main.openTempoMeterEditor();
+    CHECK (Access::tempoMeterWindow (main) == first);
+
+    main.documentReplaced();
+    CHECK_FALSE (main.isTempoMeterEditorOpen());
 }

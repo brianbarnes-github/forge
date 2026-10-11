@@ -232,6 +232,7 @@ MenuState MainWindow::currentMenuState()
     s.hasMarker          = playback.getMarkerTick().has_value();
     s.hasSelectedSections = songsmith.hasSelectedSections();
     s.canSplitAtMarker   = songsmith.canSplitAtMarker();
+    s.hasTimeBase        = songDocument.hasTimeBase();
     return s;
 }
 
@@ -295,6 +296,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FileQuit:        requestQuit();                                                   return;
         case EditUndo:        songDocument.undo();                                            return;
         case EditRedo:        songDocument.redo();                                            return;
+        case EditTempoMeter:  body->getSongsmith().openTempoMeterEditor();                    return;
         case EditQuantize:    body->getSongsmith().quantizeActiveEditor();                    return;
         // No pointer (it is over the menu): Split uses the marker only; Select All
         // falls back to the heads, as Ctrl+A does with the pointer off the strips.

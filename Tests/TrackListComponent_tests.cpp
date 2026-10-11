@@ -2929,3 +2929,43 @@ TEST_CASE ("TrackListComponent: a conductor tempo edit, undo and redo each rebui
     pump();
     CHECK (list.rebuildCountForTesting() > before);
 }
+
+TEST_CASE ("TrackListComponent: a Conductor row double-click and its head menu fire onTempoMeterRequested, never onTrackDoubleClicked", "[track-list][conductor][tempo-meter]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    int tempoMeter = 0, doubleClicks = 0;
+    list.onTempoMeterRequested = [&] { ++tempoMeter; };
+    list.onTrackDoubleClicked = [&] (juce::int64) { ++doubleClicks; };
+
+    auto& conductor = *TrackListComponentTestAccess::rows (list)[0];
+    auto& normal = *TrackListComponentTestAccess::rows (list)[1];
+    REQUIRE (conductor.getTrackId() == (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId));
+
+    const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), { 300.0f, 5.0f }, {}, 0.0f, 0.0f, 0.0f,
+                              0.0f, 0.0f, nullptr, nullptr, juce::Time::getCurrentTime(), { 300.0f, 5.0f },
+                              juce::Time::getCurrentTime(), 2, false);
+    conductor.mouseDoubleClick (e);
+    CHECK (tempoMeter == 1);
+    CHECK (doubleClicks == 0);
+
+    conductor.notePreviewForTesting().onNonToggleDoubleClick();
+    CHECK (tempoMeter == 2);
+    CHECK (doubleClicks == 0);
+
+    conductor.headForTesting().contextMenuChosen (2);
+    CHECK (tempoMeter == 3);
+    CHECK (doubleClicks == 0);
+
+    normal.notePreviewForTesting().onNonToggleDoubleClick();
+    CHECK (doubleClicks == 1);
+    CHECK (tempoMeter == 3);
+    normal.mouseDoubleClick (e);
+    CHECK (doubleClicks == 2);
+    CHECK (tempoMeter == 3);
+}

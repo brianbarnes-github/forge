@@ -219,6 +219,8 @@ juce::PopupMenu TrackHeadComponent::buildContextMenu() const
 {
     juce::PopupMenu menu;
     menu.addItem (1, juce::String::fromUTF8 ("Rename\xe2\x80\xa6"), ! isConductorTrack());
+    if (isConductorTrack())
+        menu.addItem (2, juce::String::fromUTF8 ("Tempo and Meter\xe2\x80\xa6"));
     return menu;
 }
 
@@ -236,6 +238,8 @@ void TrackHeadComponent::contextMenuChosen (int itemId)
 {
     if (itemId == 1)
         beginRename();
+    else if (itemId == 2 && isConductorTrack() && onTempoMeterRequested)
+        onTempoMeterRequested();
 }
 
 void TrackHeadComponent::beginRename()

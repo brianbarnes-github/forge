@@ -443,3 +443,37 @@ TEST_CASE ("TrackHead: destroying the head with its picker open dismisses the ca
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
     CHECK (juce::Desktop::getInstance().getNumComponents() == desktopComponents);
 }
+
+TEST_CASE ("TrackHead: only the conductor's menu offers Tempo and Meter, and choosing it fires onTempoMeterRequested", "[track-head][tempo-meter]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackHeadComponent head (doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1), 1);
+    TrackHeadComponent conductor (doc.getConductorTrack(), 0);
+
+    const auto ids = [] (const TrackHeadComponent& h)
+    {
+        std::vector<std::pair<int, bool>> out;
+        const auto menu = h.buildContextMenu();
+        juce::PopupMenu::MenuItemIterator it (menu);
+        while (it.next())
+            out.emplace_back (it.getItem().itemID, it.getItem().isEnabled);
+        return out;
+    };
+    CHECK (ids (head) == std::vector<std::pair<int, bool>> { { 1, true } });
+    CHECK (ids (conductor) == std::vector<std::pair<int, bool>> { { 1, false }, { 2, true } });
+
+    const auto menu = conductor.buildContextMenu();
+    juce::PopupMenu::MenuItemIterator it (menu);
+    REQUIRE (it.next());
+    REQUIRE (it.next());
+    CHECK (it.getItem().text == juce::String::fromUTF8 ("Tempo and Meter\xe2\x80\xa6"));
+
+    int fired = 0, firedOnNormal = 0;
+    conductor.onTempoMeterRequested = [&] { ++fired; };
+    head.onTempoMeterRequested = [&] { ++firedOnNormal; };
+    conductor.contextMenuChosen (2);
+    CHECK (fired == 1);
+    head.contextMenuChosen (2);
+    CHECK (firedOnNormal == 0);
+}

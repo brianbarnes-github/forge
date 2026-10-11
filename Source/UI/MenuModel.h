@@ -43,6 +43,7 @@ enum MenuCommandId : int
     TransportClearMarker,
     ViewExportPanelToggle,
     ViewDiagnosticsToggle,
+    EditTempoMeter,
     HelpAbout,
 
     // Grid-size submenu items occupy EditGridSizeBase + each GridSize enum
@@ -53,13 +54,13 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 29> allCommandIds {
+inline constexpr std::array<MenuCommandId, 30> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
-    TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, HelpAbout };
+    TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
@@ -81,6 +82,7 @@ struct MenuState
     bool hasMarker = false;
     bool hasSelectedSections = false;    // canvas selection non-empty
     bool canSplitAtMarker = false;
+    bool hasTimeBase = false;            // the Song has a tempo/meter time base to edit
 };
 
 struct MenuItemDesc
@@ -168,7 +170,9 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
             item (EditGridSizeBase + (int) GridSize::Quarter,   "1/4",  {}, s.trackEditorOpen),
             item (EditGridSizeBase + (int) GridSize::Eighth,    "1/8",  {}, s.trackEditorOpen),
             item (EditGridSizeBase + (int) GridSize::Sixteenth, "1/16", {}, s.trackEditorOpen) },
-            s.trackEditorOpen) } });
+            s.trackEditorOpen),
+        separator(),
+        item (EditTempoMeter, "Tempo and Meter...", {}, s.hasTimeBase) } });
 
     menus.push_back ({ "Song", {
         item (SongDefaultParts, "Default parts from tracks"),

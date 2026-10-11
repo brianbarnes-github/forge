@@ -18,6 +18,7 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     addAndMakeVisible (head);
     head.onMuteToggled = [this] (bool on) { if (onMuteToggled) onMuteToggled (getTrackId(), on); };
     head.onRenamed = [this] (const juce::String& n) { if (onRenamed) onRenamed (getTrackId(), n); };
+    head.onTempoMeterRequested = [this] { if (onConductorActivated) onConductorActivated(); };
     head.onSoloToggled = [this] (bool on) { if (onSoloToggled) onSoloToggled (getTrackId(), on); };
     head.onColourChanged = [this] (juce::uint32 argb, bool startsGesture)
     {
@@ -75,6 +76,12 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     };
     notePreview.onNonToggleDoubleClick = [this]
     {
+        if (isConductorTrack())
+        {
+            if (onConductorActivated)
+                onConductorActivated();
+            return;
+        }
         if (canOpenEditor() && onTrackDoubleClicked)
             onTrackDoubleClicked (getTrackId());
     };
@@ -212,7 +219,7 @@ void TrackRowComponent::paint (juce::Graphics& g)
 
 void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
 {
-    if (e.mods.isPopupMenu() && inHeadArea (e.getPosition()) && ! isConductorTrack())
+    if (e.mods.isPopupMenu() && inHeadArea (e.getPosition()))
     {
         head.showContextMenu();
         return;
@@ -266,6 +273,12 @@ void TrackRowComponent::instrumentMenuChosen (int itemId)
 
 void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)
 {
+    if (isConductorTrack())
+    {
+        if (onConductorActivated)
+            onConductorActivated();
+        return;
+    }
     if (canOpenEditor() && onTrackDoubleClicked)
         onTrackDoubleClicked (getTrackId());
 }
