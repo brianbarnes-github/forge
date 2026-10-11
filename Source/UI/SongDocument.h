@@ -4,7 +4,9 @@
 
 #include <juce_data_structures/juce_data_structures.h>
 
+#include <memory>
 #include <optional>
+#include <vector>
 
 // Songsmith's editable-document ValueTree schema. See the Songsmith plan's
 // "Data model" section for the full node/property layout; this header owns
@@ -13,6 +15,9 @@
 // schema by these exact names rather than ad-hoc string literals.
 namespace lotro
 {
+
+class TempoMapSync;
+struct MeterChange;   // Core/Song.h; forward-declared so this header does not pull in lotro::Note
 
 namespace SongIDs
 {
@@ -43,6 +48,7 @@ namespace SongIDs
 
     // SOURCE_MIDI properties
     extern const juce::Identifier ticksPerQuarter;
+    extern const juce::Identifier timeBaseSet;   // SOURCE_MIDI: a first import has set the time base
 
     // MIDI_TRACK properties
     extern const juce::Identifier trackId;
@@ -134,6 +140,19 @@ class SongDocument
 {
 public:
     SongDocument();
+    ~SongDocument();
+
+    // True once a first import has set the time base. Replaces "TEMPO_MAP is empty"
+    // as the first-import test now that the maps are derived. Non-undoable.
+    bool hasTimeBase() const;
+    void setTimeBase (bool set);
+
+    // The METER_MAP as plain values (empty when there is no time base).
+    std::vector<MeterChange> getMeterChanges() const;
+    static std::vector<MeterChange> meterChangesOf (const juce::ValueTree& meterMapNode);
+
+    // The listener that keeps TEMPO_MAP / METER_MAP derived from the conductor's events.
+    TempoMapSync& getTempoMapSync() { return *tempoMapSync; }
 
     juce::ValueTree getTree() const noexcept { return tree; }
     juce::UndoManager& getUndoManager() noexcept { return undoManager; }
@@ -264,6 +283,7 @@ private:
 
     juce::ValueTree tree;
     juce::UndoManager undoManager;
+    std::unique_ptr<TempoMapSync> tempoMapSync;
 };
 
 } // namespace lotro

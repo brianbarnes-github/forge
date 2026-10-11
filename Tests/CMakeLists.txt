@@ -34,6 +34,7 @@ add_executable(forge_tests
     GridLines_tests.cpp
     MeterSegments_tests.cpp
     TempoMapSync_tests.cpp
+    TempoMapInvariant_tests.cpp
     SectionEdit_tests.cpp
     NoteMerge_tests.cpp
     ProgramChanges_tests.cpp

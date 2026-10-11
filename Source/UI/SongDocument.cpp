@@ -1,5 +1,7 @@
 #include "SongDocument.h"
 
+#include "UI/TempoMapSync.h"
+
 #include <algorithm>
 #include <vector>
 
@@ -32,6 +34,7 @@ namespace SongIDs
     const juce::Identifier inputMidiPath ("inputMidiPath");
 
     const juce::Identifier ticksPerQuarter ("ticksPerQuarter");
+    const juce::Identifier timeBaseSet ("timeBaseSet");
 
     const juce::Identifier trackId ("trackId");
     const juce::Identifier name ("name");
@@ -105,6 +108,8 @@ SongDocument::SongDocument()
 
     juce::ValueTree sourceMidi (SongIDs::SOURCE_MIDI);
     sourceMidi.setProperty (SongIDs::ticksPerQuarter, 480, nullptr);
+    // Always present on a new document, so only files saved before it existed lack it.
+    sourceMidi.setProperty (SongIDs::timeBaseSet, false, nullptr);
     tree.addChild (sourceMidi, -1, nullptr);
 
     // Every song has exactly one conductor track, created before any import
@@ -130,7 +135,35 @@ SongDocument::SongDocument()
 
     juce::ValueTree meterMap (SongIDs::METER_MAP);
     tree.addChild (meterMap, -1, nullptr);
+
+    tempoMapSync = std::make_unique<TempoMapSync> (*this);
 }
+
+SongDocument::~SongDocument() = default;
+
+bool SongDocument::hasTimeBase() const
+{
+    return (bool) getSourceMidiNode().getProperty (SongIDs::timeBaseSet, false);
+}
+
+void SongDocument::setTimeBase (bool set)
+{
+    getSourceMidiNode().setProperty (SongIDs::timeBaseSet, set, nullptr);
+}
+
+std::vector<MeterChange> SongDocument::meterChangesOf (const juce::ValueTree& meterMapNode)
+{
+    std::vector<MeterChange> out;
+    for (int i = 0; i < meterMapNode.getNumChildren(); ++i)
+    {
+        const auto c = meterMapNode.getChild (i);
+        out.push_back ({ (int) c.getProperty (SongIDs::tick, 0), (int) c.getProperty (SongIDs::numerator, 4),
+                         (int) c.getProperty (SongIDs::denominator, 4) });
+    }
+    return out;
+}
+
+std::vector<MeterChange> SongDocument::getMeterChanges() const { return meterChangesOf (getMeterMapNode()); }
 
 void SongDocument::undo() { undoManager.undo(); }
 void SongDocument::redo() { undoManager.redo(); }
@@ -597,10 +630,17 @@ void SongDocument::replaceContents (const juce::ValueTree& loaded)
 
     // Deep copy first: `loaded` may be another document's live tree.
     const auto source = loaded.createCopy();
+    {
+        MapSyncPause pause (*this);
+        tree.copyPropertiesFrom (source, nullptr);
+        for (const auto& id : { SongIDs::SOURCE_MIDI, SongIDs::PARTS, SongIDs::TEMPO_MAP, SongIDs::METER_MAP })
+            tree.getChildWithName (id).copyPropertiesAndChildrenFrom (source.getChildWithName (id), nullptr);
 
-    tree.copyPropertiesFrom (source, nullptr);
-    for (const auto& id : { SongIDs::SOURCE_MIDI, SongIDs::PARTS, SongIDs::TEMPO_MAP, SongIDs::METER_MAP })
-        tree.getChildWithName (id).copyPropertiesAndChildrenFrom (source.getChildWithName (id), nullptr);
+        // Files from before timeBaseSet existed: a stored tempo map means an import happened.
+        auto sourceMidi = getSourceMidiNode();
+        if (! sourceMidi.hasProperty (SongIDs::timeBaseSet))
+            sourceMidi.setProperty (SongIDs::timeBaseSet, getTempoMapNode().getNumChildren() > 0, nullptr);
+    }   // the maps are rebuilt from the events here, healing any stale ones
 
     undoManager.clearUndoHistory();
 }

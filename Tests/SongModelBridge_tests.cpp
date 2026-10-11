@@ -8,6 +8,7 @@
 
 #include "Core/LotroInstrument.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
@@ -139,7 +140,8 @@ TEST_CASE ("SongModelBridge: appendImportedSong then buildConfigAndRawSong round
     for (size_t i = 0; i < imported.tempoMap.size(); ++i)
     {
         CHECK (built.rawSong.tempoMap[i].tick == imported.tempoMap[i].tick);
-        CHECK (built.rawSong.tempoMap[i].bpm == imported.tempoMap[i].bpm);
+        // A Song-only import holds its tempos as MIDI tempos (whole microseconds per quarter).
+        CHECK (built.rawSong.tempoMap[i].bpm == Catch::Approx (imported.tempoMap[i].bpm));
     }
 
     REQUIRE (built.rawSong.meterMap.size() == imported.meterMap.size());
@@ -322,7 +324,7 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks but 
     CHECK ((int) tempoMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
     CHECK ((double) tempoMapNode.getChild (0).getProperty (SongIDs::bpm) == 120.0);
     CHECK ((int) tempoMapNode.getChild (1).getProperty (SongIDs::tick) == 1920);
-    CHECK ((double) tempoMapNode.getChild (1).getProperty (SongIDs::bpm) == 140.0);
+    CHECK ((double) tempoMapNode.getChild (1).getProperty (SongIDs::bpm) == Catch::Approx (140.0));   // 428571 us
 
     CHECK ((int) meterMapNode.getChild (0).getProperty (SongIDs::tick) == 0);
     CHECK ((int) meterMapNode.getChild (1).getProperty (SongIDs::numerator) == 3);
@@ -333,7 +335,7 @@ TEST_CASE ("SongModelBridge: two appendImportedSong calls accumulate tracks but 
     // first's (index 3, 4) rather than restarting at 0.
     auto built = buildConfigAndRawSong (doc);
     REQUIRE (built.rawSong.tempoMap.size() == 2);
-    CHECK (built.rawSong.tempoMap[1].bpm == 140.0);
+    CHECK (built.rawSong.tempoMap[1].bpm == Catch::Approx (140.0));
     REQUIRE (built.rawSong.meterMap.size() == 2);
     CHECK (built.rawSong.meterMap[1].numerator == 3);
 

@@ -4,6 +4,7 @@
 #include "Core/MidiImporter.h"
 #include "MidiImportPlan.h"
 #include "SongsmithColours.h"
+#include "TempoMapSync.h"
 
 #include <array>
 #include <algorithm>
@@ -39,9 +40,9 @@ namespace
     }
 
     // A-R3(a)/(b): multiplies every existing NOTE start/duration tick, every
-    // EVENT tick, MIDI_TRACK endTick (conductor included), every stored SECTION
-    // startTick/endTick, and every
-    // TEMPO_CHANGE/METER_CHANGE tick by `factor`. The caller guarantees
+    // EVENT tick, MIDI_TRACK endTick (conductor included) and every stored SECTION
+    // startTick/endTick by `factor`, then rebuilds the derived TEMPO_MAP/METER_MAP
+    // from the rescaled conductor events. The caller guarantees
     // factor == newPpq / docPpq is an exact integer (newPpq is an LCM, hence
     // a multiple of docPpq), so this never rounds. Returns the number of NOTE
     // nodes rescaled, for the "Raised document time base..." diagnostic.
@@ -75,19 +76,9 @@ namespace
             }
         }
 
-        auto tempoMapNode = doc.getTempoMapNode();
-        for (int i = 0; i < tempoMapNode.getNumChildren(); ++i)
-        {
-            auto c = tempoMapNode.getChild (i);
-            c.setProperty (SongIDs::tick, (int) c.getProperty (SongIDs::tick) * factor, nullptr);
-        }
-
-        auto meterMapNode = doc.getMeterMapNode();
-        for (int i = 0; i < meterMapNode.getNumChildren(); ++i)
-        {
-            auto c = meterMapNode.getChild (i);
-            c.setProperty (SongIDs::tick, (int) c.getProperty (SongIDs::tick) * factor, nullptr);
-        }
+        // The import holds a MapSyncPause, so rebuild now: the later-import map
+        // comparison in appendImport must see the maps on the raised time base.
+        rebuildMaps (doc);
 
         return noteCount;
     }
@@ -104,6 +95,39 @@ namespace
         return oss.str();
     }
 
+    // A BPM as a MIDI tempo holds it: whole microseconds per quarter, 24-bit.
+    std::uint32_t microsecondsForBpm (double bpm)
+    {
+        return (std::uint32_t) std::clamp (std::llround (60000000.0 / bpm), 1LL, 16777215LL);
+    }
+
+    // FF 51 / FF 58 conductor events for a Song-only import (no raw MIDI), so the derived
+    // maps equal the Song's. Tempo is rounded to whole microseconds like any MIDI tempo.
+    void appendSongMapsAsConductorEvents (SongDocument& doc, const Song& song)
+    {
+        auto events = SongDocument::getEventsNode (doc.getConductorTrack());
+        int order = 0;
+        const auto add = [&] (int tick, const std::vector<std::uint8_t>& bytes)
+        {
+            juce::ValueTree e (SongIDs::EVENT);
+            e.setProperty (SongIDs::tick, tick, nullptr);
+            e.setProperty (SongIDs::order, order++, nullptr);
+            e.setProperty (SongIDs::data, juce::var (juce::MemoryBlock (bytes.data(), bytes.size())), nullptr);
+            SongDocument::appendChildBulk (events, e);
+        };
+        for (const auto& t : song.tempoMap)
+        {
+            const auto us = microsecondsForBpm (t.bpm);
+            add (t.tick, { 0xFF, 0x51, (std::uint8_t) (us >> 16), (std::uint8_t) (us >> 8), (std::uint8_t) us });
+        }
+        for (const auto& m : song.meterMap)
+        {
+            std::uint8_t dd = 0;
+            while ((1 << dd) < m.denominator && dd < 15) ++dd;
+            add (m.tick, { 0xFF, 0x58, (std::uint8_t) m.numerator, dd, 24, 8 });
+        }
+    }
+
     // Shared by both import paths. `plan` == nullptr is the raw-less path
     // (appendImportedSong): NOTEs only, conductor and EVENTS untouched.
     void appendImport (SongDocument& doc, const Song& imported, const MidiImportPlan* plan,
@@ -117,16 +141,20 @@ namespace
         // against the document's and, if they differ, reported via a single
         // Warning Diagnostic rather than applied.
         //
-        // "First import" is defined as an empty TEMPO_MAP, not
-        // doc.getNumTracks() == 0: importMidi always seeds a non-empty tempoMap
-        // (defaulting to {0, 120.0} when the source file has none), so a first
-        // MIDI file whose every track was silent (dropped for having no notes,
-        // leaving zero tracks) would otherwise still read as "no import has
-        // landed yet" on the next call, causing a second import to re-set
-        // ticksPerQuarter and re-append onto maps that already hold the first
-        // file's entries. A tempo replace (ImportOptions::tempo == replace)
-        // overrides this: the file's maps replace the document's.
-        const bool isFirstImport = doc.getTempoMapNode().getNumChildren() == 0;
+        // "First import" is defined as SOURCE_MIDI.timeBaseSet being unset, not
+        // doc.getNumTracks() == 0: a first MIDI file whose every track was silent
+        // (dropped for having no notes, leaving zero tracks) would otherwise still
+        // read as "no import has landed yet" on the next call, causing a second
+        // import to re-set ticksPerQuarter. A tempo replace
+        // (ImportOptions::tempo == replace) overrides this: the file's conductor
+        // replaces the document's.
+        //
+        // TEMPO_MAP/METER_MAP are never written here: they are derived from the
+        // conductor's events, rebuilt once when `pause` ends.
+        const bool isFirstImport = ! doc.hasTimeBase();
+        MapSyncPause pause (doc);
+        if (isFirstImport)
+            doc.setTimeBase (true);
         // A later import whose plan writes the conductor is a tempo replace.
         const bool replacingTempo = plan != nullptr && plan->writesConductor && ! isFirstImport;
 
@@ -383,33 +411,10 @@ namespace
 
         if (isFirstImport || replacingTempo)
         {
-            auto tempoMapNode = doc.getTempoMapNode();
-            auto meterMapNode = doc.getMeterMapNode();
-            if (replacingTempo)
-            {
-                tempoMapNode.removeAllChildren (nullptr);
-                meterMapNode.removeAllChildren (nullptr);
-            }
-            // The conductor events above already counted any inexact rescale, so the
-            // map ticks are converted without a second count.
-            const auto mapTick = [&] (int tick) { return needsRescale ? rescaleTick (tick, docPpq, importedPpq) : tick; };
-
-            for (const auto& change : imported.tempoMap)
-            {
-                juce::ValueTree changeTree (SongIDs::TEMPO_CHANGE);
-                changeTree.setProperty (SongIDs::tick, mapTick (change.tick) + conductorOffset (change.tick), nullptr);
-                changeTree.setProperty (SongIDs::bpm, change.bpm, nullptr);
-                SongDocument::appendChildBulk (tempoMapNode, changeTree);
-            }
-
-            for (const auto& change : imported.meterMap)
-            {
-                juce::ValueTree changeTree (SongIDs::METER_CHANGE);
-                changeTree.setProperty (SongIDs::tick, mapTick (change.tick) + conductorOffset (change.tick), nullptr);
-                changeTree.setProperty (SongIDs::numerator, change.numerator, nullptr);
-                changeTree.setProperty (SongIDs::denominator, change.denominator, nullptr);
-                SongDocument::appendChildBulk (meterMapNode, changeTree);
-            }
+            // The Song-only path has no raw conductor: write the Song's maps as
+            // conductor events so the derived maps equal them.
+            if (plan == nullptr)
+                appendSongMapsAsConductorEvents (doc, imported);
         }
         else
         {
@@ -421,9 +426,12 @@ namespace
                 const auto rescaledTick = needsRescale
                     ? rescaleTick (imported.tempoMap[i].tick, docPpq, importedPpq)
                     : imported.tempoMap[i].tick;
+                // The derived map holds tempos as MIDI does (whole microseconds), so the
+                // file's tempo is compared the same way; for a MIDI file this is exact.
                 auto existing = tempoMapNode.getChild ((int) i);
                 if ((int) existing.getProperty (SongIDs::tick) != rescaledTick
-                    || std::fabs ((double) existing.getProperty (SongIDs::bpm) - imported.tempoMap[i].bpm) >= 1e-9)
+                    || std::fabs ((double) existing.getProperty (SongIDs::bpm)
+                                  - bpmFromMicroseconds (microsecondsForBpm (imported.tempoMap[i].bpm))) >= 1e-9)
                     tempoDiffers = true;
             }
 
@@ -493,7 +501,7 @@ bool appendImportedMidi (SongDocument& doc, const Song& imported, const RawMidiF
                          int importBatch, Diagnostics& diagnostics,
                          const Diagnostics& importerDiagnostics, const ImportOptions& options)
 {
-    const bool isFirstImport = doc.getTempoMapNode().getNumChildren() == 0;
+    const bool isFirstImport = ! doc.hasTimeBase();
 
     Diagnostics planDiagnostics;
     MidiImportPlan plan;
