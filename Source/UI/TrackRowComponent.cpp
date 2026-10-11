@@ -42,8 +42,14 @@ TrackRowComponent::TrackRowComponent (juce::ValueTree trackNode, int displayInde
     };
     notePreview.onMarkerClicked = [this] (TempoMeterKind kind, int tick)
     {
-        if (onConductorMarkerClicked)
-            onConductorMarkerClicked (kind, tick);
+        return onConductorMarkerClicked && onConductorMarkerClicked (kind, tick);
+    };
+    notePreview.onMarkerDoubleClicked = [this] (TempoMeterKind kind, int tick)
+    {
+        if (onConductorMarkerOpened)
+            onConductorMarkerOpened (kind, tick);
+        else if (onConductorActivated)
+            onConductorActivated();
     };
     notePreview.onTimelineClicked = [this] (int tick)
     {

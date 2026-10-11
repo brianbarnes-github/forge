@@ -3068,7 +3068,12 @@ TEST_CASE ("TrackListComponent: clicking a marker on the Conductor row fires onC
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
     std::vector<std::pair<TempoMeterKind, int>> clicks;
-    list.onConductorMarkerClicked = [&] (TempoMeterKind k, int t) { clicks.emplace_back (k, t); };
+    bool consume = true;
+    list.onConductorMarkerClicked = [&] (TempoMeterKind k, int t) { clicks.emplace_back (k, t); return consume; };
+    std::vector<std::pair<TempoMeterKind, int>> opened;
+    int plainOpens = 0;
+    list.onTempoMeterRequested = [&] { ++plainOpens; };
+    list.onConductorMarkerOpened = [&] (TempoMeterKind k, int t) { opened.emplace_back (k, t); };
 
     const auto& view = TrackListComponentTestAccess::timelineView (list);
     auto& conductor = *TrackListComponentTestAccess::rowFor (list, (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId));
@@ -3092,4 +3097,20 @@ TEST_CASE ("TrackListComponent: clicking a marker on the Conductor row fires onC
     REQUIRE (normal != &conductor);
     press (normal->notePreviewForTesting(), view.xForTick (1920), 2);
     CHECK (clicks.size() == 1);
+
+    // Double-click: on a marker it opens with that event; on empty space it opens plain.
+    const auto dbl = [&] (TrackNotePreview& p, int x, int y)
+    {
+        const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), { (float) x, (float) y },
+                                  juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                  &p, &p, juce::Time::getCurrentTime(), { (float) x, (float) y }, juce::Time::getCurrentTime(), 2, false);
+        p.mouseDoubleClick (e);
+    };
+    dbl (preview, view.xForTick (1920), 2);
+    REQUIRE (opened.size() == 1);
+    CHECK (opened[0] == std::make_pair (TempoMeterKind::tempo, 1920));
+    CHECK (plainOpens == 0);
+    dbl (preview, view.xForTick (960), 2);
+    CHECK (opened.size() == 1);
+    CHECK (plainOpens == 1);
 }

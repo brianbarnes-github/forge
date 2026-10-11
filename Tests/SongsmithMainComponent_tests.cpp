@@ -587,7 +587,7 @@ TEST_CASE ("SongsmithMainComponent: the Tempo/Meter window's selected tick drive
     CHECK (Access::eventMarkerTick (main) == std::nullopt);
 }
 
-TEST_CASE ("SongsmithMainComponent: a Conductor marker click opens a closed Tempo/Meter editor with that event selected, and moves the selection of an open one", "[tempo-meter][marker-click]")
+TEST_CASE ("SongsmithMainComponent: a marker single-click does nothing while the Tempo/Meter editor is closed and moves the selection of an open one; a marker double-click opens it on that event", "[tempo-meter][marker-click]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -608,7 +608,11 @@ TEST_CASE ("SongsmithMainComponent: a Conductor marker click opens a closed Temp
     SongsmithMainComponent main (doc);
 
     REQUIRE_FALSE (main.isTempoMeterEditorOpen());
-    main.selectTempoMeterEvent (TempoMeterKind::meter, 3840);
+    CHECK_FALSE (main.selectTempoMeterEvent (TempoMeterKind::meter, 3840));   // closed: not handled
+    CHECK_FALSE (main.isTempoMeterEditorOpen());
+    CHECK (Access::eventMarkerTick (main) == std::nullopt);
+
+    main.openTempoMeterEditorOnEvent (TempoMeterKind::meter, 3840);          // the double-click path
     REQUIRE (main.isTempoMeterEditorOpen());
     const auto first = Access::tempoMeterSelection (main);
     REQUIRE (first);
@@ -617,11 +621,18 @@ TEST_CASE ("SongsmithMainComponent: a Conductor marker click opens a closed Temp
     CHECK (Access::eventMarkerTick (main) == std::optional<int> (3840));
 
     const auto* window = Access::tempoMeterWindow (main);
-    main.selectTempoMeterEvent (TempoMeterKind::tempo, 1920);
+    CHECK (main.selectTempoMeterEvent (TempoMeterKind::tempo, 1920));         // open: handled
     CHECK (Access::tempoMeterWindow (main) == window);   // same window, selection moved
     const auto second = Access::tempoMeterSelection (main);
     REQUIRE (second);
     CHECK (second->kind == TempoMeterKind::tempo);
     CHECK (second->tick == 1920);
     CHECK (Access::eventMarkerTick (main) == std::optional<int> (1920));
+
+    // Double-click on a marker while open moves the selection; a plain open leaves it.
+    main.openTempoMeterEditorOnEvent (TempoMeterKind::meter, 3840);
+    CHECK (Access::tempoMeterWindow (main) == window);
+    CHECK (Access::tempoMeterSelection (main)->kind == TempoMeterKind::meter);
+    main.openTempoMeterEditor();
+    CHECK (Access::tempoMeterSelection (main)->tick == 3840);
 }

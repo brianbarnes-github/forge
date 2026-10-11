@@ -140,10 +140,11 @@ The row stays unmuteable and non-editable as a track. It now draws, aligned
 with the ruler and the tracks, a marker at each tempo event (`120`, the BPM; the beat is always a quarter note) and each
 meter event (`3/4`), read from the derived maps, and a faint change of
 background at each (tempo changes alternate the shade of the top half of the row, meter
-changes of the bottom half, where the labels sit). A plain left click on a marker (its line, or its label in the matching half of the row) opens the
-Tempo/Meter editor if needed and selects that event's row in it (the click does not also seek);
-clicks elsewhere on the row behave as before and **double-click opens the
-Tempo/Meter editor window**; the window is also reachable from a new
+changes of the bottom half, where the labels sit). A plain left click on a marker (its line, or its label in the matching half of the row) selects that
+event's row in the Tempo/Meter editor **only when the editor is already open** (the click is then
+consumed and does not also seek); with the editor closed, and everywhere else on the row, a click
+behaves as before. **Double-click opens the Tempo/Meter editor window** (on that marker's event when
+it lands on a marker); the window is also reachable from a new
 Edit ▸ Tempo and Meter… menu item and the Conductor head's right-click menu.
 
 ### 5. Tempo/Meter editor window

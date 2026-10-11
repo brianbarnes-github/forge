@@ -109,7 +109,8 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     trackList.setPlayback (playback);
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
-    trackList.onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { selectTempoMeterEvent (kind, tick); };
+    trackList.onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { return selectTempoMeterEvent (kind, tick); };
+    trackList.onConductorMarkerOpened = [this] (TempoMeterKind kind, int tick) { openTempoMeterEditorOnEvent (kind, tick); };
     trackList.onTempoMeterRequested = [this] { openTempoMeterEditor(); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
     trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
@@ -243,10 +244,19 @@ void SongsmithMainComponent::openTempoMeterEditor()
     tempoMeterWindow->toFront (true);
 }
 
-void SongsmithMainComponent::selectTempoMeterEvent (TempoMeterKind kind, int tick)
+bool SongsmithMainComponent::selectTempoMeterEvent (TempoMeterKind kind, int tick)
+{
+    if (tempoMeterWindow == nullptr)
+        return false;
+    tempoMeterWindow->selectEvent (kind, tick);
+    tempoMeterWindow->toFront (true);
+    return true;
+}
+
+void SongsmithMainComponent::openTempoMeterEditorOnEvent (TempoMeterKind kind, int tick)
 {
     openTempoMeterEditor();
-    tempoMeterWindow->selectEvent (kind, tick);
+    selectTempoMeterEvent (kind, tick);
 }
 
 void SongsmithMainComponent::documentReplaced()

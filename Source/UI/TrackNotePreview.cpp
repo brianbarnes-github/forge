@@ -260,16 +260,17 @@ namespace lotro
         if (toggleGhostIfHit (e.getPosition()))
             return;
 
-        // A plain left press on a Conductor marker selects that event and is consumed.
+        // A plain left press on a Conductor marker is offered to the owner; only if it
+        // handles it (the Tempo/Meter editor is open) is the press consumed.
         if (onMarkerClicked && e.mods.isLeftButtonDown() && ! e.mods.isPopupMenu()
             && ! e.mods.isAnyModifierKeyDown())
             if (const auto hit = conductorMarkerAt (e.getPosition()))
-            {
-                sectionPressActive = false;
-                mergePressActive = false;
-                onMarkerClicked (hit->kind, hit->tick);
-                return;
-            }
+                if (onMarkerClicked (hit->kind, hit->tick))
+                {
+                    sectionPressActive = false;
+                    mergePressActive = false;
+                    return;
+                }
 
         if (onNonToggleClick)
             onNonToggleClick (e.mods);
@@ -355,7 +356,15 @@ namespace lotro
         // Tested against the toggle bounds rather than toggleGhostIfHit() so
         // the second click of a double-click on the toggle doesn't flip the
         // ghost back off again.
-        if (! ghostToggleBounds().contains (e.getPosition()) && onNonToggleDoubleClick)
+        if (ghostToggleBounds().contains (e.getPosition()))
+            return;
+        if (onMarkerDoubleClicked)
+            if (const auto hit = conductorMarkerAt (e.getPosition()))
+            {
+                onMarkerDoubleClicked (hit->kind, hit->tick);
+                return;
+            }
+        if (onNonToggleDoubleClick)
             onNonToggleDoubleClick();
     }
 

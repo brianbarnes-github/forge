@@ -123,7 +123,8 @@ public:
     std::function<void()> onConductorActivated;
 
     // Conductor row: a plain click on a tempo or meter marker (kind, tick).
-    std::function<void (TempoMeterKind, int)> onConductorMarkerClicked;
+    std::function<bool (TempoMeterKind, int)> onConductorMarkerClicked;
+    std::function<void (TempoMeterKind, int)> onConductorMarkerOpened;
 
     // Fired when this row's ghost toggle is clicked: (trackId, newVisibility).
     std::function<void (juce::int64, bool)> onGhostToggled;

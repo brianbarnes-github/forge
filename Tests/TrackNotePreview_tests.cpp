@@ -933,10 +933,15 @@ namespace
         std::vector<int> timelineTicks;
         int nonToggleClicks = 0;
         int sectionPresses = 0;
+        bool consume = true;                                          // what the owner's onMarkerClicked answers
+        std::vector<std::pair<TempoMeterKind, int>> doubleClicked;
+        int plainDoubleClicks = 0;
 
         void attach (TrackNotePreview& p)
         {
-            p.onMarkerClicked = [this] (TempoMeterKind k, int t) { markers.emplace_back (k, t); };
+            p.onMarkerClicked = [this] (TempoMeterKind k, int t) { markers.emplace_back (k, t); return consume; };
+            p.onMarkerDoubleClicked = [this] (TempoMeterKind k, int t) { doubleClicked.emplace_back (k, t); };
+            p.onNonToggleDoubleClick = [this] { ++plainDoubleClicks; };
             p.onTimelineClicked = [this] (int t) { timelineTicks.push_back (t); };
             p.onNonToggleClick = [this] (const juce::ModifierKeys&) { ++nonToggleClicks; };
             p.onSectionPressed = [this] (const SectionHit&, int, const juce::ModifierKeys&) { ++sectionPresses; };
@@ -966,6 +971,46 @@ TEST_CASE ("TrackNotePreview: a plain click on a Conductor marker fires onMarker
     CHECK (probe.timelineTicks.empty());
     CHECK (probe.nonToggleClicks == 0);
     CHECK (probe.sectionPresses == 0);
+}
+
+TEST_CASE ("TrackNotePreview: a marker click the owner declines (editor closed) is not consumed and behaves like any Conductor click", "[track-note-preview][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 90.0).has_value());
+    const auto view = tenthPixelView();
+    TrackNotePreview preview (f.doc.getConductorTrack(), view);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+    MarkerClickProbe probe;
+    probe.consume = false;
+    probe.attach (preview);
+
+    preview.mouseDown (previewMouseAt (preview, view.xForTick (1920) + 1, 3));
+    CHECK (probe.markers.size() == 1);      // the owner was asked ...
+    CHECK (probe.timelineTicks.size() == 1);   // ... declined, so the old click path ran
+    CHECK (probe.nonToggleClicks == 1);
+}
+
+TEST_CASE ("TrackNotePreview: a double-click on a Conductor marker reports it; elsewhere it is the plain double-click", "[track-note-preview][conductor][marker-click]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 90.0).has_value());
+    REQUIRE_FALSE (setMeter (f.doc, 3840, 3, 4).has_value());
+    const auto view = tenthPixelView();
+    TrackNotePreview preview (f.doc.getConductorTrack(), view);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+    MarkerClickProbe probe;
+    probe.attach (preview);
+
+    preview.mouseDoubleClick (previewMouseAt (preview, view.xForTick (3840), previewHeight - 3));
+    REQUIRE (probe.doubleClicked.size() == 1);
+    CHECK (probe.doubleClicked[0] == std::make_pair (TempoMeterKind::meter, 3840));
+    CHECK (probe.plainDoubleClicks == 0);
+
+    preview.mouseDoubleClick (previewMouseAt (preview, view.xForTick (2400), 3));
+    CHECK (probe.doubleClicked.size() == 1);
+    CHECK (probe.plainDoubleClicks == 1);
 }
 
 TEST_CASE ("TrackNotePreview: a Conductor click away from every marker still seeks and selects as before", "[track-note-preview][conductor][marker-click]")

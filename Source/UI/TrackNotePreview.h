@@ -71,7 +71,8 @@ namespace lotro
         // Conductor row only: a plain left press (no Shift/Ctrl/Alt/Cmd) on a tempo or meter
         // marker fires this with the marker's kind and tick, INSTEAD of onNonToggleClick,
         // onTimelineClicked and the section press (the click is consumed).
-        std::function<void (TempoMeterKind, int tick)> onMarkerClicked;
+        std::function<bool (TempoMeterKind, int tick)> onMarkerClicked;   // true = handled: the press is consumed
+        std::function<void (TempoMeterKind, int tick)> onMarkerDoubleClicked;
 
         // A left press on the strip (after onNonToggleClick/onTimelineClicked) with
         // the section under it (zone None when there is none), then the tick under
