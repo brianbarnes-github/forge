@@ -72,8 +72,13 @@ double nearestBarStart (const std::vector<MeterSegment>& segments, double tick)
     double candidate = segment.startTick + bars * segment.ticksPerBar;
 
     const size_t index = (size_t) (&segment - segments.data());
-    if (index + 1 < segments.size() && candidate >= segments[index + 1].startTick - 1e-9)
-        candidate = segments[index + 1].startTick;
+    if (index + 1 < segments.size())
+    {
+        // The next meter's start is a bar line too, even when it cuts this segment's last bar short.
+        const double next = segments[index + 1].startTick;
+        if (candidate >= next - 1e-9 || std::abs (next - tick) < std::abs (candidate - tick))
+            candidate = next;
+    }
     return candidate;
 }
 

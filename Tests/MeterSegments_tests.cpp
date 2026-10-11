@@ -66,6 +66,14 @@ TEST_CASE ("segmentAt and nearestBarStart", "[meter-segments]")
     CHECK (nearestBarStart (s, -10.0) == Approx (0.0));
 }
 
+TEST_CASE ("nearestBarStart: the end of a partial bar (the next meter's start) is a candidate", "[meter-segments]")
+{
+    const auto s = meterSegments ({ { 0, 4, 4 }, { 2400, 6, 8 } }, 480);   // 4/4 bar 2 is cut short at 2400
+    CHECK (nearestBarStart (s, 2300.0) == Approx (2400.0));
+    CHECK (nearestBarStart (s, 2100.0) == Approx (1920.0));
+    CHECK (nearestBarStart (s, 2399.0) == Approx (2400.0));
+}
+
 TEST_CASE ("previousBarStart: one meter matches previousBarTick, and it crosses a meter change", "[meter-segments]")
 {
     const auto one = meterSegments ({ { 0, 4, 4 } }, 480);
