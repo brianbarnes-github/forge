@@ -3114,3 +3114,49 @@ TEST_CASE ("TrackListComponent: clicking a marker on the Conductor row fires onC
     CHECK (opened.size() == 1);
     CHECK (plainOpens == 1);
 }
+
+TEST_CASE ("TrackListComponent: onViewChanged fires after fit, scroll and wheel zoom", "[track-list][view-changed]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+
+    int calls = 0;
+    list.onViewChanged = [&calls] { ++calls; };
+
+    int before = calls;
+    list.fitTimelineToDocument();
+    CHECK (calls > before);
+
+    // Scroll: zoom in first so the song is wider than the pane.
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, {});
+    before = calls;
+    Access::horizontalBar (list).setCurrentRangeStart (7000.0, juce::sendNotificationSync);
+    CHECK (calls > before);
+
+    before = calls;
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, {});   // plain wheel zooms
+    CHECK (calls > before);
+    CHECK (&list.getTimelineView() == &Access::timelineView (list));
+    CHECK (list.getTimelineView().getPixelsPerTick()
+           == Catch::Approx (Access::timelineView (list).getPixelsPerTick()));
+}
+
+TEST_CASE ("TrackListComponent: view changes without onViewChanged set do not crash", "[track-list][view-changed]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 600, 400);
+    list.fitTimelineToDocument();
+    wheelAt (list, Access::notePreviewOriginX (list), 1.0f, {});
+    Access::horizontalBar (list).setCurrentRangeStart (3000.0, juce::sendNotificationSync);
+    CHECK (list.getTimelineView().getScrollOffsetTicks() == Catch::Approx (3000.0));
+}

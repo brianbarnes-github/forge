@@ -116,6 +116,8 @@ void TrackListComponent::setEventMarkerTick (std::optional<int> tick)
 void TrackListComponent::refreshOverlay()
 {
     eventMarkerOverlay->repaint();   // the tick -> x mapping changed (zoom/scroll)
+    if (onViewChanged)
+        onViewChanged();
     if (overlay == nullptr)
         return;
     ++overlayRepaintCount;

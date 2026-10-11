@@ -254,6 +254,13 @@ public:
     void setEventMarkerTick (std::optional<int> tick);
     std::optional<int> getEventMarkerTick() const { return eventMarkerOverlay->getTick(); }
 
+    // The shared timeline mapping (zoom/scroll); a stable reference to the member.
+    const TimelineViewState& getTimelineView() const { return timelineView; }
+
+    // Fired at the end of refreshOverlay(): after every zoom, scroll, fit, resize
+    // and song-length change.
+    std::function<void()> onViewChanged;
+
 private:
 
     // End tick of the latest-ending note across all tracks (0 when empty).
