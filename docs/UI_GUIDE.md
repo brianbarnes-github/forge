@@ -85,7 +85,7 @@ When you say…       …I'll know you mean
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
 | 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | drawn speaker (mute) and headphone (solo) toggle icons on the second line of the track head (`TrackHeadComponent`, see #10) of every non-conductor row (#10); session-only, never saved or undoable |
-| 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. There is no tempo/meter editor yet. Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
+| 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. Tempo and meter are edited in the Tempo and Meter window (see below). Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
 
 ## Songsmith view
@@ -509,6 +509,23 @@ window's timeline (aligned with the ruler and following scroll and zoom), so you
 sits among the tracks. No selection (or a refresh that drops the selected event, closing the window, or
 replacing the Song) removes the line. The window has minimise and close buttons but no maximise button
 (double-clicking the title bar does not maximise it); it can still be resized, within a modest size range.
+
+**Graph and meter strip.** Above the table, a tempo graph plots the BPM over time as a stepped
+line with a point at each tempo event; under the table, a meter strip shows one block per meter
+(`3/4`). Both share the main timeline's zoom and scroll, so they line up with the ruler and the
+tracks. They appear only when the window is opened from the main window (a window with no timeline
+view shows the table alone). Only the left mouse button acts, and selection is shared with the table.
+
+- *Graph:* click a point to select it. Click on empty graph to add a tempo at the beat-snapped
+  position with the BPM at the pointer. Drag a point to move it: sideways (beat-snapped, after
+  the pointer has moved more than 3 px) changes its tick, up or down (whole BPM, after more than 3 px)
+  changes its tempo; the tempo at tick 0 moves vertically only. Dropping onto a tick that already
+  has a tempo is rejected.
+- *Strip:* click a block to select it. Press at a block's left edge (within 6 px, or the first
+  40 px of the block) and drag to move the meter to the nearest bar (the meter at tick 0 only selects).
+  **Double-click** empty strip to add the meter in force at that bar (a single click does nothing).
+- Delete removes the selected event. A drag previews the move and commits on release as one undo step
+  (a drag that ends where it started changes nothing); a rejected edit shows its message under the table.
 
 ## Context menus
 

@@ -1,6 +1,6 @@
 # Songsmith tempo and meter editing — design
 
-Date: 2026-10-10. Status: approved; phase 1 implemented (plan `docs/superpowers/plans/2026-10-10-songsmith-tempo-meter-phase1.md`); phase 2 (Conductor row display) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase2.md`); phase 3 (editor window) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase3.md`).
+Date: 2026-10-10. Status: approved; phase 1 implemented (plan `docs/superpowers/plans/2026-10-10-songsmith-tempo-meter-phase1.md`); phase 2 (Conductor row display) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase2.md`); phase 3 (editor window) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase3.md`); phase 4 (graph and meter strip) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase4.md`).
 
 ## Goal
 
@@ -149,8 +149,9 @@ Edit ▸ Tempo and Meter… menu item and the Conductor head's right-click menu.
 
 ### 5. Tempo/Meter editor window
 
-Phase 3 delivers the **table** only; the graph and the meter strip below are
-phase 4.
+Phase 3 delivered the **table**; the graph and the meter strip below are phase 4
+(implemented; a meter is added by double-click, not a single click, and both views
+mirror the main timeline's zoom and scroll).
 
 `TempoMeterEditorWindow` (a `juce::DocumentWindow`, owned by
 `SongsmithMainComponent`), one window per document. It reads only the derived maps and
