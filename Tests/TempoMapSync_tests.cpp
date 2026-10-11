@@ -2,6 +2,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace lotro;
 using Catch::Approx;
@@ -51,16 +52,26 @@ TEST_CASE ("deriveMaps: other events, short events, zero tempo and absurd denomi
                                     { 0, { 0xB0, 7, 100 } },                  // controller
                                     { 0, { 0xFF, 0x51, 0x07, 0xA1 } },        // tempo cut short
                                     tempoEvent (0, 0),                        // zero microseconds
-                                    { 0, { 0xFF, 0x58, 4, 2 } },              // meter cut short
-                                    meterEvent (0, 4, 16) });                 // 2^16 denominator
+                                    { 0, { 0xFF, 0x58, 7 } },                 // meter cut short (3 bytes; would be 7/x if accepted)
+                                    meterEvent (0, 5, 16) });                 // 2^16 denominator (would be 5/65536)
     CHECK (maps.tempo.size() == 1);     // only the default
     CHECK (maps.tempo[0].bpm == Approx (120.0));
-    CHECK (maps.meter.size() == 1);
+    REQUIRE (maps.meter.size() == 1);   // only the default
+    CHECK (maps.meter[0].numerator == 4);
     CHECK (maps.meter[0].denominator == 4);
+}
+
+TEST_CASE ("deriveMaps: a 4-byte meter event is the shortest accepted", "[tempo-sync]")
+{
+    const auto maps = deriveMaps ({ { 0, { 0xFF, 0x58, 7, 3 } } });
+    REQUIRE (maps.meter.size() == 1);
+    CHECK (maps.meter[0].numerator == 7);
+    CHECK (maps.meter[0].denominator == 8);
 }
 
 TEST_CASE ("bpmFromMicroseconds matches 60 / seconds-per-quarter exactly", "[tempo-sync]")
 {
-    CHECK (bpmFromMicroseconds (500000) == 60.0 / (500000 / 1000000.0));
-    CHECK (bpmFromMicroseconds (597015) == 60.0 / (597015 / 1000000.0));
+    using Catch::Matchers::WithinULP;
+    CHECK_THAT (bpmFromMicroseconds (500000), WithinULP (60.0 / (500000 / 1000000.0), 0));
+    CHECK_THAT (bpmFromMicroseconds (597015), WithinULP (60.0 / (597015 / 1000000.0), 0));
 }

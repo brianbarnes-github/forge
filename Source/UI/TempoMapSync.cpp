@@ -20,6 +20,7 @@ DerivedMaps deriveMaps (const std::vector<RawMidiEvent>& events)
             if (us > 0)
                 maps.tempo.push_back ({ event.tick, bpmFromMicroseconds (us) });
         }
+        // dd > 15 is ignored: intentionally stricter than the importer (1 << dd would overflow).
         else if (b.size() >= 4 && b[0] == 0xFF && b[1] == 0x58 && b[3] <= 15)
         {
             maps.meter.push_back ({ event.tick, (int) b[2], 1 << b[3] });
