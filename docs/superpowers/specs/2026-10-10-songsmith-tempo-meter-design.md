@@ -1,6 +1,6 @@
 # Songsmith tempo and meter editing — design
 
-Date: 2026-10-10. Status: approved in conversation, awaiting spec review.
+Date: 2026-10-10. Status: approved; phase 1 implemented (plan `docs/superpowers/plans/2026-10-10-songsmith-tempo-meter-phase1.md`).
 
 ## Goal
 
