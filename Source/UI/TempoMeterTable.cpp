@@ -252,4 +252,12 @@ TableEditResult removeEvent (SongDocument& doc, const TempoMeterEvent& row)
     return fromTempoEdit (row.kind == TempoMeterKind::tempo ? removeTempo (doc, row.tick) : removeMeter (doc, row.tick));
 }
 
+TableEditResult removeEvents (SongDocument& doc, const std::vector<TempoMeterEvent>& rows)
+{
+    std::vector<std::pair<TempoMeterKind, int>> targets;
+    for (const auto& row : rows)
+        targets.emplace_back (row.kind, row.tick);
+    return fromTempoEdit (removeTempoMeterEvents (doc, targets));
+}
+
 } // namespace lotro

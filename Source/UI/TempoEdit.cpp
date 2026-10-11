@@ -167,6 +167,18 @@ namespace
         doc.setProperty (existing, SongIDs::data, toVar (bytes), false);
     }
 
+    // Every event of `kind` on `tick`, as part of the current undo transaction.
+    void removeAt (SongDocument& doc, Kind kind, int tick)
+    {
+        auto events = SongDocument::getEventsNode (doc.getConductorTrack());
+        for (int i = events.getNumChildren() - 1; i >= 0; --i)
+        {
+            auto event = events.getChild (i);
+            if (tickOf (event) == tick && isKind (event, kind))
+                doc.removeChild (events, event, false);
+        }
+    }
+
     TempoEditResult remove (SongDocument& doc, Kind kind, int tick)
     {
         if (! doc.hasTimeBase())
@@ -177,13 +189,7 @@ namespace
             return TempoEditError::NoSuchEvent;
 
         doc.getUndoManager().beginNewTransaction();
-        auto events = SongDocument::getEventsNode (doc.getConductorTrack());
-        for (int i = events.getNumChildren() - 1; i >= 0; --i)   // every event of that kind on the tick
-        {
-            auto event = events.getChild (i);
-            if (tickOf (event) == tick && isKind (event, kind))
-                doc.removeChild (events, event, false);
-        }
+        removeAt (doc, kind, tick);
         return std::nullopt;
     }
 }
@@ -274,6 +280,30 @@ TempoEditResult moveMeter (SongDocument& doc, int fromTick, int toTick, int nume
 }
 
 TempoEditResult removeMeter (SongDocument& doc, int tick) { return remove (doc, Kind::meter, tick); }
+
+TempoEditResult removeTempoMeterEvents (SongDocument& doc, const std::vector<std::pair<TempoMeterKind, int>>& targets)
+{
+    if (! doc.hasTimeBase())
+        return TempoEditError::NoTimeBase;
+
+    std::vector<std::pair<Kind, int>> found;
+    for (const auto& [kind, tick] : targets)
+    {
+        const auto k = kind == TempoMeterKind::tempo ? Kind::tempo : Kind::meter;
+        if (tick != 0 && findEvent (doc, k, tick).isValid())
+            found.emplace_back (k, tick);
+    }
+    if (found.empty())
+    {
+        const bool anyFirst = std::any_of (targets.begin(), targets.end(), [] (const auto& t) { return t.second == 0; });
+        return anyFirst ? TempoEditError::CannotRemoveFirst : TempoEditError::NoSuchEvent;
+    }
+
+    doc.getUndoManager().beginNewTransaction();
+    for (const auto& [kind, tick] : found)
+        removeAt (doc, kind, tick);
+    return std::nullopt;
+}
 
 std::vector<TempoMeterEvent> listTempoMeterEvents (const SongDocument& doc)
 {

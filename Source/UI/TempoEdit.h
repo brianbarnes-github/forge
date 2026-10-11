@@ -6,6 +6,7 @@
 // call changes nothing and opens none.
 
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace juce { class ValueTree; }
@@ -58,6 +59,11 @@ struct TempoMeterEvent
     int            numerator   = 0;     // meter events
     int            denominator = 0;
 };
+
+// Removes the (kind, tick) events as ONE undo transaction. Tick-0 and missing targets are
+// skipped; if nothing is left to remove the result is CannotRemoveFirst (some target was at
+// tick 0) or NoSuchEvent.
+TempoEditResult removeTempoMeterEvents (SongDocument&, const std::vector<std::pair<TempoMeterKind, int>>& targets);
 
 // Every tempo and meter event (the derived maps), by tick, tempo before meter on a tie.
 // Before the first edit of a kind, a conductor without that kind lists the implicit

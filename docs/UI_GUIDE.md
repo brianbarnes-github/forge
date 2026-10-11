@@ -500,7 +500,7 @@ Tick cell (not on tick 0), selects its row and starts editing; Enter commits. Ga
 out-of-range value shows a message under the table and leaves the document unchanged; a meter's
 tick snaps to a bar start, and the Tick cell then shows the snapped tick. **Add Tempo** / **Add Meter** insert an event at
 the first free bar start after the selected row, with the value already in force there;
-**Remove** (or Delete; Backspace does nothing) removes the selected event, and the event at tick 0
+**Remove** (or Delete; Backspace does nothing) removes the selected event(s) — Ctrl/Cmd+A selects every row, Ctrl/Shift-click extends the selection, and a multi-row removal is one undo step, and the event at tick 0
 cannot be removed. Every edit is one undo step: Ctrl+Z / Ctrl+Y work in the window and in the main
 window's Edit menu, and the Conductor row's markers, the ruler and the grid follow.
 

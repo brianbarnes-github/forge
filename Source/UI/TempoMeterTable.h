@@ -54,5 +54,7 @@ TableEditResult editTick  (SongDocument&, const TempoMeterEvent& row, const std:
 // last event of that kind), carrying the value in force there. `selected` may be empty.
 TableEditResult addEvent    (SongDocument&, TempoMeterKind kind, std::optional<TempoMeterEvent> selected);
 TableEditResult removeEvent (SongDocument&, const TempoMeterEvent& row);
+// Removes every row in one undo step; tick-0 rows and rows no longer present are skipped.
+TableEditResult removeEvents (SongDocument&, const std::vector<TempoMeterEvent>& rows);
 
 } // namespace lotro

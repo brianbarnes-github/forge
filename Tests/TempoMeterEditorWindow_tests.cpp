@@ -14,6 +14,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 using namespace lotro;
 using namespace miditest;
@@ -39,6 +40,18 @@ namespace lotro
         static void selectRow (TempoMeterEditorWindow& w, int row) { w.content->table.selectRow (row); }
         static int  styleFlags (TempoMeterEditorWindow& w) { return w.getDesktopWindowStyleFlags(); }
         static void deselectAll (TempoMeterEditorWindow& w) { w.content->table.deselectAllRows(); }
+        static std::vector<int> selectedRows (TempoMeterEditorWindow& w)
+        {
+            std::vector<int> out;
+            auto& t = w.content->table;
+            for (int i = 0; i < t.getNumSelectedRows(); ++i)
+                out.push_back (t.getSelectedRow (i));
+            return out;
+        }
+        static void selectRange (TempoMeterEditorWindow& w, int first, int last)
+        {
+            w.content->table.selectRangeOfRows (first, last);
+        }
         static int  selectedRow (TempoMeterEditorWindow& w) { return w.content->table.getSelectedRow(); }
         static bool rowVisible (TempoMeterEditorWindow& w, int row)
         {
@@ -73,11 +86,11 @@ namespace lotro
         {
             return dynamic_cast<juce::Label*> (w.content->table.getCellComponent (column, row));
         }
-        static void mouseDown (juce::Component& c)
+        static void mouseDown (juce::Component& c, juce::ModifierKeys extra = {})
         {
             const auto now = juce::Time::getCurrentTime();
             const juce::MouseEvent e (juce::Desktop::getInstance().getMainMouseSource(), juce::Point<float> (2.0f, 2.0f),
-                                      juce::ModifierKeys::leftButtonModifier, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                      juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier | extra.getRawFlags()), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                       &c, &c, now, juce::Point<float> (2.0f, 2.0f), now, 1, false);
             c.mouseDown (e);
         }
@@ -658,4 +671,107 @@ TEST_CASE ("TempoMeterEditorWindow: selectEvent sees an event added a moment ago
     REQUIRE_FALSE (setTempo (doc, 1920, 100));   // refresh is pending, not yet run
     CHECK (w.selectEvent (TempoMeterKind::tempo, 1920));
     CHECK (Access::rowAt (w, Access::selectedRow (w)).tick == 1920);
+}
+
+namespace
+{
+    // 120 BPM / 4/4 at tick 0 plus tempo changes at bars 2..4 (ticks 1920, 3840, 5760): rows 0..4.
+    void addThreeTempos (SongDocument& doc)
+    {
+        REQUIRE_FALSE (setTempo (doc, 1920, 90));
+        REQUIRE_FALSE (setTempo (doc, 3840, 100));
+        REQUIRE_FALSE (setTempo (doc, 5760, 110));
+    }
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Ctrl+A selects every row", "[tempo-meter-window][multi-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    addThreeTempos (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::selectRow (w, 1);
+    CHECK (Access::keyOnTable (w, juce::KeyPress ('a', juce::ModifierKeys::ctrlModifier, 0)));
+    CHECK (Access::selectedRows (w).size() == (size_t) Access::rowCount (w));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Ctrl- and Shift-click on a cell extend the selection and do not open the editor", "[tempo-meter-window][multi-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    addThreeTempos (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::selectRow (w, 1);
+    Access::mouseDown (*Access::cellLabel (w, 3, valueCol), juce::ModifierKeys::ctrlModifier);
+    CHECK (Access::selectedRows (w) == std::vector<int> { 1, 3 });
+
+    Access::mouseDown (*Access::cellLabel (w, 4, tickCol), juce::ModifierKeys::shiftModifier);
+    CHECK (Access::selectedRows (w) == std::vector<int> { 1, 3, 4 });   // shift extends from the last-clicked row
+
+    Access::selectRow (w, 1);
+    Access::mouseDown (*Access::cellLabel (w, 4, valueCol), juce::ModifierKeys::shiftModifier);
+    CHECK (Access::selectedRows (w) == std::vector<int> { 1, 2, 3, 4 });
+
+    Access::deselectAll (w);
+    Access::mouseDown (*Access::cellLabel (w, 2, valueCol));   // plain click on an unselected row selects just it
+    CHECK (Access::selectedRows (w) == std::vector<int> { 2 });
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Remove and Delete remove every selected event in one undo, keeping tick 0", "[tempo-meter-window][multi-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    addThreeTempos (doc);
+    doc.getUndoManager().clearUndoHistory();
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 5);
+
+    Access::selectRange (w, 0, 3);   // tick-0 tempo, tick-0 meter, 1920, 3840
+    Access::pressRemove (w);
+    pump();
+    CHECK (Access::message (w).empty());
+    CHECK (Access::rowCount (w) == 3);   // both tick-0 rows and 5760 remain
+    CHECK (Access::cellText (w, 2, tickCol) == "5760");
+
+    doc.undo();
+    pump();
+    CHECK (Access::rowCount (w) == 5);   // one undo restores both
+
+    Access::selectRange (w, 3, 4);
+    Access::keyOnTable (w, juce::KeyPress (juce::KeyPress::deleteKey));
+    pump();
+    CHECK (Access::rowCount (w) == 3);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Remove with only tick-0 rows selected explains itself", "[tempo-meter-window][multi-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::selectRange (w, 0, 1);
+    Access::pressRemove (w);
+    CHECK (Access::message (w)
+           == describe (TableEditError { TableEditError::Kind::Rejected, TempoEditError::CannotRemoveFirst }));
+    CHECK (Access::rowCount (w) == 2);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a refresh keeps a multi-selection by (kind, tick)", "[tempo-meter-window][multi-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    addThreeTempos (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::selectRange (w, 3, 4);   // 3840, 5760
+    REQUIRE_FALSE (setTempo (doc, 960, 95));   // a new row appears above them
+    pump();
+    CHECK (Access::selectedRows (w) == std::vector<int> { 4, 5 });
 }

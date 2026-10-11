@@ -341,6 +341,28 @@ TEST_CASE ("TempoMeterTable: removeEvent removes by tick and refuses tick 0", "[
     CHECK (sameList (events (f.doc), before));
 }
 
+TEST_CASE ("TempoMeterTable: removeEvents removes the rows in one undo step and skips tick 0", "[tempo-meter-table]")
+{
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 93.75).has_value());
+    REQUIRE_FALSE (setTempo (f.doc, 3840, 100).has_value());
+    f.doc.getUndoManager().clearUndoHistory();
+    const auto before = events (f.doc);
+
+    REQUIRE_FALSE (removeEvents (f.doc, { find (f.doc, TempoMeterKind::tempo, 0),
+                                          find (f.doc, TempoMeterKind::tempo, 1920),
+                                          find (f.doc, TempoMeterKind::tempo, 3840) }).has_value());
+    CHECK_FALSE (has (f.doc, TempoMeterKind::tempo, 1920));
+    CHECK_FALSE (has (f.doc, TempoMeterKind::tempo, 3840));
+    CHECK (has (f.doc, TempoMeterKind::tempo, 0));
+
+    f.doc.undo();
+    CHECK (sameList (events (f.doc), before));
+
+    CHECK (rejectedWith (removeEvents (f.doc, { find (f.doc, TempoMeterKind::tempo, 0) }), TempoEditError::CannotRemoveFirst));
+    CHECK (rejectedWith (removeEvents (f.doc, {}), TempoEditError::NoSuchEvent));
+}
+
 TEST_CASE ("TempoMeterTable: edits re-find the event and use its stored value, not the caller's copy", "[tempo-meter-table]")
 {
     Loaded f;

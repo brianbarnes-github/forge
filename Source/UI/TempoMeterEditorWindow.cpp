@@ -9,12 +9,19 @@ namespace lotro
         // A cell editor Label that also tells the table which row was pressed.
         struct CellLabel : juce::Label
         {
-            std::function<void()> onPressed;
+            std::function<void (const juce::ModifierKeys&)> onPressed;
             void mouseDown (const juce::MouseEvent& e) override
             {
                 if (onPressed)
-                    onPressed();
+                    onPressed (e.mods);
                 juce::Label::mouseDown (e);
+            }
+            // Shift/Ctrl-click only changes the selection; it must not open the cell editor.
+            void mouseUp (const juce::MouseEvent& e) override
+            {
+                if (e.mods.isShiftDown() || e.mods.isCommandDown())
+                    return;
+                juce::Label::mouseUp (e);
             }
         };
 
@@ -42,7 +49,7 @@ namespace lotro
     TempoMeterEditorWindow::Content::Content()
     {
         table.setHeaderHeight (24);
-        table.setMultipleSelectionEnabled (false);
+        table.setMultipleSelectionEnabled (true);
         table.setColour (juce::ListBox::backgroundColourId, juce::Colour (SongsmithColours::background));
         table.setColour (juce::ListBox::outlineColourId, juce::Colour (SongsmithColours::border));
         table.setOutlineThickness (1);
@@ -228,10 +235,10 @@ namespace lotro
             auto* cell = new CellLabel();
             label = cell;
             // Label swallows the mouse-down, so select the row ourselves.
-            cell->onPressed = [this, safe = juce::Component::SafePointer<juce::Label> (cell)]
+            cell->onPressed = [this, safe = juce::Component::SafePointer<juce::Label> (cell)] (const juce::ModifierKeys& mods)
             {
                 if (safe != nullptr)
-                    content->table.selectRow ((int) safe->getProperties()[rowProperty]);
+                    content->table.selectRowsBasedOnModifierKeys ((int) safe->getProperties()[rowProperty], mods, false);
             };
             label->setEditable (true, false);   // a single click edits
             label->setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
@@ -265,6 +272,19 @@ namespace lotro
         return events[(size_t) row];
     }
 
+    std::vector<TempoMeterEvent> TempoMeterEditorWindow::selectedEvents() const
+    {
+        std::vector<TempoMeterEvent> out;
+        const auto& table = content->table;
+        for (int i = 0; i < table.getNumSelectedRows(); ++i)
+        {
+            const int row = table.getSelectedRow (i);
+            if (row >= 0 && row < (int) events.size())
+                out.push_back (events[(size_t) row]);
+        }
+        return out;
+    }
+
     void TempoMeterEditorWindow::updateButtons()
     {
         const bool on = doc.hasTimeBase();
@@ -286,23 +306,20 @@ namespace lotro
             return;   // keeps an open cell editor alive
         }
 
-        const auto previous = selectedEvent();
+        const auto previous = selectedEvents();
         events = std::move (newEvents);
         rows   = std::move (newRows);
 
         auto& table = content->table;
         table.updateContent();
 
-        int restored = -1;
-        if (previous)
+        juce::SparseSet<int> restored;
+        for (const auto& p : previous)
             for (size_t i = 0; i < events.size(); ++i)
-                if (events[i].kind == previous->kind && events[i].tick == previous->tick)
-                    restored = (int) i;
+                if (events[i].kind == p.kind && events[i].tick == p.tick)
+                    restored.addRange ({ (int) i, (int) i + 1 });
 
-        if (restored >= 0)
-            table.selectRow (restored);
-        else
-            table.deselectAllRows();
+        table.setSelectedRows (restored, juce::dontSendNotification);
         table.repaint();
         notifySelectedTick();   // idempotent; covers a restore that changed no row index
     }
@@ -346,12 +363,12 @@ namespace lotro
 
     void TempoMeterEditorWindow::removePressed()
     {
-        const auto selected = selectedEvent();
-        if (! selected)
+        const auto selected = selectedEvents();
+        if (selected.empty())
         {
             content->message.setText ("Select an event first", juce::dontSendNotification);
             return;
         }
-        showResult (removeEvent (doc, *selected));
+        showResult (removeEvents (doc, selected));
     }
 }

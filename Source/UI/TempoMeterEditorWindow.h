@@ -40,8 +40,11 @@ namespace lotro
         // leaving the selection alone, when there is no such event.
         bool selectEvent (TempoMeterKind kind, int tick);
 
-        // The event of the selected row, if any.
+        // The event of the first selected row, if any.
         std::optional<TempoMeterEvent> selectedEvent() const;
+
+        // The events of every selected row, in row order.
+        std::vector<TempoMeterEvent> selectedEvents() const;
 
     private:
         friend struct TempoMeterEditorWindowTestAccess;
