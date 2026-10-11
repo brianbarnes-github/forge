@@ -146,8 +146,11 @@ Edit ▸ Tempo and Meter… menu item and the Conductor head's right-click menu.
 
 ### 5. Tempo/Meter editor window
 
-`TempoMeterEditorWindow` (a `juce::DocumentWindow`, owned by `MainWindow` like
-the Track editor), one window per document. It reads only the derived maps and
+Phase 3 delivers the **table** only; the graph and the meter strip below are
+phase 4.
+
+`TempoMeterEditorWindow` (a `juce::DocumentWindow`, owned by
+`SongsmithMainComponent`), one window per document. It reads only the derived maps and
 `listTempoMeterEvents`, so it refreshes on any change, including undo. Both
 views address events by tick, as `TempoEdit` does.
 

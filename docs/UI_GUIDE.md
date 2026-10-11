@@ -132,10 +132,11 @@ When you say…       …I'll know you mean
   tempo (amber, top half) and meter (blue, bottom half) changes as 1 px lines with labels
   (`120`, `3/4`; labels that would overlap are hidden, the lines stay), and the background
   shade alternates at every tempo change (top half) and every meter change (bottom half). Double-clicking the
-  conductor row, or choosing **Tempo and Meter…** from its right-click menu, opens the
+  conductor row, or choosing **Tempo and Meter…** from its head's right-click menu, opens the
   Tempo and Meter window (below). A track with no
   notes (e.g. only controllers) has the normal head. Neither kind is draggable onto a part slot or
-  openable in the Track editor window (double-click does nothing) — only
+  openable in the Track editor window (double-clicking a note-less row does nothing; double-clicking the
+  conductor opens the Tempo and Meter window instead) — only
   tracks with at least one note are assignable. They stay in the document
   and are written by File → Export ▸ MIDI….
   On import, the shared zoom auto-fits so the longest track's notes span the
@@ -366,6 +367,9 @@ Edit
                                           (Quantize and Grid Size are enabled
                                            only while a Track editor window
                                            (#28) is open)
+  ─────────
+  Tempo and Meter…                      ← openTempoMeterEditor() (enabled once
+                                           a MIDI has been imported)
 
 Song
   Default parts from tracks            ← synthesiseDefaultParts(songDocument)
@@ -437,6 +441,9 @@ Edit
   ─────────
   Quantize                            ← enabled while a track editor is open
   Grid Size ▸ Off, 1/4, 1/8, 1/16     ← likewise
+  ─────────
+  Tempo and Meter…                    ← opens the Tempo and Meter window; enabled
+                                        once a MIDI has been imported
 
 Song
   Default parts from tracks
@@ -487,10 +494,10 @@ Passing a `.songsmith` path on the command line opens it at startup.
 Conductor row, or the Conductor head's right-click **Tempo and Meter…** opens one floating
 window (re-fronted if already open; closed when a Song is replaced by File ▸ New or Open). A table lists every tempo and
 meter event in order: **Kind**, **Position** (`bar.beat`, 1-based, counted through meter
-changes), **Tick** and **Value** (`93.75` BPM or `3/4`). Click a Value cell, or a Tick cell
-(not on tick 0), and type to edit; Enter commits. Garbage or an out-of-range value shows a
-message under the table and leaves the document unchanged; a meter's tick snaps to a bar start
-and the message shows the tick it landed on. **Add Tempo** / **Add Meter** insert an event at
+changes), **Tick** and **Value** (`93.75` BPM or `3/4`). A single click on a Value cell, or a
+Tick cell (not on tick 0), selects its row and starts editing; Enter commits. Garbage or an
+out-of-range value shows a message under the table and leaves the document unchanged; a meter's
+tick snaps to a bar start, and the Tick cell then shows the snapped tick. **Add Tempo** / **Add Meter** insert an event at
 the first free bar start after the selected row, with the value already in force there;
 **Remove** (or Delete; Backspace does nothing) removes the selected event, and the event at tick 0
 cannot be removed. Every edit is one undo step: Ctrl+Z / Ctrl+Y work in the window and in the main
