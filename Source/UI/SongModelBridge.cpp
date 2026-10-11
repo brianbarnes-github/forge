@@ -372,7 +372,7 @@ namespace
             Diagnostic d;
             d.source   = "SongModelBridge";
             d.severity = Severity::Info;
-            d.message  = "Replaced the document's tempo and meter with the imported file's; undo history cleared";
+            d.message  = "Undo history cleared: the tempo map was replaced";
             diagnostics.push_back (std::move (d));
         }
 

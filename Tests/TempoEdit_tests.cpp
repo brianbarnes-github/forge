@@ -445,7 +445,7 @@ TEST_CASE ("TempoEdit: a tempo Replace import clears the undo history, so undo c
     CHECK_FALSE (f.doc.canUndo());
     bool noted = false;
     for (const auto& diagnostic : d)
-        if (diagnostic.severity == Severity::Info && diagnostic.message.find ("undo history cleared") != std::string::npos)
+        if (diagnostic.severity == Severity::Info && juce::String (diagnostic.message).containsIgnoreCase ("undo history cleared"))
             noted = true;
     CHECK (noted);
 
