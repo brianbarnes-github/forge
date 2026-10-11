@@ -511,21 +511,31 @@ replacing the Song) removes the line. The window has minimise and close buttons 
 (double-clicking the title bar does not maximise it); it can still be resized, within a modest size range.
 
 **Graph and meter strip.** Above the table, a tempo graph plots the BPM over time as a stepped
-line with a point at each tempo event; under the table, a meter strip shows one block per meter
-(`3/4`). Both share the main timeline's zoom and scroll, so they line up with the ruler and the
-tracks. They appear only when the window is opened from the main window (a window with no timeline
-view shows the table alone). Only the left mouse button acts, and selection is shared with the table.
+line with a point at each tempo event; between the graph and the table, a meter strip shows one
+block per meter (`3/4`), each running to the next meter. Both share the main timeline's zoom and
+scroll, so they line up with the ruler and the tracks. The graph and strip are shown whenever the
+window is opened from the main window. Only the left mouse button acts, and selection is shared
+with the table.
 
-- *Graph:* click a point to select it. Click on empty graph to add a tempo at the beat-snapped
-  position with the BPM at the pointer. Drag a point to move it: sideways (beat-snapped, after
-  the pointer has moved more than 3 px) changes its tick, up or down (whole BPM, after more than 3 px)
-  changes its tempo; the tempo at tick 0 moves vertically only. Dropping onto a tick that already
-  has a tempo is rejected.
-- *Strip:* click a block to select it. Press at a block's left edge (within 6 px, or the first
-  40 px of the block) and drag to move the meter to the nearest bar (the meter at tick 0 only selects).
-  **Double-click** empty strip to add the meter in force at that bar (a single click does nothing).
-- Delete removes the selected event. A drag previews the move and commits on release as one undo step
-  (a drag that ends where it started changes nothing); a rejected edit shows its message under the table.
+- *Graph:* click a point (within 6 px) to select it. Click on empty graph to add a tempo at the
+  beat-snapped position with the whole BPM at the pointer; if that beat already has a tempo, the
+  click selects it instead of adding. Drag a point to move it. Moving the pointer 3 px or more
+  sideways from where you pressed changes its tick (beat-snapped). Moving it 3 px or more up or
+  down changes its tempo (whole BPM). Each axis is checked separately and continuously: bring the
+  pointer back within 3 px on an axis and that axis keeps its stored value (an off-beat tick or a
+  fractional BPM is not rounded). The tempo at tick 0 moves vertically only. Dropping onto a tick
+  that already has a tempo is rejected. The moved point stays selected.
+- *Strip:* in an ordinary song there is a meter at tick 0, so blocks cover the whole strip.
+  - A single click on a block selects it.
+  - To move a meter, press at a block's left edge (within 6 px, or anywhere in the block's first
+    40 px) and drag 3 px or more sideways. The meter moves to the nearest bar; drag back within
+    3 px and it stays where it was. The meter at tick 0 only selects.
+  - **Double-click** a block's body to add a meter at the nearest bar, with the meter in force
+    there; if that bar already has a meter, the double-click selects it instead.
+- Delete removes the selected event. A drag previews the move and commits on release as one undo
+  step. A drag that ends where it started changes nothing. A rejected edit shows its message under
+  the table. An undo during a drag that removes the dragged event (or, on the graph, changes its BPM)
+  abandons the drag.
 
 ## Context menus
 
