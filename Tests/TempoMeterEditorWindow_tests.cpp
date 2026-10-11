@@ -100,6 +100,7 @@ namespace lotro
         static std::vector<TempoMeterEvent> graphSelected (TempoMeterEditorWindow& w) { return w.content->graph->selectedForTesting(); }
         static std::vector<TempoMeterEvent> graphEvents (TempoMeterEditorWindow& w) { return w.content->graph->eventsForTesting(); }
         static int graphRepaintCount (TempoMeterEditorWindow& w) { return w.content->graph->repaintRequestsForTesting(); }
+        static TempoGraphComponent& graph (TempoMeterEditorWindow& w) { return *w.content->graph; }
         static int tableHeight (TempoMeterEditorWindow& w) { return w.content->table.getHeight(); }
         static juce::Rectangle<int> tableBounds (TempoMeterEditorWindow& w) { return w.content->table.getBounds(); }
         static juce::Rectangle<int> graphBounds (TempoMeterEditorWindow& w) { return w.content->graph->getBounds(); }
@@ -891,4 +892,66 @@ TEST_CASE ("TempoMeterEditorWindow: timelineViewChanged repaints the graph", "[t
     view.setPixelsPerTick (0.2);
     w.timelineViewChanged();
     CHECK (Access::graphRepaintCount (w) == before + 1);
+}
+
+namespace
+{
+    juce::MouseEvent graphMouse (juce::Component& c, juce::Point<int> pos, juce::Point<int> down)
+    {
+        const auto now = juce::Time::getCurrentTime();
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos.toFloat(),
+                                 juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                 &c, &c, now, down.toFloat(), now, 1, pos != down);
+    }
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a point selected on the graph is removed by Delete", "[tempo-meter-window][graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TimelineViewState view;
+    view.setPixelsPerTick (0.1);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+    REQUIRE (Access::rowCount (w) == 3);
+
+    auto& graph = Access::graph (w);
+    const juce::Point<int> p (graph.xForTick (1920), graph.yForBpm (90));
+    graph.mouseDown (graphMouse (graph, p, p));
+    graph.mouseUp (graphMouse (graph, p, p));
+    REQUIRE (Access::selectedRow (w) == 2);
+
+    CHECK_FALSE (graph.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));   // bubbles up
+    CHECK (w.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+    CHECK (Access::message (w).empty());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a rejected graph drag shows the reason", "[tempo-meter-window][graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    REQUIRE_FALSE (setTempo (doc, 3840, 150));
+    TimelineViewState view;
+    view.setPixelsPerTick (0.1);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+    const auto before = listTempoMeterEvents (doc);
+
+    auto& graph = Access::graph (w);
+    const juce::Point<int> p (graph.xForTick (1920), graph.yForBpm (90));
+    const juce::Point<int> to (graph.xForTick (3840), graph.yForBpm (100));
+    graph.mouseDown (graphMouse (graph, p, p));
+    graph.mouseDrag (graphMouse (graph, to, p));
+    graph.mouseUp (graphMouse (graph, to, p));
+
+    CHECK (Access::message (w) == describe (TableEditError { TableEditError::Kind::Rejected, TempoEditError::TickOccupied }));
+    CHECK (listTempoMeterEvents (doc).size() == before.size());
 }
