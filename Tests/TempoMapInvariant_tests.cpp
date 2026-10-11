@@ -17,6 +17,7 @@
 #include <juce_core/juce_core.h>
 
 #include <algorithm>
+#include <fstream>
 #include <sstream>
 #include <tuple>
 
@@ -139,6 +140,22 @@ TEST_CASE ("a new document has empty maps and no time base", "[tempo-sync]")
     CHECK_FALSE (doc.hasTimeBase());
     CHECK (doc.getTempoMapNode().getNumChildren() == 0);
     CHECK (doc.getMeterMapNode().getNumChildren() == 0);
+}
+
+TEST_CASE ("New after an import clears the time base and the maps", "[tempo-sync]")
+{
+    TempMidi file (smf (1, 96, { conductorWith ({ { 0, 500000 }, { 96, 600000 } }), melody (60) }));
+    SongDocument doc;
+    Diagnostics d;
+    REQUIRE (importMidiFile (doc, file.file, doc.mintImportBatch(), d));
+    REQUIRE (doc.hasTimeBase());
+    REQUIRE (doc.getTempoMapNode().getNumChildren() == 2);
+
+    doc.resetToEmpty();
+    CHECK_FALSE (doc.hasTimeBase());
+    CHECK (doc.getTempoMapNode().getNumChildren() == 0);
+    CHECK (doc.getMeterMapNode().getNumChildren() == 0);
+    CHECK (SongDocument::getEventsNode (doc.getConductorTrack()).getNumChildren() == 0);
 }
 
 TEST_CASE ("import: the maps are derived from the conductor events (tempo changes and a file with none)", "[tempo-sync]")
@@ -420,4 +437,53 @@ TEST_CASE ("loading a legacy file moves note-track tempo and meter events into t
     requireMapsMatchEvents (loaded);
     requireExportMatchesMaps (loaded);
     CHECK_FALSE (loaded.canUndo());
+}
+
+namespace
+{
+    juce::File repoRoot() { return juce::File (__FILE__).getParentDirectory().getParentDirectory(); }
+}
+
+TEST_CASE ("every tracked MIDI fixture: the derived maps equal what importMidi reads", "[tempo-sync]")
+{
+    const auto fixtures = repoRoot().getChildFile ("midi").findChildFiles (juce::File::findFiles, false, "*.mid");
+    REQUIRE_FALSE (fixtures.isEmpty());
+
+    for (const auto& fixture : fixtures)
+    {
+        INFO (fixture.getFileName().toStdString());
+
+        std::ifstream stream (fixture.getFullPathName().toStdString(), std::ios::binary);
+        REQUIRE (stream.good());
+        Diagnostics coreDiagnostics;
+        const Song song = importMidi (stream, fixture.getFileName().toStdString(), coreDiagnostics);
+
+        SongDocument doc;
+        Diagnostics d;
+        REQUIRE (importMidiFile (doc, fixture, doc.mintImportBatch(), d));
+        const auto derived = deriveMaps (conductorEventsOf (doc));
+
+        // importMidi reads the file's tracks in file order; the conductor holds the same
+        // events relocated and sorted by (tick, relocatedFrom, order). Same-tick order can
+        // therefore differ when tempo lives in note tracks, so both sides are compared as
+        // multisets sorted by tick (stable within a tick, then by value).
+        std::vector<std::pair<int, double>> coreTempo, derivedTempo;
+        for (const auto& t : song.tempoMap)     coreTempo.emplace_back (t.tick, t.bpm);
+        for (const auto& t : derived.tempo)     derivedTempo.emplace_back (t.tick, t.bpm);
+        std::vector<std::tuple<int, int, int>> coreMeter, derivedMeter;
+        for (const auto& m : song.meterMap)     coreMeter.emplace_back (m.tick, m.numerator, m.denominator);
+        for (const auto& m : derived.meter)     derivedMeter.emplace_back (m.tick, m.numerator, m.denominator);
+        std::sort (coreTempo.begin(), coreTempo.end());
+        std::sort (derivedTempo.begin(), derivedTempo.end());
+        std::sort (coreMeter.begin(), coreMeter.end());
+        std::sort (derivedMeter.begin(), derivedMeter.end());
+
+        REQUIRE (derivedTempo.size() == coreTempo.size());
+        for (size_t i = 0; i < coreTempo.size(); ++i)
+        {
+            CHECK (derivedTempo[i].first == coreTempo[i].first);
+            CHECK_THAT (derivedTempo[i].second, Catch::Matchers::WithinULP (coreTempo[i].second, 0));   // bit-identical
+        }
+        CHECK (derivedMeter == coreMeter);
+    }
 }
