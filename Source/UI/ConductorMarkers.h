@@ -30,7 +30,7 @@ struct PlacedMarker
 };
 
 std::string formatMarkerBpm (double bpm);                       // "120", "93.75"
-std::string markerLabel (const TempoMeterEvent&);            // "\xe2\x99\xa9=120" or "3/4"
+std::string markerLabel (const TempoMeterEvent&);            // "120" or "3/4"
 std::vector<ConductorMarker> conductorMarkers (const std::vector<TempoMeterEvent>&);   // same order as input
 
 // x = xForTick (tick). A label is shown when it starts at least `labelGap` px after the

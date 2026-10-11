@@ -63,7 +63,7 @@ TEST_CASE ("ConductorMarkers: BPM is shown with up to two decimals, trailing zer
 
 TEST_CASE ("ConductorMarkers: labels", "[conductor-markers]")
 {
-    CHECK (markerLabel (tempo (0, 120.0)) == "\xe2\x99\xa9=120");
+    CHECK (markerLabel (tempo (0, 120.0)) == "120");
     CHECK (markerLabel (meter (0, 6, 8)) == "6/8");
 }
 
@@ -81,7 +81,7 @@ TEST_CASE ("ConductorMarkers: placeMarkers thins labels per kind but keeps every
     // Marker x = 0, 20, 40, 60. A label is 5 chars * 6 = 30 px wide and starts 3 px after its marker.
     // Label 0 ends at 33, so the next may start at 33 + 4 = 37: marker 1 (23) hides, marker 2 (43) shows
     // and ends at 73, so marker 3 (63) hides.
-    const auto m = conductorMarkers ({ tempo (0, 100), tempo (200, 110), tempo (400, 120), tempo (600, 130) });
+    const auto m = conductorMarkers ({ tempo (0, 100.5), tempo (200, 110.5), tempo (400, 120.5), tempo (600, 130.5) });
     const auto p = placeMarkers (m, xOf, wide);
     REQUIRE (p.size() == 4);
     CHECK (p[0].labelShown);
@@ -94,8 +94,8 @@ TEST_CASE ("ConductorMarkers: placeMarkers thins labels per kind but keeps every
 TEST_CASE ("ConductorMarkers: a label exactly labelGap after the previous one is shown", "[conductor-markers]")
 {
     // Label 0 ends at 3 + 30 = 33; a marker at x = 34 starts at 37 = 33 + 4 (shown), one at x = 33 starts at 36 (hidden).
-    const auto shown  = placeMarkers (conductorMarkers ({ tempo (0, 100), tempo (340, 110) }), xOf, wide);
-    const auto hidden = placeMarkers (conductorMarkers ({ tempo (0, 100), tempo (330, 110) }), xOf, wide);
+    const auto shown  = placeMarkers (conductorMarkers ({ tempo (0, 100.5), tempo (340, 110.5) }), xOf, wide);
+    const auto hidden = placeMarkers (conductorMarkers ({ tempo (0, 100.5), tempo (330, 110.5) }), xOf, wide);
     CHECK (shown[1].labelShown);
     CHECK_FALSE (hidden[1].labelShown);
 }
@@ -129,7 +129,7 @@ TEST_CASE ("ConductorMarkers: listing from the tree equals listing from the docu
 
 TEST_CASE ("ConductorMarkers: placeMarkers stops after stopAfterX, measuring nothing beyond it, and records label widths", "[conductor-markers]")
 {
-    const auto m = conductorMarkers ({ tempo (0, 100), tempo (200, 110), tempo (400, 120), tempo (600, 130) });   // x = 0, 20, 40, 60
+    const auto m = conductorMarkers ({ tempo (0, 100.5), tempo (200, 110.5), tempo (400, 120.5), tempo (600, 130.5) });   // x = 0, 20, 40, 60
     int measured = 0;
     const auto counting = [&] (const std::string& s) { ++measured; return wide (s); };
     const auto p = placeMarkers (m, xOf, counting, 3, 4, 40);

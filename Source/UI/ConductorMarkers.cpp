@@ -23,7 +23,7 @@ std::string formatMarkerBpm (double bpm)
 std::string markerLabel (const TempoMeterEvent& event)
 {
     if (event.kind == TempoMeterKind::tempo)
-        return "\xe2\x99\xa9=" + formatMarkerBpm (event.bpm);
+        return formatMarkerBpm (event.bpm);
     return std::to_string (event.numerator) + "/" + std::to_string (event.denominator);
 }
 

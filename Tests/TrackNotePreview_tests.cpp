@@ -815,7 +815,7 @@ TEST_CASE ("TrackNotePreview: a label of a marker just off the left edge still r
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     Loaded f;
-    REQUIRE_FALSE (setTempo (f.doc, 960, 90.0).has_value());
+    REQUIRE_FALSE (setTempo (f.doc, 960, 888.0).has_value());
     const auto view = tenthPixelView (960.0 + 50.0);   // tempo line at x = -5
 
     const auto image = renderPreview (f.doc.getConductorTrack(), view);
