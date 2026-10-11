@@ -4,6 +4,9 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <tuple>
+#include <utility>
+
 using namespace lotro;
 using Catch::Approx;
 
@@ -203,4 +206,57 @@ TEST_CASE ("TimelineRuler: without marks configured it just paints its backgroun
     juce::Image image (juce::Image::ARGB, 200, TimelineRuler::height, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     CHECK_NOTHROW (ruler.paintEntireComponent (g, false));
+}
+
+TEST_CASE ("computeRulerMarks: bars continue their numbering across a meter change", "[ruler][tempo-sync]")
+{
+    RulerGrid grid { TempoMap ({}, 480), { 4, 4 } };
+    grid.meters = { { 0, 4, 4 }, { 3840, 3, 4 } };   // two 4/4 bars, then 3/4
+
+    const auto marks = computeRulerMarks (0.0, 3840.0 + 1440.0 * 2, 0.04, grid);   // 0.04 px/tick: every bar labelled, no beats
+    std::vector<std::pair<double, std::string>> bars;
+    for (const auto& m : marks)
+        if (m.kind == RulerMark::Kind::Bar)
+            bars.emplace_back (m.tick, m.label);
+
+    REQUIRE (bars.size() == 5);
+    CHECK (bars[0] == std::make_pair (0.0, std::string ("1")));
+    CHECK (bars[1] == std::make_pair (1920.0, std::string ("2")));
+    CHECK (bars[2] == std::make_pair (3840.0, std::string ("3")));
+    CHECK (bars[3] == std::make_pair (3840.0 + 1440.0, std::string ("4")));      // 3/4 bars are 1440 long
+    CHECK (bars[4] == std::make_pair (3840.0 + 2880.0, std::string ("5")));
+}
+
+TEST_CASE ("computeRulerMarks: beats follow the meter in force", "[ruler][tempo-sync]")
+{
+    RulerGrid grid { TempoMap ({}, 480), { 4, 4 } };
+    grid.meters = { { 0, 4, 4 }, { 1920, 6, 8 } };
+
+    const auto marks = computeRulerMarks (0.0, 1920.0 + 1440.0, 0.5, grid);   // wide enough to show beats
+    int beatsInFirstBar = 0, beatsInSecondBar = 0;
+    for (const auto& m : marks)
+    {
+        if (m.kind != RulerMark::Kind::Beat) continue;
+        if (m.tick < 1920.0) ++beatsInFirstBar; else ++beatsInSecondBar;
+    }
+    CHECK (beatsInFirstBar == 3);    // beats 2..4 of the 4/4 bar
+    CHECK (beatsInSecondBar == 5);   // beats 2..6 of the 6/8 bar (eighth-note beats)
+}
+
+TEST_CASE ("rulerGridFromDocument carries every meter change", "[ruler][tempo-sync]")
+{
+    SongDocument doc;
+    doc.setTimeBase (true);
+    for (const auto& [tick, nn, dd] : { std::tuple { 0, 4, 4 }, std::tuple { 1920, 3, 4 } })
+    {
+        juce::ValueTree c (SongIDs::METER_CHANGE);
+        c.setProperty (SongIDs::tick, tick, nullptr);
+        c.setProperty (SongIDs::numerator, nn, nullptr);
+        c.setProperty (SongIDs::denominator, dd, nullptr);
+        doc.getMeterMapNode().addChild (c, -1, nullptr);
+    }
+    const auto grid = rulerGridFromDocument (doc);
+    REQUIRE (grid.meters.size() == 2);
+    CHECK (grid.meters[1].numerator == 3);
+    CHECK (grid.meter.numerator == 4);
 }

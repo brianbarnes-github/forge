@@ -1,5 +1,6 @@
 #pragma once
 
+#include "UI/MeterSegments.h"
 #include "UI/Playback/TempoMap.h"
 
 #include <string>
@@ -11,8 +12,8 @@ namespace lotro
 class SongDocument;
 
 // What the timing bar needs to know about the song: the tempo map (ticks <->
-// clock time, which also carries the PPQ) and the first meter entry (the
-// project's one-meter-timeline convention, as for the roll's gridlines).
+// clock time, which also carries the PPQ) and the meter changes (bars are
+// counted across them).
 struct RulerMeter
 {
     int numerator = 4;
@@ -22,7 +23,8 @@ struct RulerMeter
 struct RulerGrid
 {
     TempoMap tempo;
-    RulerMeter meter;
+    RulerMeter meter;                  // the opening meter; the only one when `meters` is empty
+    std::vector<MeterChange> meters {}; // every meter change (empty = just `meter` from tick 0)
 };
 
 struct RulerMark

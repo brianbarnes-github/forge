@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 
 namespace lotro
 {
@@ -32,15 +33,16 @@ namespace
 
 RulerGrid rulerGridFromDocument (const SongDocument& doc)
 {
-    RulerMeter meter;
-    const auto meterMap = doc.getMeterMapNode();
-    if (meterMap.isValid() && meterMap.getNumChildren() > 0)
+    RulerGrid grid;
+    grid.tempo = tempoMapFromDocument (doc);
+    grid.meters = doc.getMeterChanges();
+    if (! grid.meters.empty())
     {
-        const auto first = meterMap.getChild (0);
-        meter.numerator = (int) first.getProperty (SongIDs::numerator, 4);
-        meter.denominator = (int) first.getProperty (SongIDs::denominator, 4);
+        grid.meter.numerator = grid.meters.front().numerator;
+        grid.meter.denominator = grid.meters.front().denominator;
     }
-    return { tempoMapFromDocument (doc), sanitised (meter) };
+    grid.meter = sanitised (grid.meter);
+    return grid;
 }
 
 std::string formatClock (double seconds, bool withMilliseconds)
@@ -69,46 +71,68 @@ std::vector<RulerMark> computeRulerMarks (double firstTick, double lastTick, dou
     if (pixelsPerTick <= 0.0 || lastTick < firstTick)
         return marks;
 
-    const auto meter = sanitised (grid.meter);
-    const double ticksPerBeat = (double) grid.tempo.getTicksPerQuarter() * 4.0 / (double) meter.denominator;
-    const double ticksPerBar = ticksPerBeat * (double) meter.numerator;
-    if (ticksPerBar <= 0.0)
+    auto changes = grid.meters;
+    if (changes.empty())
+    {
+        const auto meter = sanitised (grid.meter);
+        changes.push_back ({ 0, meter.numerator, meter.denominator });
+    }
+    const auto segments = meterSegments (std::move (changes), grid.tempo.getTicksPerQuarter());
+    if (segments.empty())
         return marks;
 
-    const double beatPixels = ticksPerBeat * pixelsPerTick;
-    const int barStep = barStepFor (ticksPerBar * pixelsPerTick);
-    const bool showBeats = barStep == 1 && beatPixels >= minBeatPixels;
-    const bool showMilliseconds = ticksPerBar * pixelsPerTick * (double) barStep >= minMillisecondLabelPixels;
+    double narrowestBar = segments.front().ticksPerBar;
+    double narrowestBeat = segments.front().ticksPerBeat;
+    for (const auto& s : segments)
+    {
+        narrowestBar = std::min (narrowestBar, s.ticksPerBar);
+        narrowestBeat = std::min (narrowestBeat, s.ticksPerBeat);
+    }
+
+    const int barStep = barStepFor (narrowestBar * pixelsPerTick);
+    const bool showBeats = barStep == 1 && narrowestBeat * pixelsPerTick >= minBeatPixels;
+    const bool showMilliseconds = narrowestBar * pixelsPerTick * (double) barStep >= minMillisecondLabelPixels;
 
     const auto inRange = [&] (double tick) { return tick >= firstTick && tick <= lastTick; };
 
-    const long long firstBar = std::max (0LL, (long long) std::floor (firstTick / ticksPerBar));
-    for (long long bar = firstBar; (double) bar * ticksPerBar <= lastTick; ++bar)
+    for (size_t i = 0; i < segments.size(); ++i)
     {
-        const double barTick = (double) bar * ticksPerBar;
+        const auto& s = segments[i];
+        const double end = i + 1 < segments.size() ? segments[i + 1].startTick : std::numeric_limits<double>::infinity();
+        if (end <= firstTick || s.startTick > lastTick)
+            continue;
 
-        if (bar % barStep == 0 && inRange (barTick))
+        const long long firstK = std::max (0LL, (long long) std::floor ((firstTick - s.startTick) / s.ticksPerBar));
+        for (long long k = firstK;; ++k)
         {
-            RulerMark mark;
-            mark.kind = RulerMark::Kind::Bar;
-            mark.tick = barTick;
-            mark.label = std::to_string (bar + 1) + (showBeats ? ".1" : "");
-            mark.timeLabel = formatClock (grid.tempo.ticksToSeconds (barTick), showMilliseconds);
-            marks.push_back (std::move (mark));
-        }
+            const double barTick = s.startTick + (double) k * s.ticksPerBar;
+            if (barTick >= end - 1e-9 || barTick > lastTick)
+                break;
 
-        if (showBeats)
-        {
-            for (int beat = 1; beat < meter.numerator; ++beat)
+            const long long bar = s.firstBar + k;
+            if (bar % barStep == 0 && inRange (barTick))
             {
-                const double beatTick = barTick + (double) beat * ticksPerBeat;
-                if (inRange (beatTick))
+                RulerMark mark;
+                mark.kind = RulerMark::Kind::Bar;
+                mark.tick = barTick;
+                mark.label = std::to_string (bar + 1) + (showBeats ? ".1" : "");
+                mark.timeLabel = formatClock (grid.tempo.ticksToSeconds (barTick), showMilliseconds);
+                marks.push_back (std::move (mark));
+            }
+
+            if (showBeats)
+            {
+                for (int beat = 1; beat < s.numerator; ++beat)
                 {
-                    RulerMark mark;
-                    mark.kind = RulerMark::Kind::Beat;
-                    mark.tick = beatTick;
-                    mark.label = std::to_string (bar + 1) + "." + std::to_string (beat + 1);
-                    marks.push_back (std::move (mark));
+                    const double beatTick = barTick + (double) beat * s.ticksPerBeat;
+                    if (beatTick < end - 1e-9 && inRange (beatTick))
+                    {
+                        RulerMark mark;
+                        mark.kind = RulerMark::Kind::Beat;
+                        mark.tick = beatTick;
+                        mark.label = std::to_string (bar + 1) + "." + std::to_string (beat + 1);
+                        marks.push_back (std::move (mark));
+                    }
                 }
             }
         }
