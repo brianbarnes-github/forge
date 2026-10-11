@@ -431,6 +431,25 @@ TEST_CASE ("merge all events: the section end is exclusive and track-name/end-of
     CHECK (eventBytesOf (target) == std::vector<std::vector<std::uint8_t>> { { 0xB0, 10, 64 } });
 }
 
+TEST_CASE ("merge all events: tempo and meter events never travel", "[merge][events][tempo-sync]")
+{
+    SongDocument doc;
+    auto source = addTrack (doc);
+    auto target = addTrack (doc);
+    addNote (source, 60, 0, 480);
+    addNote (source, 62, 960, 480);
+    splitAt (doc, { idOf (source) }, 960);
+    const auto first = sectionsOf (source)[0];
+    addEvent (source, 100, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 });
+    addEvent (source, 200, { 0xFF, 0x58, 0x04, 0x03, 0x02, 0x18, 0x08 });
+    addEvent (source, 300, { 0xB0, 10, 64 });
+
+    const auto r = mergeSections (doc, { { idOf (source), first.id } }, idOf (target), true, MergeScope::allEvents);
+
+    CHECK (r.eventsCarried == 1);
+    CHECK (eventBytesOf (target) == std::vector<std::vector<std::uint8_t>> { { 0xB0, 10, 64 } });
+}
+
 TEST_CASE ("merge all events: a copy keeps the source's events and a move undoes in one step", "[merge][events]")
 {
     SongDocument doc;

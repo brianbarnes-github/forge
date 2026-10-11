@@ -59,6 +59,13 @@ rebuilt from those events and never written by anything else.
   meter is `nn` and `2^dd`. A differential test asserts `deriveMaps` equals
   what `importMidi` produced for every fixture MIDI, so existing songs behave
   identically.
+- **Tempo/meter always live in the conductor.** A file that has its own conductor
+  track may still hold `FF 51` / `FF 58` inside a note track (the importer's maps
+  include them). Import now moves those into the conductor like it already does
+  for conductor-less files (counted in the "Moved N song-wide event(s)" Info; on a
+  later import with the tempo map kept they are dropped). Export MIDI therefore
+  writes them in the conductor track — musically identical, but not event-for-event
+  for that one file shape. Alt-drag (All events) never carries `FF 51` / `FF 58`.
 - **Defaults.** With no tempo event the map is the single default
   `{0, 120 BPM}`; with no meter event `{0, 4/4}` — as `importMidi` seeds
   today. Export MIDI writes no event for a default; the first edit writes an

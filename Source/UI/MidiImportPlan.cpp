@@ -211,6 +211,14 @@ namespace
     }
 }
 
+namespace
+{
+    bool isTempoOrMeterEvent (const RawMidiEvent& event)
+    {
+        return event.bytes.size() >= 2 && event.bytes[0] == 0xFF && (event.bytes[1] == 0x51 || event.bytes[1] == 0x58);
+    }
+}
+
 bool isSongWideMetaEvent (const RawMidiEvent& event)
 {
     if (event.bytes.size() < 2 || event.bytes[0] != 0xFF)
@@ -304,7 +312,9 @@ MidiImportPlan planMidiImport (const Song& song, const RawMidiFile& raw, bool is
                 continue;
 
             const auto& e = rawTrack.events[(size_t) i];
-            if (! fileHasConductor && isSongWideMetaEvent (e))
+            // A conductor-less file relocates every song-wide meta; a file with a conductor still
+            // moves tempo and meter out of note tracks so the conductor is their only home.
+            if ((! fileHasConductor && isSongWideMetaEvent (e)) || (fileHasConductor && isTempoOrMeterEvent (e)))
             {
                 if (writeConductor)
                 {

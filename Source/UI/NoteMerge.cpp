@@ -64,7 +64,7 @@ namespace
         return {};
     }
 
-    // Notes (and the importer's stray note pairs), End-of-Track and track-name metas stay put.
+    // Notes (and the importer's stray note pairs), End-of-Track, track-name and tempo/meter metas stay put.
     bool travels (const std::vector<std::uint8_t>& b)
     {
         if (b.empty())
@@ -74,6 +74,8 @@ namespace
             return false;
         if (b[0] == 0xFF && b.size() >= 2 && (b[1] == 0x2F || b[1] == 0x03))
             return false;
+        if (b[0] == 0xFF && b.size() >= 2 && (b[1] == 0x51 || b[1] == 0x58))
+            return false;   // tempo and meter live in the conductor only
         return true;
     }
 

@@ -295,7 +295,7 @@ TEST_CASE ("MidiImportPlan: every raw event of every fixture is accounted for ex
 
         const bool fileHasConductor = hasConductorTrack (p.raw);
         if (fileHasConductor)
-            CHECK (plan.conductorEvents.size() == p.raw.tracks[0].events.size());
+            CHECK (plan.conductorEvents.size() == p.raw.tracks[0].events.size() + (size_t) plan.relocatedEventCount);
 
         for (const auto& t : plan.tracks)
         {
@@ -474,4 +474,46 @@ TEST_CASE ("MidiImportPlan: merged with fewer than two note tracks changes nothi
     CHECK (merged.tracks[0].songTrackIndex == expanded.tracks[0].songTrackIndex);
     CHECK (merged.tracks[0].noteLinks.size() == expanded.tracks[0].noteLinks.size());
     CHECK (mergedDiags.size() == expandedDiags.size());
+}
+
+TEST_CASE ("planMidiImport: tempo and meter in a note track move to the conductor even when the file has a conductor track", "[midiimportplan][import-plan][tempo-sync]")
+{
+    TrackBody conductor;
+    conductor.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).eot();
+    TrackBody notes;
+    notes.ev (0, { 0x90, 60, 100 })
+         .ev (96, { 0xFF, 0x51, 0x03, 0x09, 0x27, 0xC0 })
+         .ev (0, { 0xFF, 0x58, 0x04, 0x03, 0x02, 0x18, 0x08 })
+         .ev (0, { 0x80, 60, 0x40 }).eot();
+    const auto p = parse (smf (1, 96, { conductor, notes }));
+
+    const auto isTempoOrMeter = [] (const PlannedEvent& e)
+    {
+        return e.bytes.size() > 1 && e.bytes[0] == 0xFF && (e.bytes[1] == 0x51 || e.bytes[1] == 0x58);
+    };
+
+    Diagnostics diags;
+    const auto plan = planMidiImport (p.song, p.raw, true, diags);
+
+    int tempoCount = 0, meterCount = 0;
+    for (const auto& e : plan.conductorEvents)
+    {
+        if (e.bytes.size() > 1 && e.bytes[1] == 0x51) ++tempoCount;
+        if (e.bytes.size() > 1 && e.bytes[1] == 0x58) ++meterCount;
+    }
+    CHECK (tempoCount == 2);
+    CHECK (meterCount == 1);
+    REQUIRE (plan.tracks.size() == 1);
+    for (const auto& e : plan.tracks[0].events)
+        CHECK_FALSE (isTempoOrMeter (e));
+    CHECK (plan.relocatedEventCount == 2);
+
+    // A later import with the tempo map kept drops them instead.
+    Diagnostics laterDiags;
+    const auto later = planMidiImport (p.song, p.raw, false, laterDiags);
+    CHECK (later.conductorEvents.empty());
+    REQUIRE (later.tracks.size() == 1);
+    for (const auto& e : later.tracks[0].events)
+        CHECK_FALSE (isTempoOrMeter (e));
+    CHECK (later.droppedEventCount >= 3);
 }

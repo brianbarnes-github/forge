@@ -71,6 +71,38 @@ namespace
         return out;
     }
 
+    bool isTempoOrMeter (const RawMidiEvent& e)
+    {
+        return e.bytes.size() >= 2 && e.bytes[0] == 0xFF && (e.bytes[1] == 0x51 || e.bytes[1] == 0x58);
+    }
+
+    // Import moves a note track's FF 51 / FF 58 into the conductor, so the expected export is
+    // the original with those events moved to track 0. Track 0's relative order is then only
+    // defined by tick, so both sides compare track 0 sorted by (tick, bytes).
+    RawMidiFile withTempoMeterInConductor (RawMidiFile file)
+    {
+        for (size_t t = 1; t < file.tracks.size(); ++t)
+        {
+            auto& events = file.tracks[t].events;
+            for (const auto& e : events)
+                if (isTempoOrMeter (e))
+                    file.tracks[0].events.push_back (e);
+            events.erase (std::remove_if (events.begin(), events.end(), isTempoOrMeter), events.end());
+        }
+        std::stable_sort (file.tracks[0].events.begin(), file.tracks[0].events.end(),
+                          [] (const RawMidiEvent& a, const RawMidiEvent& b)
+                          { return std::tie (a.tick, a.bytes) < std::tie (b.tick, b.bytes); });
+        return file;
+    }
+
+    RawMidiFile sortedConductor (RawMidiFile file)
+    {
+        std::stable_sort (file.tracks[0].events.begin(), file.tracks[0].events.end(),
+                          [] (const RawMidiEvent& a, const RawMidiEvent& b)
+                          { return std::tie (a.tick, a.bytes) < std::tie (b.tick, b.bytes); });
+        return file;
+    }
+
     TrackBody conductorBody()
     {
         TrackBody c;
@@ -90,7 +122,13 @@ TEST_CASE ("MidiFidelity: every tracked fixture exports exactly as it was import
         const auto original = readFixture (midiFixture (name));
         REQUIRE (hasConductorTrack (original)); // all fixtures have one
         Diagnostics diags;
-        CHECK (importThenExport (midiFixture (name), &diags) == original);
+        const auto exported = importThenExport (midiFixture (name), &diags);
+        const bool noteTrackTempoMeter = std::any_of (original.tracks.begin() + 1, original.tracks.end(),
+            [] (const RawMidiTrack& t) { return std::any_of (t.events.begin(), t.events.end(), isTempoOrMeter); });
+        if (noteTrackTempoMeter)
+            CHECK (sortedConductor (exported) == withTempoMeterInConductor (original));
+        else
+            CHECK (exported == original);
         // The plan's note-link cross-check only jassertfalse()s, which Catch2 does not see.
         CHECK_FALSE (hasNoteLinkMismatch (diags));
     }
