@@ -60,6 +60,14 @@ namespace lotro
         }
         static void pressRemove (TempoMeterEditorWindow& w) { button (w, "Remove").onClick(); }
         static void refreshNow (TempoMeterEditorWindow& w) { w.refreshNow(); }
+        static juce::Label* cellLabel (TempoMeterEditorWindow& w, int row, int column)
+        {
+            return dynamic_cast<juce::Label*> (w.content->table.getCellComponent (column, row));
+        }
+        static bool keyOnTable (TempoMeterEditorWindow& w, const juce::KeyPress& k)
+        {
+            return w.content->table.keyPressed (k);
+        }
     };
 }
 
@@ -294,4 +302,92 @@ TEST_CASE ("TempoMeterEditorWindow: closing fires onClosed and hides the window"
     w.closeButtonPressed();
     CHECK (closed);
     CHECK_FALSE (w.isVisible());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a Label commit edits through TempoEdit; a rejected one reverts the cell", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    auto* label = Access::cellLabel (w, 0, valueCol);
+    REQUIRE (label != nullptr);
+    CHECK (label->getText() == "120");
+
+    label->setText ("100", juce::sendNotification);
+    CHECK (listTempoMeterEvents (doc)[0].bpm == Approx (100.0).margin (0.01));
+    doc.undo();
+    CHECK (listTempoMeterEvents (doc)[0].bpm == Approx (120.0).margin (0.01));
+    pump();
+
+    label = Access::cellLabel (w, 0, valueCol);
+    REQUIRE (label != nullptr);
+    doc.getUndoManager().clearUndoHistory();
+    label->setText ("abc", juce::sendNotification);
+    CHECK (Access::message (w) == describe (TableEditError { TableEditError::Kind::UnparsableBpm, std::nullopt }));
+    CHECK_FALSE (doc.canUndo());
+    CHECK (label->getText() == "120");   // reverted to the stored value, not left as typed
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a Tick Label commit on a meter row shows the snapped tick", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setMeter (doc, 1920, 3, 4));
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    auto* label = Access::cellLabel (w, 2, tickCol);
+    REQUIRE (label != nullptr);
+    label->setText ("3000", juce::sendNotification);
+    pump();
+    label = Access::cellLabel (w, 2, tickCol);
+    REQUIRE (label != nullptr);
+    CHECK (label->getText() == "3840");
+    CHECK (Access::cellText (w, 2, tickCol) == "3840");
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a retained Label targets the event now shown in its row", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::cellLabel (w, 2, valueCol) != nullptr);
+
+    REQUIRE_FALSE (setTempo (doc, 960, 100));   // shifts the 1920 tempo from row 2 to row 3
+    pump();
+    REQUIRE (Access::rowCount (w) == 4);
+    auto* label = Access::cellLabel (w, 3, valueCol);
+    REQUIRE (label != nullptr);
+    CHECK (label->getText() == "90");
+
+    label->setText ("70", juce::sendNotification);
+    for (const auto& e : listTempoMeterEvents (doc))
+        if (e.kind == TempoMeterKind::tempo && e.tick == 1920)
+            CHECK (e.bpm == Approx (70.0).margin (0.01));
+        else if (e.kind == TempoMeterKind::tempo && e.tick == 960)
+            CHECK (e.bpm == Approx (100.0).margin (0.01));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Delete on the table removes the selected event; Backspace does not", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::selectRow (w, 2);
+    Access::keyOnTable (w, juce::KeyPress (juce::KeyPress::backspaceKey));
+    CHECK (listTempoMeterEvents (doc).size() == 3);
+
+    Access::keyOnTable (w, juce::KeyPress (juce::KeyPress::deleteKey));
+    CHECK (listTempoMeterEvents (doc).size() == 2);
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+
+    CHECK_FALSE (w.keyPressed (juce::KeyPress (juce::KeyPress::backspaceKey)));
 }

@@ -130,7 +130,9 @@ namespace lotro
             doc.redo();
             return true;
         }
-        if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+        // With the table focused ListBox consumes Delete (deleteKeyPressed); this covers
+        // focus on a button or elsewhere in the window.
+        if (key == juce::KeyPress::deleteKey)
         {
             removePressed();
             return true;
@@ -167,6 +169,11 @@ namespace lotro
         g.setColour (colour);
         g.setFont (juce::FontOptions (14.0f));
         g.drawText (text, 6, 0, width - 8, height, juce::Justification::centredLeft, true);
+    }
+
+    void TempoMeterEditorWindow::deleteKeyPressed (int)
+    {
+        removePressed();
     }
 
     juce::Component* TempoMeterEditorWindow::refreshComponentForCell (int row, int column, bool,

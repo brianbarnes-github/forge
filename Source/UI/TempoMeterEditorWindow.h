@@ -41,7 +41,16 @@ namespace lotro
             Content();
             void resized() override;
 
-            juce::TableListBox table;
+            // ListBox treats Backspace like Delete (both reach deleteKeyPressed); only
+            // Delete should remove an event, so Backspace is declined here.
+            struct Table : juce::TableListBox
+            {
+                bool keyPressed (const juce::KeyPress& k) override
+                {
+                    return k == juce::KeyPress::backspaceKey ? false : juce::TableListBox::keyPressed (k);
+                }
+            };
+            Table table;
             juce::TextButton   addTempo { "Add Tempo" }, addMeter { "Add Meter" }, remove { "Remove" };
             juce::Label        message;
         };
@@ -50,6 +59,7 @@ namespace lotro
         int  getNumRows() override { return (int) rows.size(); }
         void paintRowBackground (juce::Graphics&, int row, int width, int height, bool selected) override;
         void paintCell (juce::Graphics&, int row, int column, int width, int height, bool selected) override;
+        void deleteKeyPressed (int lastRowSelected) override;
         juce::Component* refreshComponentForCell (int row, int column, bool selected,
                                                   juce::Component* existing) override;
 
