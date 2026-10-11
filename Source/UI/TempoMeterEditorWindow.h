@@ -30,6 +30,11 @@ namespace lotro
         // Fired when the window is closed by the user.
         std::function<void()> onClosed;
 
+        // Fired when the selected event's tick changes: a row is selected (its tick),
+        // the selection is cleared or dropped by a refresh (nullopt), or the window is
+        // closed (nullopt). Used to mark the event on the main timeline.
+        std::function<void (std::optional<int> tick)> onSelectedTickChanged;
+
     private:
         friend struct TempoMeterEditorWindowTestAccess;
 
@@ -60,6 +65,7 @@ namespace lotro
         void paintRowBackground (juce::Graphics&, int row, int width, int height, bool selected) override;
         void paintCell (juce::Graphics&, int row, int column, int width, int height, bool selected) override;
         void deleteKeyPressed (int lastRowSelected) override;
+        void selectedRowsChanged (int lastRowSelected) override;
         juce::Component* refreshComponentForCell (int row, int column, bool selected,
                                                   juce::Component* existing) override;
 
@@ -76,6 +82,7 @@ namespace lotro
         // if still present, otherwise clears it, and updateContent()s.
         void refreshNow();
         std::optional<TempoMeterEvent> selectedEvent() const;
+        void notifySelectedTick();
 
         void commitCell (int row, int column, const juce::String& text);
         void showResult (const TableEditResult& result);

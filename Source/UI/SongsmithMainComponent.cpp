@@ -232,7 +232,12 @@ void SongsmithMainComponent::openTempoMeterEditor()
     if (tempoMeterWindow == nullptr)
     {
         tempoMeterWindow = std::make_unique<TempoMeterEditorWindow> (doc, getTopLevelComponent());
-        tempoMeterWindow->onClosed = [this] { tempoMeterWindow.reset(); };
+        tempoMeterWindow->onSelectedTickChanged = [this] (std::optional<int> tick) { trackList.setEventMarkerTick (tick); };
+        tempoMeterWindow->onClosed = [this]
+        {
+            trackList.setEventMarkerTick (std::nullopt);
+            tempoMeterWindow.reset();
+        };
     }
     tempoMeterWindow->toFront (true);
 }
@@ -240,6 +245,7 @@ void SongsmithMainComponent::openTempoMeterEditor()
 void SongsmithMainComponent::documentReplaced()
 {
     tempoMeterWindow.reset();
+    trackList.setEventMarkerTick (std::nullopt);
     trackEditorWindow.reset();
     ghostedTrackIds.clear();
     trackList.clearSelection();

@@ -2,6 +2,7 @@
 
 #include "Playback/PlaybackController.h"
 #include "Playback/PlayheadOverlay.h"
+#include "EventMarkerOverlay.h"
 #include "Playback/TimelineRuler.h"
 #include "NoteMerge.h"
 #include "MergeScope.h"
@@ -245,6 +246,14 @@ private:
     // anchor.
     int notePreviewOriginX() const;
 
+public:
+    // The Tempo and Meter window's selected event: a line at this tick across all
+    // rows (nullopt = none). Follows zoom and scroll.
+    void setEventMarkerTick (std::optional<int> tick);
+    std::optional<int> getEventMarkerTick() const { return eventMarkerOverlay->getTick(); }
+
+private:
+
     // End tick of the latest-ending note across all tracks (0 when empty).
     int documentEndTick() const;
 
@@ -343,6 +352,7 @@ private:
     std::unique_ptr<TimelineRuler>    ruler;
     std::unique_ptr<PlayheadOverlay>  overlay;
     std::unique_ptr<MarkerOverlay>    markerOverlay;
+    std::unique_ptr<EventMarkerOverlay> eventMarkerOverlay;   // independent of playback
     int                               overlayRepaintCount = 0;   // test observability
 
     // True from fitTimelineToDocument() until the user zooms by hand: while

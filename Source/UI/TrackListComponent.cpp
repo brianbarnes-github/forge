@@ -56,6 +56,9 @@ TrackListComponent::TrackListComponent (SongDocument& document)
     horizontalBar.addListener (this);
     addAndMakeVisible (horizontalBar); // auto-hide still decides whether it shows
 
+    eventMarkerOverlay = std::make_unique<EventMarkerOverlay> ([this] (int tick) { return timelineView.xForTick (tick); });
+    addAndMakeVisible (*eventMarkerOverlay);
+
     sourceMidiNode.addListener (this);
     rebuild();
 }
@@ -105,8 +108,14 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
     resized();
 }
 
+void TrackListComponent::setEventMarkerTick (std::optional<int> tick)
+{
+    eventMarkerOverlay->setTick (tick);
+}
+
 void TrackListComponent::refreshOverlay()
 {
+    eventMarkerOverlay->repaint();   // the tick -> x mapping changed (zoom/scroll)
     if (overlay == nullptr)
         return;
     ++overlayRepaintCount;
@@ -909,6 +918,7 @@ void TrackListComponent::resized()
         overlay->setBounds (viewport.getBounds().withTrimmedLeft (notePreviewOriginX()).withWidth (previewWidth()));
     if (markerOverlay != nullptr)
         markerOverlay->setBounds (overlay->getBounds());
+    eventMarkerOverlay->setBounds (viewport.getBounds().withTrimmedLeft (notePreviewOriginX()).withWidth (previewWidth()));
 
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
                                      .withWidth (previewWidth()));

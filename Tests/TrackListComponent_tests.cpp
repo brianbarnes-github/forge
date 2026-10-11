@@ -13,12 +13,16 @@
 #include "UI/SectionEdit.h"
 #include "UI/SectionViewState.h"
 #include "UI/Playback/PlayheadOverlay.h"
+#include "UI/EventMarkerOverlay.h"
 #include "UI/Playback/TimelineRuler.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
+#include <cmath>
+#include <optional>
 #include <set>
+#include <vector>
 
 using namespace lotro;
 
@@ -72,6 +76,7 @@ namespace lotro
         }
         static PlayheadOverlay* overlay (TrackListComponent& c) { return c.overlay.get(); }
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
+        static EventMarkerOverlay* eventMarkerOverlay (TrackListComponent& c) { return c.eventMarkerOverlay.get(); }
         static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
         static SectionViewState& sectionView (TrackListComponent& c) { return c.sectionView; }
         static void mergePress (TrackListComponent& c, juce::int64 trackId, SectionHit hit, juce::ModifierKeys mods = {}) { c.mergePressed (trackId, hit, mods); }
@@ -2968,4 +2973,78 @@ TEST_CASE ("TrackListComponent: a Conductor row double-click and its head menu f
     normal.mouseDoubleClick (e);
     CHECK (doubleClicks == 2);
     CHECK (tempoMeter == 3);
+}
+
+TEST_CASE ("TrackListComponent: the event marker is a coloured line at xForTick across all rows, and absent when unset", "[track-list][event-marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTrackEndingAt (doc, 9600);
+    addTrackEndingAt (doc, 9600);
+    TrackListComponent list (doc);
+    list.setSize (800, 400);
+    list.fitTimelineToDocument();
+    const auto& view = Access::timelineView (list);
+    const int origin = Access::notePreviewOriginX (list);
+    const auto colour = juce::Colour (SongsmithColours::eventMarker);
+
+    auto render = [&]
+    {
+        juce::Image image (juce::Image::ARGB, 800, 400, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        list.paintEntireComponent (g, false);
+        return image;
+    };
+    // Any pixel in the preview columns of the given image carrying the marker colour.
+    auto columnsWithMarker = [&] (const juce::Image& image, int y)
+    {
+        std::vector<int> xs;
+        for (int x = origin; x < 800; ++x)
+            if (image.getPixelAt (x, y) == colour)
+                xs.push_back (x);
+        return xs;
+    };
+
+    CHECK (! list.getEventMarkerTick().has_value());
+    for (int y : { 40, 150, 300 })
+        CHECK (columnsWithMarker (render(), y).empty());
+
+    constexpr int tick = 4321;   // not a bar line, not 0
+    list.setEventMarkerTick (tick);
+    CHECK (list.getEventMarkerTick() == std::optional<int> (tick));
+    const int expectedX = origin + view.xForTick (tick);
+    REQUIRE (expectedX > origin + 20);
+    const auto image = render();
+    for (int y : { 40, 150, 300 })   // every row, and below the last one
+    {
+        const auto xs = columnsWithMarker (image, y);
+        REQUIRE (! xs.empty());
+        for (int x : xs)
+            CHECK (std::abs (x - expectedX) <= 1);
+    }
+
+    // The line follows zoom: a different scale moves it to the new xForTick.
+    Access::zoomIn (list);
+    const int zoomedX = origin + view.xForTick (tick);
+    const auto zoomedXs = columnsWithMarker (render(), 150);
+    if (zoomedX >= origin && zoomedX < 800)
+    {
+        REQUIRE (! zoomedXs.empty());
+        CHECK (std::abs (zoomedXs.front() - zoomedX) <= 1);
+    }
+    else
+        CHECK (zoomedXs.empty());
+
+    list.setEventMarkerTick (std::nullopt);
+    CHECK (columnsWithMarker (render(), 150).empty());
+}
+
+TEST_CASE ("EventMarkerOverlay: never takes clicks", "[track-list][event-marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    EventMarkerOverlay overlay ([] (int tick) { return tick / 10; });
+    bool onThis = true, onChildren = true;
+    overlay.getInterceptsMouseClicks (onThis, onChildren);
+    CHECK (! onThis);
+    CHECK (! onChildren);
 }

@@ -115,6 +115,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoMeterTable.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoMeterEditorWindow.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/EventMarkerOverlay.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SectionEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/NoteMerge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ProgramChanges.cpp

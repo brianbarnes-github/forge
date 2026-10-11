@@ -63,7 +63,7 @@ When you say…       …I'll know you mean
 | 7 | **Upper region**               | `SongsmithMainComponent::UpperRegion` — source header + a full-width `TrackListComponent`; no embedded piano roll (moved to the floating Track editor window, #28) |
 | 8 | **Upper region header**        | The "▲ MIDI SOURCE · drag tracks down to assign" label row only — the grid-size combo and Quantize button that used to sit here moved to the **Edit** menu (see #11/#12) |
 | 9 | **Track list**                  | `TrackListComponent`/`TrackRowComponent` (`Source/UI/TrackListComponent.{h,cpp}`, `TrackRowComponent.{h,cpp}`) — spans the Upper region's full width; owns the shared `TimelineViewState` (`Source/UI/TimelineViewState.{h,cpp}`) that every row's note preview reads |
-| 10 | **Track row**                  | `TrackRowComponent` — one row inside the track list: index/name/note-range text on the left, an inline `TrackNotePreview` (`Source/UI/TrackNotePreview.{h,cpp}`) plus a per-row ghost-visibility toggle on the right; double-click opens the floating Track editor window (#28) on this track (assignable tracks only; conductor and note-less rows ignore double-click); the conductor row's strip shows the tempo / meter markers |
+| 10 | **Track row**                  | `TrackRowComponent` — one row inside the track list: index/name/note-range text on the left, an inline `TrackNotePreview` (`Source/UI/TrackNotePreview.{h,cpp}`) plus a per-row ghost-visibility toggle on the right; double-click opens the floating Track editor window (#28) on this track (assignable tracks only; a note-less row ignores double-click, and double-clicking the conductor row opens the Tempo and Meter window instead); the conductor row's strip shows the tempo / meter markers |
 | 11 | **Grid Size menu**              | **Edit → Grid Size** submenu (`Off`/`1/4`/`1/8`/`1/16`) in the main menu bar (`MainWindow`'s `EditGridSizeBase` items) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::setActiveEditorGridSize (GridSize)`, translated to ticks by `GridSize.h`'s `gridSizeToTicks()` |
 | 12 | **Quantize menu item**          | **Edit → Quantize** in the main menu bar (`MainWindow`'s `EditQuantize`) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::quantizeActiveEditor()`, which calls the open editor's `SourceRollEditor::quantizeSelection()` |
 | 13 | **Source piano roll**           | `PianoRollComponent` constructed with `Role::Source` (`Source/UI/PianoRollComponent.{h,cpp}`) — unchanged internally, but no longer embedded in the Upper region; now hosted inside the floating Track editor window (#28) |
@@ -173,7 +173,7 @@ When you say…       …I'll know you mean
   editor window (#28), if one is open. Click a row to select it; drag onto a
   part slot to assign (the drag payload is the track's synthetic id, not its
   row index); double-click an assignable track to open the Track editor window (#28) on
-  it (conductor and note-less rows ignore double-click). An empty document shows a muted placeholder ("No MIDI loaded — File
+  it (a note-less row ignores double-click; double-clicking the conductor row opens the Tempo and Meter window). An empty document shows a muted placeholder ("No MIDI loaded — File
   → Import ▸ MIDI… or drop a .mid here") instead of a blank panel.
 - **Track selection and sections.** Two independent selections. The **head
   selection** is the highlighted track rows: clicking a row's info column selects
@@ -502,6 +502,12 @@ the first free bar start after the selected row, with the value already in force
 **Remove** (or Delete; Backspace does nothing) removes the selected event, and the event at tick 0
 cannot be removed. Every edit is one undo step: Ctrl+Z / Ctrl+Y work in the window and in the main
 window's Edit menu, and the Conductor row's markers, the ruler and the grid follow.
+
+Selecting a row draws a green vertical line at that event's tick across every track row of the main
+window's timeline (aligned with the ruler and following scroll and zoom), so you can see where the event
+sits among the tracks. No selection (or a refresh that drops the selected event, closing the window, or
+replacing the Song) removes the line. The window has minimise and close buttons but no maximise button
+(double-clicking the title bar does not maximise it); it can still be resized, within a modest size range.
 
 ## Context menus
 

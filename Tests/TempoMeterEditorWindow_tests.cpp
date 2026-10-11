@@ -12,6 +12,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <optional>
 #include <string>
 
 using namespace lotro;
@@ -36,6 +37,8 @@ namespace lotro
         }
         static const TableRow& rowAt (TempoMeterEditorWindow& w, int row) { return w.rows.at ((size_t) row); }
         static void selectRow (TempoMeterEditorWindow& w, int row) { w.content->table.selectRow (row); }
+        static int  styleFlags (TempoMeterEditorWindow& w) { return w.getDesktopWindowStyleFlags(); }
+        static void deselectAll (TempoMeterEditorWindow& w) { w.content->table.deselectAllRows(); }
         static int  selectedRow (TempoMeterEditorWindow& w) { return w.content->table.getSelectedRow(); }
         static void commitCell (TempoMeterEditorWindow& w, int row, int column, const std::string& text)
         {
@@ -495,4 +498,83 @@ TEST_CASE ("TempoMeterEditorWindow: Ctrl+Alt+Z does not undo", "[tempo-meter-win
 
     w.keyPressed (juce::KeyPress ('z', juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::altModifier, 0));
     CHECK (listTempoMeterEvents (doc).size() == 3);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: the title bar has minimise and close but no maximise button", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    const int flags = Access::styleFlags (w);
+    CHECK ((flags & juce::ComponentPeer::windowHasMaximiseButton) == 0);
+    CHECK ((flags & juce::ComponentPeer::windowHasMinimiseButton) != 0);
+    CHECK ((flags & juce::ComponentPeer::windowHasCloseButton) != 0);
+    CHECK (w.isResizable());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: selecting a row reports that event's tick, no selection reports none", "[tempo-meter-window][event-marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));
+    REQUIRE_FALSE (setMeter (doc, 2880, 3, 4));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 4);   // T0 M0 T1920 M2880
+
+    std::vector<std::optional<int>> seen;
+    w.onSelectedTickChanged = [&seen] (std::optional<int> t) { seen.push_back (t); };
+
+    Access::selectRow (w, 2);
+    REQUIRE (! seen.empty());
+    CHECK (seen.back() == std::optional<int> (1920));
+    Access::selectRow (w, 3);
+    CHECK (Access::rowAt (w, 3).tick != 1920);
+    CHECK (seen.back() == std::optional<int> (Access::rowAt (w, 3).tick));
+    Access::deselectAll (w);
+    CHECK (seen.back() == std::nullopt);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a refresh keeps the marker on the moved row and drops it with the row", "[tempo-meter-window][event-marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));
+    REQUIRE_FALSE (setMeter (doc, 1920, 3, 4));
+    TempoMeterEditorWindow w (doc, nullptr);
+    Access::selectRow (w, 3);   // M1920
+
+    std::vector<std::optional<int>> seen;
+    w.onSelectedTickChanged = [&seen] (std::optional<int> t) { seen.push_back (t); };
+
+    REQUIRE_FALSE (setTempo (doc, 960, 100));   // row index shifts; the event does not
+    pump();
+    REQUIRE (Access::selectedRow (w) == 4);
+    for (const auto& t : seen)
+        CHECK (t == std::optional<int> (1920));
+
+    REQUIRE_FALSE (removeMeter (doc, 1920));
+    pump();
+    REQUIRE (Access::selectedRow (w) == -1);
+    REQUIRE (! seen.empty());
+    CHECK (seen.back() == std::nullopt);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: closing reports no selected tick", "[tempo-meter-window][event-marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));
+    TempoMeterEditorWindow w (doc, nullptr);
+    Access::selectRow (w, 2);
+
+    std::vector<std::optional<int>> seen;
+    w.onSelectedTickChanged = [&seen] (std::optional<int> t) { seen.push_back (t); };
+    w.closeButtonPressed();
+    REQUIRE (! seen.empty());
+    CHECK (seen.back() == std::nullopt);
 }

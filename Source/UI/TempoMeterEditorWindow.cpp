@@ -77,7 +77,7 @@ namespace lotro
     TempoMeterEditorWindow::TempoMeterEditorWindow (SongDocument& document, juce::Component* centreAround)
         : juce::DocumentWindow ("Tempo and Meter",
                                  juce::Colour (SongsmithColours::background),
-                                 juce::DocumentWindow::allButtons),
+                                 juce::DocumentWindow::minimiseButton | juce::DocumentWindow::closeButton),
           doc (document),
           sourceMidiNode (doc.getSourceMidiNode()),
           content (std::make_unique<Content>())
@@ -97,6 +97,7 @@ namespace lotro
         content->setSize (520, 420);
         setUsingNativeTitleBar (true);
         setResizable (true, false);
+        setResizeLimits (360, 240, 900, 800);   // no maximise button; keep it from being dragged huge
         setContentNonOwned (content.get(), true);
 
         sourceMidiNode.addListener (this);
@@ -117,6 +118,8 @@ namespace lotro
     void TempoMeterEditorWindow::closeButtonPressed()
     {
         setVisible (false);
+        if (onSelectedTickChanged)
+            onSelectedTickChanged (std::nullopt);
         if (onClosed)
             onClosed();
     }
@@ -175,6 +178,19 @@ namespace lotro
     void TempoMeterEditorWindow::deleteKeyPressed (int)
     {
         removePressed();
+    }
+
+    void TempoMeterEditorWindow::selectedRowsChanged (int)
+    {
+        notifySelectedTick();
+    }
+
+    void TempoMeterEditorWindow::notifySelectedTick()
+    {
+        if (! onSelectedTickChanged)
+            return;
+        const auto selected = selectedEvent();
+        onSelectedTickChanged (selected ? std::optional<int> (selected->tick) : std::nullopt);
     }
 
     juce::Component* TempoMeterEditorWindow::refreshComponentForCell (int row, int column, bool,
@@ -271,6 +287,7 @@ namespace lotro
         else
             table.deselectAllRows();
         table.repaint();
+        notifySelectedTick();   // idempotent; covers a restore that changed no row index
     }
 
     void TempoMeterEditorWindow::forceRedisplay()

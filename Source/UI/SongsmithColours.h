@@ -34,6 +34,11 @@ namespace lotro::SongsmithColours
     constexpr juce::uint32 conductorTempo       = 0xFFE0B080;
     constexpr juce::uint32 conductorMeter       = 0xFF7FA8D0;
 
+    // The Tempo and Meter window's selected-event line across the track list.
+    // Green, so it differs from the white playhead, the amber start marker /
+    // conductor tempo (0xE0B080) and the blue conductor meter / preview notes.
+    constexpr juce::uint32 eventMarker          = 0xFF5FD38B;
+
     // Phase 6 — preview roll overlays (Songsmith UI Guide mockup's "LOTRO
     // preview" pane). Colour is driven entirely by NoteState, not by the
     // note's original source track: the mockup renders every preview note

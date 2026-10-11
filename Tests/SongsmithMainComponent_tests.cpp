@@ -35,6 +35,8 @@ namespace lotro
             return c.watchedPartNode.isValid();
         }
         static const void* tempoMeterWindow (const SongsmithMainComponent& c) { return c.tempoMeterWindow.get(); }
+        static std::optional<int> eventMarkerTick (SongsmithMainComponent& c) { return c.trackList.getEventMarkerTick(); }
+        static void selectInTempoMeterWindow (SongsmithMainComponent& c, std::optional<int> tick) { c.tempoMeterWindow->onSelectedTickChanged (tick); }
         static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
@@ -550,4 +552,29 @@ TEST_CASE ("SongsmithMainComponent: closing the Tempo/Meter window lets the next
     CHECK_FALSE (main.isTempoMeterEditorOpen());
     main.openTempoMeterEditor();
     CHECK (main.isTempoMeterEditorOpen());
+}
+
+TEST_CASE ("SongsmithMainComponent: the Tempo/Meter window's selected tick drives the track list's event marker", "[tempo-meter][event-marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    main.openTempoMeterEditor();
+    REQUIRE (main.isTempoMeterEditorOpen());
+    CHECK (Access::eventMarkerTick (main) == std::nullopt);
+
+    Access::selectInTempoMeterWindow (main, 1920);
+    CHECK (Access::eventMarkerTick (main) == std::optional<int> (1920));
+    Access::selectInTempoMeterWindow (main, std::nullopt);
+    CHECK (Access::eventMarkerTick (main) == std::nullopt);
+
+    Access::selectInTempoMeterWindow (main, 960);
+    Access::closeTempoMeterWindow (main);   // the user closes the window
+    CHECK (Access::eventMarkerTick (main) == std::nullopt);
+
+    main.openTempoMeterEditor();
+    Access::selectInTempoMeterWindow (main, 480);
+    REQUIRE (Access::eventMarkerTick (main) == std::optional<int> (480));
+    main.documentReplaced();
+    CHECK (Access::eventMarkerTick (main) == std::nullopt);
 }
