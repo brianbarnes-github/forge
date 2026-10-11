@@ -931,6 +931,46 @@ TEST_CASE ("TempoMeterEditorWindow: a point selected on the graph is removed by 
     CHECK (Access::message (w).empty());
 }
 
+TEST_CASE ("TempoMeterEditorWindow: a point added on the graph is selected, so Delete removes it", "[tempo-meter-window][graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    TimelineViewState view;
+    view.setPixelsPerTick (0.1);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+
+    auto& graph = Access::graph (w);
+    const juce::Point<int> p (graph.xForTick (1920), graph.yForBpm (90));
+    graph.mouseDown (graphMouse (graph, p, p));
+    graph.mouseUp (graphMouse (graph, p, p));
+    REQUIRE (Access::selectedRow (w) == 2);   // tempo@0, meter@0, tempo@1920
+
+    // Empty space at beat 960: the new tempo is selected straight away (no stale row).
+    const juce::Point<int> q (graph.xForTick (960) + 2, graph.yForBpm (110));
+    graph.mouseDown (graphMouse (graph, q, q));
+    graph.mouseUp (graphMouse (graph, q, q));
+    pump();
+    const int sel = Access::selectedRow (w);
+    REQUIRE (sel >= 0);
+    CHECK (Access::rowAt (w, sel).kind == TempoMeterKind::tempo);
+    CHECK (Access::rowAt (w, sel).tick == 960);
+
+    REQUIRE (w.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    pump();
+    bool has960 = false, has1920 = false;
+    for (const auto& e : listTempoMeterEvents (doc))
+    {
+        has960  = has960  || (e.kind == TempoMeterKind::tempo && e.tick == 960);
+        has1920 = has1920 || (e.kind == TempoMeterKind::tempo && e.tick == 1920);
+    }
+    CHECK_FALSE (has960);
+    CHECK (has1920);
+}
+
 TEST_CASE ("TempoMeterEditorWindow: a rejected graph drag shows the reason", "[tempo-meter-window][graph][edit]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

@@ -219,7 +219,11 @@ namespace lotro
 
         content->graph = std::make_unique<TempoGraphComponent> (doc, *view);
         content->addAndMakeVisible (*content->graph);
-        content->graph->onSelect = [this] (TempoMeterKind kind, int tick) { selectRowFor (kind, tick); };
+        content->graph->onSelect = [this] (TempoMeterKind kind, int tick)
+        {
+            handleUpdateNowIfNeeded();   // a point just added on the graph must be listed first
+            selectRowFor (kind, tick);
+        };
         content->graph->onEdited = [this] (const TableEditResult& r) { showResult (r); };
         content->graph->setEvents (events);
         content->graph->setSelected (selectedEvents());
