@@ -294,6 +294,48 @@ TEST_CASE ("TempoGraphComponent: a drag that returns to its start writes nothing
     CHECK_FALSE (r.doc.getUndoManager().canUndo());
 }
 
+TEST_CASE ("TempoGraphComponent: an off-beat tempo is not snapped unless dragged sideways", "[tempo-graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Rig r (false);
+    importStandard (r.doc);
+    REQUIRE_FALSE (setTempo (r.doc, 1925, 90));   // off the beat (480 ticks)
+    REQUIRE_FALSE (setTempo (r.doc, 3840, 150));
+    r.doc.getUndoManager().clearUndoHistory();
+    r.sync();
+    const auto before = tempos (r.doc);
+    const auto p = r.at (1925, 90);
+    // The fixture can show the bug: the nearest beat to the point's x is 1920.
+    REQUIRE (snapToBeat (meterSegments (r.doc.getMeterChanges(), 480), r.view.tickForX (p.x)) == 1920);
+
+    SECTION ("a vertical drag changes only the BPM")
+    {
+        const juce::Point<int> to (p.x, r.graph->yForBpm (130));
+        press (*r.graph, p);
+        dragTo (*r.graph, to, p);
+        REQUIRE (r.graph->dragPreviewForTesting().has_value());
+        CHECK (r.graph->dragPreviewForTesting()->first == 1925);
+        release (*r.graph, to, p);
+        REQUIRE (r.edits.size() == 1);
+        CHECK_FALSE (r.edits[0].has_value());
+        CHECK_FALSE (tempoAt (r.doc, 1920).has_value());
+        REQUIRE (tempoAt (r.doc, 1925).has_value());
+        CHECK (*tempoAt (r.doc, 1925) == Approx (130.0).margin (0.01));
+    }
+
+    SECTION ("out past the threshold and back writes nothing")
+    {
+        press (*r.graph, p);
+        dragTo (*r.graph, p + juce::Point<int> (20, 20), p);
+        dragTo (*r.graph, p, p);
+        release (*r.graph, p, p);
+        for (const auto& e : r.edits)
+            CHECK_FALSE (e.has_value());
+        CHECK (tempos (r.doc) == before);
+        CHECK_FALSE (r.doc.getUndoManager().canUndo());
+    }
+}
+
 TEST_CASE ("TempoGraphComponent: a drag previews, then mouse-up moves the tempo in one undo step", "[tempo-graph][edit]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -322,6 +364,8 @@ TEST_CASE ("TempoGraphComponent: a drag previews, then mouse-up moves the tempo 
     REQUIRE (tempoAt (r.doc, 2400).has_value());
     CHECK (*tempoAt (r.doc, 2400) == Approx (130.0).margin (0.01));
     CHECK_FALSE (r.graph->isDraggingForTesting());
+    REQUIRE (r.selects.size() == 2);
+    CHECK (r.selects.back() == tempoSel (2400));   // the moved point stays selected
 
     r.doc.undo();
     CHECK (tempos (r.doc) == before);
@@ -364,6 +408,7 @@ TEST_CASE ("TempoGraphComponent: dropping onto an occupied tick is rejected and 
     CHECK_FALSE (r.doc.getUndoManager().canUndo());
     CHECK_FALSE (r.graph->isDraggingForTesting());
     CHECK_FALSE (r.graph->dragPreviewForTesting().has_value());
+    CHECK (r.selects == std::vector<std::pair<TempoMeterKind, int>> { tempoSel (1920) });   // not the occupied tick
 }
 
 TEST_CASE ("TempoGraphComponent: the tick-0 tempo only changes BPM, explicit or implicit", "[tempo-graph][edit]")

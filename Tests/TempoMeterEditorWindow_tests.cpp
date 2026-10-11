@@ -971,6 +971,45 @@ TEST_CASE ("TempoMeterEditorWindow: a point added on the graph is selected, so D
     CHECK (has1920);
 }
 
+TEST_CASE ("TempoMeterEditorWindow: a point dragged to a new tick stays selected, so Delete removes it", "[tempo-meter-window][graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    REQUIRE_FALSE (setTempo (doc, 3840, 150));
+    doc.getUndoManager().clearUndoHistory();
+    TimelineViewState view;
+    view.setPixelsPerTick (0.1);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+
+    auto& graph = Access::graph (w);
+    const juce::Point<int> p (graph.xForTick (1920), graph.yForBpm (90));
+    const juce::Point<int> to (graph.xForTick (2400), graph.yForBpm (130));
+    graph.mouseDown (graphMouse (graph, p, p));
+    graph.mouseDrag (graphMouse (graph, to, p));
+    graph.mouseUp (graphMouse (graph, to, p));
+    pump();
+
+    const int sel = Access::selectedRow (w);
+    REQUIRE (sel >= 0);
+    CHECK (Access::rowAt (w, sel).kind == TempoMeterKind::tempo);
+    CHECK (Access::rowAt (w, sel).tick == 2400);
+    REQUIRE (Access::graphSelected (w).size() == 1);
+    CHECK (Access::graphSelected (w)[0].tick == 2400);
+
+    REQUIRE (w.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    pump();
+    CHECK (Access::message (w).empty());
+    std::vector<int> tempoTicks;
+    for (const auto& e : listTempoMeterEvents (doc))
+        if (e.kind == TempoMeterKind::tempo)
+            tempoTicks.push_back (e.tick);
+    CHECK (tempoTicks == std::vector<int> { 0, 3840 });
+}
+
 TEST_CASE ("TempoMeterEditorWindow: a rejected graph drag shows the reason", "[tempo-meter-window][graph][edit]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

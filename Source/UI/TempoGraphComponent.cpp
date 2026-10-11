@@ -272,7 +272,11 @@ namespace lotro
             return;
 
         const auto plot = plotArea();
-        drag->previewTick = drag->event.tick == 0 ? 0 : snappedTickForX (pos.x);
+        // Within the threshold horizontally the stored tick is kept, so a vertical move
+        // does not snap an off-beat tempo onto the beat; tick 0 never moves.
+        drag->previewTick = drag->event.tick == 0 || std::abs (d.x) < dragThreshold
+                              ? drag->event.tick
+                              : snappedTickForX (pos.x);
         // Within the threshold vertically the stored BPM is kept, so a sideways move
         // does not round a fractional tempo to a whole BPM.
         drag->previewBpm  = std::abs (d.y) < dragThreshold
@@ -301,6 +305,9 @@ namespace lotro
         const auto result = moveTempoTo (doc, done.event, done.previewTick, done.previewBpm);
         if (onEdited)
             onEdited (result);
+        // The selection follows the point to its new tick (a rejected move keeps the old one).
+        if (! result && done.previewTick != done.event.tick && onSelect)
+            onSelect (TempoMeterKind::tempo, done.previewTick);
     }
 
     bool TempoGraphComponent::keyPressed (const juce::KeyPress&)
