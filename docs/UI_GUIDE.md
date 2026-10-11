@@ -131,8 +131,9 @@ When you say…       …I'll know you mean
   only (no swatch picker, rename, mute / solo or volume). Its note strip shows the song's
   tempo (amber, top half) and meter (blue, bottom half) changes as 1 px lines with labels
   (`120`, `3/4`; labels that would overlap are hidden, the lines stay), and the background
-  shade alternates at every tempo change (top half) and every meter change (bottom half). Display only: the editor entry points arrive in a
-  later phase. A track with no
+  shade alternates at every tempo change (top half) and every meter change (bottom half). Double-clicking the
+  conductor row, or choosing **Tempo and Meter…** from its right-click menu, opens the
+  Tempo and Meter window (below). A track with no
   notes (e.g. only controllers) has the normal head. Neither kind is draggable onto a part slot or
   openable in the Track editor window (double-click does nothing) — only
   tracks with at least one note are assignable. They stay in the document
@@ -480,12 +481,27 @@ Passing a `.songsmith` path on the command line opens it at startup.
 
 (The menu structure lives in `Source/UI/MenuModel.h`, pinned by `MenuModel_tests.cpp`; the menus are rebuilt from live state each time one opens.)
 
+## Tempo and Meter window
+
+**Edit ▸ Tempo and Meter…** (enabled once a MIDI has been imported), a double-click on the
+Conductor row, or the Conductor head's right-click **Tempo and Meter…** opens one floating
+window (re-fronted if already open; closed when a Song is replaced by File ▸ New or Open). A table lists every tempo and
+meter event in order: **Kind**, **Position** (`bar.beat`, 1-based, counted through meter
+changes), **Tick** and **Value** (`93.75` BPM or `3/4`). Click a Value cell, or a Tick cell
+(not on tick 0), and type to edit; Enter commits. Garbage or an out-of-range value shows a
+message under the table and leaves the document unchanged; a meter's tick snaps to a bar start
+and the message shows the tick it landed on. **Add Tempo** / **Add Meter** insert an event at
+the first free bar start after the selected row, with the value already in force there;
+**Remove** (or Delete; Backspace does nothing) removes the selected event, and the event at tick 0
+cannot be removed. Every edit is one undo step: Ctrl+Z / Ctrl+Y work in the window and in the main
+window's Edit menu, and the Conductor row's markers, the ruler and the grid follow.
+
 ## Context menus
 
 | Node          | Right-click menu                                    |
 |---------------|-------------------------------------------------------|
 | Part slot (#16) | `Instrument ▸` (LOTRO instrument picker); `Rename…`; `Remove part` |
-| Track head (#10) | `Rename…` (disabled on the conductor) |
+| Track head (#10) | `Rename…` (disabled on the conductor); on the Conductor head only: `Tempo and Meter…` |
 
 ## Drag-drop targets
 

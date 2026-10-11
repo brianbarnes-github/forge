@@ -1,6 +1,6 @@
 # Songsmith tempo and meter editing — design
 
-Date: 2026-10-10. Status: approved; phase 1 implemented (plan `docs/superpowers/plans/2026-10-10-songsmith-tempo-meter-phase1.md`); phase 2 (Conductor row display) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase2.md`).
+Date: 2026-10-10. Status: approved; phase 1 implemented (plan `docs/superpowers/plans/2026-10-10-songsmith-tempo-meter-phase1.md`); phase 2 (Conductor row display) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase2.md`); phase 3 (editor window) implemented (plan `docs/superpowers/plans/2026-10-11-songsmith-tempo-meter-phase3.md`).
 
 ## Goal
 
