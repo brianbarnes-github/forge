@@ -56,6 +56,10 @@ struct TempoMeterEvent
 };
 
 // Every tempo and meter event (the derived maps), by tick, tempo before meter on a tie.
+// Before the first edit of a kind, a conductor without that kind lists the implicit
+// default (120 BPM, 4/4) as a tick-0 row that has no event behind it: setX works on it
+// (and the first setX at a later tick writes the default at tick 0 explicitly, in the
+// same undo step), while moveX at tick 0 gives NoSuchEvent and removeX(0) CannotRemoveFirst.
 std::vector<TempoMeterEvent> listTempoMeterEvents (const SongDocument&);
 
 } // namespace lotro

@@ -355,10 +355,25 @@ namespace
                 auto conductor = doc.getConductorTrack();
                 auto conductorEvents = SongDocument::getEventsNode (conductor);
                 if (replacingTempo)
+                {
                     conductorEvents.removeAllChildren (nullptr);   // the file's conductor replaces it wholesale
+                    // Recorded undo steps address conductor EVENTs by child index (JUCE's
+                    // add/remove-child actions); replayed over the new conductor they would
+                    // corrupt it, so a replace wipes the undo history like the raise does.
+                    doc.getUndoManager().clearUndoHistory();
+                }
                 appendEvents (conductorEvents, plan->conductorEvents, true);   // rescaled when the PPQs differ
                 conductor.setProperty (SongIDs::endTick, rescaleOther (plan->conductorEndTick) + placeOffset, nullptr);
             }
+        }
+
+        if (replacingTempo && ! raisedDocumentTimeBase)   // the raise's Info already says so
+        {
+            Diagnostic d;
+            d.source   = "SongModelBridge";
+            d.severity = Severity::Info;
+            d.message  = "Replaced the document's tempo and meter with the imported file's; undo history cleared";
+            diagnostics.push_back (std::move (d));
         }
 
         if (raisedDocumentTimeBase)

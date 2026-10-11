@@ -20,6 +20,9 @@ namespace
 
     using Bytes = std::vector<std::uint8_t>;
 
+    const Bytes defaultTempoBytes { 0xFF, 0x51, 0x07, 0xA1, 0x20 };         // 500000 us = 120 BPM
+    const Bytes defaultMeterBytes { 0xFF, 0x58, 0x04, 0x02, 0x18, 0x08 };   // 4/4, 24 clocks, 8 32nds
+
     Bytes bytesOf (const juce::ValueTree& event)
     {
         if (const auto* block = event.getProperty (SongIDs::data).getBinaryData())
@@ -125,13 +128,25 @@ namespace
         doc.getUndoManager().beginNewTransaction();
         auto events = SongDocument::getEventsNode (doc.getConductorTrack());
 
-        if (! existing.isValid())
+        const auto addEvent = [&] (int at, const Bytes& data)
         {
             juce::ValueTree event (SongIDs::EVENT);
-            event.setProperty (SongIDs::tick, tick, nullptr);
-            event.setProperty (SongIDs::order, nextOrderAt (doc, tick), nullptr);
-            event.setProperty (SongIDs::data, toVar (bytes), nullptr);
+            event.setProperty (SongIDs::tick, at, nullptr);
+            event.setProperty (SongIDs::order, nextOrderAt (doc, at), nullptr);
+            event.setProperty (SongIDs::data, toVar (data), nullptr);
             doc.addChild (events, event, false);
+        };
+
+        if (! existing.isValid())
+        {
+            // Spec section 1, Defaults: the first edit writes the implicit default as an
+            // explicit event at tick 0, so the maps, the meter segments and the export agree.
+            bool kindPresent = false;
+            for (auto e : events)
+                kindPresent = kindPresent || isKind (e, kind);
+            if (! kindPresent && tick > 0)
+                addEvent (0, kind == Kind::tempo ? defaultTempoBytes : defaultMeterBytes);
+            addEvent (tick, bytes);
             return;
         }
 

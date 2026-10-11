@@ -342,3 +342,118 @@ TEST_CASE ("TempoEdit: after an edit, undo, redo and the export all agree with t
     f.doc.redo(); check();
     CHECK (f.doc.getMeterMapNode().getNumChildren() == 2);
 }
+
+namespace
+{
+    // A conductor with a key signature but no tempo and no meter: the maps start as the implicit defaults.
+    Bytes songWithoutTempoOrMeter()
+    {
+        TrackBody c;
+        c.ev (0, { 0xFF, 0x59, 0x02, 0x00, 0x00 }).eot (3840);
+        return smf (1, 480, { c, oneNote() });
+    }
+
+    int conductorEventsOfKind (const SongDocument& doc, std::uint8_t metaType)
+    {
+        int count = 0;
+        for (auto e : SongDocument::getEventsNode (doc.getConductorTrack()))
+            if (const auto* b = e.getProperty (SongIDs::data).getBinaryData())
+                if (b->getSize() >= 2 && static_cast<const std::uint8_t*> (b->getData())[1] == metaType)
+                    ++count;
+        return count;
+    }
+}
+
+TEST_CASE ("TempoEdit: before any edit the implicit default is listed, but only set works on it", "[tempo-edit]")
+{
+    Loaded f (songWithoutTempoOrMeter());
+    REQUIRE (events (f.doc).size() == 2);
+    CHECK (events (f.doc)[0].bpm == Approx (120.0));
+    CHECK (conductorEventsOfKind (f.doc, 0x51) == 0);
+
+    CHECK (moveTempo (f.doc, 0, 0, 100.0) == TempoEditError::NoSuchEvent);
+    CHECK (moveMeter (f.doc, 0, 0, 3, 4) == TempoEditError::NoSuchEvent);
+    CHECK (removeTempo (f.doc, 0) == TempoEditError::CannotRemoveFirst);
+
+    REQUIRE_FALSE (setTempo (f.doc, 0, 100.0).has_value());   // tick 0 itself: just that one event
+    CHECK (conductorEventsOfKind (f.doc, 0x51) == 1);
+    CHECK (tempos (f.doc).size() == 1);
+    CHECK (tempos (f.doc)[0].bpm == Approx (100.0));
+}
+
+TEST_CASE ("TempoEdit: the first tempo edit past tick 0 also writes the default at tick 0, in the same undo step", "[tempo-edit]")
+{
+    Loaded f (songWithoutTempoOrMeter());
+    REQUIRE_FALSE (setTempo (f.doc, 480, 90.0).has_value());
+
+    CHECK (conductorEventsOfKind (f.doc, 0x51) == 2);
+    const auto list = tempos (f.doc);
+    REQUIRE (list.size() == 2);
+    CHECK (list[0].tick == 0);
+    CHECK (list[0].bpm == Approx (120.0));
+    CHECK (list[1].tick == 480);
+    CHECK (exportHas (f.doc, 0, { 0xFF, 0x51, 0x07, 0xA1, 0x20 }));
+    CHECK (exportHas (f.doc, 480, { 0xFF, 0x51, 0x0A, 0x2C, 0x2B }));   // 666667 us
+
+    // The tick-0 row is now a real event: it moves (in value) like any tick-0 event.
+    REQUIRE_FALSE (moveTempo (f.doc, 0, 0, 110.0).has_value());
+    CHECK (tempos (f.doc)[0].bpm == Approx (110.0));
+    f.doc.undo();
+
+    f.doc.undo();   // one step removes both
+    CHECK (conductorEventsOfKind (f.doc, 0x51) == 0);
+    CHECK (tempos (f.doc).size() == 1);
+    f.doc.redo();
+    CHECK (conductorEventsOfKind (f.doc, 0x51) == 2);
+}
+
+TEST_CASE ("TempoEdit: the first meter edit past tick 0 also writes the 4/4 default at tick 0, in the same undo step", "[tempo-edit]")
+{
+    Loaded f (songWithoutTempoOrMeter());
+    REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+
+    CHECK (conductorEventsOfKind (f.doc, 0x58) == 2);
+    REQUIRE (f.doc.getMeterMapNode().getNumChildren() == 2);
+    CHECK ((int) f.doc.getMeterMapNode().getChild (0).getProperty (SongIDs::tick) == 0);
+    CHECK ((int) f.doc.getMeterMapNode().getChild (0).getProperty (SongIDs::numerator) == 4);
+    CHECK (exportHas (f.doc, 0, { 0xFF, 0x58, 0x04, 0x02, 0x18, 0x08 }));
+    CHECK (exportHas (f.doc, 1920, { 0xFF, 0x58, 3, 2, 24, 8 }));
+    CHECK (moveMeter (f.doc, 0, 0, 2, 4) == std::nullopt);   // a real tick-0 event now
+
+    f.doc.undo();
+    f.doc.undo();   // one step removes both
+    CHECK (conductorEventsOfKind (f.doc, 0x58) == 0);
+    CHECK (f.doc.getMeterMapNode().getNumChildren() == 1);
+}
+
+TEST_CASE ("TempoEdit: a tempo Replace import clears the undo history, so undo cannot corrupt the new conductor", "[tempo-edit]")
+{
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 480, 100.0).has_value());
+    REQUIRE (f.doc.canUndo());
+
+    TrackBody c;
+    c.ev (0, { 0xFF, 0x51, 0x03, 0x09, 0x27, 0xC0 }).ev (960, { 0xFF, 0x51, 0x03, 0x0F, 0x42, 0x40 }).eot (3840);
+    TempMidi second (smf (1, 480, { c, oneNote() }));
+    ImportOptions options;
+    options.tempo = TempoMode::replace;
+    Diagnostics d;
+    REQUIRE (importMidiFile (f.doc, second.file, f.doc.mintImportBatch(), d, options));
+
+    CHECK_FALSE (f.doc.canUndo());
+    bool noted = false;
+    for (const auto& diagnostic : d)
+        if (diagnostic.severity == Severity::Info && diagnostic.message.find ("undo history cleared") != std::string::npos)
+            noted = true;
+    CHECK (noted);
+
+    const auto conductorBefore = SongDocument::getEventsNode (f.doc.getConductorTrack()).createCopy();
+    f.doc.undo();
+    f.doc.redo();
+    CHECK (SongDocument::getEventsNode (f.doc.getConductorTrack()).isEquivalentTo (conductorBefore));
+    const auto list = tempos (f.doc);
+    REQUIRE (list.size() == 2);
+    CHECK (list[0].bpm == Approx (100.0));
+    CHECK (list[1].tick == 960);
+    CHECK (list[1].bpm == Approx (60.0));
+}
