@@ -1,0 +1,297 @@
+// TempoMeterEditorWindow: the editable Tempo and Meter table, driven headlessly.
+
+#include "MidiTestBytes.h"
+#include "UI/SongDocument.h"
+#include "UI/SongModelBridge.h"
+#include "UI/TempoEdit.h"
+#include "UI/TempoMeterEditorWindow.h"
+#include "UI/TempoMeterTable.h"
+
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <juce_core/juce_core.h>
+
+#include <string>
+
+using namespace lotro;
+using namespace miditest;
+using Catch::Approx;
+
+namespace lotro
+{
+    struct TempoMeterEditorWindowTestAccess
+    {
+        static int rowCount (TempoMeterEditorWindow& w) { return (int) w.rows.size(); }
+        static std::string cellText (TempoMeterEditorWindow& w, int row, int column)
+        {
+            const auto& r = w.rows.at ((size_t) row);
+            switch (column)
+            {
+                case 1:  return r.kindText;
+                case 2:  return r.barBeatText;
+                case 3:  return r.tickText;
+                default: return r.valueText;
+            }
+        }
+        static const TableRow& rowAt (TempoMeterEditorWindow& w, int row) { return w.rows.at ((size_t) row); }
+        static void selectRow (TempoMeterEditorWindow& w, int row) { w.content->table.selectRow (row); }
+        static int  selectedRow (TempoMeterEditorWindow& w) { return w.content->table.getSelectedRow(); }
+        static void commitCell (TempoMeterEditorWindow& w, int row, int column, const std::string& text)
+        {
+            w.commitCell (row, column, text);
+        }
+        static std::string message (TempoMeterEditorWindow& w) { return w.content->message.getText().toStdString(); }
+        static juce::TextButton& button (TempoMeterEditorWindow& w, const juce::String& name)
+        {
+            for (auto* b : { &w.content->addTempo, &w.content->addMeter, &w.content->remove })
+                if (b->getButtonText() == name)
+                    return *b;
+            FAIL ("no such button");
+            return w.content->remove;
+        }
+        static bool buttonEnabled (TempoMeterEditorWindow& w, const juce::String& name)
+        {
+            return button (w, name).isEnabled();
+        }
+        static void pressAdd (TempoMeterEditorWindow& w, TempoMeterKind kind)
+        {
+            button (w, kind == TempoMeterKind::tempo ? "Add Tempo" : "Add Meter").onClick();
+        }
+        static void pressRemove (TempoMeterEditorWindow& w) { button (w, "Remove").onClick(); }
+        static void refreshNow (TempoMeterEditorWindow& w) { w.refreshNow(); }
+    };
+}
+
+namespace
+{
+    using Access = TempoMeterEditorWindowTestAccess;
+
+    constexpr int kindCol = 1, tickCol = 3, valueCol = 4;
+
+    void pump() { juce::MessageManager::getInstance()->runDispatchLoopUntil (100); }
+
+    struct TempMidi
+    {
+        juce::File file = juce::File::createTempFile (".mid");
+        explicit TempMidi (const Bytes& bytes) { REQUIRE (file.replaceWithData (bytes.data(), bytes.size())); }
+        ~TempMidi() { file.deleteFile(); }
+    };
+
+    // 120 BPM and 4/4 at tick 0, one note, PPQ 480.
+    Bytes standardSong()
+    {
+        TrackBody c;
+        c.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }).ev (0, { 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08 })
+         .ev (0, { 0xFF, 0x59, 0x02, 0x00, 0x00 }).eot (3840);
+        TrackBody n;
+        n.ev (0, { 0x90, 60, 100 }).ev (480, { 0x80, 60, 0x40 }).eot();
+        return smf (1, 480, { c, n });
+    }
+
+    void importStandard (SongDocument& doc)
+    {
+        TempMidi midi (standardSong());
+        Diagnostics d;
+        REQUIRE (importMidiFile (doc, midi.file, 1, d));
+        doc.getUndoManager().clearUndoHistory();
+    }
+}
+
+TEST_CASE ("TempoMeterEditorWindow: lists the events and refreshes on edit, undo and redo", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 2);
+    CHECK (Access::cellText (w, 0, kindCol) == "Tempo");
+    CHECK (Access::cellText (w, 1, kindCol) == "Meter");
+    CHECK (Access::cellText (w, 1, valueCol) == "4/4");
+
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    pump();
+    REQUIRE (Access::rowCount (w) == 3);
+    CHECK (Access::cellText (w, 2, valueCol) == "90");
+
+    doc.undo();
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+
+    doc.redo();
+    pump();
+    CHECK (Access::rowCount (w) == 3);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: typing a value edits through TempoEdit and one undo restores it", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::commitCell (w, 0, valueCol, "100");
+    CHECK (listTempoMeterEvents (doc)[0].bpm == Approx (100.0).margin (0.01));
+    pump();
+    CHECK (Access::cellText (w, 0, valueCol) == "100");
+
+    doc.undo();
+    pump();
+    CHECK (listTempoMeterEvents (doc)[0].bpm == Approx (120.0).margin (0.01));
+    CHECK (Access::cellText (w, 0, valueCol) == "120");
+    CHECK (Access::message (w).empty());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a rejected edit shows the message and leaves the document alone", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+    const auto before = listTempoMeterEvents (doc);
+
+    Access::commitCell (w, 0, valueCol, "abc");
+    CHECK (Access::message (w) == describe (TableEditError { TableEditError::Kind::UnparsableBpm, std::nullopt }));
+    CHECK_FALSE (doc.canUndo());
+    CHECK (listTempoMeterEvents (doc).size() == before.size());
+    CHECK (listTempoMeterEvents (doc)[0].bpm == Approx (before[0].bpm));
+
+    Access::commitCell (w, 1, valueCol, "3/5");
+    CHECK (Access::message (w).find ("Meter must be") != std::string::npos);
+    CHECK_FALSE (doc.canUndo());
+    CHECK (listTempoMeterEvents (doc)[1].numerator == 4);
+    CHECK (Access::cellText (w, 1, valueCol) == "4/4");
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a meter tick edit shows the snapped tick", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setMeter (doc, 1920, 3, 4));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 3);
+    REQUIRE (Access::cellText (w, 2, kindCol) == "Meter");
+    REQUIRE (Access::cellText (w, 2, tickCol) == "1920");
+
+    // Without this meter the bars are 1920 long, so 3000 is nearest the bar start at 3840.
+    Access::commitCell (w, 2, tickCol, "3000");
+    pump();
+    REQUIRE (Access::rowCount (w) == 3);
+    CHECK (Access::cellText (w, 2, tickCol) == "3840");
+    CHECK (Access::message (w).empty());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: selection follows (kind, tick) across a refresh and is dropped when its row disappears", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setTempo (doc, 1920, 100));
+    REQUIRE_FALSE (setMeter (doc, 1920, 3, 4));
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (Access::rowCount (w) == 4);   // T0 M0 T1920 M1920
+
+    Access::selectRow (w, 3);
+    REQUIRE (Access::selectedRow (w) == 3);
+
+    REQUIRE_FALSE (setTempo (doc, 960, 100));   // a row appears above the selection
+    pump();
+    REQUIRE (Access::rowCount (w) == 5);
+    REQUIRE (Access::selectedRow (w) == 4);
+    CHECK (Access::rowAt (w, 4).kind == TempoMeterKind::meter);
+    CHECK (Access::rowAt (w, 4).tick == 1920);
+
+    REQUIRE_FALSE (removeMeter (doc, 1920));
+    pump();
+    CHECK (Access::rowCount (w) == 4);
+    CHECK (Access::selectedRow (w) == -1);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: buttons add and remove, and Remove on tick 0 explains itself", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    Access::pressRemove (w);
+    CHECK (Access::message (w) == "Select an event first");
+
+    Access::pressAdd (w, TempoMeterKind::tempo);
+    pump();
+    REQUIRE (Access::rowCount (w) == 3);
+    CHECK (Access::cellText (w, 2, kindCol) == "Tempo");
+    CHECK (Access::cellText (w, 2, tickCol) == "1920");
+
+    Access::selectRow (w, 2);
+    Access::pressRemove (w);
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+
+    Access::selectRow (w, 0);
+    Access::pressRemove (w);
+    CHECK (Access::message (w)
+           == describe (TableEditError { TableEditError::Kind::Rejected, TempoEditError::CannotRemoveFirst }));
+    CHECK (Access::rowCount (w) == 2);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: with no time base the table is empty and every button is disabled", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    REQUIRE_FALSE (doc.hasTimeBase());
+
+    TempoMeterEditorWindow w (doc, nullptr);
+    CHECK (Access::rowCount (w) == (int) listTempoMeterEvents (doc).size());
+    CHECK_FALSE (Access::buttonEnabled (w, "Add Tempo"));
+    CHECK_FALSE (Access::buttonEnabled (w, "Add Meter"));
+    CHECK_FALSE (Access::buttonEnabled (w, "Remove"));
+
+    importStandard (doc);
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+    CHECK (Access::buttonEnabled (w, "Add Tempo"));
+    CHECK (Access::buttonEnabled (w, "Add Meter"));
+    CHECK (Access::buttonEnabled (w, "Remove"));
+}
+
+TEST_CASE ("TempoMeterEditorWindow: Ctrl+Z and Ctrl+Y reach the document's undo manager", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+
+    REQUIRE_FALSE (setTempo (doc, 1920, 90));
+    REQUIRE (listTempoMeterEvents (doc).size() == 3);
+
+    CHECK (w.keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0)));
+    CHECK (listTempoMeterEvents (doc).size() == 2);
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+
+    CHECK (w.keyPressed (juce::KeyPress ('y', juce::ModifierKeys::commandModifier, 0)));
+    CHECK (listTempoMeterEvents (doc).size() == 3);
+
+    CHECK (w.keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0)));
+    CHECK (listTempoMeterEvents (doc).size() == 2);
+    CHECK (w.keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 0)));
+    CHECK (listTempoMeterEvents (doc).size() == 3);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: closing fires onClosed and hides the window", "[tempo-meter-window]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TempoMeterEditorWindow w (doc, nullptr);
+    REQUIRE (w.isVisible());
+
+    bool closed = false;
+    w.onClosed = [&closed] { closed = true; };
+    w.closeButtonPressed();
+    CHECK (closed);
+    CHECK_FALSE (w.isVisible());
+}
