@@ -65,6 +65,7 @@ public:
 
     TimelineRuler* rulerForTesting() noexcept { return ruler.get(); }
     void followPlayheadForTesting (bool playing) { followPlayhead (playing); }
+    int rebuildCountForTesting() const noexcept { return rebuildCount; }
 
     // Whether a playing playhead scrolls the timeline to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
@@ -348,6 +349,8 @@ private:
     // resizes. After a manual zoom, resizing keeps the zoom and the
     // horizontal scroll bar takes over.
     bool timelineFitted = false;
+
+    int rebuildCount = 0;   // test observability
 
     // Row height, kept unrounded so touchpad deltas under one pixel accumulate
     // (rowHeight is its rounded value, what layout uses).

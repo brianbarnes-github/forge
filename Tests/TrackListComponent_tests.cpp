@@ -2895,3 +2895,37 @@ TEST_CASE ("TrackListComponent: the Conductor row's markers follow setTempo, und
     pump();
     CHECK (lineAt960());
 }
+
+TEST_CASE ("TrackListComponent: a conductor tempo edit, undo and redo each rebuild the rows once the loop has run", "[track-list][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    const auto file = juce::File::createTempFile (".mid");
+    const auto bytes = conductorSong();
+    REQUIRE (file.replaceWithData (bytes.data(), bytes.size()));
+    SongDocument doc;
+    Diagnostics diags;
+    REQUIRE (importMidiFile (doc, file, 1, diags));
+    file.deleteFile();
+
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 900, 400);
+    const auto pump = [] { juce::MessageManager::getInstance()->runDispatchLoopUntil (100); };
+    pump();
+
+    int before = list.rebuildCountForTesting();
+    REQUIRE_FALSE (setTempo (doc, 960, 90.0).has_value());
+    CHECK (list.rebuildCountForTesting() == before);   // coalesced: nothing until the loop runs
+    pump();
+    CHECK (list.rebuildCountForTesting() > before);
+
+    before = list.rebuildCountForTesting();
+    doc.undo();
+    pump();
+    CHECK (list.rebuildCountForTesting() > before);
+
+    before = list.rebuildCountForTesting();
+    doc.redo();
+    pump();
+    CHECK (list.rebuildCountForTesting() > before);
+}

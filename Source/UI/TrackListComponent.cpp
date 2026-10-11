@@ -151,6 +151,8 @@ void TrackListComponent::muteSoloChanged()
 
 void TrackListComponent::rebuild()
 {
+    ++rebuildCount;
+
     // The strip holding the mouse is about to be destroyed, so no release will
     // arrive: drop any section drag uncommitted.
     gesture.reset();
