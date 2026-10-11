@@ -45,7 +45,6 @@ namespace lotro
         // Never consumed: Delete / undo keys bubble to the window's handler.
         bool keyPressed (const juce::KeyPress&) override;
 
-        int paintCountForTesting() const noexcept { return paintCount; }
         int repaintRequestsForTesting() const noexcept { return repaintRequests; }
         const std::vector<TempoMeterEvent>& eventsForTesting() const noexcept { return events; }
         const std::vector<TempoMeterEvent>& selectedForTesting() const noexcept { return selectedMeters; }
@@ -79,7 +78,6 @@ namespace lotro
         const TimelineViewState&     view;
         std::vector<TempoMeterEvent> events;          // meter entries only, tick-sorted
         std::vector<TempoMeterEvent> selectedMeters;
-        int                          paintCount = 0;
         int                          repaintRequests = 0;
         std::optional<Drag>          drag;
     };

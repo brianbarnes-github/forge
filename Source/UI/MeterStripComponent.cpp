@@ -117,7 +117,6 @@ namespace lotro
 
     void MeterStripComponent::paint (juce::Graphics& g)
     {
-        ++paintCount;
         g.fillAll (juce::Colour (SongsmithColours::background));
         if (! doc.hasTimeBase() || events.empty())
             return;

@@ -108,7 +108,6 @@ namespace lotro
 
     void TempoGraphComponent::paint (juce::Graphics& g)
     {
-        ++paintCount;
         g.fillAll (juce::Colour (SongsmithColours::background));
 
         auto tempos = tempoEntries (events);

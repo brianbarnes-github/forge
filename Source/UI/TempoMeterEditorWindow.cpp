@@ -31,9 +31,15 @@ namespace lotro
 
         constexpr int graphHeight   = 160;
         constexpr int graphStripGap = 4;
-        // What a timeline view adds to the content height: the graph's 200 px, plus the
-        // strip and the gap between it and the graph.
-        constexpr int timelineExtra = 200 + graphStripGap + MeterStripComponent::preferredHeight;
+        constexpr int contentHeightWithoutTimeline = 420;
+        // The height the graph brings: the graph itself (graphHeight), its 6 px gap to the
+        // table, and the rest left to the table.
+        constexpr int graphGrowth = 200;
+        // Total content growth when a timeline view is set: the graph's share plus the meter
+        // strip and the gap between the strip and the graph.
+        constexpr int timelineExtra = graphGrowth + graphStripGap + MeterStripComponent::preferredHeight;
+        // With a timeline view the content may shrink by up to the graph's share (the strip's stays).
+        constexpr int minContentHeightWithTimeline = contentHeightWithoutTimeline + timelineExtra - graphGrowth;
 
         const juce::Identifier rowProperty ("tmRow");
         const juce::Identifier columnProperty ("tmColumn");
@@ -253,8 +259,8 @@ namespace lotro
         content->strip->setEvents (events);
         content->strip->setSelected (selectedEvents());
 
-        setResizeLimits (360, 420 + timelineExtra - 200, 900, 900);
-        content->setSize (content->getWidth(), 420 + timelineExtra);
+        setResizeLimits (360, minContentHeightWithTimeline, 900, 900);
+        content->setSize (content->getWidth(), contentHeightWithoutTimeline + timelineExtra);
         content->resized();
     }
 
