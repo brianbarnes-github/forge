@@ -42,8 +42,4 @@ private:
     std::atomic<unsigned> seekGeneration { 0 };
 };
 
-// Tick of the start of the bar containing `tick`, or of the previous bar when
-// `tick` is exactly on a bar line. Bad meter values yield 0.
-double previousBarTick (double tick, int ticksPerQuarter, int numerator, int denominator);
-
 } // namespace lotro

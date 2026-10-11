@@ -1,7 +1,6 @@
 #include "UI/Playback/Transport.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace lotro
 {
@@ -55,15 +54,6 @@ bool Transport::advance (double fromSeconds, double seconds, double endSeconds) 
     if (next >= endSeconds)
         playing.store (false, std::memory_order_release);
     return true;
-}
-
-double previousBarTick (double tick, int ticksPerQuarter, int numerator, int denominator)
-{
-    if (ticksPerQuarter <= 0 || numerator <= 0 || denominator <= 0)
-        return 0.0;
-    const double barTicks = (double) ticksPerQuarter * 4.0 * (double) numerator / (double) denominator;
-    const double bars = std::ceil (tick / barTicks - 1e-9);
-    return std::max (0.0, (bars - 1.0) * barTicks);
 }
 
 } // namespace lotro

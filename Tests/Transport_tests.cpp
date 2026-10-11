@@ -75,14 +75,3 @@ TEST_CASE ("Transport: seeks bump the generation and clamp at zero", "[playback]
     t.goToStart();
     CHECK (t.getPositionSeconds() == Approx (0.0));
 }
-
-TEST_CASE ("previousBarTick: steps to the start of the current bar, or the previous one when on a bar line", "[playback][transport]")
-{
-    // 480 PPQ, 4/4 -> 1920 ticks per bar
-    CHECK (previousBarTick (2500.0, 480, 4, 4) == Approx (1920.0));
-    CHECK (previousBarTick (3840.0, 480, 4, 4) == Approx (1920.0));
-    CHECK (previousBarTick (100.0, 480, 4, 4) == Approx (0.0));
-    CHECK (previousBarTick (0.0, 480, 4, 4) == Approx (0.0));
-    CHECK (previousBarTick (1000.0, 480, 3, 4) == Approx (0.0));       // 1440 per bar
-    CHECK (previousBarTick (1000.0, 480, 0, 0) == Approx (0.0));       // bad meter never divides by zero
-}
