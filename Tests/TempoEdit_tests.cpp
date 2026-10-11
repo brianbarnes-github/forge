@@ -14,6 +14,7 @@
 #include <juce_core/juce_core.h>
 
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 using namespace lotro;
@@ -116,7 +117,8 @@ TEST_CASE ("TempoEdit: a typed BPM is stored rounded to whole microseconds, in t
     Loaded f;
     REQUIRE_FALSE (setTempo (f.doc, 480, 100.5).has_value());
     const double stored = (double) f.doc.getTempoMapNode().getChild (1).getProperty (SongIDs::bpm);
-    CHECK (stored == exactly (roundedBpm (100.5)));
+    REQUIRE (roundedBpm (100.5).has_value());
+    CHECK (stored == exactly (*roundedBpm (100.5)));
     CHECK (stored == Approx (100.5).margin (0.001));
 
     const auto exported = buildRawMidiFile (f.doc);
@@ -456,4 +458,15 @@ TEST_CASE ("TempoEdit: a tempo Replace import clears the undo history, so undo c
     CHECK (list[0].bpm == Approx (100.0));
     CHECK (list[1].tick == 960);
     CHECK (list[1].bpm == Approx (60.0));
+}
+
+TEST_CASE ("TempoEdit: roundedBpm only answers for a BPM a tempo event can hold", "[tempo-edit]")
+{
+    CHECK_FALSE (roundedBpm (0.0).has_value());
+    CHECK_FALSE (roundedBpm (-5.0).has_value());
+    CHECK_FALSE (roundedBpm (std::numeric_limits<double>::quiet_NaN()).has_value());
+    CHECK_FALSE (roundedBpm (3.0).has_value());      // > 24-bit microseconds
+    CHECK_FALSE (roundedBpm (1000.5).has_value());
+    REQUIRE (roundedBpm (maxBpm).has_value());
+    CHECK (*roundedBpm (maxBpm) == Approx (1000.0));
 }

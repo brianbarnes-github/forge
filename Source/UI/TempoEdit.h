@@ -28,7 +28,9 @@ using TempoEditResult = std::optional<TempoEditError>;   // nullopt = success
 
 constexpr double maxBpm = 1000.0;
 double minBpm();                      // 60e6 / 16777215: what 24-bit microseconds can encode
-double roundedBpm (double bpm);       // the BPM an event of whole microseconds actually stores
+// The BPM an event of whole microseconds actually stores for `bpm`; nullopt when
+// `bpm` is outside minBpm() .. maxBpm (or NaN), as setTempo would reject it.
+std::optional<double> roundedBpm (double bpm);
 
 // Creates the tempo at `tick`, or edits the one already there.
 TempoEditResult setTempo    (SongDocument&, int tick, double bpm);

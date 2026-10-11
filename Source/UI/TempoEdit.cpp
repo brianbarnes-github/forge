@@ -188,9 +188,13 @@ namespace
 
 double minBpm() { return 60000000.0 / (double) maxMicroseconds; }
 
-double roundedBpm (double bpm)
+std::optional<double> roundedBpm (double bpm)
 {
-    return bpmFromMicroseconds ((std::uint32_t) std::llround (60000000.0 / bpm));
+    const auto bytes = tempoBytes (bpm);   // the same validation setTempo uses
+    if (! bytes)
+        return std::nullopt;
+    const auto& b = *bytes;
+    return bpmFromMicroseconds (((std::uint32_t) b[2] << 16) | ((std::uint32_t) b[3] << 8) | (std::uint32_t) b[4]);
 }
 
 TempoEditResult setTempo (SongDocument& doc, int tick, double bpm)
