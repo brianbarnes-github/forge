@@ -788,6 +788,38 @@ TEST_CASE ("TrackNotePreview: a Conductor row with no document events paints onl
 
     const auto image = renderPreview (conductor, view);
     CHECK (image.getPixelAt (previewWidth / 2, previewHeight / 2) == juce::Colour (SongsmithColours::background));
+    CHECK (image.getPixelAt (1, 1) == juce::Colour (SongsmithColours::background));
+    CHECK (image.getPixelAt (10, 3) == juce::Colour (SongsmithColours::background));
+}
+
+TEST_CASE ("TrackNotePreview: three tempos tint only the odd segment, which ends at the next tempo", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 960, 90.0).has_value());
+    REQUIRE_FALSE (setTempo (f.doc, 1920, 140.0).has_value());
+    const auto view = tenthPixelView();
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view, 600);
+    const juce::Colour bg (SongsmithColours::background);
+    CHECK (image.getPixelAt (view.xForTick (960) + 60, 3) != bg);      // segment 1: tinted
+    CHECK (image.getPixelAt (view.xForTick (1920) - 6, 3) != bg);      // ... up to the next tempo
+    // Segment 2 is plain again: same shade as the same grid phase in segment 0 (1920 ticks = 192 px
+    // is a whole number of grid cells, so a grid line would fall on both or neither).
+    CHECK (image.getPixelAt (view.xForTick (1920) + 61, 3) == image.getPixelAt (61, 3));
+    CHECK (image.getPixelAt (61, 3) == bg);
+}
+
+TEST_CASE ("TrackNotePreview: a label of a marker just off the left edge still reaches into view", "[track-note-preview][conductor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Loaded f;
+    REQUIRE_FALSE (setTempo (f.doc, 960, 90.0).has_value());
+    const auto view = tenthPixelView (960.0 + 50.0);   // tempo line at x = -5
+
+    const auto image = renderPreview (f.doc.getConductorTrack(), view);
+    REQUIRE (view.xForTick (960) == -5);
+    CHECK (hasPixelNear (image, SongsmithColours::conductorTempo, 0, 20, 0, previewHeight / 2));
 }
 
 TEST_CASE ("TrackNotePreview: a tempo and a meter on the same tick both show their labels", "[track-note-preview][conductor]")

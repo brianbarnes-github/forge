@@ -2,7 +2,7 @@
 
 // Pure model behind the Conductor row's tempo and meter markers: the label text
 // for each event and which labels fit without overlapping (spec 2026-10-10,
-// section 4). No painting and no JUCE here.
+// section 4). No painting and no JUCE types in this API.
 
 #include "UI/TempoEdit.h"
 
