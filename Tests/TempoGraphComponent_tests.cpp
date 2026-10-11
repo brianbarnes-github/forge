@@ -274,6 +274,26 @@ TEST_CASE ("TempoGraphComponent: clicking a point selects it and writes nothing"
     CHECK_FALSE (r.graph->isDraggingForTesting());
 }
 
+TEST_CASE ("TempoGraphComponent: a drag that returns to its start writes nothing", "[tempo-graph][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Rig r;
+    const auto before = tempos (r.doc);
+    const auto p = r.at (1920, 90);
+
+    press (*r.graph, p);
+    dragTo (*r.graph, p + juce::Point<int> (20, 20), p);
+    REQUIRE (r.graph->dragPreviewForTesting().has_value());
+    CHECK (r.graph->dragPreviewForTesting()->second != 90.0);   // it really moved meanwhile
+    dragTo (*r.graph, p, p);
+    release (*r.graph, p, p);
+
+    for (const auto& e : r.edits)
+        CHECK_FALSE (e.has_value());
+    CHECK (tempos (r.doc) == before);
+    CHECK_FALSE (r.doc.getUndoManager().canUndo());
+}
+
 TEST_CASE ("TempoGraphComponent: a drag previews, then mouse-up moves the tempo in one undo step", "[tempo-graph][edit]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
