@@ -78,37 +78,6 @@ namespace
     }
 }
 
-std::string barBeatTextAt (const std::vector<MeterSegment>& segments, int tick)
-{
-    if (segments.empty())
-        return {};
-    const auto& seg = segmentAt (segments, (double) tick);
-    const double into = (double) tick - seg.startTick;
-    const long long bar = seg.firstBar + (long long) std::floor (into / seg.ticksPerBar) + 1;
-    const double inBar = into - std::floor (into / seg.ticksPerBar) * seg.ticksPerBar;
-    const long long beat = (long long) std::floor (inBar / seg.ticksPerBeat) + 1;
-    return std::to_string (bar) + "." + std::to_string (beat);
-}
-
-std::string formatClock (double seconds)
-{
-    const long long tenths = std::isfinite (seconds) && seconds > 0.0 ? std::llround (seconds * 10.0) : 0;
-    const long long minutes = tenths / 600;
-    const long long rest = tenths % 600;   // tenths of a second within the minute
-    char buffer[48];
-    std::snprintf (buffer, sizeof buffer, "%lld:%02lld.%lld", minutes, rest / 10, rest % 10);
-    return buffer;
-}
-
-std::string selectedPositionText (int tick, double seconds, const std::vector<MeterChange>& meterMap,
-                                  int ticksPerQuarter)
-{
-    const auto barBeat = barBeatTextAt (meterSegments (meterMap, ticksPerQuarter), tick);
-    const std::string separator = "  \xC2\xB7  ";   // "  ·  " in UTF-8
-    return "Selected: bar " + (barBeat.empty() ? std::string ("-") : barBeat) + separator
-         + "tick " + std::to_string (tick) + separator + formatClock (seconds);
-}
-
 std::vector<TableRow> tableRows (const std::vector<TempoMeterEvent>& events,
                                  const std::vector<MeterChange>& meterMap, int ticksPerQuarter)
 {
@@ -128,7 +97,15 @@ std::vector<TableRow> tableRows (const std::vector<TempoMeterEvent>& events,
                             ? formatMarkerBpm (e.bpm)
                             : std::to_string (e.numerator) + "/" + std::to_string (e.denominator);
 
-        row.barBeatText = barBeatTextAt (segments, e.tick);
+        if (! segments.empty())
+        {
+            const auto& seg = segmentAt (segments, (double) e.tick);
+            const double into = (double) e.tick - seg.startTick;
+            const long long bar = seg.firstBar + (long long) std::floor (into / seg.ticksPerBar) + 1;
+            const double inBar = into - std::floor (into / seg.ticksPerBar) * seg.ticksPerBar;
+            const long long beat = (long long) std::floor (inBar / seg.ticksPerBeat) + 1;
+            row.barBeatText = std::to_string (bar) + "." + std::to_string (beat);
+        }
         rows.push_back (std::move (row));
     }
     return rows;

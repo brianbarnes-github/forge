@@ -2,11 +2,9 @@
 
 #include "MidiTestBytes.h"
 #include "UI/SongDocument.h"
-#include "UI/SongsmithColours.h"
 #include "UI/SongModelBridge.h"
 #include "UI/TempoEdit.h"
 #include "UI/TempoMeterEditorWindow.h"
-#include "UI/TempoMeterPositionStrip.h"
 #include "UI/TempoMeterTable.h"
 
 #include <catch2/catch_approx.hpp>
@@ -14,10 +12,8 @@
 
 #include <juce_core/juce_core.h>
 
-#include <cmath>
 #include <optional>
 #include <string>
-#include <vector>
 
 using namespace lotro;
 using namespace miditest;
@@ -79,14 +75,6 @@ namespace lotro
                                       &c, &c, now, juce::Point<float> (2.0f, 2.0f), now, 1, false);
             c.mouseDown (e);
         }
-        static std::string readout (TempoMeterEditorWindow& w) { return w.content->readout.getText().toStdString(); }
-        static PositionStrip& strip (TempoMeterEditorWindow& w) { return w.content->strip; }
-        static juce::Rectangle<int> tableBounds (TempoMeterEditorWindow& w) { return w.content->table.getBounds(); }
-        static int rowHeight (TempoMeterEditorWindow& w) { return w.content->table.getRowHeight(); }
-        static int headerHeight (TempoMeterEditorWindow& w) { return w.content->table.getHeader().getHeight(); }
-        static void resizeContent (TempoMeterEditorWindow& w, int width, int height) { w.content->setSize (width, height); }
-        static juce::Rectangle<int> stripBounds (TempoMeterEditorWindow& w) { return w.content->strip.getBounds(); }
-        static juce::Rectangle<int> readoutBounds (TempoMeterEditorWindow& w) { return w.content->readout.getBounds(); }
         static bool keyOnTable (TempoMeterEditorWindow& w, const juce::KeyPress& k)
         {
             return w.content->table.keyPressed (k);
@@ -589,131 +577,4 @@ TEST_CASE ("TempoMeterEditorWindow: closing reports no selected tick", "[tempo-m
     w.closeButtonPressed();
     REQUIRE (! seen.empty());
     CHECK (seen.back() == std::nullopt);
-}
-
-namespace
-{
-    const std::string dot = "  \xC2\xB7  ";
-
-    std::vector<int> greenColumnsAtTop (PositionStrip& strip)
-    {
-        juce::Image image (juce::Image::ARGB, strip.getWidth(), strip.getHeight(), true, juce::SoftwareImageType());
-        juce::Graphics g (image);
-        strip.paintEntireComponent (g, false);
-        std::vector<int> xs;
-        const juce::Colour green (SongsmithColours::eventMarker);
-        for (int x = 0; x < image.getWidth(); ++x)
-        {
-            const auto c = image.getPixelAt (x, 2);
-            if (std::abs (c.getRed() - green.getRed()) <= 3 && std::abs (c.getGreen() - green.getGreen()) <= 3
-                && std::abs (c.getBlue() - green.getBlue()) <= 3)
-                xs.push_back (x);
-        }
-        return xs;
-    }
-}
-
-TEST_CASE ("TempoMeterEditorWindow: the readout follows the selection and the seconds follow a tempo edit", "[tempo-meter-window][position]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    SongDocument doc;
-    importStandard (doc);
-    REQUIRE_FALSE (setTempo (doc, 1920, 60));
-    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
-    TempoMeterEditorWindow w (doc, nullptr);
-    REQUIRE (Access::rowCount (w) == 4);   // T0 M0 T1920 M3840
-
-    CHECK (Access::readout (w) == "No event selected");
-
-    Access::selectRow (w, 3);   // M3840: 2 s at 120 BPM, then 4 s at 60 BPM
-    CHECK (Access::readout (w) == "Selected: bar 3.1" + dot + "tick 3840" + dot + "0:06.0");
-
-    Access::selectRow (w, 2);
-    CHECK (Access::readout (w) == "Selected: bar 2.1" + dot + "tick 1920" + dot + "0:02.0");
-
-    Access::selectRow (w, 3);
-    Access::commitCell (w, 2, valueCol, "30");   // slower: the second segment now lasts 8 s
-    pump();
-    REQUIRE (Access::selectedRow (w) == 3);
-    CHECK (Access::readout (w) == "Selected: bar 3.1" + dot + "tick 3840" + dot + "0:10.0");
-
-    Access::deselectAll (w);
-    CHECK (Access::readout (w) == "No event selected");
-}
-
-TEST_CASE ("TempoMeterEditorWindow: the readout clears when a refresh drops the selected event", "[tempo-meter-window][position]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    SongDocument doc;
-    importStandard (doc);
-    REQUIRE_FALSE (setTempo (doc, 1920, 60));
-    TempoMeterEditorWindow w (doc, nullptr);
-    Access::selectRow (w, 2);
-    REQUIRE (Access::readout (w).find ("tick 1920") != std::string::npos);
-
-    REQUIRE_FALSE (removeTempo (doc, 1920));
-    pump();
-    CHECK (Access::readout (w) == "No event selected");
-    CHECK_FALSE (Access::strip (w).selectedTick().has_value());
-}
-
-TEST_CASE ("TempoMeterEditorWindow: the strip marks the selected event and refreshes after an edit", "[tempo-meter-window][position]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    SongDocument doc;
-    importStandard (doc);
-    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
-    TempoMeterEditorWindow w (doc, nullptr);
-    auto& strip = Access::strip (w);
-    REQUIRE (strip.getWidth() > 100);
-    CHECK (strip.getHeight() == PositionStrip::height);
-    CHECK (greenColumnsAtTop (strip).empty());
-
-    Access::selectRow (w, 2);   // M3840
-    REQUIRE (strip.selectedTick() == std::optional<int> (3840));
-    REQUIRE (strip.endTick() == 4 * 1920);
-    auto cols = greenColumnsAtTop (strip);
-    REQUIRE (! cols.empty());
-    CHECK (std::abs (0.5 * (cols.front() + cols.back() + 1) - strip.xForTick (3840)) <= 1.0);
-    const float before = strip.xForTick (3840);
-
-    // An event past the old end stretches the strip, so the selected tick moves left.
-    REQUIRE_FALSE (setTempo (doc, 15360, 100));
-    pump();
-    REQUIRE (strip.endTick() == 15360);
-    CHECK (strip.xForTick (3840) < before - 20.0f);
-    cols = greenColumnsAtTop (strip);
-    REQUIRE (! cols.empty());
-    CHECK (std::abs (0.5 * (cols.front() + cols.back() + 1) - strip.xForTick (3840)) <= 1.0);
-
-    // Moving the selected event away drops the selection and the green line.
-    Access::commitCell (w, 2, tickCol, "2500");   // meter snaps to the bar start at 1920
-    pump();
-    CHECK (Access::selectedRow (w) == -1);
-    CHECK (greenColumnsAtTop (strip).empty());
-
-    Access::deselectAll (w);
-    CHECK (greenColumnsAtTop (strip).empty());
-}
-
-TEST_CASE ("TempoMeterEditorWindow: strip and readout fit without squeezing the table below six rows", "[tempo-meter-window][position]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    SongDocument doc;
-    importStandard (doc);
-    TempoMeterEditorWindow w (doc, nullptr);
-
-    for (const auto size : { juce::Point<int> (520, 420), juce::Point<int> (360, 300) })
-    {
-        Access::resizeContent (w, size.x, size.y);
-        const auto table = Access::tableBounds (w);
-        CHECK (table.getHeight() >= Access::headerHeight (w) + 6 * Access::rowHeight (w));
-        const auto strip = Access::stripBounds (w);
-        const auto readout = Access::readoutBounds (w);
-        CHECK (strip.getHeight() == PositionStrip::height);
-        CHECK (strip.getWidth() >= size.x - 20);
-        CHECK_FALSE (strip.intersects (table));
-        CHECK_FALSE (readout.intersects (table));
-        CHECK_FALSE (strip.intersects (readout));
-    }
 }
