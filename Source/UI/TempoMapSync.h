@@ -29,11 +29,12 @@ struct DerivedMaps
 // 60 / (microsecondsPerQuarter / 1e6), written exactly as the importer does.
 double bpmFromMicroseconds (std::uint32_t microsecondsPerQuarter);
 
-// `events` are in (tick, order) order. Defaults {0, 120 BPM} / {0, 4/4} when no
-// event of that kind exists. Mirrors importTempoAndMeter (Source/Core/MidiImporter.cpp).
+// `events` are in file order (as conductorEventsOf returns them). Defaults
+// {0, 120 BPM} / {0, 4/4} when no event of that kind exists. Mirrors importTempoAndMeter (Source/Core/MidiImporter.cpp).
 DerivedMaps deriveMaps (const std::vector<RawMidiEvent>& events);
 
-// The conductor's EVENTs sorted by (tick, order), as raw events.
+// The conductor's EVENTs sorted by (tick, relocatedFrom, order), the key buildRawMidiFile
+// sorts a track's events by, as raw events.
 std::vector<RawMidiEvent> conductorEventsOf (const SongDocument& doc);
 
 // Writes the derived maps into TEMPO_MAP / METER_MAP (never undoable; only when
