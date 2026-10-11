@@ -637,9 +637,14 @@ void SongDocument::replaceContents (const juce::ValueTree& loaded)
             tree.getChildWithName (id).copyPropertiesAndChildrenFrom (source.getChildWithName (id), nullptr);
 
         // Files from before timeBaseSet existed: a stored tempo map means an import happened.
+        // Those files may also hold tempo/meter events in note tracks (their stored map
+        // included them); move them to the conductor so the rebuilt maps and export agree.
         auto sourceMidi = getSourceMidiNode();
         if (! sourceMidi.hasProperty (SongIDs::timeBaseSet))
+        {
             sourceMidi.setProperty (SongIDs::timeBaseSet, getTempoMapNode().getNumChildren() > 0, nullptr);
+            moveTempoAndMeterToConductor (*this);
+        }
     }   // the maps are rebuilt from the events here, healing any stale ones
 
     undoManager.clearUndoHistory();

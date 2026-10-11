@@ -3,6 +3,7 @@
 #include "UI/SongDocument.h"
 
 #include <algorithm>
+#include <tuple>
 
 namespace lotro
 {
@@ -78,12 +79,15 @@ namespace
 
 std::vector<RawMidiEvent> conductorEventsOf (const SongDocument& doc)
 {
-    struct Item { int tick; int order; std::vector<std::uint8_t> bytes; };
+    // The same key buildRawMidiFile sorts a track's events by (EVENTs have no note group),
+    // so the maps read same-tick events in the order the export writes them.
+    struct Item { int tick; int relocatedFrom; int order; std::vector<std::uint8_t> bytes; };
     std::vector<Item> items;
     for (auto event : SongDocument::getEventsNode (doc.getConductorTrack()))
-        items.push_back ({ (int) event.getProperty (SongIDs::tick, 0), (int) event.getProperty (SongIDs::order, 0), bytesOf (event) });
+        items.push_back ({ (int) event.getProperty (SongIDs::tick, 0), (int) event.getProperty (SongIDs::relocatedFrom, -1),
+                           (int) event.getProperty (SongIDs::order, 0), bytesOf (event) });
     std::stable_sort (items.begin(), items.end(), [] (const Item& a, const Item& b)
-                      { return a.tick != b.tick ? a.tick < b.tick : a.order < b.order; });
+                      { return std::tie (a.tick, a.relocatedFrom, a.order) < std::tie (b.tick, b.relocatedFrom, b.order); });
 
     std::vector<RawMidiEvent> out;
     out.reserve (items.size());
@@ -116,6 +120,38 @@ void rebuildMaps (SongDocument& doc)
     writeIfDifferent (meterNode, SongIDs::METER_CHANGE, meter);
 }
 
+void moveTempoAndMeterToConductor (SongDocument& doc)
+{
+    auto conductorEvents = SongDocument::getEventsNode (doc.getConductorTrack());
+    const auto nextOrderAt = [&] (int tick)
+    {
+        int next = 0;
+        for (auto e : conductorEvents)
+            if ((int) e.getProperty (SongIDs::tick, 0) == tick)
+                next = std::max (next, (int) e.getProperty (SongIDs::order, 0) + 1);
+        return next;
+    };
+
+    for (auto track : doc.getSourceMidiNode())
+    {
+        if ((bool) track.getProperty (SongIDs::isConductor, false))
+            continue;
+        auto events = SongDocument::getEventsNode (track);
+        for (int i = 0; i < events.getNumChildren();)
+        {
+            auto event = events.getChild (i);
+            if (! isTempoOrMeterBytes (bytesOf (event)))
+            {
+                ++i;
+                continue;
+            }
+            events.removeChild (i, nullptr);
+            event.setProperty (SongIDs::order, nextOrderAt ((int) event.getProperty (SongIDs::tick, 0)), nullptr);
+            conductorEvents.addChild (event, -1, nullptr);
+        }
+    }
+}
+
 TempoMapSync::TempoMapSync (SongDocument& document) : doc (document), sourceMidi (document.getSourceMidiNode())
 {
     sourceMidi.addListener (this);
@@ -123,17 +159,21 @@ TempoMapSync::TempoMapSync (SongDocument& document) : doc (document), sourceMidi
 
 TempoMapSync::~TempoMapSync() { sourceMidi.removeListener (this); }
 
+bool TempoMapSync::isConductorEvent (const juce::ValueTree& node)
+{
+    if (! node.hasType (SongIDs::EVENT))
+        return false;
+    const auto events = node.getParent();
+    return events.isValid() && events.hasType (SongIDs::EVENTS)
+        && (bool) events.getParent().getProperty (SongIDs::isConductor, false);
+}
+
 bool TempoMapSync::concernsTempoOrMeter (const juce::ValueTree& changed) const
 {
-    // EVENT under the conductor's EVENTS, or the EVENTS / track nodes themselves coming or going.
-    if (changed.hasType (SongIDs::EVENT))
-    {
-        const auto events = changed.getParent();
-        return events.isValid() && events.hasType (SongIDs::EVENTS)
-            && (bool) events.getParent().getProperty (SongIDs::isConductor, false)
-            && isTempoOrMeterBytes (bytesOf (changed));
-    }
-    return false;
+    // Only a conductor EVENT holding FF 51 / FF 58 counts. Whole tracks or EVENTS nodes
+    // coming or going are not watched: the conductor is never removed, and bulk
+    // replacements (import, load) run under a MapSyncPause that rebuilds at its end.
+    return isConductorEvent (changed) && isTempoOrMeterBytes (bytesOf (changed));
 }
 
 void TempoMapSync::maybeRebuild (const juce::ValueTree& changed)
@@ -142,7 +182,15 @@ void TempoMapSync::maybeRebuild (const juce::ValueTree& changed)
         rebuildMaps (doc);
 }
 
-void TempoMapSync::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier&) { maybeRebuild (tree); }
+void TempoMapSync::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
+{
+    // A conductor event's bytes may have just stopped being a tempo or meter (or, on
+    // undo, started again): any data change rebuilds; writeIfDifferent keeps it cheap.
+    if (pauseDepth == 0 && property == SongIDs::data && isConductorEvent (tree))
+        rebuildMaps (doc);
+    else
+        maybeRebuild (tree);
+}
 void TempoMapSync::valueTreeChildAdded (juce::ValueTree&, juce::ValueTree& child) { maybeRebuild (child); }
 
 void TempoMapSync::valueTreeChildRemoved (juce::ValueTree& parent, juce::ValueTree& child, int)

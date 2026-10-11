@@ -16,6 +16,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <algorithm>
 #include <sstream>
 #include <tuple>
 
@@ -83,6 +84,53 @@ namespace
         for (size_t i = 0; i < derived.meter.size(); ++i)
             CHECK (meterNodes (doc)[i] == std::make_tuple (derived.meter[i].tick, derived.meter[i].numerator, derived.meter[i].denominator));
     }
+
+    bool isTempoOrMeter (const std::vector<std::uint8_t>& b)
+    {
+        return b.size() >= 2 && b[0] == 0xFF && (b[1] == 0x51 || b[1] == 0x58);
+    }
+
+    // Every FF 51 / FF 58 the exported file holds, in EVERY track (conductor first at a
+    // shared tick), derived the way a reader would, must equal the map nodes exactly.
+    void requireExportMatchesMaps (const SongDocument& doc)
+    {
+        const auto exported = buildRawMidiFile (doc);
+        std::vector<RawMidiEvent> timeEvents;
+        for (const auto& track : exported.tracks)
+            for (const auto& e : track.events)
+                if (isTempoOrMeter (e.bytes))
+                    timeEvents.push_back (e);
+        std::stable_sort (timeEvents.begin(), timeEvents.end(),
+                          [] (const RawMidiEvent& a, const RawMidiEvent& b) { return a.tick < b.tick; });
+
+        const auto derived = deriveMaps (timeEvents);
+        REQUIRE (tempoNodes (doc).size() == derived.tempo.size());
+        for (size_t i = 0; i < derived.tempo.size(); ++i)
+        {
+            CHECK (tempoNodes (doc)[i].first == derived.tempo[i].tick);
+            CHECK_THAT (tempoNodes (doc)[i].second, Catch::Matchers::WithinULP (derived.tempo[i].bpm, 0));
+        }
+        REQUIRE (meterNodes (doc).size() == derived.meter.size());
+        for (size_t i = 0; i < derived.meter.size(); ++i)
+            CHECK (meterNodes (doc)[i] == std::make_tuple (derived.meter[i].tick, derived.meter[i].numerator, derived.meter[i].denominator));
+    }
+
+    juce::ValueTree makeEvent (int tick, int order, std::vector<std::uint8_t> bytes)
+    {
+        juce::ValueTree e (SongIDs::EVENT);
+        e.setProperty (SongIDs::tick, tick, nullptr);
+        e.setProperty (SongIDs::order, order, nullptr);
+        e.setProperty (SongIDs::data, juce::var (juce::MemoryBlock (bytes.data(), bytes.size())), nullptr);
+        return e;
+    }
+
+    struct MapChangeCounter : juce::ValueTree::Listener
+    {
+        int changes = 0;
+        void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { ++changes; }
+        void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { ++changes; }
+        void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { ++changes; }
+    };
 }
 
 TEST_CASE ("a new document has empty maps and no time base", "[tempo-sync]")
@@ -154,6 +202,7 @@ TEST_CASE ("a later import with the tempo map kept never changes the maps; Repla
     REQUIRE (tempoNodes (kept).size() == 1);
     CHECK (tempoNodes (kept)[0].second == Approx (120.0));
     requireMapsMatchEvents (kept);
+    requireExportMatchesMaps (kept);   // the kept file's note-track tempo does not leak into the export
 
     SongDocument replaced;
     REQUIRE (importMidiFile (replaced, first.file, replaced.mintImportBatch(), d));
@@ -163,6 +212,7 @@ TEST_CASE ("a later import with the tempo map kept never changes the maps; Repla
     REQUIRE (tempoNodes (replaced).size() == 2);
     CHECK (tempoNodes (replaced)[0].second == Approx (100.0));
     requireMapsMatchEvents (replaced);
+    requireExportMatchesMaps (replaced);
 }
 
 TEST_CASE ("changing a conductor tempo event rebuilds the maps; undo and redo restore them", "[tempo-sync]")
@@ -195,13 +245,7 @@ TEST_CASE ("an unrelated event or note edit leaves the map nodes untouched", "[t
     Diagnostics d;
     REQUIRE (importMidiFile (doc, file.file, doc.mintImportBatch(), d));
 
-    struct Counter : juce::ValueTree::Listener
-    {
-        int changes = 0;
-        void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override { ++changes; }
-        void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { ++changes; }
-        void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override { ++changes; }
-    } counter;
+    MapChangeCounter counter;
     auto tempoNode = doc.getTempoMapNode();
     tempoNode.addListener (&counter);
 
@@ -255,17 +299,125 @@ TEST_CASE ("loading a file saved before timeBaseSet existed infers it from the s
     CHECK_FALSE (loadedEmpty.hasTimeBase());
 }
 
-TEST_CASE ("export contains exactly the maps' tempo changes", "[tempo-sync]")
+TEST_CASE ("export contains exactly the maps' tempo and meter changes, across every track", "[tempo-sync]")
+{
+    TrackBody cond;
+    cond.ev (0, { 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 })            // 120 BPM
+        .ev (0, { 0xFF, 0x58, 0x04, 0x03, 0x02, 0x18, 0x08 })      // 3/4
+        .ev (96, { 0xFF, 0x51, 0x03, 0x09, 0x27, 0xC0 })           // 100 BPM
+        .ev (0, { 0xFF, 0x58, 0x04, 0x06, 0x03, 0x18, 0x08 })      // 6/8
+        .eot (960);
+    TempMidi file (smf (1, 96, { cond, melody (60) }));
+    SongDocument doc;
+    Diagnostics d;
+    REQUIRE (importMidiFile (doc, file.file, doc.mintImportBatch(), d));
+
+    REQUIRE (tempoNodes (doc).size() == 2);
+    REQUIRE (meterNodes (doc).size() == 2);
+    CHECK (meterNodes (doc)[1] == std::make_tuple (96, 6, 8));
+    requireExportMatchesMaps (doc);
+}
+
+TEST_CASE ("the maps order same-tick conductor events the way export writes them", "[tempo-sync]")
+{
+    // A native conductor tempo and one relocated from a note track, both at tick 0:
+    // export sorts by (tick, relocatedFrom, order), so the native one comes first.
+    SongDocument doc;
+    doc.setTimeBase (true);
+    auto events = SongDocument::getEventsNode (doc.getConductorTrack());
+    SongDocument::appendChildBulk (events, makeEvent (0, 5, { 0xFF, 0x51, 0x07, 0xA1, 0x20 }));   // 120 BPM, native
+    auto relocated = makeEvent (0, 0, { 0xFF, 0x51, 0x09, 0x27, 0xC0 });                          // 100 BPM
+    relocated.setProperty (SongIDs::relocatedFrom, 1, nullptr);
+    SongDocument::appendChildBulk (events, relocated);
+
+    requireMapsMatchEvents (doc);
+    requireExportMatchesMaps (doc);
+}
+
+TEST_CASE ("changing a conductor tempo event into a non-tempo event rebuilds the maps; undo restores", "[tempo-sync]")
 {
     TempMidi file (smf (1, 96, { conductorWith ({ { 0, 500000 }, { 96, 600000 } }), melody (60) }));
     SongDocument doc;
     Diagnostics d;
     REQUIRE (importMidiFile (doc, file.file, doc.mintImportBatch(), d));
+    REQUIRE (tempoNodes (doc).size() == 2);
 
-    const auto exported = buildRawMidiFile (doc);
-    std::vector<RawMidiEvent> conductor = exported.tracks.front().events;
-    const auto derived = deriveMaps (conductor);
-    REQUIRE (derived.tempo.size() == tempoNodes (doc).size());
-    for (size_t i = 0; i < derived.tempo.size(); ++i)
-        CHECK (derived.tempo[i].bpm == Approx (tempoNodes (doc)[i].second));
+    auto events = SongDocument::getEventsNode (doc.getConductorTrack());
+    juce::ValueTree second;
+    for (auto e : events)
+        if ((int) e.getProperty (SongIDs::tick) == 96)
+            second = e;
+    REQUIRE (second.isValid());
+
+    const std::uint8_t cc[] = { 0xB0, 7, 100 };
+    doc.setProperty (second, SongIDs::data, juce::var (juce::MemoryBlock (cc, sizeof cc)));
+    CHECK (tempoNodes (doc).size() == 1);
+    requireMapsMatchEvents (doc);
+
+    doc.undo();
+    CHECK (tempoNodes (doc).size() == 2);
+    requireMapsMatchEvents (doc);
+}
+
+TEST_CASE ("a rebuild whose result is identical writes nothing to the map nodes", "[tempo-sync]")
+{
+    TempMidi file (smf (1, 96, { conductorWith ({ { 0, 500000 } }), melody (60) }));
+    SongDocument doc;
+    Diagnostics d;
+    REQUIRE (importMidiFile (doc, file.file, doc.mintImportBatch(), d));
+
+    MapChangeCounter counter;
+    auto tempoNode = doc.getTempoMapNode();
+    auto meterNode = doc.getMeterMapNode();
+    tempoNode.addListener (&counter);
+    meterNode.addListener (&counter);
+
+    // Changing a tempo event's order concerns the maps (so they are rebuilt) but leaves them equal.
+    auto tempoEvent = SongDocument::getEventsNode (doc.getConductorTrack()).getChild (0);
+    doc.setProperty (tempoEvent, SongIDs::order, 7);
+
+    CHECK (counter.changes == 0);
+    tempoNode.removeListener (&counter);
+    meterNode.removeListener (&counter);
+}
+
+TEST_CASE ("loading a legacy file moves note-track tempo and meter events into the conductor", "[tempo-sync]")
+{
+    // Before tempo/meter always went to the conductor, a file with a conductor kept a
+    // note track's FF 51 / FF 58 in that note track while the stored map included them.
+    TempMidi file (smf (1, 96, { conductorWith ({ { 0, 500000 } }), melody (60) }));
+    SongDocument doc;
+    Diagnostics d;
+    REQUIRE (importMidiFile (doc, file.file, doc.mintImportBatch(), d));
+
+    auto tree = doc.getTree().createCopy();
+    auto sourceMidi = tree.getChildWithName (SongIDs::SOURCE_MIDI);
+    sourceMidi.removeProperty (SongIDs::timeBaseSet, nullptr);
+    REQUIRE (sourceMidi.getNumChildren() == 2);
+    auto noteEvents = SongDocument::getEventsNode (sourceMidi.getChild (1));
+    const int eventsBefore = noteEvents.getNumChildren();
+    noteEvents.addChild (makeEvent (48, 1, { 0xFF, 0x51, 0x09, 0x27, 0xC0 }), -1, nullptr);         // 100 BPM
+    noteEvents.addChild (makeEvent (0, 0, { 0xFF, 0x58, 0x03, 0x02, 0x18, 0x08 }), -1, nullptr);    // 3/4
+
+    SongDocument loaded;
+    loaded.replaceContents (tree);
+
+    REQUIRE (tempoNodes (loaded).size() == 2);
+    CHECK (tempoNodes (loaded)[1].first == 48);
+    CHECK (tempoNodes (loaded)[1].second == Approx (100.0));
+    REQUIRE (meterNodes (loaded).size() == 1);
+    CHECK (meterNodes (loaded)[0] == std::make_tuple (0, 3, 4));
+
+    const auto loadedNoteEvents = SongDocument::getEventsNode (loaded.getTrack (1));
+    CHECK (loadedNoteEvents.getNumChildren() == eventsBefore);
+    for (auto e : loadedNoteEvents)
+    {
+        const auto* block = e.getProperty (SongIDs::data).getBinaryData();
+        REQUIRE (block != nullptr);
+        const auto* b = static_cast<const std::uint8_t*> (block->getData());
+        CHECK_FALSE (isTempoOrMeter (std::vector<std::uint8_t> (b, b + block->getSize())));
+    }
+    requireMapsMatchEvents (loaded);
+    requireExportMatchesMaps (loaded);
+    CHECK_FALSE (loaded.canUndo());
 }

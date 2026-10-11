@@ -40,8 +40,15 @@ std::vector<RawMidiEvent> conductorEventsOf (const SongDocument& doc);
 // they differ). With no time base yet both nodes are cleared.
 void rebuildMaps (SongDocument& doc);
 
+// Moves every FF 51 / FF 58 EVENT out of the note tracks into the conductor
+// (non-undoable; tick kept, `order` after the conductor's events at that tick).
+// For loading files saved before tempo and meter always lived in the conductor.
+void moveTempoAndMeterToConductor (SongDocument& doc);
+
 // Rebuilds the maps whenever a conductor FF 51 / FF 58 event is added, removed or
-// changed. Attached to SOURCE_MIDI (whose node object survives replaceContents).
+// changed (and on any change of a conductor event's data). Attached to SOURCE_MIDI
+// (whose node object survives replaceContents). Listeners on deeper nodes run before
+// this one, so they may read stale maps from inside their own callbacks.
 class TempoMapSync : public juce::ValueTree::Listener
 {
 public:
@@ -57,6 +64,7 @@ public:
     void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree&, int) override;
 
 private:
+    static bool isConductorEvent (const juce::ValueTree& node);
     bool concernsTempoOrMeter (const juce::ValueTree& changed) const;
     void maybeRebuild (const juce::ValueTree& changed);
 
