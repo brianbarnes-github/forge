@@ -57,4 +57,16 @@ TableEditResult removeEvent (SongDocument&, const TempoMeterEvent& row);
 // Removes every row in one undo step; tick-0 rows and rows no longer present are skipped.
 TableEditResult removeEvents (SongDocument&, const std::vector<TempoMeterEvent>& rows);
 
+// Creates the tempo at `tick` or edits the one there (works on the implicit tick-0 default).
+TableEditResult setTempoAt  (SongDocument&, int tick, double bpm);
+// Moves the tempo `row` to `toTick` with `bpm`. Tick-0 rows and toTick == row.tick use setTempo (the
+// implicit default has no event to move). Re-finds `row` by (kind, tick): NoSuchEvent if gone.
+// Does nothing and returns success when the tick and the (rounded) bpm are both unchanged.
+TableEditResult moveTempoTo (SongDocument&, const TempoMeterEvent& row, int toTick, double bpm);
+// Creates or edits the meter at the bar nearest `tick`.
+TableEditResult setMeterAt  (SongDocument&, int tick, int numerator, int denominator);
+// Moves the meter `row` to the bar nearest `toTick`, keeping its stored n/d (re-found, not the caller's copy).
+// Unchanged (snapped tick == row.tick) -> success without an edit. Tick-0 row: unchanged -> success.
+TableEditResult moveMeterTo (SongDocument&, const TempoMeterEvent& row, int toTick);
+
 } // namespace lotro

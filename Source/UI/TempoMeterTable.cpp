@@ -3,6 +3,7 @@
 #include "UI/ConductorMarkers.h"
 #include "UI/MeterSegments.h"
 #include "UI/SongDocument.h"
+#include "UI/TempoMeterGraphModel.h"
 
 #include <juce_core/juce_core.h>
 
@@ -258,6 +259,43 @@ TableEditResult removeEvents (SongDocument& doc, const std::vector<TempoMeterEve
     for (const auto& row : rows)
         targets.emplace_back (row.kind, row.tick);
     return fromTempoEdit (removeTempoMeterEvents (doc, targets));
+}
+
+TableEditResult setTempoAt (SongDocument& doc, int tick, double bpm)
+{
+    return fromTempoEdit (setTempo (doc, tick, bpm));
+}
+
+TableEditResult moveTempoTo (SongDocument& doc, const TempoMeterEvent& row, int toTick, double bpm)
+{
+    const auto current = findCurrent (doc, row);
+    if (! current)
+        return rejected (TempoEditError::NoSuchEvent);
+    const auto rounded = roundedBpm (bpm);
+    if (! rounded)
+        return rejected (TempoEditError::BpmOutOfRange);
+    const bool staysPut = current->tick == 0 || toTick == current->tick;   // tick 0 never moves
+    if (staysPut && *rounded == current->bpm)
+        return std::nullopt;                                               // nothing to do, no undo step
+    return fromTempoEdit (staysPut ? setTempo (doc, current->tick, bpm)
+                                   : moveTempo (doc, current->tick, toTick, bpm));
+}
+
+TableEditResult setMeterAt (SongDocument& doc, int tick, int numerator, int denominator)
+{
+    return fromTempoEdit (setMeter (doc, tick, numerator, denominator));
+}
+
+TableEditResult moveMeterTo (SongDocument& doc, const TempoMeterEvent& row, int toTick)
+{
+    const auto current = findCurrent (doc, row);
+    if (! current)
+        return rejected (TempoEditError::NoSuchEvent);
+    if (current->tick == 0)
+        return std::nullopt;   // a tick-0 meter cannot move; its value is untouched
+    if (snapMeterTick (doc.getMeterChanges(), ticksPerQuarterOf (doc), current->tick, toTick) == current->tick)
+        return std::nullopt;
+    return fromTempoEdit (moveMeter (doc, current->tick, toTick, current->numerator, current->denominator));
 }
 
 } // namespace lotro

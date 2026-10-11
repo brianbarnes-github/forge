@@ -2,6 +2,7 @@
 
 #include "MidiTestBytes.h"
 #include "UI/MidiExport.h"
+#include "UI/MeterSegments.h"
 #include "UI/SongDocument.h"
 #include "UI/SongModelBridge.h"
 #include "UI/TempoEdit.h"
@@ -410,4 +411,152 @@ TEST_CASE ("TempoMeterTable: every message from describe is non-empty and distin
     CHECK (messages.count ("") == 0);
     CHECK (describe ({ TableEditError::Kind::UnparsableBpm, std::nullopt }) == "Enter a tempo in BPM, e.g. 120");
     CHECK (describe ({ TableEditError::Kind::Rejected, TempoEditError::BpmOutOfRange }) == "Tempo must be between 3.58 and 1000 BPM");
+}
+
+TEST_CASE ("TempoMeterTable: setTempoAt creates or edits the tempo at a tick, in one undo step", "[tempo-meter-table]")
+{
+    Loaded f;
+    const auto before = events (f.doc);
+    REQUIRE_FALSE (setTempoAt (f.doc, 1920, 93.75).has_value());
+    CHECK (has (f.doc, TempoMeterKind::tempo, 1920));
+    CHECK (find (f.doc, TempoMeterKind::tempo, 1920).bpm == Approx (93.75));
+
+    REQUIRE_FALSE (setTempoAt (f.doc, 1920, 140.0).has_value());   // existing tick: edited
+    CHECK (find (f.doc, TempoMeterKind::tempo, 1920).bpm == Approx (140.0));
+
+    f.doc.undo();
+    CHECK (find (f.doc, TempoMeterKind::tempo, 1920).bpm == Approx (93.75));
+    f.doc.undo();
+    CHECK (sameList (events (f.doc), before));
+
+    SongDocument empty;
+    CHECK (rejectedWith (setTempoAt (empty, 1920, 100.0), TempoEditError::NoTimeBase));
+
+    f.doc.getUndoManager().clearUndoHistory();
+    CHECK (rejectedWith (setTempoAt (f.doc, 1920, 5000.0), TempoEditError::BpmOutOfRange));
+    CHECK (sameList (events (f.doc), before));
+    CHECK_FALSE (f.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("TempoMeterTable: moveTempoTo moves a tempo with a new bpm", "[tempo-meter-table]")
+{
+    Loaded f;
+    REQUIRE_FALSE (setTempoAt (f.doc, 1920, 93.75).has_value());
+    REQUIRE_FALSE (setTempoAt (f.doc, 3360, 150.0).has_value());
+    const auto row = find (f.doc, TempoMeterKind::tempo, 1920);
+
+    SECTION ("to a free tick")
+    {
+        REQUIRE_FALSE (moveTempoTo (f.doc, row, 2400, 88.5).has_value());
+        CHECK_FALSE (has (f.doc, TempoMeterKind::tempo, 1920));
+        REQUIRE (has (f.doc, TempoMeterKind::tempo, 2400));
+        CHECK (find (f.doc, TempoMeterKind::tempo, 2400).bpm == Approx (88.5));
+    }
+    SECTION ("onto an occupied tick")
+    {
+        f.doc.getUndoManager().clearUndoHistory();
+        const auto before = events (f.doc);
+        CHECK (rejectedWith (moveTempoTo (f.doc, row, 3360, 88.5), TempoEditError::TickOccupied));
+        CHECK (sameList (events (f.doc), before));
+        CHECK_FALSE (f.doc.getUndoManager().canUndo());
+    }
+    SECTION ("unchanged tick and bpm is a no-op")
+    {
+        f.doc.getUndoManager().clearUndoHistory();
+        const auto before = events (f.doc);
+        CHECK_FALSE (moveTempoTo (f.doc, row, 1920, 93.75).has_value());
+        CHECK (sameList (events (f.doc), before));
+        CHECK_FALSE (f.doc.getUndoManager().canUndo());
+    }
+    SECTION ("same tick, new bpm edits in place")
+    {
+        REQUIRE_FALSE (moveTempoTo (f.doc, row, 1920, 70.0).has_value());
+        CHECK (find (f.doc, TempoMeterKind::tempo, 1920).bpm == Approx (70.0));
+    }
+    SECTION ("a tick-0 row keeps its tick but takes the bpm")
+    {
+        const auto first = find (f.doc, TempoMeterKind::tempo, 0);
+        REQUIRE_FALSE (moveTempoTo (f.doc, first, 960, 77.0).has_value());
+        REQUIRE (has (f.doc, TempoMeterKind::tempo, 0));
+        CHECK_FALSE (has (f.doc, TempoMeterKind::tempo, 960));
+        CHECK (find (f.doc, TempoMeterKind::tempo, 0).bpm == Approx (77.0));
+    }
+    SECTION ("a row removed behind its back")
+    {
+        REQUIRE_FALSE (removeEvent (f.doc, row).has_value());
+        CHECK (rejectedWith (moveTempoTo (f.doc, row, 2400, 88.5), TempoEditError::NoSuchEvent));
+    }
+    SECTION ("out-of-range bpm")
+    {
+        CHECK (rejectedWith (moveTempoTo (f.doc, row, 2400, 5000.0), TempoEditError::BpmOutOfRange));
+        CHECK (has (f.doc, TempoMeterKind::tempo, 1920));
+    }
+}
+
+TEST_CASE ("TempoMeterTable: setMeterAt lands on the nearest bar", "[tempo-meter-table]")
+{
+    Loaded f;
+    const int expected = (int) nearestBarStart (meterSegments (f.doc.getMeterChanges(), 480), 3000.0);
+    REQUIRE (expected != 3000);   // the fixture must make snapping visible
+    REQUIRE_FALSE (setMeterAt (f.doc, 3000, 3, 4).has_value());
+    REQUIRE (has (f.doc, TempoMeterKind::meter, expected));
+    CHECK (find (f.doc, TempoMeterKind::meter, expected).numerator == 3);
+    CHECK_FALSE (has (f.doc, TempoMeterKind::meter, 3000));
+
+    const auto before = events (f.doc);
+    CHECK (rejectedWith (setMeterAt (f.doc, 3000, 7, 3), TempoEditError::MeterOutOfRange));
+    CHECK (sameList (events (f.doc), before));
+}
+
+TEST_CASE ("TempoMeterTable: moveMeterTo snaps to a bar and keeps the stored meter", "[tempo-meter-table]")
+{
+    Loaded f;
+    REQUIRE_FALSE (setMeter (f.doc, 7680, 5, 8).has_value());
+    REQUIRE_FALSE (setMeter (f.doc, 3840, 3, 4).has_value());
+    const auto row = find (f.doc, TempoMeterKind::meter, 3840);
+
+    SECTION ("moves to the nearest bar of the meters without it")
+    {
+        auto meters = f.doc.getMeterChanges();
+        meters.erase (std::remove_if (meters.begin(), meters.end(), [] (const MeterChange& m) { return m.tick == 3840; }), meters.end());
+        const int expected = (int) nearestBarStart (meterSegments (meters, 480), 5500.0);
+        REQUIRE (expected != 5500);
+        REQUIRE (expected != 3840);
+        REQUIRE (expected != 5280);   // the bar the moving 3/4 itself would have put there
+        TempoMeterEvent stale = row;
+        stale.numerator = 9;   // the caller's copy is not trusted
+        REQUIRE_FALSE (moveMeterTo (f.doc, stale, 5500).has_value());
+        CHECK_FALSE (has (f.doc, TempoMeterKind::meter, 3840));
+        REQUIRE (has (f.doc, TempoMeterKind::meter, expected));
+        const auto moved = find (f.doc, TempoMeterKind::meter, expected);
+        CHECK (moved.numerator == 3);
+        CHECK (moved.denominator == 4);
+    }
+    SECTION ("snapping back to its own bar is a no-op")
+    {
+        f.doc.getUndoManager().clearUndoHistory();
+        CHECK_FALSE (moveMeterTo (f.doc, row, 3850).has_value());
+        CHECK (has (f.doc, TempoMeterKind::meter, 3840));
+        CHECK_FALSE (f.doc.getUndoManager().canUndo());
+    }
+    SECTION ("the tick-0 meter does not move")
+    {
+        const auto first = find (f.doc, TempoMeterKind::meter, 0);
+        f.doc.getUndoManager().clearUndoHistory();
+        const auto before = events (f.doc);
+        CHECK_FALSE (moveMeterTo (f.doc, first, 5000).has_value());
+        CHECK (sameList (events (f.doc), before));
+        CHECK_FALSE (f.doc.getUndoManager().canUndo());
+    }
+    SECTION ("onto an occupied bar")
+    {
+        const auto before = events (f.doc);
+        CHECK (rejectedWith (moveMeterTo (f.doc, row, 7600), TempoEditError::TickOccupied));
+        CHECK (sameList (events (f.doc), before));
+    }
+    SECTION ("a row removed behind its back")
+    {
+        REQUIRE_FALSE (removeEvent (f.doc, row).has_value());
+        CHECK (rejectedWith (moveMeterTo (f.doc, row, 3000), TempoEditError::NoSuchEvent));
+    }
 }
