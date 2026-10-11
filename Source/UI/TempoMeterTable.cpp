@@ -44,6 +44,22 @@ namespace
         return (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
     }
 
+    // The first bar line strictly after `tick`: counted in the bars of the segment holding
+    // `tick`, or the next segment's start when that comes first.
+    int nextBarStartAfter (const std::vector<MeterSegment>& segments, int tick)
+    {
+        const auto& seg = segmentAt (segments, (double) tick);
+        const double bars = std::floor (((double) tick - seg.startTick) / seg.ticksPerBar) + 1.0;
+        double next = seg.startTick + bars * seg.ticksPerBar;
+        for (const auto& s : segments)
+            if (s.startTick > seg.startTick)
+            {
+                next = std::min (next, s.startTick);
+                break;
+            }
+        return (int) std::llround (next);
+    }
+
     TableEditResult rejected (TempoEditError cause) { return TableEditError { TableEditError::Kind::Rejected, cause }; }
     TableEditResult fail (TableEditError::Kind kind) { return TableEditError { kind, std::nullopt }; }
 
@@ -193,9 +209,7 @@ TableEditResult addEvent (SongDocument& doc, TempoMeterKind kind, std::optional<
     {
         if (segments.empty())
             return rejected (TempoEditError::NoTimeBase);
-        const auto& seg = segmentAt (segments, (double) tick);
-        const int next = (int) std::llround (nearestBarStart (segments, (double) tick + seg.ticksPerBar));
-        tick = next > tick ? next : tick + (int) seg.ticksPerBar;
+        tick = nextBarStartAfter (segments, tick);
     } while (occupied (tick));
 
     // The value in force at that tick: the last event of the kind at or before it.

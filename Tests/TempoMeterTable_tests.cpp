@@ -292,6 +292,36 @@ TEST_CASE ("TempoMeterTable: addEvent picks the next free bar after the selectio
         CHECK (m.denominator == 4);
     }
 
+    SECTION ("an unaligned selection goes to the next bar line, not the nearest one")
+    {
+        for (const int selectedTick : { 1000, 960 })
+        {
+            Loaded f;
+            REQUIRE_FALSE (setTempo (f.doc, selectedTick, 77.0).has_value());
+            REQUIRE_FALSE (addEvent (f.doc, TempoMeterKind::tempo, find (f.doc, TempoMeterKind::tempo, selectedTick)).has_value());
+            CHECK (find (f.doc, TempoMeterKind::tempo, 1920).bpm == Approx (roundedBpm (77.0).value()));
+            CHECK_FALSE (has (f.doc, TempoMeterKind::tempo, 3840));
+        }
+    }
+
+    SECTION ("an unaligned selection steps by the bars of the segment containing it")
+    {
+        Loaded f;
+        REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+        REQUIRE_FALSE (setTempo (f.doc, 2000, 77.0).has_value());   // inside the 3/4 bar 1920..3360
+        REQUIRE_FALSE (addEvent (f.doc, TempoMeterKind::tempo, find (f.doc, TempoMeterKind::tempo, 2000)).has_value());
+        CHECK (find (f.doc, TempoMeterKind::tempo, 3360).bpm == Approx (roundedBpm (77.0).value()));
+    }
+
+    SECTION ("the step stops at a meter change that comes before the next bar of the selection's own meter")
+    {
+        Loaded f;
+        REQUIRE_FALSE (setMeter (f.doc, 1920, 3, 4).has_value());
+        REQUIRE_FALSE (setTempo (f.doc, 1900, 77.0).has_value());   // last 20 ticks of the 4/4 bar
+        REQUIRE_FALSE (addEvent (f.doc, TempoMeterKind::tempo, find (f.doc, TempoMeterKind::tempo, 1900)).has_value());
+        CHECK (has (f.doc, TempoMeterKind::tempo, 1920));
+    }
+
     SECTION ("no time base")
     {
         SongDocument empty;
