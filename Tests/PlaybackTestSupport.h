@@ -5,6 +5,7 @@
 
 #include <juce_data_structures/juce_data_structures.h>
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -32,12 +33,19 @@ inline void addEvent (juce::ValueTree track, int tick, std::vector<std::uint8_t>
     SongDocument::appendChildBulk (SongDocument::getEventsNode (track), event);
 }
 
+// A conductor FF 51 event; the TEMPO_MAP is derived from it. Sets the time base so
+// the maps are kept (callers use BPMs that are whole microseconds per quarter).
 inline void addTempo (SongDocument& doc, int tick, double bpm)
 {
-    juce::ValueTree change (SongIDs::TEMPO_CHANGE);
-    change.setProperty (SongIDs::tick, tick, nullptr);
-    change.setProperty (SongIDs::bpm, bpm, nullptr);
-    SongDocument::appendChildBulk (doc.getTempoMapNode(), change);
+    doc.setTimeBase (true);
+    const auto us = (std::uint32_t) std::llround (60000000.0 / bpm);
+    auto events = SongDocument::getEventsNode (doc.getConductorTrack());
+    juce::ValueTree event (SongIDs::EVENT);
+    event.setProperty (SongIDs::tick, tick, nullptr);
+    event.setProperty (SongIDs::order, events.getNumChildren(), nullptr);
+    const std::uint8_t bytes[] = { 0xFF, 0x51, (std::uint8_t) (us >> 16), (std::uint8_t) (us >> 8), (std::uint8_t) us };
+    event.setProperty (SongIDs::data, juce::var (juce::MemoryBlock (bytes, sizeof bytes)), nullptr);
+    SongDocument::appendChildBulk (events, event);
 }
 
 inline juce::ValueTree addTrack (SongDocument& doc, const char* name = "T", int channel = 1)
