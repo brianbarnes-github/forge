@@ -131,6 +131,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/Playback/TimelineRulerMarks.cpp
     Source/UI/GridLines.cpp
     Source/UI/MeterSegments.cpp
+    Source/UI/TempoMapSync.cpp
     Source/UI/SectionEdit.cpp
     Source/UI/NoteMerge.cpp
     Source/UI/ProgramChanges.cpp

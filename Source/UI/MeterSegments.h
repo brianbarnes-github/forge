@@ -4,17 +4,12 @@
 // grid lines, Rewind One Bar and the tempo/meter editor all turn the meter map
 // into bars through this one place.
 
+#include "Core/Song.h" // MeterChange {tick, numerator, denominator}
+
 #include <vector>
 
 namespace lotro
 {
-
-struct MeterChange
-{
-    int tick        = 0;
-    int numerator   = 4;
-    int denominator = 4;
-};
 
 struct MeterSegment
 {
