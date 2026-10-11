@@ -129,7 +129,9 @@ namespace
     }
 
     // Shared by both import paths. `plan` == nullptr is the raw-less path
-    // (appendImportedSong): NOTEs only, conductor and EVENTS untouched.
+    // (appendImportedSong): NOTEs only and no raw EVENTs, except that on a first
+    // import (or a tempo replace) appendSongMapsAsConductorEvents writes the Song's
+    // tempo/meter maps as conductor FF 51 / FF 58 EVENTs.
     void appendImport (SongDocument& doc, const Song& imported, const MidiImportPlan* plan,
                        int importBatch, Diagnostics& diagnostics, int startOffsetTicks = 0)
     {

@@ -270,6 +270,8 @@ test on Windows. The GUI is never launched from agents.
 ## Open items for the plan (resolved)
 
 - Rewind = step back one bar (`previousBarTick`): implemented as proposed.
+  (Later replaced by `MeterSegments`' `previousBarStart`, which follows meter
+  changes; `previousBarTick` was deleted. See the 2026-10-10 tempo/meter spec.)
 - Stop returns the playhead to the play-start position: implemented as
   proposed.
 - TinySoundFont pinned at commit `853a0a1` (has `tsf_set_max_voices`).

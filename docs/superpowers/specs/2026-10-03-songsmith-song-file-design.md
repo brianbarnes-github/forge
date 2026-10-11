@@ -157,7 +157,8 @@ Provenance and export:
   `.songsmith` (guarded Open). Import ▸ MIDI keeps current semantics (first
   import owns the timeline; later imports rescaled and added; first-import
   detection is TEMPO_MAP emptiness, so a loaded Song correctly treats the next
-  import as a later one). Imported tracks get `importBatch` from the persisted
+  import as a later one; since the 2026-10-10 tempo/meter spec it is the saved
+  `SOURCE_MIDI.timeBaseSet` flag instead). Imported tracks get `importBatch` from the persisted
   `nextImportBatch`.
 - **Unsaved-changes guard is asynchronous.** `confirmDiscardChanges(onProceed)`
   is a callback chain — prompt → (Save As chooser if untitled) → save →

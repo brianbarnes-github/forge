@@ -48,14 +48,16 @@ rebuilt from those events and never written by anything else.
 
 - **`TempoMapSync`** (`Source/UI/TempoMapSync.{h,cpp}`): a pure function
   `deriveMaps (conductorEvents) -> {tempoMap, meterMap}` and a
-  `juce::ValueTree::Listener` owned by `SongDocument` on the conductor's
-  `EVENTS` node. Any add, remove or change of a tempo or meter event rebuilds
+  `juce::ValueTree::Listener` owned by `SongDocument` and attached to
+  `SOURCE_MIDI` (whose node object survives `replaceContents`, unlike the
+  conductor's `EVENTS` node). Any add, remove or change of a tempo or meter event rebuilds
   both maps, written with a null `UndoManager` (the maps are never separately
   undoable; undo restores the events and the listener rebuilds the maps). The
   rebuild writes only when the result differs, so `PlaybackController`'s
   listener on `TEMPO_MAP` does not rebuild its snapshot needlessly.
 - **Derivation mirrors the importer exactly.** Events are taken in
-  `(tick, order)` order; a tempo is `60e6 / microsecondsPerQuarter` BPM; a
+  `(tick, relocatedFrom, order)` order (the key export sorts a track by, so
+  same-tick events resolve the same way in the maps and the file); a tempo is `60e6 / microsecondsPerQuarter` BPM; a
   meter is `nn` and `2^dd`. A differential test asserts `deriveMaps` equals
   what `importMidi` produced for every fixture MIDI, so existing songs behave
   identically.
@@ -89,12 +91,15 @@ rebuilt from those events and never written by anything else.
 Pure, headless-testable functions over `SongDocument`, each one undo
 transaction, each writing only conductor `EVENT`s:
 
-- `addTempo (doc, tick, bpm)`, `setTempo (doc, eventId, tick, bpm)`,
-  `removeTempo (doc, eventId)`;
-- `addMeter (doc, tick, numerator, denominator)`, `setMeter (…)`,
-  `removeMeter (…)`;
-- `describeTempoMeterEvents (doc)` for the views: the ordered list of events
-  with tick, kind, value and a stable id.
+- events are addressed **by tick** (at most one tempo and one meter per tick,
+  see below), not by a stable id:
+- `setTempo (doc, tick, bpm)` (create, or edit the one at `tick`),
+  `moveTempo (doc, fromTick, toTick, bpm)`, `removeTempo (doc, tick)`;
+- `setMeter (doc, tick, numerator, denominator)`, `moveMeter (…)`,
+  `removeMeter (doc, tick)`;
+- `listTempoMeterEvents (doc)` for the views: the derived maps as one list
+  ordered by tick (tempo before meter on a tie), each with kind, tick and value.
+- A rejected call returns a typed `TempoEditError` and changes nothing.
 
 Rules:
 
@@ -123,7 +128,8 @@ Rules:
 Phase 1 makes every reader walk the whole meter map: the ruler's bar numbering
 (`rulerGridFromDocument`, `TimelineRulerMarks`), the roll's bar grid lines
 (`GridLines`), Rewind One Bar and Split/grid snapping where they use the bar,
-and the `previousBarTick` helper. Bars restart their count at each meter
+and the bar-stepping helper (`previousBarTick` was replaced by
+`MeterSegments`' `previousBarStart` and deleted). Bars restart their count at each meter
 change's tick. A pure `meterSegments (meterMap, ticksPerQuarter)` helper is the
 single place that turns the map into per-segment bar lengths. Tests pin the
 single-meter results to today's.
@@ -141,7 +147,8 @@ Edit ▸ Tempo and Meter… menu item and the Conductor head's right-click menu.
 
 `TempoMeterEditorWindow` (a `juce::DocumentWindow`, owned by `MainWindow` like
 the Track editor), one window per document. It reads only the derived maps and
-`describeTempoMeterEvents`, so it refreshes on any change, including undo.
+`listTempoMeterEvents`, so it refreshes on any change, including undo. Both
+views address events by tick, as `TempoEdit` does.
 
 - **Graph (top).** Time runs along x on the shared timeline zoom/scroll. The
   tempo is a stepped line (BPM on y); each tempo event is a draggable point.
@@ -162,7 +169,8 @@ the Track editor), one window per document. It reads only the derived maps and
 1. **Data layer:** `TempoMapSync` + the importer/loader/first-import-flag
    migration, `TempoEdit`, and the meter-aware consumers (§1–§3). No new UI.
 2. **Conductor row display** (§4).
-3. **Table editor window** (§5, table only; the window opens, edits, refreshes).
+3. **Table editor window** (§5, table only; the window opens, edits, refreshes;
+   rows are addressed by tick through `TempoEdit`).
 4. **Graph** (§5 graph and meter strip).
 
 ## Testing

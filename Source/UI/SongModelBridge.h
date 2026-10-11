@@ -22,12 +22,13 @@ namespace lotro
 // sets that separately).
 //
 // Time-base handling (only relevant once an import has already landed,
-// i.e. TEMPO_MAP is not empty — that emptiness, not track count, is what
-// distinguishes the first import from a later one; see appendImport's
-// definition of isFirstImport in the .cpp):
+// i.e. SOURCE_MIDI.timeBaseSet is true (SongDocument::hasTimeBase()) — that
+// flag, not track count, is what distinguishes the first import from a
+// later one; see appendImport's definition of isFirstImport in the .cpp):
 //   * TEMPO_MAP/METER_MAP belong to the FIRST import only, unless
 //     options.tempo is TempoMode::replace, in which case a later import
-//     replaces them (and the conductor events) wholesale. Otherwise a later
+//     replaces them (and the conductor events) wholesale and clears the
+//     undo history (one Info Diagnostic says so). Otherwise a later
 //     import's tempo/meter map is never appended/concatenated. If the
 //     later import's map (after rescaling its ticks below) differs from
 //     what the document already holds, one Severity::Warning Diagnostic

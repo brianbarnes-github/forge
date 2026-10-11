@@ -881,10 +881,10 @@ TEST_CASE ("SongModelBridge: a trackless later import at a different PPQ emits n
 // track's notes empty, so importMidi drops all of them) would leave the
 // document with zero tracks despite having already set
 // ticksPerQuarter/TEMPO_MAP/METER_MAP, so a second import would incorrectly
-// be treated as the first import too. The fix defines "first import" as an
-// empty TEMPO_MAP instead (importMidi always seeds a non-empty one), which
-// this test's zero-track first import still leaves non-empty.
-TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' for a later import (Ruling 1's guard is TEMPO_MAP emptiness, not track count)", "[songmodelbridge]")
+// be treated as the first import too. The fix defined "first import" as an
+// empty TEMPO_MAP; it is now SOURCE_MIDI.timeBaseSet (the maps are derived),
+// which this test's zero-track first import still sets.
+TEST_CASE ("SongModelBridge: a zero-track first import still counts as 'first' for a later import (Ruling 1's guard is timeBaseSet, not track count)", "[songmodelbridge]")
 {
     Song zeroTrackFirst;
     zeroTrackFirst.ticksPerQuarter = 960;
