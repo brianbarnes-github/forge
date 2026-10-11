@@ -40,6 +40,7 @@ add_executable(forge_tests
     TempoMeterEditorWindow_tests.cpp
     TempoMeterGraphModel_tests.cpp
     TempoGraphComponent_tests.cpp
+    MeterStripComponent_tests.cpp
     TempoMapInvariant_tests.cpp
     SectionEdit_tests.cpp
     NoteMerge_tests.cpp
@@ -119,6 +120,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoMeterEditorWindow.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoMeterGraphModel.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TempoGraphComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/MeterStripComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/EventMarkerOverlay.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SectionEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/NoteMerge.cpp

@@ -1,5 +1,6 @@
 #include "TempoMeterEditorWindow.h"
 #include "HistoryKeys.h"
+#include "MeterStripComponent.h"
 #include "SongsmithColours.h"
 #include "TempoGraphComponent.h"
 
@@ -27,6 +28,12 @@ namespace lotro
                 juce::Label::mouseUp (e);
             }
         };
+
+        constexpr int graphHeight   = 160;
+        constexpr int graphStripGap = 4;
+        // What a timeline view adds to the content height: the graph's 200 px, plus the
+        // strip and the gap between it and the graph.
+        constexpr int timelineExtra = 200 + graphStripGap + MeterStripComponent::preferredHeight;
 
         const juce::Identifier rowProperty ("tmRow");
         const juce::Identifier columnProperty ("tmColumn");
@@ -74,9 +81,13 @@ namespace lotro
         auto area = getLocalBounds().reduced (8);
         if (graph != nullptr)
         {
-            graph->setBounds (area.removeFromTop (160));
-            area.removeFromTop (6);
+            graph->setBounds (area.removeFromTop (graphHeight));
+            area.removeFromTop (graphStripGap);
         }
+        if (strip != nullptr)
+            strip->setBounds (area.removeFromTop (MeterStripComponent::preferredHeight));
+        if (graph != nullptr || strip != nullptr)
+            area.removeFromTop (6);
         message.setBounds (area.removeFromBottom (24));
         area.removeFromBottom (4);
         auto buttons = area.removeFromBottom (28);
@@ -201,6 +212,8 @@ namespace lotro
     {
         if (content->graph != nullptr)
             content->graph->setSelected (selectedEvents());
+        if (content->strip != nullptr)
+            content->strip->setSelected (selectedEvents());
         notifySelectedTick();
     }
 
@@ -211,24 +224,37 @@ namespace lotro
             if (content->graph == nullptr)
                 return;
             content->graph.reset();
+            content->strip.reset();
             setResizeLimits (360, 240, 900, 800);
-            content->setSize (content->getWidth(), std::max (240, content->getHeight() - 200));
+            content->setSize (content->getWidth(), std::max (240, content->getHeight() - timelineExtra));
             content->resized();
             return;
         }
 
-        content->graph = std::make_unique<TempoGraphComponent> (doc, *view);
-        content->addAndMakeVisible (*content->graph);
-        content->graph->onSelect = [this] (TempoMeterKind kind, int tick)
+        // An event just added or moved on the graph / strip must be listed before its row
+        // is looked up.
+        const auto select = [this] (TempoMeterKind kind, int tick)
         {
-            handleUpdateNowIfNeeded();   // a point just added on the graph must be listed first
+            handleUpdateNowIfNeeded();
             selectRowFor (kind, tick);
         };
+
+        content->graph = std::make_unique<TempoGraphComponent> (doc, *view);
+        content->addAndMakeVisible (*content->graph);
+        content->graph->onSelect = select;
         content->graph->onEdited = [this] (const TableEditResult& r) { showResult (r); };
         content->graph->setEvents (events);
         content->graph->setSelected (selectedEvents());
-        setResizeLimits (360, 420, 900, 900);
-        content->setSize (content->getWidth(), 620);
+
+        content->strip = std::make_unique<MeterStripComponent> (doc, *view);
+        content->addAndMakeVisible (*content->strip);
+        content->strip->onSelect = select;
+        content->strip->onEdited = [this] (const TableEditResult& r) { showResult (r); };
+        content->strip->setEvents (events);
+        content->strip->setSelected (selectedEvents());
+
+        setResizeLimits (360, 420 + timelineExtra - 200, 900, 900);
+        content->setSize (content->getWidth(), 420 + timelineExtra);
         content->resized();
     }
 
@@ -241,6 +267,8 @@ namespace lotro
     {
         if (content->graph != nullptr)
             content->graph->requestRepaint();
+        if (content->strip != nullptr)
+            content->strip->requestRepaint();
     }
 
     bool TempoMeterEditorWindow::selectEvent (TempoMeterKind kind, int tick)
@@ -362,6 +390,8 @@ namespace lotro
             events = std::move (newEvents);   // the stored values may differ below display precision
             if (content->graph != nullptr)
                 content->graph->setEvents (events);   // the graph draws exact values
+            if (content->strip != nullptr)
+                content->strip->setEvents (events);
             return;   // keeps an open cell editor alive
         }
 
@@ -384,6 +414,11 @@ namespace lotro
         {
             content->graph->setEvents (events);
             content->graph->setSelected (selectedEvents());
+        }
+        if (content->strip != nullptr)
+        {
+            content->strip->setEvents (events);
+            content->strip->setSelected (selectedEvents());
         }
         notifySelectedTick();   // idempotent; covers a restore that changed no row index
     }

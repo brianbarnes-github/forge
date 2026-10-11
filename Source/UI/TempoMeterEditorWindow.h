@@ -6,7 +6,7 @@
 #include "TempoMeterTable.h"
 #include "TimelineViewState.h"
 
-namespace lotro { class TempoGraphComponent; }
+namespace lotro { class TempoGraphComponent; class MeterStripComponent; }
 
 #include <functional>
 #include <memory>
@@ -43,12 +43,12 @@ namespace lotro
         // leaving the selection alone, when there is no such event.
         bool selectEvent (TempoMeterKind kind, int tick);
 
-        // Shows the tempo graph above the table, sharing `view`'s horizontal axis (not
-        // owned; must outlive the window or be cleared first). nullptr hides it again and
-        // restores the plain table layout.
+        // Shows the tempo graph and, under it, the meter strip above the table, sharing
+        // `view`'s horizontal axis (not owned; must outlive the window or be cleared first).
+        // nullptr hides both again and restores the plain table layout.
         void setTimelineView (const TimelineViewState* view);
 
-        // The shared view was zoomed or scrolled: repaints the graph.
+        // The shared view was zoomed or scrolled: repaints the graph and the strip.
         void timelineViewChanged();
 
         // Repaints requested of the graph so far (0 without a graph); lets tests observe
@@ -84,6 +84,7 @@ namespace lotro
             };
             Table table;
             std::unique_ptr<TempoGraphComponent> graph;   // null until setTimelineView
+            std::unique_ptr<MeterStripComponent> strip;   // created and destroyed with the graph
             juce::TextButton   addTempo { "Add Tempo" }, addMeter { "Add Meter" }, remove { "Remove" };
             juce::Label        message;
         };

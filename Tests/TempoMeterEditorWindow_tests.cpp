@@ -4,6 +4,7 @@
 #include "UI/SongDocument.h"
 #include "UI/SongModelBridge.h"
 #include "UI/TempoEdit.h"
+#include "UI/MeterStripComponent.h"
 #include "UI/TempoGraphComponent.h"
 #include "UI/TempoMeterEditorWindow.h"
 #include "UI/TimelineViewState.h"
@@ -104,6 +105,12 @@ namespace lotro
         static int tableHeight (TempoMeterEditorWindow& w) { return w.content->table.getHeight(); }
         static juce::Rectangle<int> tableBounds (TempoMeterEditorWindow& w) { return w.content->table.getBounds(); }
         static juce::Rectangle<int> graphBounds (TempoMeterEditorWindow& w) { return w.content->graph->getBounds(); }
+        static bool stripVisible (TempoMeterEditorWindow& w) { return w.content->strip != nullptr && w.content->strip->isVisible(); }
+        static std::vector<TempoMeterEvent> stripSelected (TempoMeterEditorWindow& w) { return w.content->strip->selectedForTesting(); }
+        static std::vector<TempoMeterEvent> stripEvents (TempoMeterEditorWindow& w) { return w.content->strip->eventsForTesting(); }
+        static int stripRepaintCount (TempoMeterEditorWindow& w) { return w.content->strip->repaintRequestsForTesting(); }
+        static MeterStripComponent& strip (TempoMeterEditorWindow& w) { return *w.content->strip; }
+        static juce::Rectangle<int> stripBounds (TempoMeterEditorWindow& w) { return w.content->strip->getBounds(); }
         static bool keyOnTable (TempoMeterEditorWindow& w, const juce::KeyPress& k)
         {
             return w.content->table.keyPressed (k);
@@ -794,6 +801,7 @@ TEST_CASE ("TempoMeterEditorWindow: without a timeline view there is no graph an
     TempoMeterEditorWindow w (doc, nullptr);
 
     CHECK_FALSE (Access::graphVisible (w));
+    CHECK_FALSE (Access::stripVisible (w));
     CHECK (Access::tableBounds (w) == juce::Rectangle<int> (8, 8, 504, 420 - 8 - 8 - 24 - 4 - 28 - 6));
     CHECK (Access::rowVisible (w, 0));
 }
@@ -810,17 +818,23 @@ TEST_CASE ("TempoMeterEditorWindow: setTimelineView shows a graph above a shorte
     TimelineViewState view;
     w.setTimelineView (&view);
     REQUIRE (Access::graphVisible (w));
+    REQUIRE (Access::stripVisible (w));
     CHECK (Access::rowCount (w) == 2);
-    CHECK (w.getContentComponent()->getHeight() == 620);
+    CHECK (w.getContentComponent()->getHeight() == 652);
     CHECK (Access::graphBounds (w).getHeight() == 160);
-    CHECK (Access::tableBounds (w).getY() == Access::graphBounds (w).getBottom() + 6);
+    // The meter strip sits directly under the graph, the table under the strip.
+    CHECK (Access::stripBounds (w) == juce::Rectangle<int> (Access::graphBounds (w).getX(), Access::graphBounds (w).getBottom() + 4,
+                                                            Access::graphBounds (w).getWidth(), 28));
+    CHECK (Access::tableBounds (w).getY() == Access::stripBounds (w).getBottom() + 6);
     CHECK (Access::tableHeight (w) > 0);
-    // The window grew by 200 px and the graph (160 + 6 gap) took 166 of them.
-    CHECK (Access::tableHeight (w) == baseline.getHeight() + (620 - baselineHeight) - 166);
+    // The window grew by 232 px; the graph (160 + 4 gap) and the strip (28 + 6 gap) took 198 of them.
+    CHECK (Access::tableHeight (w) == baseline.getHeight() + (652 - baselineHeight) - 198);
     CHECK (Access::graphEvents (w).size() == 2);
+    CHECK (Access::stripEvents (w).size() == 1);   // the one meter
 
     w.setTimelineView (nullptr);
     CHECK_FALSE (Access::graphVisible (w));
+    CHECK_FALSE (Access::stripVisible (w));
     CHECK (w.getContentComponent()->getHeight() == baselineHeight);
     CHECK (Access::tableBounds (w) == baseline);
 }
@@ -889,9 +903,11 @@ TEST_CASE ("TempoMeterEditorWindow: timelineViewChanged repaints the graph", "[t
     w.setTimelineView (&view);
 
     const int before = Access::graphRepaintCount (w);
+    const int stripBefore = Access::stripRepaintCount (w);
     view.setPixelsPerTick (0.2);
     w.timelineViewChanged();
     CHECK (Access::graphRepaintCount (w) == before + 1);
+    CHECK (Access::stripRepaintCount (w) == stripBefore + 1);
 }
 
 namespace
@@ -1033,4 +1049,148 @@ TEST_CASE ("TempoMeterEditorWindow: a rejected graph drag shows the reason", "[t
 
     CHECK (Access::message (w) == describe (TableEditError { TableEditError::Kind::Rejected, TempoEditError::TickOccupied }));
     CHECK (listTempoMeterEvents (doc).size() == before.size());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: table selection reaches the meter strip, meter entries only", "[tempo-meter-window][meter-strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
+    TimelineViewState view;
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+    REQUIRE (Access::rowCount (w) == 3);   // tempo@0, meter@0, meter@3840
+    REQUIRE (Access::rowAt (w, 0).kind == TempoMeterKind::tempo);
+    REQUIRE (Access::rowAt (w, 1).kind == TempoMeterKind::meter);
+
+    // The tempo at tick 0 shares its tick with the 4/4: the strip must not highlight it.
+    Access::selectRow (w, 0);
+    CHECK (Access::stripSelected (w).empty());
+    Access::selectRow (w, 1);
+    {
+        const auto sel = Access::stripSelected (w);
+        REQUIRE (sel.size() == 1);
+        CHECK (sel[0].kind == TempoMeterKind::meter);
+        CHECK (sel[0].tick == 0);
+    }
+    Access::selectRow (w, 2);
+    REQUIRE (Access::stripSelected (w).size() == 1);
+    CHECK (Access::stripSelected (w)[0].tick == 3840);
+    Access::deselectAll (w);
+    CHECK (Access::stripSelected (w).empty());
+}
+
+TEST_CASE ("TempoMeterEditorWindow: the meter strip follows edits and undo", "[tempo-meter-window][meter-strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TimelineViewState view;
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    REQUIRE (Access::stripEvents (w).size() == 1);
+
+    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
+    pump();
+    CHECK (Access::stripEvents (w).size() == 2);
+    doc.undo();
+    pump();
+    CHECK (Access::stripEvents (w).size() == 1);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a block selected on the meter strip is removed by Delete", "[tempo-meter-window][meter-strip][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
+    TimelineViewState view;
+    view.setPixelsPerTick (0.05);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+
+    auto& strip = Access::strip (w);
+    const juce::Point<int> p (strip.xForTick (3840) + 100, 14);   // the 3/4 block's body
+    strip.mouseDown (graphMouse (strip, p, p));
+    strip.mouseUp (graphMouse (strip, p, p));
+    REQUIRE (Access::selectedRow (w) == 2);   // tempo@0, meter@0, meter@3840
+    REQUIRE (Access::stripSelected (w).size() == 1);
+    CHECK (Access::stripSelected (w)[0].tick == 3840);
+
+    CHECK_FALSE (strip.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));   // bubbles up
+    CHECK (w.keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    pump();
+    CHECK (Access::rowCount (w) == 2);
+    CHECK (Access::message (w).empty());
+    int meterCount = 0;
+    for (const auto& e : listTempoMeterEvents (doc))
+        meterCount += e.kind == TempoMeterKind::meter ? 1 : 0;
+    CHECK (meterCount == 1);
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a block dragged on the strip stays selected; a rejected drag shows the reason", "[tempo-meter-window][meter-strip][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    REQUIRE_FALSE (setMeter (doc, 3840, 3, 4));
+    doc.getUndoManager().clearUndoHistory();
+    TimelineViewState view;
+    view.setPixelsPerTick (0.05);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+
+    auto& strip = Access::strip (w);
+    const juce::Point<int> p (strip.xForTick (3840), 14);
+
+    SECTION ("moved")
+    {
+        const juce::Point<int> to (strip.xForTick (7680) + 1, 14);
+        strip.mouseDown (graphMouse (strip, p, p));
+        strip.mouseDrag (graphMouse (strip, to, p));
+        strip.mouseUp (graphMouse (strip, to, p));
+        pump();
+        const int sel = Access::selectedRow (w);
+        REQUIRE (sel >= 0);
+        CHECK (Access::rowAt (w, sel).kind == TempoMeterKind::meter);
+        CHECK (Access::rowAt (w, sel).tick == 7680);
+        REQUIRE (Access::stripSelected (w).size() == 1);
+        CHECK (Access::stripSelected (w)[0].tick == 7680);
+    }
+
+    SECTION ("rejected")
+    {
+        const juce::Point<int> to (strip.xForTick (0) + 2, 14);
+        strip.mouseDown (graphMouse (strip, p, p));
+        strip.mouseDrag (graphMouse (strip, to, p));
+        strip.mouseUp (graphMouse (strip, to, p));
+        CHECK (Access::message (w) == describe (TableEditError { TableEditError::Kind::Rejected, TempoEditError::TickOccupied }));
+        CHECK_FALSE (doc.getUndoManager().canUndo());
+        CHECK (Access::selectedRow (w) == 2);   // still the 3/4 at 3840
+    }
+}
+
+TEST_CASE ("TempoMeterEditorWindow: a meter double-clicked on the strip is selected straight away", "[tempo-meter-window][meter-strip][edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    importStandard (doc);
+    TimelineViewState view;
+    view.setPixelsPerTick (0.05);
+    TempoMeterEditorWindow w (doc, nullptr);
+    w.setTimelineView (&view);
+    pump();
+
+    auto& strip = Access::strip (w);
+    const juce::Point<int> p (strip.xForTick (1920) + 3, 14);
+    strip.mouseDoubleClick (graphMouse (strip, p, p));
+    // No pump: the coalesced refresh has not run, yet the new row is selected.
+    const int sel = Access::selectedRow (w);
+    REQUIRE (sel >= 0);
+    CHECK (Access::rowAt (w, sel).kind == TempoMeterKind::meter);
+    CHECK (Access::rowAt (w, sel).tick == 1920);
 }
