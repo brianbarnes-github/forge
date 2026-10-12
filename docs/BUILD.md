@@ -51,8 +51,7 @@ The cross toolchain file is `cmake/clang-msvc-toolchain.cmake`. Day-to-day
 use is `./build-windows.sh [forge|forge_ui|forge_tests|all]` — for
 `forge_tests`, it also runs the suite under Wine and reports pass/fail,
 which is how the Windows-only pixel-comparison test failures (see
-`docs/superpowers/plans/2026-09-14-songsmith-phase7-piano-roll-editing.md`
-history / `HANDOFF-songsmith-phase7-windows-ci-2026-09-14.md`) get
+`HANDOFF-songsmith-phase7-windows-ci-2026-09-14.md` in git history) get
 reproduced and iterated on without needing a CI round-trip.
 
 **This is a dev-loop accelerant, not a replacement for CI.** A local
