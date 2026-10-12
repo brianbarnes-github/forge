@@ -194,10 +194,18 @@ private:
             ruler->repaint();
         refreshConductorTempo();
     }
-    // The Conductor head's text: the tempo at the marker when one is set, else the song's average.
+    // The Conductor head's text: the tempo at the playhead while playing, else at the marker
+    // when one is set, else the song's average.
     juce::String conductorTempoText() const;
     void refreshConductorTempo();
-    void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
+    void playbackPositionChanged() override
+    {
+        const bool playing = playback != nullptr && playback->isPlaying();
+        followPlayhead (playing);
+        if (playing)
+            refreshConductorTempo();
+    }
+    void playbackStateChanged() override { refreshConductorTempo(); }
 
     // While playing, page-flips the shared view so the playhead stays visible.
     // Does nothing when stopped, so a ruler click never scrolls the view.

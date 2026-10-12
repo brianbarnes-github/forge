@@ -2452,6 +2452,19 @@ TEST_CASE ("TrackListComponent: the Conductor head shows the tempo at the marker
     CHECK (textOf() == sign + "93.75");   // exact at the marker, not rounded
     playback.clearMarker();
     CHECK (textOf() == average);
+
+    // While playing, the playhead wins over the marker; paused, the marker (or average) returns.
+    playback.setMarkerTick (500.0);
+    playback.play();
+    REQUIRE (playback.isPlaying());
+    playback.seekToTick (960.0);
+    CHECK (textOf() == sign + "93.75");
+    playback.seekToTick (100.0);
+    CHECK (textOf() == sign + "100");
+    playback.pause();
+    CHECK (textOf() == sign + "100");   // the marker at 500
+    playback.clearMarker();
+    CHECK (textOf() == average);
 }
 
 TEST_CASE ("TrackListComponent: S falls back to the marker when the pointer is not over a strip, and does nothing without one", "[track-list][sections]")

@@ -288,9 +288,11 @@ void TrackListComponent::valueTreePropertyChanged (juce::ValueTree& tree, const 
 juce::String TrackListComponent::conductorTempoText() const
 {
     const auto events = listTempoMeterEvents (doc);
-    const auto marker = playback != nullptr ? playback->getMarkerTick() : std::nullopt;
-    const auto text = marker.has_value() ? formatExactTempoText (bpmAt (events, (int) *marker))
-                                         : formatTempoText (averageBpm (events, documentEndTick()));
+    std::optional<double> tick;   // the playhead while playing, else the marker
+    if (playback != nullptr)
+        tick = playback->isPlaying() ? std::optional<double> (playback->getPositionTicks()) : playback->getMarkerTick();
+    const auto text = tick.has_value() ? formatExactTempoText (bpmAt (events, (int) *tick))
+                                       : formatTempoText (averageBpm (events, documentEndTick()));
     return juce::String::fromUTF8 (text.c_str());
 }
 
