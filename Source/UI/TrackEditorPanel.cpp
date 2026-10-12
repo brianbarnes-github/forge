@@ -1,30 +1,37 @@
-#include "TrackEditorWindow.h"
+#include "TrackEditorPanel.h"
 #include "SongsmithColours.h"
 
 namespace lotro
 {
-    TrackEditorWindow::TrackEditorWindow (SongDocument& document, juce::Component* centreAround)
-        : juce::DocumentWindow ("Edit Track",
-                                 juce::Colour (SongsmithColours::background),
-                                 juce::DocumentWindow::allButtons),
-          doc (document),
+    TrackEditorPanel::TrackEditorPanel (SongDocument& document)
+        : doc (document),
           roll (PianoRollComponent::Role::Source, &doc)
     {
-        setUsingNativeTitleBar (true);
-        setResizable (true, false);
-        setContentNonOwned (&roll, true);
-        centreAroundComponent (centreAround, 900, 500);
-        setVisible (true);
+        setWantsKeyboardFocus (true);
+        addAndMakeVisible (roll);
     }
 
-    TrackEditorWindow::~TrackEditorWindow()
+    TrackEditorPanel::~TrackEditorPanel() = default;
+
+    void TrackEditorPanel::resized()
     {
-        // Detach whichever component is hosted (the roll, or `content`, which
-        // holds the roll as a child) before `content` is destroyed.
-        setContentNonOwned (nullptr, false);
+        if (content != nullptr)
+            content->setBounds (getLocalBounds());
+        else
+            roll.setBounds (getLocalBounds());
     }
 
-    TrackEditorWindow::Content::Content (PianoRollComponent& rollIn, PlaybackController& controller)
+    void TrackEditorPanel::paintOverChildren (juce::Graphics& g)
+    {
+        if (currentTrackId != -1)
+            return;
+        g.setColour (juce::Colour (SongsmithColours::text).withAlpha (0.6f));
+        g.setFont (juce::FontOptions (14.0f));
+        g.drawText ("Double-click a track to edit it",
+                    getLocalArea (&roll, roll.getLocalBounds()), juce::Justification::centred);
+    }
+
+    TrackEditorPanel::Content::Content (PianoRollComponent& rollIn, PlaybackController& controller)
         : strip (controller),
           ruler ([&rollIn] (int x) { return rollIn.tickForXInComponent (x); }),
           roll (rollIn)
@@ -45,12 +52,12 @@ namespace lotro
         addAndMakeVisible (roll);
     }
 
-    TrackEditorWindow::Content::~Content()
+    TrackEditorPanel::Content::~Content()
     {
         roll.onViewChanged = nullptr;
     }
 
-    void TrackEditorWindow::Content::resized()
+    void TrackEditorPanel::Content::resized()
     {
         auto area = getLocalBounds();
         strip.setBounds (area.removeFromTop (TransportStrip::height));
@@ -58,37 +65,31 @@ namespace lotro
         roll.setBounds (area);
     }
 
-    void TrackEditorWindow::setPlayback (PlaybackController* controller)
+    void TrackEditorPanel::setPlayback (PlaybackController* controller)
     {
         if (controller == nullptr || content != nullptr)
             return;
 
         playback = controller;
         roll.setPlayback (controller);
-
-        // setContentNonOwned resizes the window to fit its content, so a
-        // never-sized Content would collapse it. Keep the roll its current
-        // size and let the window grow by the strip and ruler heights.
-        const auto rollBounds = roll.getBounds();
-        content = std::make_unique<Content> (roll, *controller);
-        content->setBounds (0, 0, rollBounds.getWidth(),
-                            rollBounds.getHeight() + TransportStrip::height + TimelineRuler::height);
-        setContentNonOwned (content.get(), true);
+        content = std::make_unique<Content> (roll, *controller);   // re-parents the roll
+        addAndMakeVisible (*content);
+        content->setBounds (getLocalBounds());
     }
 
-    bool TrackEditorWindow::keyPressed (const juce::KeyPress& key)
+    bool TrackEditorPanel::keyPressed (const juce::KeyPress& key)
     {
         // The roll's SourceRollEditor only claims Delete/Backspace, so Space
-        // reaches the window.
+        // reaches the panel.
         if (key == juce::KeyPress::spaceKey && playback != nullptr)
         {
             playback->togglePlayPause();
             return true;
         }
-        return juce::DocumentWindow::keyPressed (key);
+        return false;
     }
 
-    void TrackEditorWindow::setTrack (juce::ValueTree trackNode)
+    void TrackEditorPanel::setTrack (juce::ValueTree trackNode)
     {
         if (! trackNode.isValid())
             return;
@@ -100,43 +101,62 @@ namespace lotro
         roll.setNoteSource (currentNoteSource.get(), ticksPerQuarter, doc.getMeterMapNode());
         roll.setEditableTrack (trackNode);
 
-        setName ("Edit Track: " + trackNode.getProperty (SongIDs::name).toString());
+        titleChanged();
+        if (isShowing())
+            grabKeyboardFocus();
     }
 
-    void TrackEditorWindow::setGridTicks (int ticks)
+    void TrackEditorPanel::clearTrack()
+    {
+        roll.setEditableTrack ({});
+        roll.setNoteSource (nullptr, 480, {});
+        roll.setGhostTracks ({});
+        currentNoteSource.reset();
+        currentTrackId = -1;
+        titleChanged();
+        repaint();
+    }
+
+    juce::String TrackEditorPanel::title() const
+    {
+        if (currentTrackId == -1)
+            return "MIDI Editor";
+        const auto node = doc.findTrackById (currentTrackId);
+        return "Edit Track: " + node.getProperty (SongIDs::name).toString();
+    }
+
+    void TrackEditorPanel::titleChanged()
+    {
+        if (onTitleChanged)
+            onTitleChanged (title());
+    }
+
+    void TrackEditorPanel::setGridTicks (int ticks)
     {
         roll.setGridTicks (ticks);
     }
 
-    int TrackEditorWindow::getGridTicks() const
+    int TrackEditorPanel::getGridTicks() const
     {
         return roll.getGridTicks();
     }
 
-    void TrackEditorWindow::quantizeSelection()
+    void TrackEditorPanel::quantizeSelection()
     {
         roll.quantizeSelection();
     }
 
-    void TrackEditorWindow::setGhostTracks (std::vector<juce::ValueTree> tracks)
+    void TrackEditorPanel::setGhostTracks (std::vector<juce::ValueTree> tracks)
     {
         roll.setGhostTracks (std::move (tracks));
     }
 
-    void TrackEditorWindow::trackAppearanceChanged (juce::int64 trackId)
+    void TrackEditorPanel::trackAppearanceChanged (juce::int64 trackId)
     {
         if (trackId == currentTrackId)
-            if (auto trackNode = doc.findTrackById (trackId); trackNode.isValid())
-                setName ("Edit Track: " + trackNode.getProperty (SongIDs::name).toString());
+            titleChanged();
 
         roll.repaint();
         ++appearanceRepaintCount;
-    }
-
-    void TrackEditorWindow::closeButtonPressed()
-    {
-        setVisible (false);
-        if (onClosed)
-            onClosed();
     }
 }

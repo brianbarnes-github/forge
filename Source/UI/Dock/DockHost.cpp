@@ -46,6 +46,16 @@ DockPanel* DockHost::panel (const std::string& id)
     return e != nullptr ? e->panel.get() : nullptr;
 }
 
+void DockHost::setTitle (const std::string& id, const juce::String& title)
+{
+    if (auto* e = entry (id))
+    {
+        e->panel->setTitle (title);
+        if (e->window != nullptr)
+            e->window->setName (title);
+    }
+}
+
 void DockHost::addPanel (const PanelDef& def, juce::Colour titleColour, juce::Component& content)
 {
     auto e = std::make_unique<Entry>();

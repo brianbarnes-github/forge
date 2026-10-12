@@ -109,8 +109,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     trackList.onTrackAppearanceChanged = [this] (juce::int64 trackId)
     {
         partStrip.trackAppearanceChanged();
-        if (trackEditorWindow != nullptr)
-            trackEditorWindow->trackAppearanceChanged (trackId);
+        trackEditor->trackAppearanceChanged (trackId);
     };
     partStrip.onPartSelected = [this] (juce::int64 partId) { selectPartForPreview (partId); };
 
@@ -122,6 +121,15 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     dockHost.addPanel (dock::panelDefs()[0], juce::Colour (SongsmithColours::accentAmber), previewRegion);
     dockHost.panel ("lotroPreview")->setTitle (
         juce::String::fromUTF8 ("\xe2\x96\xbc LOTRO PREVIEW \xc2\xb7 how it will sound in-game"));
+
+    trackEditor = std::make_unique<TrackEditorPanel> (doc);
+    if (playback != nullptr)
+        trackEditor->setPlayback (playback);
+    trackEditor->setFollowPlayhead (followPlayheadSetting);
+    trackEditor->onTitleChanged = [this] (const juce::String& title) { dockHost.setTitle ("midiEditor", title); };
+    dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
+    dockHost.setTitle ("midiEditor", trackEditor->title());
+
     dockHost.apply (dock::defaultLayout());
 }
 
@@ -150,17 +158,12 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     if (! trackNode.isValid())
         return;
 
-    if (trackEditorWindow == nullptr)
-    {
-        trackEditorWindow = std::make_unique<TrackEditorWindow> (doc, getTopLevelComponent());
-        if (playback != nullptr)
-            trackEditorWindow->setPlayback (playback);
-        trackEditorWindow->onClosed = [this] { trackEditorWindow.reset(); };
-        trackEditorWindow->setFollowPlayhead (followPlayheadSetting);
-        setActiveEditorGridSize (defaultGridSize);
-    }
-
-    trackEditorWindow->setTrack (trackNode);
+    const bool wasOpen = isTrackEditorOpen();
+    dockHost.setCentreFloatsAround (getTopLevelComponent());
+    trackEditor->setTrack (trackNode);
+    dockHost.setVisible ("midiEditor", true);
+    if (! wasOpen)
+        setActiveEditorGridSize (defaultGridSize);   // a newly opened editor starts on the default grid
     refreshGhostTracksOnEditor();
 }
 
@@ -174,8 +177,7 @@ void SongsmithMainComponent::setFollowPlayhead (bool follow)
     followPlayheadSetting = follow;
     previewRoll.setFollowPlayhead (follow); // no effect today (no playback controller); kept for symmetry
     trackList.setFollowPlayhead (follow);
-    if (trackEditorWindow != nullptr)
-        trackEditorWindow->setFollowPlayhead (follow);
+    trackEditor->setFollowPlayhead (follow);
 }
 
 // Remembered for editors opened later; an editor that is already open keeps its grid.
@@ -196,29 +198,29 @@ void SongsmithMainComponent::trackGhostToggled (juce::int64 trackId, bool visibl
 
 void SongsmithMainComponent::refreshGhostTracksOnEditor()
 {
-    if (trackEditorWindow == nullptr)
+    if (trackEditor->getTrackId() == -1)
         return;
 
     std::vector<juce::ValueTree> ghosts;
     for (auto ghostId : ghostedTrackIds)
     {
-        if (ghostId == trackEditorWindow->getTrackId())
+        if (ghostId == trackEditor->getTrackId())
             continue;
 
         auto node = doc.findTrackById (ghostId);
         if (node.isValid())
             ghosts.push_back (node);
     }
-    trackEditorWindow->setGhostTracks (std::move (ghosts));
+    trackEditor->setGhostTracks (std::move (ghosts));
 }
 
 void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
 {
-    if (trackEditorWindow == nullptr)
+    if (trackEditor->getTrackId() == -1)
         return;
 
     const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
-    trackEditorWindow->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
+    trackEditor->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
 }
 
 void SongsmithMainComponent::openTempoMeterEditor()
@@ -256,7 +258,7 @@ void SongsmithMainComponent::documentReplaced()
 {
     tempoMeterWindow.reset();
     trackList.setEventMarkerTick (std::nullopt);
-    trackEditorWindow.reset();
+    trackEditor->clearTrack();
     ghostedTrackIds.clear();
     trackList.clearSelection();
     partStrip.clearSelection();

@@ -167,7 +167,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/TrackRowComponent.cpp
     Source/UI/TrackHeadComponent.cpp
     Source/UI/TrackListComponent.cpp
-    Source/UI/TrackEditorWindow.cpp
+    Source/UI/TrackEditorPanel.cpp
     Source/UI/WindowPlacement.cpp
     Source/UI/BuildInfo.cpp
     Source/UI/AboutBox.cpp

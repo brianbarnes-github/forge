@@ -12,7 +12,7 @@
 #include "PreviewNoteSource.h"
 #include "SongDocument.h"
 #include "SplitterComponent.h"
-#include "TrackEditorWindow.h"
+#include "TrackEditorPanel.h"
 #include "TempoMeterEditorWindow.h"
 #include "TrackListComponent.h"
 
@@ -168,12 +168,12 @@ public:
     bool isTempoMeterEditorOpen() const noexcept { return tempoMeterWindow != nullptr; }
     void trackGhostToggled (juce::int64 trackId, bool visible);
 
-    bool isTrackEditorOpen() const noexcept { return trackEditorWindow != nullptr; }
+    bool isTrackEditorOpen() const noexcept { return dockHost.isVisible ("midiEditor"); }
     void setActiveEditorGridSize (GridSize size);
     void setFollowPlayhead (bool follow);
     void setMergeScope (MergeScope scope);
     void setDefaultGridSize (GridSize size);
-    void quantizeActiveEditor() { if (trackEditorWindow != nullptr) trackEditorWindow->quantizeSelection(); }
+    void quantizeActiveEditor() { if (trackEditor->getTrackId() != -1) trackEditor->quantizeSelection(); }
 
 private:
     void refreshGhostTracksOnEditor();
@@ -216,7 +216,8 @@ private:
     juce::Label              sourceHeader;
     TrackListComponent       trackList;
 
-    std::unique_ptr<TrackEditorWindow> trackEditorWindow;
+    // Hosted by the dock host's "midiEditor" panel (constructed once, empty until a track is opened).
+    std::unique_ptr<TrackEditorPanel> trackEditor;
     // Must stay declared AFTER trackList: the window's graph reads trackList's TimelineViewState,
     // so the window has to be destroyed first.
     std::unique_ptr<TempoMeterEditorWindow> tempoMeterWindow;

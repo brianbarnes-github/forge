@@ -35,6 +35,11 @@ public:
     void setVisible (const std::string& id, bool);   // remembers the mode
     DockPanel* panel (const std::string& id);
 
+    // Retitles the panel header and, if floating, its window.
+    void setTitle (const std::string& id, const juce::String&);
+    // Floating windows with no saved position open centred over this.
+    void setCentreFloatsAround (juce::Component* c) noexcept { centreAround = c; }
+
     // `lower` never shrinks below this (the transport + part strip chrome).
     void setLowerChromeHeight (int);
     // `lower` collapses to its chrome when the bottom zone is empty and nothing else fills it.

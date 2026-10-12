@@ -11,6 +11,7 @@
 #include "UI/Playback/PlaybackController.h"
 #include "UI/Playback/TransportStrip.h"
 #include "UI/SongModelBridge.h"
+#include "UI/Dock/DockFloatWindow.h"
 #include "UI/Dock/DockPanel.h"
 #include "UI/SongsmithMainComponent.h"
 #include "UI/TempoEdit.h"
@@ -51,15 +52,15 @@ namespace lotro
         static int tempoGraphRepaints (SongsmithMainComponent& c) { return c.tempoMeterWindow->graphRepaintRequestsForTesting(); }
         static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
         {
-            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getTrackId() : -1;
+            return c.trackEditor->getTrackId();
         }
         static juce::String trackEditorWindowTitle (const SongsmithMainComponent& c)
         {
-            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getName() : juce::String();
+            return c.trackEditor->title();
         }
         static int trackEditorAppearanceRepaints (const SongsmithMainComponent& c)
         {
-            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->appearanceRepaintsForTesting() : -1;
+            return c.trackEditor->appearanceRepaintsForTesting();
         }
         static bool previewUpdatePending (const SongsmithMainComponent& c) { return c.isUpdatePending(); }
         static void trackDoubleClicked (SongsmithMainComponent& c, juce::int64 trackId)
@@ -67,6 +68,7 @@ namespace lotro
             c.trackDoubleClicked (trackId);
         }
         static PartStripComponent& partStrip (SongsmithMainComponent& c) { return c.partStrip; }
+        static lotro::dock::DockPanel* editorPanel (SongsmithMainComponent& c) { return c.dockHost.panel ("midiEditor"); }
         static TransportStrip* transportStrip (SongsmithMainComponent& c) { return c.transportStrip.get(); }
         static juce::Component& upperRegion (SongsmithMainComponent& c) { return c.upperRegion; }
         static juce::Component& lowerRegion (SongsmithMainComponent& c) { return c.lowerRegion; }
@@ -88,11 +90,11 @@ namespace lotro
         static PianoRollComponent& previewRoll (SongsmithMainComponent& c) { return c.previewRoll; }
         static bool activeEditorFollows (const SongsmithMainComponent& c)
         {
-            return c.trackEditorWindow != nullptr && c.trackEditorWindow->getFollowPlayhead();
+            return c.trackEditor->getFollowPlayhead();
         }
         static int activeEditorGridTicks (const SongsmithMainComponent& c)
         {
-            return c.trackEditorWindow != nullptr ? c.trackEditorWindow->getGridTicks() : -1;
+            return c.trackEditor->getGridTicks();
         }
         // previewRegion is a child of lowerRegion, so its bounds are already
         // relative to lowerRegion's own local space -- compare against
@@ -402,7 +404,7 @@ TEST_CASE ("SongsmithMainComponent: View -> Diagnostics list toggle shows it aga
     CHECK (Access::previewRegionBottom (main) == Access::lowerRegionHeight (main));
 }
 
-TEST_CASE ("SongsmithMainComponent: documentReplaced closes the editor and clears UI state outside the tree", "[session-reset]")
+TEST_CASE ("SongsmithMainComponent: documentReplaced clears the editor's track and UI state outside the tree", "[session-reset]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -423,7 +425,8 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced closes the editor and clear
 
     main.documentReplaced();
 
-    CHECK_FALSE (main.isTrackEditorOpen());
+    CHECK (main.isTrackEditorOpen());   // the panel keeps its mode and visibility...
+    CHECK (Access::trackEditorWindowTrackId (main) == -1);   // ...but holds no stale track handle
     CHECK (Access::ghostedCount (main) == 0);
     CHECK (Access::selectedPreviewPartId (main) == -1);
     CHECK_FALSE (Access::hasWatchedPartNode (main));
@@ -711,4 +714,33 @@ TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter lay
     CHECK (roll.getY() == 28 + 110 + lotro::dock::DockPanel::headerHeight);
     CHECK (roll.getWidth() == 840);
     CHECK (roll.getBottom() == lower.getHeight());
+}
+
+TEST_CASE ("SongsmithMainComponent: the editor panel opens floating, docks between the tracks and the lower region, and keeps its track", "[songsmith][layout][track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+
+    CHECK_FALSE (view.isTrackEditorOpen());
+    Access::trackDoubleClicked (view, trackId);
+    CHECK (view.isTrackEditorOpen());
+    CHECK (Access::trackEditorWindowTrackId (view) == trackId);
+    CHECK (Access::trackEditorWindowTitle (view) == "Edit Track: Track A");
+    auto* panel = Access::editorPanel (view);
+    REQUIRE (panel != nullptr);
+    CHECK (dynamic_cast<lotro::dock::DockFloatWindow*> (panel->getTopLevelComponent()) != nullptr);
+
+    panel->onFloatToggle();   // dock it
+    CHECK (panel->getParentComponent() != nullptr);
+    CHECK (panel->getBounds().getY() >= Access::upperRegion (view).getBottom());
+    CHECK (panel->getBottom() <= Access::lowerRegion (view).getY());
+    CHECK (Access::trackEditorWindowTrackId (view) == trackId);
+
+    view.documentReplaced();
+    CHECK (view.isTrackEditorOpen());
+    CHECK (Access::trackEditorWindowTrackId (view) == -1);
 }

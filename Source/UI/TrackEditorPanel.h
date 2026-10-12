@@ -9,24 +9,30 @@
 #include "SongDocument.h"
 #include "SourceTrackNoteSource.h"
 
+#include <functional>
+
 namespace lotro
 {
-    // Floating, single-instance editor window for one MIDI_TRACK, opened by
-    // double-clicking a TrackListComponent row. Re-hosts the existing
-    // PianoRollComponent(Role::Source)/SourceRollEditor pairing completely
-    // unchanged -- only the parent changes, not the pairing's construction
-    // or behaviour (2026-09-15 upper-region-track-timeline design).
-    class TrackEditorWindow : public juce::DocumentWindow
+    // The single-instance editor for one MIDI_TRACK, opened by double-clicking a
+    // TrackListComponent row. A plain component: the dock host puts it in a panel
+    // that is either docked below the track list or floating in its own window.
+    // Re-hosts the existing PianoRollComponent(Role::Source)/SourceRollEditor
+    // pairing completely unchanged -- only the parent changes. Built once, empty
+    // ("Double-click a track to edit it"), and re-pointed with setTrack.
+    class TrackEditorPanel : public juce::Component
     {
     public:
-        // Pops up centred over `centreAround` (the application window),
-        // kept on that window's monitor; nullptr centres on the active
-        // top-level window instead.
-        TrackEditorWindow (SongDocument& document, juce::Component* centreAround);
-        ~TrackEditorWindow() override;
+        explicit TrackEditorPanel (SongDocument& document);
+        ~TrackEditorPanel() override;
 
         void setTrack (juce::ValueTree trackNode);
+        // Back to the empty state (the Song was replaced; the old track handle is stale).
+        void clearTrack();
         juce::int64 getTrackId() const noexcept { return currentTrackId; }
+
+        // "Edit Track: <name>", or "MIDI Editor" when no track is loaded.
+        juce::String title() const;
+        std::function<void (const juce::String&)> onTitleChanged;
 
         void setGridTicks (int ticks);
         int getGridTicks() const;
@@ -36,17 +42,15 @@ namespace lotro
 
         void setGhostTracks (std::vector<juce::ValueTree> tracks);
 
-        // A track's name or colour changed: retitles the window if it is this
-        // window's track, and repaints the roll (its notes or a ghost may use
+        // A track's name or colour changed: retitles the panel if it is this
+        // panel's track, and repaints the roll (its notes or a ghost may use
         // that colour).
         void trackAppearanceChanged (juce::int64 trackId);
         int appearanceRepaintsForTesting() const noexcept { return appearanceRepaintCount; }
 
-        void closeButtonPressed() override;
-
         // Hosts the shared transport strip and seek ruler above the roll and
         // shows the playhead over its notes; Space toggles play/pause. Not
-        // owned: the controller must outlive this window. Call once, with a
+        // owned: the controller must outlive this panel. Call once, with a
         // non-null controller.
         void setPlayback (PlaybackController* controller);
         bool keyPressed (const juce::KeyPress& key) override;
@@ -59,12 +63,11 @@ namespace lotro
             return content != nullptr && content->ruler.getParentComponent() == content.get() && content->ruler.isVisible();
         }
 
-        // Fired when the window is closed by the user, so the owner can
-        // reset its unique_ptr rather than hold a dangling window.
-        std::function<void()> onClosed;
+        void resized() override;
+        void paintOverChildren (juce::Graphics&) override;
 
     private:
-        friend struct TrackEditorWindowTestAccess;
+        friend struct TrackEditorPanelTestAccess;
 
         // Strip on top, ruler under it (same width as the roll, so a ruler x
         // is a roll x), then the roll filling the rest.
@@ -80,12 +83,13 @@ namespace lotro
             PianoRollComponent& roll;
         };
 
+        void titleChanged();
+
         SongDocument& doc;
         PianoRollComponent roll;
-        // After `roll` (it holds a reference) and destroyed before it; the
-        // destructor detaches it from the window first. Its strip and the
-        // roll's playhead are destroyed before the controller, which the
-        // owner keeps alive for longer than this window.
+        // After `roll` (it holds a reference) and destroyed before it. Its strip and
+        // the roll's playhead are destroyed before the controller, which the owner
+        // keeps alive for longer than this panel.
         std::unique_ptr<Content> content;
         PlaybackController* playback = nullptr;
         std::unique_ptr<SourceTrackNoteSource> currentNoteSource;

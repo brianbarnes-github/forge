@@ -2,7 +2,7 @@
 #include "PlaybackTestSupport.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/SongDocument.h"
-#include "UI/TrackEditorWindow.h"
+#include "UI/TrackEditorPanel.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -11,18 +11,18 @@ using namespace lotro;
 
 namespace lotro
 {
-    struct TrackEditorWindowTestAccess
+    struct TrackEditorPanelTestAccess
     {
-        static juce::Rectangle<int> stripBounds (TrackEditorWindow& w) { return w.content->strip.getBounds(); }
-        static juce::Rectangle<int> rulerBounds (TrackEditorWindow& w) { return w.content->ruler.getBounds(); }
-        static juce::Rectangle<int> rollBounds (TrackEditorWindow& w) { return w.roll.getBounds(); }
-        static TimelineRuler& ruler (TrackEditorWindow& w) { return w.content->ruler; }
-        static PianoRollComponent& roll (TrackEditorWindow& w) { return w.roll; }
-        static juce::Component& content (TrackEditorWindow& w) { return *w.content; }
+        static juce::Rectangle<int> stripBounds (TrackEditorPanel& w) { return w.content->strip.getBounds(); }
+        static juce::Rectangle<int> rulerBounds (TrackEditorPanel& w) { return w.content->ruler.getBounds(); }
+        static juce::Rectangle<int> rollBounds (TrackEditorPanel& w) { return w.roll.getBounds(); }
+        static TimelineRuler& ruler (TrackEditorPanel& w) { return w.content->ruler; }
+        static PianoRollComponent& roll (TrackEditorPanel& w) { return w.roll; }
+        static juce::Component& content (TrackEditorPanel& w) { return *w.content; }
     };
 }
 
-TEST_CASE ("TrackEditorWindow: setTrack re-points the same window to a different track without recreating it", "[track-editor-window]")
+TEST_CASE ("TrackEditorPanel: setTrack re-points the same window to a different track without recreating it", "[track-editor-window]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -32,7 +32,7 @@ TEST_CASE ("TrackEditorWindow: setTrack re-points the same window to a different
     const auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
     const auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
 
-    TrackEditorWindow window (doc, nullptr);
+    TrackEditorPanel window (doc);
     window.setTrack (trackA);
     CHECK (window.getTrackId() == idA);
 
@@ -40,7 +40,7 @@ TEST_CASE ("TrackEditorWindow: setTrack re-points the same window to a different
     CHECK (window.getTrackId() == idB);
 }
 
-TEST_CASE ("TrackEditorWindow: a track appearance change retitles the window for its own track and repaints the roll for any", "[track-editor-window]")
+TEST_CASE ("TrackEditorPanel: a track appearance change retitles the window for its own track and repaints the roll for any", "[track-editor-window]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -50,84 +50,31 @@ TEST_CASE ("TrackEditorWindow: a track appearance change retitles the window for
     const auto idA = (juce::int64) trackA.getProperty (SongIDs::trackId);
     const auto idB = (juce::int64) trackB.getProperty (SongIDs::trackId);
 
-    TrackEditorWindow window (doc, nullptr);
+    TrackEditorPanel window (doc);
     window.setTrack (trackA);
-    REQUIRE (window.getName() == "Edit Track: Track A");
+    REQUIRE (window.title() == "Edit Track: Track A");
 
     trackA.setProperty (SongIDs::name, "Harp", nullptr);
     trackB.setProperty (SongIDs::name, "Flute", nullptr);
+    juce::StringArray retitles;
+    window.onTitleChanged = [&] (const juce::String& t) { retitles.add (t); };
     const int repaints = window.appearanceRepaintsForTesting();
     window.trackAppearanceChanged (idB);                       // a ghost's colour, say
-    CHECK (window.getName() == "Edit Track: Track A");
+    CHECK (retitles.isEmpty());                                // not this panel's track: no retitle
     CHECK (window.appearanceRepaintsForTesting() == repaints + 1);
     window.trackAppearanceChanged (idA);
-    CHECK (window.getName() == "Edit Track: Harp");
+    CHECK (retitles == juce::StringArray { "Edit Track: Harp" });
+    CHECK (window.title() == "Edit Track: Harp");
     CHECK (window.appearanceRepaintsForTesting() == repaints + 2);
 }
 
-TEST_CASE ("TrackEditorWindow: onClosed fires when the window's close button is pressed", "[track-editor-window]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-
-    SongDocument doc;
-    auto track = doc.addTrack ("Track A", 0xFFAABBCCu, 0, 0);
-
-    TrackEditorWindow window (doc, nullptr);
-    window.setTrack (track);
-
-    bool closed = false;
-    window.onClosed = [&] { closed = true; };
-
-    window.closeButtonPressed();
-
-    CHECK (closed);
-}
-
-TEST_CASE ("TrackEditorWindow: offers minimise, maximise and close title-bar buttons", "[track-editor-window]")
-{
-    // With a native title bar, these style flags are what tell the OS to show
-    // the buttons — and, on Windows, whether title-bar double-click / snap
-    // may maximise the window at all.
-    juce::ScopedJuceInitialiser_GUI juceInit;
-
-    SongDocument doc;
-    TrackEditorWindow window (doc, nullptr);
-
-    const int flags = window.getDesktopWindowStyleFlags();
-    CHECK ((flags & juce::ComponentPeer::windowHasMaximiseButton) != 0);
-    CHECK ((flags & juce::ComponentPeer::windowHasMinimiseButton) != 0);
-    CHECK ((flags & juce::ComponentPeer::windowHasCloseButton) != 0);
-    // Not the windowIsResizable style flag: JUCE sets that only where
-    // Desktop::supportsBorderlessNonClientResize() (true on Windows, false on
-    // headless Linux), so it would test the platform rather than this class.
-    CHECK (window.isResizable());
-}
-
-TEST_CASE ("TrackEditorWindow: pops up centred over the application window", "[track-editor-window]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-
-    // Inside the (headless) primary display, clear of its edges, so the
-    // centring isn't also being constrained on-screen.
-    const auto screen = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea;
-    juce::Component app;
-    app.setBounds (juce::Rectangle<int> (1000, 700).withCentre (screen.getCentre()).translated (-20, -30));
-
-    SongDocument doc;
-    TrackEditorWindow window (doc, &app);
-
-    const auto centre = window.getScreenBounds().getCentre();
-    CHECK (std::abs (centre.x - app.getScreenBounds().getCentreX()) <= 1);
-    CHECK (std::abs (centre.y - app.getScreenBounds().getCentreY()) <= 1);
-}
-
-TEST_CASE ("TrackEditorWindow: with playback set, the window hosts the transport strip and ruler above the roll", "[track-editor][playhead]")
+TEST_CASE ("TrackEditorPanel: with playback set, the window hosts the transport strip and ruler above the roll", "[track-editor][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
     lotro::playbacktest::RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TrackEditorWindow window (doc, nullptr);
+    TrackEditorPanel window (doc);
     CHECK (! window.hasTransportStripForTesting());
     CHECK (! window.hasRulerForTesting());
 
@@ -135,8 +82,8 @@ TEST_CASE ("TrackEditorWindow: with playback set, the window hosts the transport
     CHECK (window.hasTransportStripForTesting());
     CHECK (window.hasRulerForTesting());
 
-    using Access = TrackEditorWindowTestAccess;
-    Access::content (window).setSize (700, 400);
+    using Access = TrackEditorPanelTestAccess;
+    window.setSize (700, 400);
     const auto strip = Access::stripBounds (window);
     const auto ruler = Access::rulerBounds (window);
     const auto roll = Access::rollBounds (window);
@@ -151,44 +98,45 @@ TEST_CASE ("TrackEditorWindow: with playback set, the window hosts the transport
     CHECK (ruler.getWidth() == roll.getWidth());
 }
 
-TEST_CASE ("TrackEditorWindow: setPlayback keeps the roll its size and grows the window by the strip and ruler", "[track-editor][playhead]")
+TEST_CASE ("TrackEditorPanel: a fresh panel is empty, titled MIDI Editor, and clearTrack goes back to that", "[track-editor-window]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
-    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
-    lotro::playbacktest::RecordingSink sink;
-    PlaybackController controller (doc, sink);
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCC, 0, 0);
 
-    // Exactly as SongsmithMainComponent::trackDoubleClicked does: build, then setPlayback, then setTrack.
-    TrackEditorWindow window (doc, nullptr);
-    window.setTrack (track);
-    using Access = TrackEditorWindowTestAccess;
-    const auto oldWindowBounds = window.getBounds();
-    const auto oldRollSize = Access::rollBounds (window);
-    REQUIRE (oldWindowBounds.getWidth() > 0);
-    REQUIRE (oldRollSize.getHeight() > 0);
+    TrackEditorPanel panel (doc);
+    CHECK (panel.getTrackId() == -1);
+    CHECK (panel.title() == "MIDI Editor");
 
-    window.setPlayback (&controller);   // no manual sizing
+    juce::StringArray titles;
+    panel.onTitleChanged = [&] (const juce::String& t) { titles.add (t); };
+    panel.setTrack (track);
+    CHECK (panel.getTrackId() != -1);
+    CHECK (panel.title() == "Edit Track: Track A");
 
-    const int extra = TransportStrip::height + TimelineRuler::height;
-    CHECK (window.getX() == oldWindowBounds.getX());
-    CHECK (window.getY() == oldWindowBounds.getY());
-    CHECK (window.getWidth() == oldWindowBounds.getWidth());
-    CHECK (window.getHeight() == oldWindowBounds.getHeight() + extra);
-
-    const auto strip = Access::stripBounds (window);
-    const auto ruler = Access::rulerBounds (window);
-    const auto roll = Access::rollBounds (window);
-    CHECK (roll.getWidth() == oldRollSize.getWidth());
-    CHECK (roll.getHeight() == oldRollSize.getHeight());
-    CHECK (! strip.isEmpty());
-    CHECK (! ruler.isEmpty());
-    CHECK (strip.getY() == 0);
-    CHECK (ruler.getY() == strip.getBottom());
-    CHECK (roll.getY() == ruler.getBottom());
+    panel.clearTrack();
+    CHECK (panel.getTrackId() == -1);
+    CHECK (panel.title() == "MIDI Editor");
+    CHECK (titles == juce::StringArray { "Edit Track: Track A", "MIDI Editor" });
 }
 
-TEST_CASE ("TrackEditorWindow: Space toggles playback and other keys are left alone", "[track-editor][playhead]")
+TEST_CASE ("TrackEditorPanel: setPlayback fills the panel with strip, ruler and roll", "[track-editor][playhead]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackEditorPanel panel (doc);
+    panel.setSize (700, 400);
+    panel.setPlayback (&controller);
+
+    using Access = TrackEditorPanelTestAccess;
+    CHECK (Access::content (panel).getBounds() == juce::Rectangle<int> (0, 0, 700, 400));
+    CHECK (Access::stripBounds (panel).getBottom() == Access::rulerBounds (panel).getY());
+    CHECK (Access::rollBounds (panel).getBottom() == 400);
+}
+
+TEST_CASE ("TrackEditorPanel: Space toggles playback and other keys are left alone", "[track-editor][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -196,7 +144,7 @@ TEST_CASE ("TrackEditorWindow: Space toggles playback and other keys are left al
     lotro::playbacktest::addNote (track, 60, 0, 960);   // play() refuses an empty song
     lotro::playbacktest::RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TrackEditorWindow window (doc, nullptr);
+    TrackEditorPanel window (doc);
 
     // Without playback the window does not claim Space.
     CHECK (! window.keyPressed (juce::KeyPress (juce::KeyPress::spaceKey)));
@@ -209,7 +157,7 @@ TEST_CASE ("TrackEditorWindow: Space toggles playback and other keys are left al
     CHECK (! window.keyPressed (juce::KeyPress ('x')));
 }
 
-TEST_CASE ("TrackEditorWindow: right-click in the ruler seeks and left-click sets the marker, at the tick under that x of the roll", "[track-editor][playhead]")
+TEST_CASE ("TrackEditorPanel: right-click in the ruler seeks and left-click sets the marker, at the tick under that x of the roll", "[track-editor][playhead]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -218,12 +166,12 @@ TEST_CASE ("TrackEditorWindow: right-click in the ruler seeks and left-click set
     lotro::playbacktest::RecordingSink sink;
     PlaybackController controller (doc, sink);
     controller.flushRebuild();
-    TrackEditorWindow window (doc, nullptr);
+    TrackEditorPanel window (doc);
     window.setPlayback (&controller);
     window.setTrack (track);
 
-    using Access = TrackEditorWindowTestAccess;
-    Access::content (window).setSize (800, 400);
+    using Access = TrackEditorPanelTestAccess;
+    window.setSize (800, 400);
     auto& ruler = Access::ruler (window);
     const int x = Access::roll (window).xForTickInComponent (4800.0);
 
@@ -245,17 +193,17 @@ TEST_CASE ("TrackEditorWindow: right-click in the ruler seeks and left-click set
     CHECK (controller.getPositionTicks() == Catch::Approx (4800.0).margin (30.0));
 }
 
-TEST_CASE ("TrackEditorWindow: the timing bar draws bar lines from the keyboard gutter's edge, not under the gutter", "[track-editor][ruler]")
+TEST_CASE ("TrackEditorPanel: the timing bar draws bar lines from the keyboard gutter's edge, not under the gutter", "[track-editor][ruler]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
     lotro::playbacktest::RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TrackEditorWindow window (doc, nullptr);
+    TrackEditorPanel window (doc);
     window.setPlayback (&controller);
 
-    using Access = TrackEditorWindowTestAccess;
-    Access::content (window).setSize (700, 400);
+    using Access = TrackEditorPanelTestAccess;
+    window.setSize (700, 400);
     REQUIRE (Access::roll (window).onViewChanged != nullptr);   // the roll tells the ruler to repaint
 
     auto& ruler = Access::ruler (window);
