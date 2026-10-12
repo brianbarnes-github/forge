@@ -50,6 +50,31 @@ TEST_CASE ("TrackHead layout: conductor has only the index slot and the name", "
     CHECK (! l.index.intersects (l.name));
 }
 
+TEST_CASE ("TrackHead layout: conductor tempo text sits on the second row; tracks have none", "[track-head][layout]")
+{
+    for (const int h : { 45, 62, 136 })
+    {
+        const juce::Rectangle<int> bounds (0, 0, 198, h);
+        const auto c = TrackHeadComponent::layoutFor (bounds, true);
+        CHECK (bounds.contains (c.tempo));
+        CHECK (! c.tempo.isEmpty());
+        CHECK (c.tempo.getY() >= c.name.getBottom());
+        CHECK (TrackHeadComponent::layoutFor (bounds, false).tempo.isEmpty());
+    }
+}
+
+TEST_CASE ("TrackHead: the conductor head keeps the tempo text it is given", "[track-head][tempo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Conductor", (int) 0xFF808080, 1, 1);
+    track.setProperty (SongIDs::isConductor, true, nullptr);
+    TrackHeadComponent head (track, 0);
+    CHECK (head.tempoTextForTesting().isEmpty());
+    head.setTempoText (juce::String::fromUTF8 ("\xe2\x99\xa9= 118"));
+    CHECK (head.tempoTextForTesting() == juce::String::fromUTF8 ("\xe2\x99\xa9= 118"));
+}
+
 TEST_CASE ("TrackHead: M and S fire their callbacks with the new state", "[track-head][mutesolo]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

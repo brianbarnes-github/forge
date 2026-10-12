@@ -470,3 +470,28 @@ TEST_CASE ("TempoEdit: roundedBpm only answers for a BPM a tempo event can hold"
     REQUIRE (roundedBpm (maxBpm).has_value());
     CHECK (*roundedBpm (maxBpm) == Approx (1000.0));
 }
+
+TEST_CASE ("averageBpm weights each tempo by the ticks it is in force", "[tempo-edit][average]")
+{
+    using E = TempoMeterEvent;
+    const auto tempo = [] (int tick, double bpm) { return E { TempoMeterKind::tempo, tick, bpm, 0, 0 }; };
+
+    CHECK (averageBpm ({ tempo (0, 100.0) }, 4000) == Approx (100.0));
+    // 1000 ticks at 100 and 3000 at 200 -> (100*1000 + 200*3000) / 4000
+    CHECK (averageBpm ({ tempo (0, 100.0), tempo (1000, 200.0) }, 4000) == Approx (175.0));
+    // A tempo at or past the song end contributes nothing.
+    CHECK (averageBpm ({ tempo (0, 100.0), tempo (4000, 999.0), tempo (5000, 999.0) }, 4000) == Approx (100.0));
+    // Meter events are ignored.
+    CHECK (averageBpm ({ tempo (0, 90.0), E { TempoMeterKind::meter, 480, 0.0, 3, 4 } }, 960) == Approx (90.0));
+    // No length yet: the opening tempo is the answer.
+    CHECK (averageBpm ({ tempo (0, 93.75), tempo (480, 200.0) }, 0) == Approx (93.75));
+    // No tempo events: LOTRO/MIDI default.
+    CHECK (averageBpm ({}, 1000) == Approx (120.0));
+}
+
+TEST_CASE ("formatAverageTempo shows a rounded whole BPM after the quarter-note sign", "[tempo-edit][average]")
+{
+    CHECK (formatAverageTempo (118.4) == "\xe2\x99\xa9= 118");
+    CHECK (formatAverageTempo (118.5) == "\xe2\x99\xa9= 119");
+    CHECK (formatAverageTempo (120.0) == "\xe2\x99\xa9= 120");
+}

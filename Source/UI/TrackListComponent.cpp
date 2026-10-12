@@ -1,6 +1,7 @@
 #include "TrackListComponent.h"
 #include "InstrumentEdit.h"
 #include "SongsmithColours.h"
+#include "TempoEdit.h"
 #include "WheelResize.h"
 
 #include <algorithm>
@@ -175,6 +176,8 @@ void TrackListComponent::rebuild()
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
+        if ((bool) doc.getTrack (i).getProperty (SongIDs::isConductor, false))
+            row->setTempoText (juce::String::fromUTF8 (formatAverageTempo (averageBpm (listTempoMeterEvents (doc), documentEndTick())).c_str()));
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };

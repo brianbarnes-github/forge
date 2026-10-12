@@ -157,6 +157,7 @@ TrackHeadLayout TrackHeadComponent::layoutFor (juce::Rectangle<int> bounds, bool
     if (conductor)
     {
         l.name = top.withTrimmedRight (rightPadding);
+        l.tempo = bottom.withTrimmedLeft (sidePadding + indexWidth).withTrimmedRight (rightPadding);
         return l;
     }
     l.swatch = top.removeFromLeft (swatchSize + gap).withSizeKeepingCentre (swatchSize, swatchSize);
@@ -201,6 +202,17 @@ void TrackHeadComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (conductor ? SongsmithColours::textMuted : SongsmithColours::text));
     g.setFont (juce::Font (juce::FontOptions (11.0f)));
     g.drawText (track.getProperty (SongIDs::name).toString(), l.name, juce::Justification::centredLeft, true);
+
+    if (conductor && tempoText.isNotEmpty())
+        g.drawText (tempoText, l.tempo, juce::Justification::centredLeft, true);
+}
+
+void TrackHeadComponent::setTempoText (const juce::String& text)
+{
+    if (tempoText == text)
+        return;
+    tempoText = text;
+    repaint();
 }
 
 void TrackHeadComponent::setMuteSolo (bool muted, bool soloed)

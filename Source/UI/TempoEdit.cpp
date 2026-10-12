@@ -305,6 +305,32 @@ TempoEditResult removeTempoMeterEvents (SongDocument& doc, const std::vector<std
     return std::nullopt;
 }
 
+double averageBpm (const std::vector<TempoMeterEvent>& events, int endTick)
+{
+    std::vector<const TempoMeterEvent*> tempos;
+    for (const auto& e : events)
+        if (e.kind == TempoMeterKind::tempo)
+            tempos.push_back (&e);
+    if (tempos.empty())
+        return 120.0;
+    if (endTick <= 0)
+        return tempos.front()->bpm;
+
+    double weighted = 0.0;
+    for (size_t i = 0; i < tempos.size(); ++i)
+    {
+        const int from = std::min (tempos[i]->tick, endTick);
+        const int to   = i + 1 < tempos.size() ? std::min (tempos[i + 1]->tick, endTick) : endTick;
+        weighted += tempos[i]->bpm * (double) (to - from);
+    }
+    return weighted / (double) endTick;
+}
+
+std::string formatAverageTempo (double bpm)
+{
+    return "\xe2\x99\xa9= " + std::to_string ((int) std::lround (bpm));
+}
+
 std::vector<TempoMeterEvent> listTempoMeterEvents (const SongDocument& doc)
 {
     return listTempoMeterEvents (doc.getTree());

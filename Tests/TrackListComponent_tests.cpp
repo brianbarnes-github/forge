@@ -234,6 +234,12 @@ TEST_CASE ("TrackListComponent: a real import populates the row list through the
 
     CHECK (doc.getNumTracks() > 0);
     CHECK (Access::numRows (list) == doc.getNumTracks());
+
+    // The conductor head shows the song's average tempo, whole BPM.
+    const auto text = Access::rows (list)[0]->headForTesting().tempoTextForTesting();
+    CHECK (text.startsWith (juce::String::fromUTF8 ("\xe2\x99\xa9= ")));
+    CHECK (text.getTrailingIntValue() > 0);
+    CHECK (Access::rows (list)[1]->headForTesting().tempoTextForTesting().isEmpty());
 }
 
 TEST_CASE ("TrackListComponent: double-clicking a row forwards its trackId via onTrackDoubleClicked", "[track-list]")

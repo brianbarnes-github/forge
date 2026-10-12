@@ -128,7 +128,8 @@ When you say…       …I'll know you mean
   window. Known limit: an open rename editor does not follow an undo.
   The first row is always the song's **conductor** (`isConductor`): no
   index number, name "Conductor", muted text, and a head that shows the name
-  only (no swatch picker, rename, mute / solo or volume). Its note strip shows the song's
+  and, on its second row, the song's average tempo (`♩= 118`: each tempo weighted by the ticks it is
+  in force, rounded to a whole BPM; no swatch picker, rename, mute / solo or volume). Its note strip shows the song's
   tempo (amber, top half) and meter (blue, bottom half) changes as 1 px lines with labels
   (`120`, `3/4`; labels that would overlap are hidden, the lines stay), and the background
   shade alternates at every tempo change (top half) and every meter change (bottom half). Double-clicking the

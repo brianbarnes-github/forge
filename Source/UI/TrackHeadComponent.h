@@ -18,7 +18,7 @@ namespace lotro
 
 struct TrackHeadLayout
 {
-    juce::Rectangle<int> index, swatch, name, mute, solo, volume;
+    juce::Rectangle<int> index, swatch, name, mute, solo, volume, tempo;
 };
 
 class TrackHeadComponent : public juce::Component
@@ -31,7 +31,8 @@ public:
     static constexpr int sidePadding = 8, rightPadding = 6, indexWidth = 16, swatchSize = 14, iconSize = 22, gap = 4;
 
     // Pure geometry: bounds = the head's own local bounds. The conductor gets
-    // only index and name; its swatch / button / slider rectangles are empty.
+    // index, name and the tempo text (second row); its swatch / button / slider
+    // rectangles are empty, and tracks have no tempo rectangle.
     static TrackHeadLayout layoutFor (juce::Rectangle<int> bounds, bool conductor);
 
     void paint (juce::Graphics& g) override;
@@ -45,6 +46,9 @@ public:
 
     // Head-local; empty for the conductor.
     juce::Rectangle<int> swatchBounds() const;
+
+    // The conductor's second-row text (the average tempo); ignored on other heads.
+    void setTempoText (const juce::String& text);
 
     // Fired when the M / S button is clicked, with the new state.
     std::function<void (bool)> onMuteToggled;
@@ -111,6 +115,7 @@ public:
     juce::Button& muteButtonForTesting() { return muteButton; }
     juce::Button& soloButtonForTesting() { return soloButton; }
     juce::Slider& volumeSliderForTesting() { return volumeSlider; }
+    const juce::String& tempoTextForTesting() const { return tempoText; }
 
 private:
     // Detaches the editor now and deletes it on the next message-loop turn, so
@@ -124,6 +129,7 @@ private:
     IconButton      muteButton { IconButton::Kind::Mute, juce::Colours::orangered };
     IconButton      soloButton { IconButton::Kind::Solo, juce::Colours::gold };
     juce::Slider    volumeSlider;
+    juce::String    tempoText;
     bool            dragging = false;        // between the slider's onDragStart and onDragEnd
     bool            dragHasChanged = false;  // the current drag has already reported a change
     std::unique_ptr<juce::TextEditor> renameEditor;

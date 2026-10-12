@@ -6,6 +6,7 @@
 // call changes nothing and opens none.
 
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -59,6 +60,13 @@ struct TempoMeterEvent
     int            numerator   = 0;     // meter events
     int            denominator = 0;
 };
+
+// The song's average tempo: each tempo weighted by the ticks it is in force within
+// [0, endTick). Meter events are ignored. With endTick <= 0 it is the opening tempo;
+// with no tempo event, 120 (the MIDI default).
+double averageBpm (const std::vector<TempoMeterEvent>& events, int endTick);
+// "♩= 118": the average rounded to a whole BPM (UTF-8).
+std::string formatAverageTempo (double bpm);
 
 // Removes the (kind, tick) events as ONE undo transaction. Tick-0 and missing targets are
 // skipped; if nothing is left to remove the result is CannotRemoveFirst (some target was at
