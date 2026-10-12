@@ -308,7 +308,11 @@ void TrackRowComponent::mouseDrag (const juce::MouseEvent& e)
     if (auto* container = juce::DragAndDropContainer::findParentDragContainerFor (this))
     {
         if (! container->isDragAndDropActive())
-            container->startDragging (juce::var (getTrackId()), this);
+        {
+            // Other JUCE windows too: a floating Parts panel is its own window, and the default
+            // (false) only looks for drop targets inside the container's window.
+            container->startDragging (juce::var (getTrackId()), this, juce::ScaledImage(), true);
+        }
     }
 }
 
