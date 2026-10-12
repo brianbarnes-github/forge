@@ -177,7 +177,7 @@ void TrackListComponent::rebuild()
     {
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
         if ((bool) doc.getTrack (i).getProperty (SongIDs::isConductor, false))
-            row->setTempoText (juce::String::fromUTF8 (formatAverageTempo (averageBpm (listTempoMeterEvents (doc), documentEndTick())).c_str()));
+            row->setTempoText (conductorTempoText());
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
@@ -283,6 +283,21 @@ void TrackListComponent::valueTreePropertyChanged (juce::ValueTree& tree, const 
         return;
     }
     triggerAsyncUpdate();
+}
+
+juce::String TrackListComponent::conductorTempoText() const
+{
+    const auto events = listTempoMeterEvents (doc);
+    const auto marker = playback != nullptr ? playback->getMarkerTick() : std::nullopt;
+    const double bpm = marker.has_value() ? bpmAt (events, (int) *marker) : averageBpm (events, documentEndTick());
+    return juce::String::fromUTF8 (formatTempoText (bpm).c_str());
+}
+
+void TrackListComponent::refreshConductorTempo()
+{
+    for (auto* row : content.rows)
+        if (row->isConductor())
+            row->setTempoText (conductorTempoText());
 }
 
 void TrackListComponent::refreshHead (juce::int64 trackId)

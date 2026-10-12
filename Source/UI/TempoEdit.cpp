@@ -326,7 +326,21 @@ double averageBpm (const std::vector<TempoMeterEvent>& events, int endTick)
     return weighted / (double) endTick;
 }
 
-std::string formatAverageTempo (double bpm)
+double bpmAt (const std::vector<TempoMeterEvent>& events, int tick)
+{
+    std::optional<double> bpm;
+    for (const auto& e : events)
+    {
+        if (e.kind != TempoMeterKind::tempo)
+            continue;
+        if (bpm.has_value() && e.tick > tick)
+            break;
+        bpm = e.bpm;   // the first tempo also covers ticks before it
+    }
+    return bpm.value_or (120.0);
+}
+
+std::string formatTempoText (double bpm)
 {
     return "\xe2\x99\xa9= " + std::to_string ((int) std::lround (bpm));
 }

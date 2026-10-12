@@ -65,8 +65,10 @@ struct TempoMeterEvent
 // [0, endTick). Meter events are ignored. With endTick <= 0 it is the opening tempo;
 // with no tempo event, 120 (the MIDI default).
 double averageBpm (const std::vector<TempoMeterEvent>& events, int endTick);
-// "♩= 118": the average rounded to a whole BPM (UTF-8).
-std::string formatAverageTempo (double bpm);
+// The tempo in force at `tick` (a change applies from its own tick); 120 with no tempo event.
+double bpmAt (const std::vector<TempoMeterEvent>& events, int tick);
+// "♩= 118": a BPM rounded to a whole number (UTF-8).
+std::string formatTempoText (double bpm);
 
 // Removes the (kind, tick) events as ONE undo transaction. Tick-0 and missing targets are
 // skipped; if nothing is left to remove the result is CannotRemoveFirst (some target was at

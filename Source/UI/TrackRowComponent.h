@@ -151,6 +151,7 @@ public:
     void refreshHead();
     // The conductor head's average-tempo text (no effect on other rows).
     void setTempoText (const juce::String& text) { head.setTempoText (text); }
+    bool isConductor() const { return isConductorTrack(); }
 
     // True for a point in the head column, where a right-click opens the head's menu.
     static bool inHeadArea (juce::Point<int> p) noexcept

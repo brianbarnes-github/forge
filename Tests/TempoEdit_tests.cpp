@@ -489,9 +489,22 @@ TEST_CASE ("averageBpm weights each tempo by the ticks it is in force", "[tempo-
     CHECK (averageBpm ({}, 1000) == Approx (120.0));
 }
 
-TEST_CASE ("formatAverageTempo shows a rounded whole BPM after the quarter-note sign", "[tempo-edit][average]")
+TEST_CASE ("formatTempoText shows a rounded whole BPM after the quarter-note sign", "[tempo-edit][average]")
 {
-    CHECK (formatAverageTempo (118.4) == "\xe2\x99\xa9= 118");
-    CHECK (formatAverageTempo (118.5) == "\xe2\x99\xa9= 119");
-    CHECK (formatAverageTempo (120.0) == "\xe2\x99\xa9= 120");
+    CHECK (formatTempoText (118.4) == "\xe2\x99\xa9= 118");
+    CHECK (formatTempoText (118.5) == "\xe2\x99\xa9= 119");
+    CHECK (formatTempoText (120.0) == "\xe2\x99\xa9= 120");
+}
+
+TEST_CASE ("bpmAt is the tempo in force at a tick", "[tempo-edit][average]")
+{
+    using E = TempoMeterEvent;
+    const auto tempo = [] (int tick, double bpm) { return E { TempoMeterKind::tempo, tick, bpm, 0, 0 }; };
+    const std::vector<E> events { tempo (0, 100.0), E { TempoMeterKind::meter, 480, 0.0, 3, 4 }, tempo (1000, 200.0) };
+
+    CHECK (bpmAt (events, 0) == Approx (100.0));
+    CHECK (bpmAt (events, 999) == Approx (100.0));
+    CHECK (bpmAt (events, 1000) == Approx (200.0));   // a change applies from its own tick
+    CHECK (bpmAt (events, 50000) == Approx (200.0));
+    CHECK (bpmAt ({}, 10) == Approx (120.0));
 }

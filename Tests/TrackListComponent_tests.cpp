@@ -2423,6 +2423,37 @@ TEST_CASE ("TrackListComponent: S with no selection splits only the track under 
     CHECK (sectionsOf (b).size() == 2);
 }
 
+TEST_CASE ("TrackListComponent: the Conductor head shows the tempo at the marker, and the average once it is cleared", "[track-list][tempo]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    Diagnostics diags;
+    const auto file = juce::File (__FILE__).getParentDirectory().getParentDirectory()
+                           .getChildFile ("midi").getChildFile ("blue.mid");
+    REQUIRE (importMidiFile (doc, file, 1, diags));
+    REQUIRE_FALSE (setTempo (doc, 0, 100.0));
+    REQUIRE_FALSE (setTempo (doc, 960, 200.0));
+
+    playbacktest::RecordingSink sink;
+    PlaybackController playback (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&playback);
+    list.setBounds (0, 0, 600, 300);
+    TrackListComponentTestAccess::rebuild (list);
+    const auto textOf = [&] { return TrackListComponentTestAccess::rows (list)[0]->headForTesting().tempoTextForTesting(); };
+    const auto sign = juce::String::fromUTF8 ("\xe2\x99\xa9= ");
+
+    const auto average = textOf();
+    CHECK (average.startsWith (sign));
+
+    playback.setMarkerTick (500.0);
+    CHECK (textOf() == sign + "100");
+    playback.setMarkerTick (960.0);
+    CHECK (textOf() == sign + "200");
+    playback.clearMarker();
+    CHECK (textOf() == average);
+}
+
 TEST_CASE ("TrackListComponent: S falls back to the marker when the pointer is not over a strip, and does nothing without one", "[track-list][sections]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
