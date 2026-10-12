@@ -207,6 +207,7 @@ void DockHost::rebuild()
             const std::string id = e->def.id;
             e->window = std::make_unique<DockFloatWindow> (*e->panel, e->panel->getTitle(),
                                                            s->floatBounds, centreAround);
+            e->window->onBoundsChanged = [this] { if (onLayoutChanged) onLayoutChanged (state()); };
             e->window->onClosed = [this, id] { captureFloatBounds (layout); hide (layout, id); userChanged(); };
         }
     }

@@ -39,6 +39,8 @@ DockFloatWindow::DockFloatWindow (DockPanel& panel, juce::String title, std::opt
 
 DockFloatWindow::~DockFloatWindow()
 {
+    onBoundsChanged = nullptr;   // detaching the content resizes the window; that is not a user change
+    onClosed = nullptr;
     setContentNonOwned (nullptr, false);
 }
 
@@ -46,6 +48,20 @@ FloatBounds DockFloatWindow::currentBounds() const
 {
     const auto b = getBounds();
     return { b.getX(), b.getY(), b.getWidth(), b.getHeight() };
+}
+
+void DockFloatWindow::moved()
+{
+    juce::DocumentWindow::moved();
+    if (onBoundsChanged)
+        onBoundsChanged();
+}
+
+void DockFloatWindow::resized()
+{
+    juce::DocumentWindow::resized();
+    if (onBoundsChanged)
+        onBoundsChanged();
 }
 
 void DockFloatWindow::closeButtonPressed()

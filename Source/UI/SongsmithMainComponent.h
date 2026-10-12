@@ -157,6 +157,20 @@ private:
 public:
     void trackDoubleClicked (juce::int64 trackId);
 
+    // The dock layout (which panels are shown, docked or floating, where). Applying one does
+    // not fire onDockLayoutChanged; any user-driven change does, so the owner can persist it.
+    dock::LayoutState getDockLayout() const { return dockHost.state(); }
+    void setDockLayout (const dock::LayoutState& layout) { dockHost.apply (layout); }
+    bool isMidiEditorVisible() const { return dockHost.isVisible ("midiEditor"); }
+    void setMidiEditorVisible (bool show)
+    {
+        dockHost.setCentreFloatsAround (getTopLevelComponent());
+        dockHost.setVisible ("midiEditor", show);
+    }
+    bool isLotroPreviewVisible() const { return dockHost.isVisible ("lotroPreview"); }
+    void setLotroPreviewVisible (bool show) { dockHost.setVisible ("lotroPreview", show); }
+    std::function<void (const dock::LayoutState&)> onDockLayoutChanged;
+
     // Opens the Tempo/Meter editor, or re-fronts it when already open.
     void openTempoMeterEditor();
 

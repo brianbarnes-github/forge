@@ -130,6 +130,11 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 
+    dockHost.onLayoutChanged = [this] (const dock::LayoutState& layout)
+    {
+        if (onDockLayoutChanged)
+            onDockLayoutChanged (layout);
+    };
     dockHost.apply (dock::defaultLayout());
 }
 

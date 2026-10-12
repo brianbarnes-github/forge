@@ -22,7 +22,10 @@ public:
 
     FloatBounds currentBounds() const;
     std::function<void()> onClosed;
+    std::function<void()> onBoundsChanged;   // the user moved or resized the window
     void closeButtonPressed() override;
+    void moved() override;
+    void resized() override;
 
     static juce::Rectangle<int> resolveBounds (std::optional<FloatBounds> saved,
                                                const juce::Array<juce::Rectangle<int>>& userAreas,

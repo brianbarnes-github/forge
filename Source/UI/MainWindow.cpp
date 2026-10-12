@@ -182,6 +182,15 @@ MainWindow::MainWindow()
     playback.onBeforePlay = [this] { return ensurePlaybackReady(); };
     loadStartupSoundFont();
     applyViewSettings();
+
+    // Which panels are shown, docked or floating, and where (AppSettings, not the Song file).
+    // A failed save is not announced: the layout still applies this session and is retried at quit.
+    auto& songsmith = body->getSongsmith();
+    songsmith.setDockLayout (dock::fromJson (appSettings.dockLayout().toStdString()));
+    songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
+    {
+        appSettings.setDockLayout (juce::String (dock::toJson (layout)));
+    };
 }
 
 MainWindow::~MainWindow()
@@ -228,6 +237,8 @@ MenuState MainWindow::currentMenuState()
     s.trackEditorOpen    = songsmith.isTrackEditorOpen();
     s.exportPanelVisible = body->isExportPanelVisible();
     s.diagnosticsVisible = songsmith.isDiagnosticsVisible();
+    s.midiEditorVisible  = songsmith.isMidiEditorVisible();
+    s.lotroPreviewVisible = songsmith.isLotroPreviewVisible();
     s.isPlaying          = playback.isPlaying();
     s.hasMarker          = playback.getMarkerTick().has_value();
     s.hasSelectedSections = songsmith.hasSelectedSections();
@@ -325,6 +336,14 @@ void MainWindow::menuItemSelected (int menuItemID, int)
             return;
         case ViewDiagnosticsToggle:
             body->getSongsmith().setDiagnosticsVisible (! body->getSongsmith().isDiagnosticsVisible());
+            menuItemsChanged();
+            return;
+        case ViewMidiEditorToggle:
+            body->getSongsmith().setMidiEditorVisible (! body->getSongsmith().isMidiEditorVisible());
+            menuItemsChanged();
+            return;
+        case ViewLotroPreviewToggle:
+            body->getSongsmith().setLotroPreviewVisible (! body->getSongsmith().isLotroPreviewVisible());
             menuItemsChanged();
             return;
         default: return;

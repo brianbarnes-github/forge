@@ -744,3 +744,117 @@ TEST_CASE ("SongsmithMainComponent: the editor panel opens floating, docks betwe
     CHECK (view.isTrackEditorOpen());
     CHECK (Access::trackEditorWindowTrackId (view) == -1);
 }
+
+namespace
+{
+    bool sameLayout (const lotro::dock::LayoutState& a, const lotro::dock::LayoutState& b)
+    {
+        if (a.upperWeight != b.upperWeight || a.lowerWeight != b.lowerWeight || a.panels.size() != b.panels.size())
+            return false;
+        for (const auto& p : a.panels)
+        {
+            const auto* q = lotro::dock::find (b, p.id);
+            if (q == nullptr || q->mode != p.mode || q->visible != p.visible || q->zone != p.zone
+                || q->order != p.order || q->floatBounds.has_value() != p.floatBounds.has_value())
+                return false;
+        }
+        return true;
+    }
+}
+
+TEST_CASE ("SongsmithMainComponent: a saved dock layout restores exactly through JSON", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent first (doc);
+    first.setSize (1000, 700);
+
+    auto layout = first.getDockLayout();
+    lotro::dock::show (layout, "midiEditor");
+    lotro::dock::setDocked (layout, "midiEditor");
+    lotro::dock::hide (layout, "lotroPreview");
+    first.setDockLayout (layout);
+    const auto saved = lotro::dock::toJson (first.getDockLayout());
+
+    SongDocument doc2;
+    SongsmithMainComponent second (doc2);
+    second.setSize (1000, 700);
+    second.setDockLayout (lotro::dock::fromJson (saved));
+
+    CHECK (second.isMidiEditorVisible());
+    CHECK_FALSE (second.isLotroPreviewVisible());
+    CHECK (sameLayout (second.getDockLayout(), first.getDockLayout()));
+    CHECK (lotro::dock::find (second.getDockLayout(), "midiEditor")->mode == lotro::dock::Mode::docked);
+}
+
+TEST_CASE ("SongsmithMainComponent: an empty or corrupt stored layout gives the first-run page", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    for (const char* stored : { "", "{{{", "[]" })
+    {
+        SongDocument doc;
+        SongsmithMainComponent view (doc);
+        view.setSize (1000, 700);
+        view.setDockLayout (lotro::dock::fromJson (stored));
+        CHECK (view.isLotroPreviewVisible());
+        CHECK_FALSE (view.isMidiEditorVisible());
+        CHECK (lotro::dock::find (view.getDockLayout(), "lotroPreview")->mode == lotro::dock::Mode::docked);
+    }
+}
+
+TEST_CASE ("SongsmithMainComponent: toggling a panel flips its visibility and reports one layout change; applying reports none", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+    int changes = 0;
+    view.onDockLayoutChanged = [&] (const lotro::dock::LayoutState&) { ++changes; };
+
+    view.setLotroPreviewVisible (false);
+    CHECK_FALSE (view.isLotroPreviewVisible());
+    CHECK (changes == 1);
+    view.setLotroPreviewVisible (true);
+    CHECK (view.isLotroPreviewVisible());
+    CHECK (changes == 2);
+
+    view.setMidiEditorVisible (true);
+    CHECK (view.isMidiEditorVisible());
+    CHECK (changes == 3);
+    view.setMidiEditorVisible (false);
+    CHECK_FALSE (view.isMidiEditorVisible());
+    CHECK (changes == 4);
+
+    view.setDockLayout (lotro::dock::defaultLayout());
+    CHECK (changes == 4);
+}
+
+TEST_CASE ("SongsmithMainComponent: a floating panel's bounds are reported when its window moves, and an off-screen rectangle is brought back", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+
+    auto layout = view.getDockLayout();
+    lotro::dock::setFloating (layout, "midiEditor", lotro::dock::FloatBounds { -5000, -5000, 800, 600 });
+    lotro::dock::show (layout, "midiEditor");
+    view.setDockLayout (layout);
+
+    auto* panel = SongsmithMainComponentTestAccess::editorPanel (view);
+    REQUIRE (panel != nullptr);
+    auto* window = dynamic_cast<lotro::dock::DockFloatWindow*> (panel->getTopLevelComponent());
+    REQUIRE (window != nullptr);
+    const auto primary = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea;
+    CHECK (window->getBounds().intersects (primary));
+
+    std::optional<lotro::dock::LayoutState> last;
+    view.onDockLayoutChanged = [&] (const lotro::dock::LayoutState& s) { last = s; };
+    window->setBounds (primary.getX() + 40, primary.getY() + 50, 500, 300);
+    REQUIRE (last.has_value());
+    const auto* saved = lotro::dock::find (*last, "midiEditor");
+    REQUIRE (saved != nullptr);
+    REQUIRE (saved->floatBounds.has_value());
+    CHECK (saved->floatBounds->width == window->getWidth());
+    CHECK (saved->floatBounds->height == window->getHeight());
+}
