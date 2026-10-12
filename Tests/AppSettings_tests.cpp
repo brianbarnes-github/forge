@@ -289,3 +289,18 @@ TEST_CASE ("importStartOffsetTicks: only the marker setting with a marker set pl
     CHECK (importStartOffsetTicks (settings, std::nullopt) == 0);     // no marker set: the start
     CHECK (importStartOffsetTicks (settings, -5.0) == 0);
 }
+
+TEST_CASE ("AppSettings: dock.layout round-trips and is empty by default", "[app-settings][dock]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    AppSettings settings (props);
+    CHECK (settings.dockLayout().isEmpty());
+
+    CHECK (settings.setDockLayout ("{\"upperWeight\":0.4}"));
+    CHECK (settings.dockLayout() == "{\"upperWeight\":0.4}");
+
+    juce::PropertiesFile reader (file, {});
+    CHECK (reader.getValue ("dock.layout") == "{\"upperWeight\":0.4}");
+}

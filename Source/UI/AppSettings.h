@@ -118,6 +118,15 @@ public:
         return save();
     }
 
+    // The dockable-panel layout as JSON (see Dock/DockLayoutState.h). Empty when never saved;
+    // dock::fromJson turns empty or corrupt text into the defaults.
+    juce::String dockLayout() const { return file.getValue (keyDockLayout); }
+    bool setDockLayout (const juce::String& json)
+    {
+        file.setValue (keyDockLayout, json);
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -132,6 +141,7 @@ private:
     static constexpr const char* keyFollowPlayhead     = "editing.followPlayhead";
     static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";
     static constexpr const char* keyMergeScope         = "editing.mergeScope";
+    static constexpr const char* keyDockLayout         = "dock.layout";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.
