@@ -10,7 +10,7 @@ namespace lotro
     // rows stay in lockstep (2026-09-15 upper-region-track-timeline design:
     // "Shared across all rows").
     //
-    // Deliberately independent of TrackEditorWindow's own zoom/scroll —
+    // Deliberately independent of TrackEditorPanel's own zoom/scroll —
     // the floating editor keeps its own, unrelated state.
     class TimelineViewState
     {

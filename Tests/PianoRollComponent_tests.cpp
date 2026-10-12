@@ -489,7 +489,7 @@ TEST_CASE ("PianoRollComponent: Preview role ignores setGhostTracks", "[piano-ro
 namespace
 {
     // A Source-role roll over one MIDI_TRACK, sized and pointed at the track
-    // the way TrackEditorWindow does it (bounds first, then setNoteSource).
+    // the way TrackEditorPanel does it (bounds first, then setNoteSource).
     struct SourceRollFixture
     {
         explicit SourceRollFixture (std::vector<int> pitches, int width = viewportWidth, int height = viewportHeight)

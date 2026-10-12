@@ -1,6 +1,6 @@
 # Songsmith dockable panels — design
 
-Date: 2026-10-11. Status: draft, awaiting review.
+Date: 2026-10-11. Status: implemented.
 
 ## Goal
 

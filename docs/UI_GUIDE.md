@@ -25,12 +25,12 @@ describes the current, Songsmith-only UI only.
 │  (each non-conductor row ends its info column with [M] [S])          │  #31
 │  index/name/note-range text, inline note-timeline preview            │  (inline preview under #10)
 │  (shared zoom/scroll) + per-row ghost-visibility toggle              │  dbl-click row → editor (#28)
-├══════════════════════ SplitterComponent (drag to resize, top/bottom) ═╡  #6  outer splitter
+├══════════ DockStack divider (drag to resize; panels may dock here) ═══╡  #6  top dock stack divider
 │            [|<] [<<] [Play] [Stop] [>|]   TransportStrip (28 px, centred) │  #30  top row of the lower region
 │ PARTS · DROP TRACKS TO ASSIGN                                         │  #15  PartStripComponent
 │  [x:1 Lute "Lead"] [x:2 Drums ""] [+ Add]                             │  (slots are #16, chips #17)
 ├──────────────────────┬────────────────────────────────────────────────┤
-│ ▼ LOTRO PREVIEW · how it will sound in-game                          │  #20  PreviewRegion header
+│ ▼ LOTRO PREVIEW · how it will sound in-game   [Float] [...] [x]      │  #20  DockPanel header
 │  PreviewAssignedPanel │  PianoRollComponent (Role::Preview)            │  #21 (preview assigned panel)
 │  (160px): chips,      │  range band · ghost/dropped-note overlays ·   │  #22 (preview piano roll)
 │  instrument/range,    │  wheel scroll · ctrl+wheel zoom              │
@@ -40,6 +40,11 @@ describes the current, Songsmith-only UI only.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+The **MIDI editor** (#28) and the **LOTRO preview** (#19/#20) are dockable panels (see
+*Dockable panels* below). Docked, the editor sits in its own `DockPanel` between the track
+list's divider and the lower region; the preview sits at the bottom of the lower region.
+Either can be floated into its own window or hidden from the View menu.
+
 `MainWindow::Body` (#4) also holds a second, full-screen child — the export
 panel (`DiagnosticsPane`, #24, reused as-is from before Songsmith) — toggled
 in place of everything above by **Song → Run Converter** or **View → Export
@@ -47,6 +52,26 @@ ABC panel**; only one of the two is ever visible at a time. Its own internal
 layout (`DiagnosticListView` #25 + `AbcPreviewView` #26, split by an inner
 `SplitterComponent`, plus a status line #27) is unchanged from when it was
 the classic editor's sibling pane.
+
+## Dockable panels
+
+The MIDI editor (#28) and the LOTRO preview (#20) are panels (`Source/UI/Dock/`). Each has a
+20 px header with its title and three controls: **Float** / **Dock** (toggles between the page
+and its own window), **...** (the "Dock to" menu: *Below track list* or *Bottom*; right-clicking
+the header opens it too) and **x** (hide). View → MIDI Editor / LOTRO Preview show or hide them
+again, remembering whether each was docked or floating.
+
+- **Zones.** *Below track list* (between the track list and the lower region; the editor's
+  default) and *Bottom* (inside the lower region, above diagnostics; the preview's default).
+  Dragging the divider bars resizes neighbours; there is no drag-to-rearrange and no tabs.
+- **First run** looks exactly like before: preview docked at the bottom, editor hidden. The
+  editor's first open is floating.
+- **Floating windows** are native-title-bar windows; their position and size are remembered. A
+  remembered position that is no longer on any display is replaced by a reachable one.
+- **Remembered across sessions** in the app settings (key `dock.layout`, JSON), not in the
+  `.songsmith` file. A missing or corrupt value gives the first-run layout.
+- If the preview is floated or hidden and diagnostics are off, the lower region shrinks to the
+  transport strip and part strip.
 
 ## Naming reference
 
@@ -59,7 +84,7 @@ When you say…       …I'll know you mean
 | 3 | **Menu bar**                   | `juce::MenuBarComponent` inside `MainWindow`                     |
 | 4 | **Body**                       | `MainWindow::Body` (inner class; hosts Songsmith + the toggleable export panel) |
 | 5 | **Songsmith view**             | `SongsmithMainComponent` (`Source/UI/SongsmithMainComponent.{h,cpp}`) — everything below the menu bar when the export panel isn't shown |
-| 6 | **Outer splitter**             | `SongsmithMainComponent`'s `splitter` (`SplitterComponent::Orientation::topBottom`) — between the upper (source) region and the lower region |
+| 6 | **Top dock stack divider**     | `SongsmithMainComponent::topStack` (`dock::DockStack`) — the draggable bar between the upper (source) region and whatever sits below it: the docked MIDI editor panel (when shown) or the lower region. Replaces the old outer `SplitterComponent`; default weights 0.55 / 0.45 |
 | 7 | **Upper region**               | `SongsmithMainComponent::UpperRegion` — source header + a full-width `TrackListComponent`; no embedded piano roll (moved to the floating Track editor window, #28) |
 | 8 | **Upper region header**        | The "▲ MIDI SOURCE · drag tracks down to assign" label row only — the grid-size combo and Quantize button that used to sit here moved to the **Edit** menu (see #11/#12) |
 | 9 | **Track list**                  | `TrackListComponent`/`TrackRowComponent` (`Source/UI/TrackListComponent.{h,cpp}`, `TrackRowComponent.{h,cpp}`) — spans the Upper region's full width; owns the shared `TimelineViewState` (`Source/UI/TimelineViewState.{h,cpp}`) that every row's note preview reads |
@@ -67,13 +92,13 @@ When you say…       …I'll know you mean
 | 11 | **Grid Size menu**              | **Edit → Grid Size** submenu (`Off`/`1/4`/`1/8`/`1/16`) in the main menu bar (`MainWindow`'s `EditGridSizeBase` items) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::setActiveEditorGridSize (GridSize)`, translated to ticks by `GridSize.h`'s `gridSizeToTicks()` |
 | 12 | **Quantize menu item**          | **Edit → Quantize** in the main menu bar (`MainWindow`'s `EditQuantize`) — enabled only while the Track editor window (#28) is open; forwards to `SongsmithMainComponent::quantizeActiveEditor()`, which calls the open editor's `SourceRollEditor::quantizeSelection()` |
 | 13 | **Source piano roll**           | `PianoRollComponent` constructed with `Role::Source` (`Source/UI/PianoRollComponent.{h,cpp}`) — unchanged internally, but no longer embedded in the Upper region; now hosted inside the floating Track editor window (#28) |
-| 14 | **Lower region**                | `SongsmithMainComponent::LowerRegion` — `PartStripComponent` + an inner splitter between the preview region and diagnostics |
+| 14 | **Lower region**                | `SongsmithMainComponent::LowerRegion` — transport strip + `PartStripComponent` fixed on top, then the bottom `DockStack` (the docked LOTRO preview panel) and an inner splitter to diagnostics. Collapses to just the transport + part strip when the bottom zone is empty and diagnostics are hidden |
 | 15 | **Part strip**                  | `PartStripComponent`/`PartSlotComponent` (`Source/UI/PartStripComponent.{h,cpp}`, `PartSlotComponent.{h,cpp}`) |
 | 16 | **Part slot**                   | `PartSlotComponent` — one slot in the strip: `x:` index, instrument badge, label, assigned-track chips (#17) |
 | 17 | **Assignment chip**             | `AssignmentChipComponent` — swatch, `Tk<n>`, transpose, `×` to unassign, inside a part slot |
 | 18 | **Inner splitter**              | Between the preview region (#19) and the diagnostics list (#23), inside the lower region |
 | 19 | **Preview region**              | `SongsmithMainComponent::PreviewRegion` — preview header + `PreviewAssignedPanel` + preview-role `PianoRollComponent` |
-| 20 | **Preview region header**       | The "▼ LOTRO PREVIEW · how it will sound in-game" label row |
+| 20 | **Preview panel header**       | The `DockPanel` header (20 px) of the LOTRO preview: title "▼ LOTRO PREVIEW · how it will sound in-game" plus Float/Dock, a `...` menu (Dock to: Below track list / Bottom; also right-click the header) and a close button |
 | 21 | **Preview assigned panel**      | `PreviewAssignedPanel` (`Source/UI/PreviewAssignedPanel.{h,cpp}`) — assigned-track chips, instrument/range readout, range-policy label, output stats |
 | 22 | **Preview piano roll**          | `PianoRollComponent` constructed with `Role::Preview` — adds the range band and ghost/dropped-note overlays |
 | 23 | **Diagnostics list (Songsmith)** | `DiagnosticListView` hosted directly by `SongsmithMainComponent` — import diagnostics only, no ABC preview alongside it. **Hidden by default** — toggled via **View → Diagnostics list**; when hidden, the preview region (#19) takes the space it would otherwise share via the inner splitter (#18) |
@@ -81,9 +106,9 @@ When you say…       …I'll know you mean
 | 25 | **Diagnostic List View (export panel)** | `DiagnosticListView` inside `DiagnosticsPane` — the 6-column table |
 | 26 | **ABC Preview View**            | `AbcPreviewView` (`Source/UI/AbcPreviewView.{h,cpp}`) — read-only text editor showing the generated ABC, inside `DiagnosticsPane` |
 | 27 | **Status line**                 | The grey `juce::Label` at the bottom of `DiagnosticsPane` (`5,824 bytes · 184 bars · 3 parts`) |
-| 28 | **Track editor window**         | `TrackEditorWindow` (`Source/UI/TrackEditorWindow.{h,cpp}`) — floating, single-instance `juce::DocumentWindow` (native title bar with minimise/maximise/close) opened by double-clicking a track row (#10); a second double-click on a different row re-points it (`setTrack`) rather than opening another window. Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, plus the playback transport strip (#30), a seek ruler (#32) and the playhead overlay (#33) above/over the roll (the window is 42 px taller than before playback). Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
+| 28 | **Track editor panel**          | `TrackEditorPanel` (`Source/UI/TrackEditorPanel.{h,cpp}`) — the single-instance MIDI editor, a dock panel (`midiEditor`) that is hidden until a track row is double-clicked (#10), then opens **floating** the first time and in whichever mode (docked below the track list, or floating) you last used. A second double-click on a different row re-points it (`setTrack`). With no track loaded (after New / Open) it shows "Double-click a track to edit it". Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, plus the playback transport strip (#30), a seek ruler (#32) and the playhead overlay (#33) above/over the roll. Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
-| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor window (#28), both bound to the one `PlaybackController` |
+| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor panel (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | drawn speaker (mute) and headphone (solo) toggle icons on the second line of the track head (`TrackHeadComponent`, see #10) of every non-conductor row (#10); session-only, never saved or undoable |
 | 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. Tempo and meter are edited in the Tempo and Meter window (see below). Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
@@ -221,17 +246,18 @@ When you say…       …I'll know you mean
   The conductor and note-less tracks have no sections. Each of these is one
   undo step, and a press that changes nothing opens none.
 
-- **Track editor window** (#28, `TrackEditorWindow`) — a floating,
-  single-instance window opened by double-clicking a track row (#10). It
-  pops up centred over the main window (kept on that window's monitor), not
-  on the primary monitor.
-  Double-clicking a different row re-points the same window (`setTrack`)
+- **Track editor panel** (#28, `TrackEditorPanel`) — the single MIDI editor,
+  a dock panel opened by double-clicking a track row (#10). It starts
+  hidden; the first open is a floating window, centred over the main window
+  (kept on that window's monitor). After that it opens in the mode you last
+  left it (docked below the track list, or floating) and wherever you left
+  it. Double-clicking a different row re-points the same panel (`setTrack`)
   rather than opening a second one. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
   below for the editing gestures — plus translucent overlays of any tracks
-  currently ghost-toggled on in the track list (#10). Closing the window
-  clears the owning `SongsmithMainComponent`'s pointer to it (`onClosed`), so
-  the next double-click opens a fresh instance.
+  currently ghost-toggled on in the track list (#10). Closing it only hides
+  it (View → MIDI Editor shows it again); New / Open clears the loaded track
+  but keeps the panel's mode and visibility.
 - **Source piano roll** (#13, `PianoRollComponent`, `Role::Source`) — shows the
   track the Track editor window (#28) is currently pointed at (one track at
   a time), scrollable in both axes via an internal `juce::Viewport`. It
@@ -387,6 +413,10 @@ View
                                           list (#23) (checkbox; unchecked
                                           by default — hiding it gives its
                                           space to the preview region)
+  MIDI Editor                          ← shows/hides the editor panel (#28)
+                                          (ticked while shown; unchecked by default)
+  LOTRO Preview                        ← shows/hides the preview panel (#20)
+                                          (ticked while shown; checked by default)
 ```
 
 **File → Import ▸ MIDI…** and dropping a `.mid`/`.midi` file both import into
@@ -465,6 +495,8 @@ Transport
 View
   Export ABC panel                    ← ticked while visible
   Diagnostics list                    ← ticked while visible
+  MIDI Editor                         ← ticked while visible
+  LOTRO Preview                       ← ticked while visible
 
 Help
   About…
