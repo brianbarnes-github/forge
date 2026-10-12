@@ -289,8 +289,9 @@ juce::String TrackListComponent::conductorTempoText() const
 {
     const auto events = listTempoMeterEvents (doc);
     const auto marker = playback != nullptr ? playback->getMarkerTick() : std::nullopt;
-    const double bpm = marker.has_value() ? bpmAt (events, (int) *marker) : averageBpm (events, documentEndTick());
-    return juce::String::fromUTF8 (formatTempoText (bpm).c_str());
+    const auto text = marker.has_value() ? formatExactTempoText (bpmAt (events, (int) *marker))
+                                         : formatTempoText (averageBpm (events, documentEndTick()));
+    return juce::String::fromUTF8 (text.c_str());
 }
 
 void TrackListComponent::refreshConductorTempo()

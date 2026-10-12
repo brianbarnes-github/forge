@@ -2432,7 +2432,7 @@ TEST_CASE ("TrackListComponent: the Conductor head shows the tempo at the marker
                            .getChildFile ("midi").getChildFile ("blue.mid");
     REQUIRE (importMidiFile (doc, file, 1, diags));
     REQUIRE_FALSE (setTempo (doc, 0, 100.0));
-    REQUIRE_FALSE (setTempo (doc, 960, 200.0));
+    REQUIRE_FALSE (setTempo (doc, 960, 93.75));
 
     playbacktest::RecordingSink sink;
     PlaybackController playback (doc, sink);
@@ -2449,7 +2449,7 @@ TEST_CASE ("TrackListComponent: the Conductor head shows the tempo at the marker
     playback.setMarkerTick (500.0);
     CHECK (textOf() == sign + "100");
     playback.setMarkerTick (960.0);
-    CHECK (textOf() == sign + "200");
+    CHECK (textOf() == sign + "93.75");   // exact at the marker, not rounded
     playback.clearMarker();
     CHECK (textOf() == average);
 }

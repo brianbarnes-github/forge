@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <tuple>
 
@@ -338,6 +339,18 @@ double bpmAt (const std::vector<TempoMeterEvent>& events, int tick)
         bpm = e.bpm;   // the first tempo also covers ticks before it
     }
     return bpm.value_or (120.0);
+}
+
+std::string formatExactTempoText (double bpm)
+{
+    char buf[32];
+    std::snprintf (buf, sizeof buf, "%.2f", bpm);
+    std::string text = buf;
+    while (text.back() == '0')
+        text.pop_back();
+    if (text.back() == '.')
+        text.pop_back();
+    return "\xe2\x99\xa9= " + text;
 }
 
 std::string formatTempoText (double bpm)

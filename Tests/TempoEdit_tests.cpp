@@ -496,6 +496,15 @@ TEST_CASE ("formatTempoText shows a rounded whole BPM after the quarter-note sig
     CHECK (formatTempoText (120.0) == "\xe2\x99\xa9= 120");
 }
 
+TEST_CASE ("formatExactTempoText keeps the fraction, without trailing zeros", "[tempo-edit][average]")
+{
+    CHECK (formatExactTempoText (93.75) == "\xe2\x99\xa9= 93.75");
+    CHECK (formatExactTempoText (100.0) == "\xe2\x99\xa9= 100");
+    CHECK (formatExactTempoText (100.5) == "\xe2\x99\xa9= 100.5");
+    CHECK (formatExactTempoText (100.000001) == "\xe2\x99\xa9= 100");
+    CHECK (formatExactTempoText (118.456) == "\xe2\x99\xa9= 118.46");
+}
+
 TEST_CASE ("bpmAt is the tempo in force at a tick", "[tempo-edit][average]")
 {
     using E = TempoMeterEvent;

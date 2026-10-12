@@ -67,6 +67,8 @@ struct TempoMeterEvent
 double averageBpm (const std::vector<TempoMeterEvent>& events, int endTick);
 // The tempo in force at `tick` (a change applies from its own tick); 120 with no tempo event.
 double bpmAt (const std::vector<TempoMeterEvent>& events, int tick);
+// "♩= 93.75": a BPM to at most two decimals, trailing zeros dropped (UTF-8).
+std::string formatExactTempoText (double bpm);
 // "♩= 118": a BPM rounded to a whole number (UTF-8).
 std::string formatTempoText (double bpm);
 
