@@ -50,8 +50,10 @@ FloatBounds DockFloatWindow::currentBounds() const
 
 void DockFloatWindow::closeButtonPressed()
 {
-    if (onClosed)
-        onClosed();
+    // Copy first: the callback usually destroys this window, and with it onClosed.
+    const auto callback = onClosed;
+    if (callback)
+        callback();
 }
 
 juce::Rectangle<int> DockFloatWindow::resolveBounds (std::optional<FloatBounds> saved,

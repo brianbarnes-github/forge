@@ -5,6 +5,8 @@
 #include "MergeScope.h"
 #include "PartStripComponent.h"
 #include "PianoRollComponent.h"
+#include "Dock/DockHost.h"
+#include "Dock/DockStack.h"
 #include "Playback/PlaybackController.h"
 #include "PreviewAssignedPanel.h"
 #include "PreviewNoteSource.h"
@@ -63,7 +65,11 @@ public:
     // View -> Diagnostics list menu toggle (MainWindow). Hidden by default;
     // hiding it hands its share of lowerRegion's height back to the preview
     // region instead of leaving a dead gap (see LowerRegion::resized()).
-    void setDiagnosticsVisible (bool shouldShow) { lowerRegion.setDiagnosticsVisible (shouldShow); }
+    void setDiagnosticsVisible (bool shouldShow)
+    {
+        lowerRegion.setDiagnosticsVisible (shouldShow);
+        dockHost.setLowerHasOtherContent (shouldShow);
+    }
     bool isDiagnosticsVisible() const noexcept { return lowerRegion.isDiagnosticsVisible(); }
 
     // Called by MainWindow right after a MIDI import completes, so the
@@ -120,11 +126,10 @@ private:
     class PreviewRegion : public juce::Component
     {
     public:
-        PreviewRegion (juce::Label& headerIn, PreviewAssignedPanel& panelIn, PianoRollComponent& rollIn);
+        PreviewRegion (PreviewAssignedPanel& panelIn, PianoRollComponent& rollIn);
         void resized() override;
 
     private:
-        juce::Label& header;
         PreviewAssignedPanel& panel;
         PianoRollComponent& roll;
     };
@@ -135,7 +140,7 @@ private:
         // `transportIn` (null when there is no playback) is the bar across the
         // top of the region; it rides along when the splitter above is dragged.
         LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
-                     PreviewRegion& previewRegionIn, DiagnosticListView& diagnosticsIn);
+                     dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn);
         void resized() override;
 
         void setDiagnosticsVisible (bool shouldShow);
@@ -144,7 +149,7 @@ private:
     private:
         juce::Component* transport;
         PartStripComponent& partStrip;
-        PreviewRegion& previewRegion;
+        dock::DockStack& bottomStack;
         DiagnosticListView& diagnostics;
         SplitterComponent innerSplitter { SplitterComponent::Orientation::topBottom };
     };
@@ -221,7 +226,6 @@ private:
 
     PartStripComponent        partStrip;
 
-    juce::Label                previewHeader;
     PianoRollComponent          previewRoll { PianoRollComponent::Role::Preview };
     PreviewAssignedPanel        previewAssignedPanel;
     std::unique_ptr<PreviewNoteSource> currentPreviewNoteSource;
@@ -237,10 +241,13 @@ private:
     DiagnosticListView         diagnostics;
 
     std::unique_ptr<TransportStrip> transportStrip;   // before lowerRegion, which lays it out
+    dock::DockStack topStack;      // [upper, panels below the track list, lower]
+    dock::DockStack bottomStack;   // the bottom-zone panels, inside lowerRegion
     UpperRegion   upperRegion;
     PreviewRegion previewRegion;
     LowerRegion   lowerRegion;
-    SplitterComponent splitter;
+    // After everything it hosts: its panels re-parent the content, so it must be destroyed first.
+    dock::DockHost dockHost;
 
     static constexpr int sourceHeaderHeight = 20;
     static constexpr int partStripHeight = 110;

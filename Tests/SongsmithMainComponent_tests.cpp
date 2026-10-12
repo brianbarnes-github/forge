@@ -11,6 +11,7 @@
 #include "UI/Playback/PlaybackController.h"
 #include "UI/Playback/TransportStrip.h"
 #include "UI/SongModelBridge.h"
+#include "UI/Dock/DockPanel.h"
 #include "UI/SongsmithMainComponent.h"
 #include "UI/TempoEdit.h"
 #include "UI/TempoMeterEditorWindow.h"
@@ -18,6 +19,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 using namespace lotro;
+
 
 namespace lotro
 {
@@ -68,7 +70,14 @@ namespace lotro
         static TransportStrip* transportStrip (SongsmithMainComponent& c) { return c.transportStrip.get(); }
         static juce::Component& upperRegion (SongsmithMainComponent& c) { return c.upperRegion; }
         static juce::Component& lowerRegion (SongsmithMainComponent& c) { return c.lowerRegion; }
-        static SplitterComponent& splitter (SongsmithMainComponent& c) { return c.splitter; }
+        // Stands in for dragging the old splitter: gives the upper region `fraction` of the height.
+        static void setUpperFraction (SongsmithMainComponent& c, double fraction)
+        {
+            auto layout = c.dockHost.state();
+            layout.upperWeight = fraction;
+            layout.lowerWeight = 1.0 - fraction;
+            c.dockHost.apply (layout);
+        }
         static std::size_t ghostedCount (const SongsmithMainComponent& c) { return c.ghostedTrackIds.size(); }
         static juce::int64 selectedPreviewPartId (const SongsmithMainComponent& c) { return c.selectedPreviewPartId; }
         static void trackGhostToggled (SongsmithMainComponent& c, juce::int64 id, bool v) { c.trackGhostToggled (id, v); }
@@ -93,9 +102,10 @@ namespace lotro
         {
             return c.lowerRegion.getHeight();
         }
+        // In lowerRegion's own space (previewRegion now sits inside a dock panel in the bottom stack).
         static int previewRegionBottom (const SongsmithMainComponent& c)
         {
-            return c.previewRegion.getBottom();
+            return c.lowerRegion.getLocalArea (&c.previewRegion, c.previewRegion.getLocalBounds()).getBottom();
         }
     };
 }
@@ -479,7 +489,7 @@ TEST_CASE ("SongsmithMainComponent: the transport strip heads the lower region, 
     CHECK (partTopInView() == stripTopInView() + TransportStrip::height);
 
     const int before = stripTopInView();
-    Access::splitter (view).setFraction (0.3f);
+    Access::setUpperFraction (view, 0.3);
     view.resized();
     CHECK (stripTopInView() < before);
     CHECK (partTopInView() == stripTopInView() + TransportStrip::height);
@@ -669,4 +679,36 @@ TEST_CASE ("SongsmithMainComponent: zooming the track list repaints the open Tem
                                            juce::Time::getCurrentTime(), pos, juce::Time::getCurrentTime(), 1, false),
                          wheel);
     main.fitTrackTimelineToDocument();
+}
+
+TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter layout", "[songsmith][layout]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 700);
+
+    using Access = SongsmithMainComponentTestAccess;
+    auto& lower = Access::lowerRegion (view);
+    auto& upper = Access::upperRegion (view);
+    const auto roll = lower.getLocalArea (&Access::previewRoll (view), Access::previewRoll (view).getLocalBounds());
+    const auto strip = view.getLocalArea (Access::transportStrip (view), Access::transportStrip (view)->getLocalBounds());
+    const auto part = view.getLocalArea (&Access::partStrip (view), Access::partStrip (view).getLocalBounds());
+    // Recorded from the unmodified splitter layout (1000x700): upper 0,0,1000,385; lower 0,391,1000,309;
+    // roll in lower 160,158,840,151; transport 0,391,1000,28; part strip 0,419,1000,110.
+    // The stack's divider is laid out inside the height, so the split can differ by a few pixels.
+    CHECK (std::abs (upper.getHeight() - 385) <= 4);
+    CHECK (upper.getY() == 0);
+    CHECK (lower.getY() == upper.getBottom() + 6);
+    CHECK (lower.getBottom() == 700);
+    CHECK (strip.getY() == lower.getY());
+    CHECK (strip.getHeight() == 28);
+    CHECK (part.getY() == strip.getBottom());
+    CHECK (part.getHeight() == 110);
+    CHECK (roll.getX() == 160);
+    CHECK (roll.getY() == 28 + 110 + lotro::dock::DockPanel::headerHeight);
+    CHECK (roll.getWidth() == 840);
+    CHECK (roll.getBottom() == lower.getHeight());
 }

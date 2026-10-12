@@ -22,6 +22,7 @@ public:
 
     const std::string& id() const noexcept { return panelId; }
     void setTitle (const juce::String&);
+    const juce::String& getTitle() const noexcept { return title; }
     void setFloating (bool floating);   // button text only: "Float" / "Dock"
     bool isFloating() const noexcept { return floating; }
 

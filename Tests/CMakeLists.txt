@@ -74,6 +74,7 @@ add_executable(forge_tests
     DockStackLayout_tests.cpp
     DockStack_tests.cpp
     DockPanel_tests.cpp
+    DockHost_tests.cpp
     SourceRollEditor_tests.cpp
     HistoryKeys_tests.cpp
     MenuModel_tests.cpp
@@ -161,6 +162,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStack.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockPanel.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockFloatWindow.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockHost.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackNotePreview.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp

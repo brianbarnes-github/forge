@@ -45,11 +45,12 @@ void DockStack::setItems (std::vector<Item> newItems)
     {
         const bool kept = std::any_of (newItems.begin(), newItems.end(),
                                        [&] (const Item& n) { return n.component == old.component; });
-        if (! kept && old.component != nullptr)
+        // Only touch a component that is still ours: it may already have been
+        // re-parented elsewhere (e.g. a panel that moved into a floating window).
+        if (! kept && old.component != nullptr && old.component->getParentComponent() == this)
         {
             old.component->setVisible (false);
-            if (old.component->getParentComponent() == this)
-                removeChildComponent (old.component);
+            removeChildComponent (old.component);
         }
     }
 

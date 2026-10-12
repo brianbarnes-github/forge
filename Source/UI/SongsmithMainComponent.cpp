@@ -22,11 +22,9 @@ void SongsmithMainComponent::UpperRegion::resized()
     trackList.setBounds (area);
 }
 
-SongsmithMainComponent::PreviewRegion::PreviewRegion (juce::Label& headerIn, PreviewAssignedPanel& panelIn,
-                                                       PianoRollComponent& rollIn)
-    : header (headerIn), panel (panelIn), roll (rollIn)
+SongsmithMainComponent::PreviewRegion::PreviewRegion (PreviewAssignedPanel& panelIn, PianoRollComponent& rollIn)
+    : panel (panelIn), roll (rollIn)
 {
-    addAndMakeVisible (header);
     addAndMakeVisible (panel);
     addAndMakeVisible (roll);
 }
@@ -34,25 +32,24 @@ SongsmithMainComponent::PreviewRegion::PreviewRegion (juce::Label& headerIn, Pre
 void SongsmithMainComponent::PreviewRegion::resized()
 {
     auto area = getLocalBounds();
-    header.setBounds (area.removeFromTop (sourceHeaderHeight));
     panel.setBounds (area.removeFromLeft (previewPanelWidth));
     roll.setBounds (area);
 }
 
 SongsmithMainComponent::LowerRegion::LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
-                                                   PreviewRegion& previewRegionIn, DiagnosticListView& diagnosticsIn)
-    : transport (transportIn), partStrip (partStripIn), previewRegion (previewRegionIn), diagnostics (diagnosticsIn)
+                                                   dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn)
+    : transport (transportIn), partStrip (partStripIn), bottomStack (bottomStackIn), diagnostics (diagnosticsIn)
 {
     if (transport != nullptr)
         addAndMakeVisible (*transport);
     addAndMakeVisible (partStrip);
-    addAndMakeVisible (previewRegion);
+    addAndMakeVisible (bottomStack);
 
     // Hidden by default (View -> Diagnostics list shows it) -- addChildComponent,
     // not addAndMakeVisible, so it starts invisible without an extra call.
     addChildComponent (diagnostics);
 
-    innerSplitter.setComponents (&previewRegion, &diagnostics);
+    innerSplitter.setComponents (&bottomStack, &diagnostics);
     addChildComponent (innerSplitter);
 }
 
@@ -77,10 +74,10 @@ void SongsmithMainComponent::LowerRegion::resized()
     else
     {
         // No dead gap where diagnostics used to share space via the inner
-        // splitter -- the preview region takes all of it directly, bypassing
+        // splitter -- the bottom stack takes all of it directly, bypassing
         // the splitter entirely (it only positions siblings when visible).
         innerSplitter.setVisible (false);
-        previewRegion.setBounds (area);
+        bottomStack.setBounds (area);
     }
 }
 
@@ -91,21 +88,15 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       partStrip (document),
       transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
       upperRegion (sourceHeader, trackList),
-      previewRegion (previewHeader, previewAssignedPanel, previewRoll),
-      lowerRegion (transportStrip.get(), partStrip, previewRegion, diagnostics),
-      splitter (SplitterComponent::Orientation::topBottom)
+      previewRegion (previewAssignedPanel, previewRoll),
+      lowerRegion (transportStrip.get(), partStrip, bottomStack, diagnostics),
+      dockHost (topStack, bottomStack, upperRegion, lowerRegion, nullptr)
 {
     sourceHeader.setText (
         juce::String::fromUTF8 ("\xe2\x96\xb2 MIDI SOURCE \xc2\xb7 drag tracks down to assign"),
         juce::dontSendNotification);
     sourceHeader.setColour (juce::Label::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
     sourceHeader.setColour (juce::Label::textColourId, juce::Colour (0xFF7FA8D0)); // mockup's blue label
-
-    previewHeader.setText (
-        juce::String::fromUTF8 ("\xe2\x96\xbc LOTRO PREVIEW \xc2\xb7 how it will sound in-game"),
-        juce::dontSendNotification);
-    previewHeader.setColour (juce::Label::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
-    previewHeader.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::accentAmber));
 
     trackList.setPlayback (playback);
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
@@ -123,15 +114,15 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     };
     partStrip.onPartSelected = [this] (juce::int64 partId) { selectPartForPreview (partId); };
 
-    addAndMakeVisible (upperRegion);
-    addAndMakeVisible (lowerRegion);
+    addAndMakeVisible (topStack);
 
-    // Splitter sits ON TOP of upperRegion/lowerRegion in z-order (same trick
-    // as MainWindow::Body's splitter) — its own hit area is transparent to
-    // clicks so upperRegion/lowerRegion get them, but its drag bar still
-    // gets its own via the second `true`.
-    splitter.setComponents (&upperRegion, &lowerRegion);
-    addAndMakeVisible (splitter);
+    // The LOTRO preview is the first dockable panel; the dock host puts it in the
+    // bottom zone (today's layout) and parents upperRegion/lowerRegion in topStack.
+    dockHost.setLowerChromeHeight ((transportStrip != nullptr ? TransportStrip::height : 0) + partStripHeight);
+    dockHost.addPanel (dock::panelDefs()[0], juce::Colour (SongsmithColours::accentAmber), previewRegion);
+    dockHost.panel ("lotroPreview")->setTitle (
+        juce::String::fromUTF8 ("\xe2\x96\xbc LOTRO PREVIEW \xc2\xb7 how it will sound in-game"));
+    dockHost.apply (dock::defaultLayout());
 }
 
 SongsmithMainComponent::~SongsmithMainComponent()
@@ -150,7 +141,7 @@ void SongsmithMainComponent::paint (juce::Graphics& g)
 
 void SongsmithMainComponent::resized()
 {
-    splitter.setBounds (getLocalBounds());
+    topStack.setBounds (getLocalBounds());
 }
 
 void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)

@@ -161,6 +161,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/Dock/DockStack.cpp
     Source/UI/Dock/DockPanel.cpp
     Source/UI/Dock/DockFloatWindow.cpp
+    Source/UI/Dock/DockHost.cpp
     Source/UI/TimelineViewState.cpp
     Source/UI/TrackNotePreview.cpp
     Source/UI/TrackRowComponent.cpp
