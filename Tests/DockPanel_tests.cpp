@@ -80,3 +80,58 @@ TEST_CASE ("dock float window: resolveBounds keeps saved bounds reachable", "[do
     const auto good = DockFloatWindow::resolveBounds (FloatBounds { 100, 100, 640, 300 }, areas, primary);
     CHECK (good == juce::Rectangle<int> (100, 100, 640, 300));
 }
+
+TEST_CASE ("dock panel: the Always on top item only appears while floating and reflects its state", "[dock][panel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    juce::Component content;
+    DockPanel panel ("p", "Panel", juce::Colours::white, content);
+
+    CHECK (panel.buildMenu().getNumItems() == 2);   // docked: the two zones only
+    panel.setFloating (true);
+    auto menu = panel.buildMenu();
+    CHECK (menu.getNumItems() > 2);
+    bool found = false, ticked = true;
+    for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
+        if (it.getItem().text == "Always on top") { found = true; ticked = it.getItem().isTicked; }
+    CHECK (found);
+    CHECK_FALSE (ticked);
+
+    panel.setAlwaysOnTop (true);
+    for (juce::PopupMenu::MenuItemIterator it (panel.buildMenu()); it.next();)
+        if (it.getItem().text == "Always on top")
+            CHECK (it.getItem().isTicked);
+}
+
+TEST_CASE ("dock panel: choosing Always on top asks to flip it; choosing a zone docks there", "[dock][panel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    juce::Component content;
+    DockPanel panel ("p", "Panel", juce::Colours::white, content);
+    panel.setFloating (true);
+
+    bool flipped = false;
+    std::optional<Zone> zone;
+    panel.onAlwaysOnTopToggle = [&] { flipped = true; };
+    panel.onDockTo = [&] (Zone z) { zone = z; };
+
+    panel.chooseMenuItemForTesting ("Always on top");
+    CHECK (flipped);
+    CHECK_FALSE (zone.has_value());
+    panel.chooseMenuItemForTesting ("Bottom");
+    REQUIRE (zone.has_value());
+    CHECK (*zone == Zone::bottom);
+}
+
+TEST_CASE ("dock panel: a right click anywhere on the header, buttons included, is a context-menu request", "[dock][panel]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    juce::Component content;
+    DockPanel panel ("p", "Panel", juce::Colours::white, content);
+    panel.setSize (300, 200);
+
+    CHECK (panel.isContextMenuTrigger (juce::Point<int> (10, 5), true));      // title
+    CHECK (panel.isContextMenuTrigger (juce::Point<int> (290, 5), true));     // over the close button
+    CHECK_FALSE (panel.isContextMenuTrigger (juce::Point<int> (10, 5), false));   // a left click
+    CHECK_FALSE (panel.isContextMenuTrigger (juce::Point<int> (10, DockPanel::headerHeight + 5), true));   // content
+}

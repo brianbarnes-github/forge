@@ -16,7 +16,7 @@ bool goodWeight (double w) { return std::isfinite (w) && w > 0.0; }
 
 PanelState stateFromDef (const PanelDef& d, int order)
 {
-    return { d.id, d.defaultMode, d.defaultVisible, d.defaultZone, order, d.defaultWeight, std::nullopt };
+    return { d.id, d.defaultMode, d.defaultVisible, d.defaultZone, order, d.defaultWeight, std::nullopt, false };
 }
 
 // Renumber `order` 0..n-1 within each zone, keeping the existing relative order.
@@ -67,7 +67,7 @@ std::optional<PanelState> panelFromVar (const juce::var& v)
     // A key that is absent keeps that panel's registry default (an entry holding only an id is valid).
     const auto name = id.toString().toStdString();
     const auto defIt = std::find_if (panelDefs().begin(), panelDefs().end(), [&] (const PanelDef& d) { return d.id == name; });
-    PanelState p { name, Mode::docked, false, Zone::bottom, 0, 1.0, std::nullopt };
+    PanelState p { name, Mode::docked, false, Zone::bottom, 0, 1.0, std::nullopt, false };
     if (defIt != panelDefs().end())
         p = stateFromDef (*defIt, 0);
 
@@ -81,6 +81,10 @@ std::optional<PanelState> panelFromVar (const juce::var& v)
     p.order = intOr (v.getProperty ("order", {}), p.order);
     if (v.hasProperty ("weight"))
         p.weight = numberOr (v.getProperty ("weight", {}), 0.0);
+
+    const auto onTop = v.getProperty ("alwaysOnTop", {});
+    if (onTop.isBool())
+        p.alwaysOnTop = static_cast<bool> (onTop);
 
     const auto fb = v.getProperty ("floatBounds", {});
     if (fb.isObject())
@@ -168,6 +172,12 @@ void setDocked (LayoutState& s, const std::string& id)
         p->mode = Mode::docked;
 }
 
+void setAlwaysOnTop (LayoutState& s, const std::string& id, bool on)
+{
+    if (auto* p = find (s, id))
+        p->alwaysOnTop = on;
+}
+
 void moveToZone (LayoutState& s, const std::string& id, Zone zone)
 {
     auto* p = find (s, id);
@@ -198,6 +208,7 @@ std::string toJson (const LayoutState& s)
         o->setProperty ("zone", zoneName (p.zone));
         o->setProperty ("order", p.order);
         o->setProperty ("weight", p.weight);
+        o->setProperty ("alwaysOnTop", p.alwaysOnTop);
         if (p.floatBounds)
         {
             auto* b = new juce::DynamicObject();

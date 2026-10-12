@@ -235,3 +235,42 @@ TEST_CASE ("dock host: real divider drags while lower is collapsed do not shrink
     CHECK (after.upperWeight + find (after, "midiEditor")->weight == Catch::Approx (sumBefore).margin (1e-9));
     CHECK (after.lowerWeight == before.lowerWeight);
 }
+
+TEST_CASE ("dock host: always-on-top reaches the floating window and survives a dock and float cycle", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    f.host.setVisible ("midiEditor", true);
+    auto* editor = f.host.panel ("midiEditor");
+    auto windowOf = [&] { return dynamic_cast<DockFloatWindow*> (editor->getTopLevelComponent()); };
+    REQUIRE (windowOf() != nullptr);
+    CHECK_FALSE (windowOf()->isAlwaysOnTop());
+
+    int saves = 0;
+    f.host.onLayoutChanged = [&] (const LayoutState&) { ++saves; };
+    editor->onAlwaysOnTopToggle();
+    CHECK (windowOf()->isAlwaysOnTop());
+    CHECK (find (f.host.state(), "midiEditor")->alwaysOnTop);
+    CHECK (saves == 1);
+
+    editor->onFloatToggle();   // dock: the setting is kept
+    editor->onFloatToggle();   // float again: a new window
+    REQUIRE (windowOf() != nullptr);
+    CHECK (windowOf()->isAlwaysOnTop());
+
+    editor->onAlwaysOnTopToggle();
+    CHECK_FALSE (windowOf()->isAlwaysOnTop());
+}
+
+TEST_CASE ("dock host: apply gives a restored floating window its saved always-on-top", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    auto layout = f.host.state();
+    show (layout, "midiEditor");
+    setAlwaysOnTop (layout, "midiEditor", true);
+    f.host.apply (layout);
+    auto* window = dynamic_cast<DockFloatWindow*> (f.host.panel ("midiEditor")->getTopLevelComponent());
+    REQUIRE (window != nullptr);
+    CHECK (window->isAlwaysOnTop());
+}

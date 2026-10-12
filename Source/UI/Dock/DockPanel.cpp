@@ -18,16 +18,40 @@ DockPanel::DockPanel (std::string id, juce::String titleIn, juce::Colour colour,
 
     floatButton.onClick = [this] { if (onFloatToggle) onFloatToggle(); };
     closeButton.onClick = [this] { if (onClose) onClose(); };
-    menuButton.onClick  = [this]
+    menuButton.onClick  = [this] { showMenu(); };
+
+    // A right click over the title or any header button opens the same menu: the buttons would
+    // otherwise swallow it. Content below the header keeps its own context menus.
+    addMouseListener (this, true);
+}
+
+void DockPanel::showMenu()
+{
+    buildMenu().showMenuAsync ({}, [safe = juce::Component::SafePointer<DockPanel> (this)] (int result)
     {
-        buildZoneMenu().showMenuAsync ({}, [safe = juce::Component::SafePointer<DockPanel> (this)] (int result)
-        {
-            if (safe == nullptr || ! safe->onDockTo)
-                return;
-            if (result == 1) safe->onDockTo (Zone::belowTracks);
-            if (result == 2) safe->onDockTo (Zone::bottom);
-        });
-    };
+        if (safe != nullptr)
+            safe->menuItemChosen (result);
+    });
+}
+
+void DockPanel::menuItemChosen (int id)
+{
+    if (id == 1 && onDockTo) onDockTo (Zone::belowTracks);
+    if (id == 2 && onDockTo) onDockTo (Zone::bottom);
+    if (id == 3 && onAlwaysOnTopToggle) onAlwaysOnTopToggle();
+}
+
+void DockPanel::chooseMenuItemForTesting (const juce::String& text)
+{
+    auto menu = buildMenu();
+    for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
+        if (it.getItem().text == text)
+            menuItemChosen (it.getItem().itemID);
+}
+
+bool DockPanel::isContextMenuTrigger (juce::Point<int> p, bool isPopupClick) const noexcept
+{
+    return isPopupClick && p.y >= 0 && p.y < headerHeight;
 }
 
 void DockPanel::setTitle (const juce::String& newTitle)
@@ -47,6 +71,17 @@ juce::PopupMenu DockPanel::buildZoneMenu() const
     juce::PopupMenu menu;
     menu.addItem (1, "Below track list");
     menu.addItem (2, "Bottom");
+    return menu;
+}
+
+juce::PopupMenu DockPanel::buildMenu() const
+{
+    auto menu = buildZoneMenu();
+    if (floating)
+    {
+        menu.addSeparator();
+        menu.addItem (3, "Always on top", true, alwaysOnTop);
+    }
     return menu;
 }
 
@@ -72,8 +107,9 @@ void DockPanel::resized()
 
 void DockPanel::mouseUp (const juce::MouseEvent& e)
 {
-    if (e.mods.isPopupMenu() && e.y < headerHeight)
-        menuButton.triggerClick();
+    // Also receives the mouse-ups of its children (addMouseListener above).
+    if (isContextMenuTrigger (e.getEventRelativeTo (this).getPosition(), e.mods.isPopupMenu()))
+        showMenu();
 }
 
 } // namespace lotro::dock

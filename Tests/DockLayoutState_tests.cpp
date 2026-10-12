@@ -160,3 +160,28 @@ TEST_CASE ("dock: a panel entry with only an id keeps that panel's defaults", "[
     CHECK (find (s, "midiEditor")->mode == Mode::floating);
     CHECK (find (s, "midiEditor")->zone == Zone::belowTracks);
 }
+
+TEST_CASE ("dock: always-on-top defaults off, is set per panel and round-trips", "[dock][state]")
+{
+    auto s = defaultLayout();
+    for (const auto& p : s.panels)
+        CHECK_FALSE (p.alwaysOnTop);
+
+    setAlwaysOnTop (s, "midiEditor", true);
+    CHECK (find (s, "midiEditor")->alwaysOnTop);
+    CHECK_FALSE (find (s, "parts")->alwaysOnTop);
+
+    const auto back = fromJson (toJson (s));
+    CHECK (find (back, "midiEditor")->alwaysOnTop);
+    CHECK_FALSE (find (back, "lotroPreview")->alwaysOnTop);
+
+    setAlwaysOnTop (s, "nope", true);   // unknown ids are a no-op
+}
+
+TEST_CASE ("dock: a saved layout without alwaysOnTop, or with a bad value, means off", "[dock][state]")
+{
+    const auto old = fromJson ("{\"panels\": [{\"id\": \"midiEditor\", \"mode\": \"floating\"}]}");
+    CHECK_FALSE (find (old, "midiEditor")->alwaysOnTop);
+    const auto bad = fromJson ("{\"panels\": [{\"id\": \"midiEditor\", \"alwaysOnTop\": \"yes\"}]}");
+    CHECK_FALSE (find (bad, "midiEditor")->alwaysOnTop);
+}

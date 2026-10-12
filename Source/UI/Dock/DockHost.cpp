@@ -83,6 +83,15 @@ void DockHost::addPanel (const PanelDef& def, juce::Colour titleColour, juce::Co
         userChanged();
     };
     p.onClose = [this, id] { hide (layout, id); userChanged(); };
+    p.onAlwaysOnTopToggle = [this, id]
+    {
+        if (const auto* s = find (layout, id))
+        {
+            captureFloatBounds (layout);
+            setAlwaysOnTop (layout, id, ! s->alwaysOnTop);
+            userChanged();
+        }
+    };
     p.onDockTo = [this, id] (Zone zone)
     {
         captureFloatBounds (layout);
@@ -208,6 +217,7 @@ void DockHost::rebuild()
         if (! wantWindow)
             e->window.reset();
         e->panel->setFloating (s != nullptr && s->mode == Mode::floating);
+        e->panel->setAlwaysOnTop (s != nullptr && s->alwaysOnTop);
     }
 
     // 2. Stacks.
@@ -250,6 +260,8 @@ void DockHost::rebuild()
             e->window->onBoundsChanged = [this] { boundsTimer.startTimer (boundsSettleMs); };
             e->window->onClosed = [this, id] { captureFloatBounds (layout); hide (layout, id); userChanged(); };
         }
+        if (e->window != nullptr)
+            e->window->setAlwaysOnTop (s != nullptr && s->alwaysOnTop);
     }
 }
 

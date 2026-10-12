@@ -57,8 +57,8 @@ the classic editor's sibling pane.
 
 The MIDI editor (#28), the LOTRO preview (#20) and the Parts strip (#15) are panels (`Source/UI/Dock/`). Each has a
 20 px header with its title and three controls: **Float** / **Dock** (toggles between the page
-and its own window), **...** (the "Dock to" menu: *Below track list* or *Bottom*; right-clicking
-the header opens it too) and **x** (hide). View → MIDI Editor / LOTRO Preview / Parts show or hide them
+and its own window), **...** (the "Dock to" menu: *Below track list* or *Bottom*, plus a ticked *Always on top* item while the
+panel floats; right-clicking anywhere on the header, over its buttons too, opens it) and **x** (hide). View → MIDI Editor / LOTRO Preview / Parts show or hide them
 again, remembering whether each was docked or floating.
 
 - **Zones.** *Below track list* (between the track list and the lower region; the editor's
@@ -68,6 +68,8 @@ again, remembering whether each was docked or floating.
   editor's first open is floating.
 - **Floating windows** are native-title-bar windows; their position and size are remembered. A
   remembered position that is no longer on any display is replaced by a reachable one.
+  *Always on top* (header menu, floating panels only) keeps that window above the app's other windows;
+  it is remembered per panel and kept while the panel is docked.
 - **Remembered across sessions** in the app settings (key `dock.layout`, JSON), not in the
   `.songsmith` file. A missing or corrupt value gives the first-run layout.
 - If nothing is docked at the bottom and diagnostics are off, the lower region shrinks to the
@@ -98,7 +100,7 @@ When you say…       …I'll know you mean
 | 17 | **Assignment chip**             | `AssignmentChipComponent` — swatch, `Tk<n>`, transpose, `×` to unassign, inside a part slot |
 | 18 | **Inner splitter**              | Between the preview region (#19) and the diagnostics list (#23), inside the lower region |
 | 19 | **Preview region**              | `SongsmithMainComponent::PreviewRegion` — `PreviewAssignedPanel` + preview-role `PianoRollComponent` |
-| 20 | **Preview panel header**       | The `DockPanel` header (20 px) of the LOTRO preview: title "▼ LOTRO PREVIEW · how it will sound in-game" plus Float/Dock, a `...` menu (Dock to: Below track list / Bottom; also right-click the header) and a close button |
+| 20 | **Preview panel header**       | The `DockPanel` header (20 px) of the LOTRO preview: title "▼ LOTRO PREVIEW · how it will sound in-game" plus Float/Dock, a `...` menu (Dock to: Below track list / Bottom, Always on top while floating; also right-click anywhere on the header) and a close button |
 | 21 | **Preview assigned panel**      | `PreviewAssignedPanel` (`Source/UI/PreviewAssignedPanel.{h,cpp}`) — assigned-track chips, instrument/range readout, range-policy label, output stats |
 | 22 | **Preview piano roll**          | `PianoRollComponent` constructed with `Role::Preview` — adds the range band and ghost/dropped-note overlays |
 | 23 | **Diagnostics list (Songsmith)** | `DiagnosticListView` hosted directly by `SongsmithMainComponent` — import diagnostics only, no ABC preview alongside it. **Hidden by default** — toggled via **View → Diagnostics list**; when hidden, the preview region (#19) takes the space it would otherwise share via the inner splitter (#18) |

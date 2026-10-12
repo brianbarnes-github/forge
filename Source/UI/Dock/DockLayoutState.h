@@ -33,6 +33,7 @@ struct PanelState
     int    order;      // among panels of the same zone, ascending
     double weight;     // > 0, share within its stack
     std::optional<FloatBounds> floatBounds;
+    bool   alwaysOnTop = false;   // while floating: the window stays above the main window
 };
 
 struct LayoutState
@@ -53,6 +54,7 @@ void hide        (LayoutState&, const std::string& id);
 void setFloating (LayoutState&, const std::string& id, std::optional<FloatBounds>);
 void setDocked   (LayoutState&, const std::string& id);
 void moveToZone  (LayoutState&, const std::string& id, Zone);
+void setAlwaysOnTop (LayoutState&, const std::string& id, bool);
 
 std::string toJson (const LayoutState&);
 LayoutState fromJson (const std::string&);   // never throws; corrupt/empty -> defaultLayout()
