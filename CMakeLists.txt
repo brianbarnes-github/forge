@@ -156,6 +156,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/PianoRollComponent.cpp
     Source/UI/SourceRollEditor.cpp
     Source/UI/SplitterComponent.cpp
+    Source/UI/Dock/DockLayoutState.cpp
     Source/UI/TimelineViewState.cpp
     Source/UI/TrackNotePreview.cpp
     Source/UI/TrackRowComponent.cpp

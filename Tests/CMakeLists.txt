@@ -70,6 +70,7 @@ add_executable(forge_tests
     SongsmithMainComponent_tests.cpp
     PianoRollComponent_tests.cpp
     TrackEditorWindow_tests.cpp
+    DockLayoutState_tests.cpp
     SourceRollEditor_tests.cpp
     HistoryKeys_tests.cpp
     MenuModel_tests.cpp
@@ -152,6 +153,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/PreferencesDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockLayoutState.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackNotePreview.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp
