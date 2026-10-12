@@ -72,6 +72,8 @@ add_executable(forge_tests
     TrackEditorWindow_tests.cpp
     DockLayoutState_tests.cpp
     DockStackLayout_tests.cpp
+    DockStack_tests.cpp
+    DockPanel_tests.cpp
     SourceRollEditor_tests.cpp
     HistoryKeys_tests.cpp
     MenuModel_tests.cpp
@@ -156,6 +158,9 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockLayoutState.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStackLayout.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStack.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockPanel.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockFloatWindow.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackNotePreview.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp
