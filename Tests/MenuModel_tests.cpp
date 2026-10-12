@@ -228,11 +228,26 @@ TEST_CASE ("MenuModel: View items are ticked from their visibility flags indepen
         MenuState s; s.exportPanelVisible = exportPanel; s.diagnosticsVisible = diag;
         return menuNamed (buildMenus (s), "View");
     };
-    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list" });
+    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Editor", "LOTRO Preview" });
     CHECK_FALSE (itemWith (view (false, true), ViewExportPanelToggle).ticked);
     CHECK (itemWith (view (false, true), ViewDiagnosticsToggle).ticked);
     CHECK (itemWith (view (true, false), ViewExportPanelToggle).ticked);
     CHECK_FALSE (itemWith (view (true, false), ViewDiagnosticsToggle).ticked);
+}
+
+TEST_CASE ("MenuModel: the panel items are enabled and ticked from their own flags", "[menu-model]")
+{
+    const auto view = [] (bool editor, bool preview)
+    {
+        MenuState s; s.midiEditorVisible = editor; s.lotroPreviewVisible = preview;
+        return menuNamed (buildMenus (s), "View");
+    };
+    CHECK (itemWith (view (false, false), ViewMidiEditorToggle).enabled);
+    CHECK (itemWith (view (false, false), ViewLotroPreviewToggle).enabled);
+    CHECK (itemWith (view (true, false), ViewMidiEditorToggle).ticked);
+    CHECK_FALSE (itemWith (view (true, false), ViewLotroPreviewToggle).ticked);
+    CHECK (itemWith (view (false, true), ViewLotroPreviewToggle).ticked);
+    CHECK_FALSE (itemWith (view (false, true), ViewMidiEditorToggle).ticked);
 }
 
 TEST_CASE ("MenuModel: Help menu", "[menu-model]")
@@ -275,5 +290,5 @@ TEST_CASE ("MenuModel: Tempo and Meter... needs a time base", "[menu-model]")
     CHECK_FALSE (itemWith (menuNamed (buildMenus ({}), "Edit"), EditTempoMeter).enabled);
     MenuState s; s.hasTimeBase = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "Edit"), EditTempoMeter).enabled);
-    CHECK (allCommandIds.size() == 30);
+    CHECK (allCommandIds.size() == 32);
 }

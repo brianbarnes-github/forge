@@ -43,6 +43,8 @@ enum MenuCommandId : int
     TransportClearMarker,
     ViewExportPanelToggle,
     ViewDiagnosticsToggle,
+    ViewMidiEditorToggle,
+    ViewLotroPreviewToggle,
     EditTempoMeter,
     HelpAbout,
 
@@ -54,13 +56,14 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 30> allCommandIds {
+inline constexpr std::array<MenuCommandId, 32> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
-    TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, EditTempoMeter, HelpAbout };
+    TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewMidiEditorToggle,
+    ViewLotroPreviewToggle, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
@@ -78,6 +81,8 @@ struct MenuState
     bool trackEditorOpen = false;
     bool exportPanelVisible = false;
     bool diagnosticsVisible = false;
+    bool midiEditorVisible = false;
+    bool lotroPreviewVisible = false;
     bool isPlaying = false;
     bool hasMarker = false;
     bool hasSelectedSections = false;    // canvas selection non-empty
@@ -192,7 +197,9 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
 
     menus.push_back ({ "View", {
         item (ViewExportPanelToggle, "Export ABC panel",  {}, true, s.exportPanelVisible),
-        item (ViewDiagnosticsToggle, "Diagnostics list",  {}, true, s.diagnosticsVisible) } });
+        item (ViewDiagnosticsToggle, "Diagnostics list",  {}, true, s.diagnosticsVisible),
+        item (ViewMidiEditorToggle,  "MIDI Editor",       {}, true, s.midiEditorVisible),
+        item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible) } });
 
     menus.push_back ({ "Help", { item (HelpAbout, "About...") } });
     return menus;
