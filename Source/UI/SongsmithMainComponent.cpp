@@ -66,7 +66,13 @@ void SongsmithMainComponent::LowerRegion::resized()
         transport->setBounds (area.removeFromTop (TransportStrip::height));
     partStrip.setBounds (area.removeFromTop (partStripHeight));
 
-    if (diagnostics.isVisible())
+    if (diagnostics.isVisible() && bottomStack.items().empty())
+    {
+        // Nothing docked at the bottom: diagnostics take it all, no empty strip and no divider.
+        innerSplitter.setVisible (false);
+        diagnostics.setBounds (area);
+    }
+    else if (diagnostics.isVisible())
     {
         innerSplitter.setVisible (true);
         innerSplitter.setBounds (area);

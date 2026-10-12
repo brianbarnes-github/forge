@@ -21,7 +21,6 @@
 
 using namespace lotro;
 
-
 namespace lotro
 {
     // Grants SongsmithMainComponent_tests.cpp access to selectPartForPreview()
@@ -50,11 +49,11 @@ namespace lotro
         }
         static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
         static int tempoGraphRepaints (SongsmithMainComponent& c) { return c.tempoMeterWindow->graphRepaintRequestsForTesting(); }
-        static juce::int64 trackEditorWindowTrackId (const SongsmithMainComponent& c)
+        static juce::int64 editorTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getTrackId();
         }
-        static juce::String trackEditorWindowTitle (const SongsmithMainComponent& c)
+        static juce::String editorTitle (const SongsmithMainComponent& c)
         {
             return c.trackEditor->title();
         }
@@ -162,7 +161,7 @@ TEST_CASE ("SongsmithMainComponent: double-clicking a track opens the editor win
     Access::trackDoubleClicked (main, trackId);
 
     CHECK (main.isTrackEditorOpen());
-    CHECK (Access::trackEditorWindowTrackId (main) == trackId);
+    CHECK (Access::editorTrackId (main) == trackId);
 }
 
 TEST_CASE ("SongsmithMainComponent: a rename or recolour retitles the open editor and repaints the part strip's chips; volume does neither", "[track-editor][head]")
@@ -177,7 +176,7 @@ TEST_CASE ("SongsmithMainComponent: a rename or recolour retitles the open edito
 
     SongsmithMainComponent main (doc);
     Access::trackDoubleClicked (main, trackId);
-    REQUIRE (Access::trackEditorWindowTitle (main) == "Edit Track: Track A");
+    REQUIRE (Access::editorTitle (main) == "Edit Track: Track A");
     const int stripBefore = PartStripComponentTestAccess::appearanceRepaints (Access::partStrip (main));
     const int editorBefore = Access::trackEditorAppearanceRepaints (main);
 
@@ -190,9 +189,9 @@ TEST_CASE ("SongsmithMainComponent: a rename or recolour retitles the open edito
     CHECK (Access::trackEditorAppearanceRepaints (main) == editorBefore + 1);
 
     doc.setProperty (track, SongIDs::name, "Harp");
-    CHECK (Access::trackEditorWindowTitle (main) == "Edit Track: Harp");
+    CHECK (Access::editorTitle (main) == "Edit Track: Harp");
     doc.getUndoManager().undo();
-    CHECK (Access::trackEditorWindowTitle (main) == "Edit Track: Track A");
+    CHECK (Access::editorTitle (main) == "Edit Track: Track A");
     juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 }
 
@@ -232,10 +231,10 @@ TEST_CASE ("SongsmithMainComponent: double-clicking a second track re-points the
     SongsmithMainComponent main (doc);
 
     Access::trackDoubleClicked (main, idA);
-    CHECK (Access::trackEditorWindowTrackId (main) == idA);
+    CHECK (Access::editorTrackId (main) == idA);
 
     Access::trackDoubleClicked (main, idB);
-    CHECK (Access::trackEditorWindowTrackId (main) == idB);
+    CHECK (Access::editorTrackId (main) == idB);
     CHECK (main.isTrackEditorOpen());
 }
 
@@ -426,7 +425,7 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced clears the editor's track a
     main.documentReplaced();
 
     CHECK (main.isTrackEditorOpen());   // the panel keeps its mode and visibility...
-    CHECK (Access::trackEditorWindowTrackId (main) == -1);   // ...but holds no stale track handle
+    CHECK (Access::editorTrackId (main) == -1);   // ...but holds no stale track handle
     CHECK (Access::ghostedCount (main) == 0);
     CHECK (Access::selectedPreviewPartId (main) == -1);
     CHECK_FALSE (Access::hasWatchedPartNode (main));
@@ -728,8 +727,8 @@ TEST_CASE ("SongsmithMainComponent: the editor panel opens floating, docks betwe
     CHECK_FALSE (view.isTrackEditorOpen());
     Access::trackDoubleClicked (view, trackId);
     CHECK (view.isTrackEditorOpen());
-    CHECK (Access::trackEditorWindowTrackId (view) == trackId);
-    CHECK (Access::trackEditorWindowTitle (view) == "Edit Track: Track A");
+    CHECK (Access::editorTrackId (view) == trackId);
+    CHECK (Access::editorTitle (view) == "Edit Track: Track A");
     auto* panel = Access::editorPanel (view);
     REQUIRE (panel != nullptr);
     CHECK (dynamic_cast<lotro::dock::DockFloatWindow*> (panel->getTopLevelComponent()) != nullptr);
@@ -738,11 +737,11 @@ TEST_CASE ("SongsmithMainComponent: the editor panel opens floating, docks betwe
     CHECK (panel->getParentComponent() != nullptr);
     CHECK (panel->getBounds().getY() >= Access::upperRegion (view).getBottom());
     CHECK (panel->getBottom() <= Access::lowerRegion (view).getY());
-    CHECK (Access::trackEditorWindowTrackId (view) == trackId);
+    CHECK (Access::editorTrackId (view) == trackId);
 
     view.documentReplaced();
     CHECK (view.isTrackEditorOpen());
-    CHECK (Access::trackEditorWindowTrackId (view) == -1);
+    CHECK (Access::editorTrackId (view) == -1);
 }
 
 namespace
@@ -883,4 +882,21 @@ TEST_CASE ("SongsmithMainComponent: after the Song is replaced, reopening a trac
     view.documentReplaced();                              // panel stays visible, nothing loaded
     Access::trackDoubleClicked (view, trackId);
     CHECK (Access::activeEditorGridTicks (view) == gridSizeToTicks (GridSize::Quarter, ticksPerQuarter));
+}
+
+TEST_CASE ("SongsmithMainComponent: with the preview docked elsewhere, showing diagnostics fills the lower region with no stray gap", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+
+    view.setLotroPreviewVisible (false);   // bottom zone empty
+    view.setDiagnosticsVisible (true);
+
+    auto& diag = view.getDiagnostics();
+    const auto d = Access::lowerRegion (view).getLocalArea (&diag, diag.getLocalBounds());
+    const int chrome = 110;   // part strip only: this view has no playback controller, so no transport strip
+    CHECK (d.getY() == chrome);
+    CHECK (d.getBottom() == Access::lowerRegionHeight (view));
 }

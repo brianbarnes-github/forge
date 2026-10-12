@@ -12,6 +12,9 @@ DockPanel::DockPanel (std::string id, juce::String titleIn, juce::Colour colour,
     addAndMakeVisible (floatButton);
     addAndMakeVisible (menuButton);
     addAndMakeVisible (closeButton);
+    // As the transport strip does: a click must not take focus from the content, or Space stops reaching it.
+    for (auto* b : { &floatButton, &menuButton, &closeButton })
+        b->setWantsKeyboardFocus (false);
 
     floatButton.onClick = [this] { if (onFloatToggle) onFloatToggle(); };
     closeButton.onClick = [this] { if (onClose) onClose(); };

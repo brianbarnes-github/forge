@@ -15,7 +15,7 @@ Mixer are one registration each. All code lives in `Source/UI/`; nothing in `Sou
   targets in v1.
 - Dock/float state, visibility, zone, sizes and floating bounds are **remembered across
   sessions** in `AppSettings` (not in the `.songsmith` file).
-- **First-run defaults reproduce today's page exactly:** LOTRO preview docked and visible at the
+- **First-run defaults reproduce today's page (the upper/lower split differs by a few pixels, 382 vs 385 px at 700 px high, because the stack subtracts its divider before weighting):** LOTRO preview docked and visible at the
   bottom (where it is now); MIDI editor hidden, and when first opened (track double-click or
   View menu) it opens **floating**, as today. After that it re-opens however it was last left.
 - The editor's docked home is a resizable slot between the track list and the lower region.
@@ -36,8 +36,8 @@ Mixer are one registration each. All code lives in `Source/UI/`; nothing in `Sou
   `DockFloatWindow` (`DocumentWindow`); docking moves it back.
 - `DockHost`: owned by `SongsmithMainComponent`; owns the panels, applies a `DockLayoutState`,
   reports changes via `onLayoutChanged` (saved through `AppSettings`).
-- Panel contents: `midiEditor` hosts the existing `TrackEditorWindow::Content` (transport strip,
-  ruler, source roll); `TrackEditorWindow` becomes a content controller rather than a window.
+- Panel contents: `midiEditor` hosts the existing editor content (transport strip,
+  ruler, source roll); `TrackEditorWindow` became the plain-component `TrackEditorPanel` (built once, empty until a track is opened).
   `lotroPreview` hosts the existing `PreviewRegion`.
 
 ## Layout
@@ -71,7 +71,7 @@ Mixer are one registration each. All code lives in `Source/UI/`; nothing in `Sou
 - **LOTRO preview:** behaves as today (including part selection) but can be hidden, docked in
   either zone or floated. The LOTRO range band is part of its content and stays always shown.
 - **Persistence:** one `dock.layout` key in `AppSettings`, a small JSON string, saved on every
-  layout change (a failed save is reported like other settings). On load the state is
+  layout change (decided in implementation: a failed save is NOT announced; the layout still applies for the session and is written again at quit). On load the state is
   normalised; a corrupt or missing value yields the defaults above.
 
 ## Testing

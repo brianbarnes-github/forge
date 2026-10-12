@@ -39,12 +39,12 @@
 // a toggleable panel once Songsmith has something to run.
 //
 // Phase 5: the boundary between the MIDI-source region (header + track list
-// + piano roll) and the lower regions (part strip + diagnostics) is a
-// user-resizable SplitterComponent, replacing the earlier fixed
-// 40%-of-height split.
+// + piano roll) and the lower regions (part strip + diagnostics) is user-resizable.
+// It is now a dock::DockStack (the MIDI editor panel can dock in it too); see
+// DockHost and docs/ARCHITECTURE.md §9.19.
 //
-// Phase 6: the lower region gains a second splitter, between the new
-// preview region and the diagnostics list — see LowerRegion below.
+// Phase 6: the lower region gains a splitter, between the preview
+// region (now a dock panel in a bottom DockStack) and the diagnostics list — see LowerRegion below.
 namespace lotro
 {
 
@@ -106,7 +106,7 @@ public:
 private:
     friend struct SongsmithMainComponentTestAccess;
 
-    // Groups the widgets shown above the splitter's drag bar so the splitter
+    // Groups the widgets shown above the top dock divider so the stack
     // can treat them as a single component for layout purposes (mirrors
     // MainWindow::Body's editor/diagnostics split — see SplitterComponent.h).
     class UpperRegion : public juce::Component
@@ -138,7 +138,7 @@ private:
     {
     public:
         // `transportIn` (null when there is no playback) is the bar across the
-        // top of the region; it rides along when the splitter above is dragged.
+        // top of the region; it rides along when the dock divider above is dragged.
         LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
                      dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn);
         void resized() override;
@@ -183,6 +183,8 @@ public:
     void trackGhostToggled (juce::int64 trackId, bool visible);
 
     bool isTrackEditorOpen() const noexcept { return dockHost.isVisible ("midiEditor"); }
+    // True when the editor is showing a track (visible and loaded); Edit > Quantize / Grid need this.
+    bool isTrackEditorLoaded() const noexcept { return isTrackEditorOpen() && trackEditor->getTrackId() != -1; }
     void setActiveEditorGridSize (GridSize size);
     void setFollowPlayhead (bool follow);
     void setMergeScope (MergeScope scope);

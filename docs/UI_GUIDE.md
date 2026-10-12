@@ -64,14 +64,14 @@ again, remembering whether each was docked or floating.
 - **Zones.** *Below track list* (between the track list and the lower region; the editor's
   default) and *Bottom* (inside the lower region, above diagnostics; the preview's default).
   Dragging the divider bars resizes neighbours; there is no drag-to-rearrange and no tabs.
-- **First run** looks exactly like before: preview docked at the bottom, editor hidden. The
+- **First run** looks like before (the split can differ by a few pixels): preview docked at the bottom, editor hidden. The
   editor's first open is floating.
 - **Floating windows** are native-title-bar windows; their position and size are remembered. A
   remembered position that is no longer on any display is replaced by a reachable one.
 - **Remembered across sessions** in the app settings (key `dock.layout`, JSON), not in the
   `.songsmith` file. A missing or corrupt value gives the first-run layout.
-- If the preview is floated or hidden and diagnostics are off, the lower region shrinks to the
-  transport strip and part strip.
+- If nothing is docked at the bottom and diagnostics are off, the lower region shrinks to the
+  transport strip and part strip; if diagnostics are on, they fill it.
 
 ## Naming reference
 
@@ -97,7 +97,7 @@ When you say…       …I'll know you mean
 | 16 | **Part slot**                   | `PartSlotComponent` — one slot in the strip: `x:` index, instrument badge, label, assigned-track chips (#17) |
 | 17 | **Assignment chip**             | `AssignmentChipComponent` — swatch, `Tk<n>`, transpose, `×` to unassign, inside a part slot |
 | 18 | **Inner splitter**              | Between the preview region (#19) and the diagnostics list (#23), inside the lower region |
-| 19 | **Preview region**              | `SongsmithMainComponent::PreviewRegion` — preview header + `PreviewAssignedPanel` + preview-role `PianoRollComponent` |
+| 19 | **Preview region**              | `SongsmithMainComponent::PreviewRegion` — `PreviewAssignedPanel` + preview-role `PianoRollComponent` |
 | 20 | **Preview panel header**       | The `DockPanel` header (20 px) of the LOTRO preview: title "▼ LOTRO PREVIEW · how it will sound in-game" plus Float/Dock, a `...` menu (Dock to: Below track list / Bottom; also right-click the header) and a close button |
 | 21 | **Preview assigned panel**      | `PreviewAssignedPanel` (`Source/UI/PreviewAssignedPanel.{h,cpp}`) — assigned-track chips, instrument/range readout, range-policy label, output stats |
 | 22 | **Preview piano roll**          | `PianoRollComponent` constructed with `Role::Preview` — adds the range band and ghost/dropped-note overlays |
@@ -108,7 +108,7 @@ When you say…       …I'll know you mean
 | 27 | **Status line**                 | The grey `juce::Label` at the bottom of `DiagnosticsPane` (`5,824 bytes · 184 bars · 3 parts`) |
 | 28 | **Track editor panel**          | `TrackEditorPanel` (`Source/UI/TrackEditorPanel.{h,cpp}`) — the single-instance MIDI editor, a dock panel (`midiEditor`) that is hidden until a track row is double-clicked (#10), then opens **floating** the first time and in whichever mode (docked below the track list, or floating) you last used. A second double-click on a different row re-points it (`setTrack`). With no track loaded (after New / Open) it shows "Double-click a track to edit it". Hosts the same `PianoRollComponent(Role::Source)`/`SourceRollEditor` pairing described under #13, plus the playback transport strip (#30), a seek ruler (#32) and the playhead overlay (#33) above/over the roll. Supports translucent ghost-track overlays of other tracks, toggled per-row from the track list (#10) and never persisted. Owns its own zoom/scroll state, independent of the track list's shared `TimelineViewState` (#9) |
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
-| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the outer splitter is dragged) and at the top of the Track editor panel (#28), both bound to the one `PlaybackController` |
+| 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the part strip; it rides along when the top dock divider (#6) is dragged) and at the top of the Track editor panel (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | drawn speaker (mute) and headphone (solo) toggle icons on the second line of the track head (`TrackHeadComponent`, see #10) of every non-conductor row (#10); session-only, never saved or undoable |
 | 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. Tempo and meter are edited in the Tempo and Meter window (see below). Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
@@ -655,7 +655,7 @@ When something doesn't work, please reference the named region — the `#N`
 tag or the name both work:
 
 > "The **Run Converter** menu item doesn't respond."
-> "The **outer splitter** (#6) is fixed at 50/50 and won't drag."
+> "The **top dock divider** (#6) is fixed at 50/50 and won't drag."
 > "The **preview piano roll** (#22)'s range band doesn't show up when I select a Drums part."
 > "Right-clicking a **part slot** (#16) doesn't show the Rename… menu."
 > "The **track list** (#9) placeholder text is wrong for an empty document."

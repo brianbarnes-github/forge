@@ -1,5 +1,6 @@
 #include "UI/Dock/DockHost.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace lotro::dock;
@@ -176,4 +177,61 @@ TEST_CASE ("dock host: applying a layout keeps the saved float bounds even when 
     REQUIRE (applied->floatBounds.has_value());
     CHECK (applied->floatBounds->x == primary.getX() + 33);
     CHECK (applied->floatBounds->width == 500);
+}
+
+namespace
+{
+juce::MouseEvent barMouse (juce::Component& c, juce::Point<int> pos, juce::Point<int> down)
+{
+    const auto now = juce::Time::getCurrentTime();
+    return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos.toFloat(),
+                             juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
+                             1.0f, 0.0f, 0.0f, 0.0f, 0.0f, &c, &c, now, down.toFloat(), now, 1, pos != down);
+}
+}
+
+TEST_CASE ("dock host: closing a floating panel with its x keeps the position it was moved to", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    f.host.setVisible ("midiEditor", true);
+    auto* window = dynamic_cast<DockFloatWindow*> (f.host.panel ("midiEditor")->getTopLevelComponent());
+    REQUIRE (window != nullptr);
+    const auto primary = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea;
+    window->setBounds (primary.getX() + 70, primary.getY() + 80, 520, 330);
+
+    f.host.panel ("midiEditor")->onClose();
+
+    const auto* saved = find (f.host.state(), "midiEditor");
+    REQUIRE (saved->floatBounds.has_value());
+    CHECK (saved->floatBounds->width == 520);
+    CHECK (saved->floatBounds->height == 330);
+}
+
+TEST_CASE ("dock host: real divider drags while lower is collapsed do not shrink the saved weights", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    f.topStack.setVisible (true);
+    f.host.setVisible ("midiEditor", true);
+    f.host.panel ("midiEditor")->onFloatToggle();          // docked below the tracks
+    f.host.panel ("lotroPreview")->onFloatToggle();        // lower collapses
+    const auto before = f.host.state();
+    const double sumBefore = before.upperWeight + find (before, "midiEditor")->weight;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const auto bar = f.topStack.dividerBounds (0).getCentre();
+        auto* target = f.topStack.getComponentAt (bar);
+        REQUIRE (target != nullptr);
+        REQUIRE (target != &f.topStack);
+        target->mouseDown (barMouse (*target, bar, bar));
+        target->mouseDrag (barMouse (*target, bar.translated (0, 10), bar));
+        target->mouseUp (barMouse (*target, bar.translated (0, 10), bar));
+        f.host.setLowerHasOtherContent (false);            // a rebuild, as at every restart
+    }
+
+    const auto after = f.host.state();
+    CHECK (after.upperWeight + find (after, "midiEditor")->weight == Catch::Approx (sumBefore).margin (1e-9));
+    CHECK (after.lowerWeight == before.lowerWeight);
 }

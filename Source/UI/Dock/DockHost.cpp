@@ -156,6 +156,7 @@ void DockHost::apply (const LayoutState& s)
 
 void DockHost::userChanged()
 {
+    captureFloatBounds (layout);   // before rebuild() can destroy a window
     rebuild();
     if (onLayoutChanged)
         onLayoutChanged (state());
@@ -163,7 +164,25 @@ void DockHost::userChanged()
 
 void DockHost::weightsChanged (const std::vector<DockStack::Item>& items, bool topLevel)
 {
-    for (const auto& it : items)
+    // dragDivider keeps the sum of ALL weights, including the collapsed `lower` placeholder, so
+    // the other items' sum would shrink on every drag. Put their sum back to what it was.
+    std::vector<DockStack::Item> scaled = items;
+    if (topLevel && lowerCollapsed)
+    {
+        double before = layout.upperWeight, after = 0.0;
+        for (const auto& st : layout.panels)
+            if (st.visible && st.mode == Mode::docked && st.zone == Zone::belowTracks)
+                before += st.weight;
+        for (const auto& it : items)
+            if (it.id != "lower")
+                after += it.weight;
+        if (after > 0.0 && before > 0.0)
+            for (auto& it : scaled)
+                if (it.id != "lower")
+                    it.weight *= before / after;
+    }
+
+    for (const auto& it : scaled)
     {
         // While collapsed, `lower` carries a placeholder weight that must not be saved; upper and
         // the panels still keep the ratio the user dragged to.
@@ -217,6 +236,7 @@ void DockHost::rebuild()
 
     top.setItems (std::move (topItems));
     bottom.setItems (std::move (bottomItems));
+    lowerComponent.resized();   // the lower region lays out differently when its bottom zone is empty
 
     // 3. Windows that should exist.
     for (auto& e : entries)

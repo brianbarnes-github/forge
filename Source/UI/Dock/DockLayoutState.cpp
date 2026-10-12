@@ -119,7 +119,7 @@ LayoutState normalise (LayoutState s, const std::vector<PanelDef>& defs)
         const auto& def = *std::find_if (defs.begin(), defs.end(), [&] (const PanelDef& d) { return d.id == p.id; });
         if (! goodWeight (p.weight))
             p.weight = def.defaultWeight;
-        if (p.floatBounds && (p.floatBounds->width <= 0 || p.floatBounds->height <= 0))
+        if (p.floatBounds && (p.floatBounds->width < 100 || p.floatBounds->height < 60))
             p.floatBounds.reset();
         kept.push_back (std::move (p));
     }
