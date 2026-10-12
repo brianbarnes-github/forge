@@ -220,5 +220,5 @@ sections and selection), `docs/TESTING.md`.
 
 - None. Decided: both halves of a cut note keep the original provenance pair
   verbatim. `PreviewNoteDiff` matches notes that share a pair by start-tick
-  order (implementation plan, Task 4); this also fixes editor-created notes,
+  order; this also fixes editor-created notes,
   which all share the pair (-1, -1).

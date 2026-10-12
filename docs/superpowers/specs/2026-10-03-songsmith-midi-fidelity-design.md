@@ -519,8 +519,7 @@ Strict TDD. Integration tests are preferred for business logic.
     one at raw index 1). Align by assignable tracks instead.
   - `TrackListComponent_tests.cpp`: row counts.
 
-  Each change keeps the test's original intent; the plan lists them
-  explicitly.
+  Each change keeps the test's original intent.
 
 ## Docs to update
 
