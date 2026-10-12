@@ -19,6 +19,7 @@ struct PanelDef
     bool        defaultVisible;
     double      defaultWeight;   // > 0
     int         minSize;         // px, >= 40
+    int         defaultOrder;    // within its zone; a panel added to an older saved layout lands by this
 };
 
 struct FloatBounds { int x = 0, y = 0, width = 0, height = 0; };

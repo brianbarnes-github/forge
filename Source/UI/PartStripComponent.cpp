@@ -122,25 +122,18 @@ void PartStripComponent::resized()
         return;
     }
 
-    // I3: below minSlotWidth per slot, switch from equal division to a
-    // fixed minSlotWidth per slot and let the viewport scroll horizontally
-    // instead of squeezing every slot unreadably thin.
-    const bool overflow = n * minSlotWidth > area.getWidth();
-    const int  rowWidth = overflow ? n * minSlotWidth : area.getWidth();
-    const int  slotWidth = overflow ? minSlotWidth : (area.getWidth() / n);
+    // Fixed-width cards with a 1px gutter between them. The spare room right of
+    // them is the strip's own border-coloured background; the viewport scrolls
+    // when the row is wider than it.
+    const int rowWidth = n * slotWidth + (n - 1);
 
     row.setSize (rowWidth, area.getHeight());
 
     int x = 0;
     for (int i = 0; i < n; ++i)
     {
-        const bool isLast = (i == n - 1);
-        // M3: a 1px gutter after every slot but the last (exposes Row's
-        // border-coloured background). In equal-division mode the last slot
-        // also absorbs the width lost to integer division, same as before.
-        const int w = isLast ? (rowWidth - x) : (slotWidth - 1);
-        row.slots[i]->setBounds (x, 0, w, area.getHeight());
-        x += w + (isLast ? 0 : 1);
+        row.slots[i]->setBounds (x, 0, slotWidth, area.getHeight());
+        x += slotWidth + 1;
     }
 }
 

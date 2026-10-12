@@ -45,6 +45,7 @@ enum MenuCommandId : int
     ViewDiagnosticsToggle,
     ViewMidiEditorToggle,
     ViewLotroPreviewToggle,
+    ViewPartsToggle,
     EditTempoMeter,
     HelpAbout,
 
@@ -56,14 +57,14 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 32> allCommandIds {
+inline constexpr std::array<MenuCommandId, 33> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
     TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewMidiEditorToggle,
-    ViewLotroPreviewToggle, EditTempoMeter, HelpAbout };
+    ViewLotroPreviewToggle, ViewPartsToggle, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
@@ -83,6 +84,7 @@ struct MenuState
     bool diagnosticsVisible = false;
     bool midiEditorVisible = false;
     bool lotroPreviewVisible = false;
+    bool partsVisible = false;
     bool isPlaying = false;
     bool hasMarker = false;
     bool hasSelectedSections = false;    // canvas selection non-empty
@@ -199,7 +201,8 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         item (ViewExportPanelToggle, "Export ABC panel",  {}, true, s.exportPanelVisible),
         item (ViewDiagnosticsToggle, "Diagnostics list",  {}, true, s.diagnosticsVisible),
         item (ViewMidiEditorToggle,  "MIDI Editor",       {}, true, s.midiEditorVisible),
-        item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible) } });
+        item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible),
+        item (ViewPartsToggle,        "Parts",            {}, true, s.partsVisible) } });
 
     menus.push_back ({ "Help", { item (HelpAbout, "About...") } });
     return menus;

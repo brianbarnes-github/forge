@@ -12,12 +12,10 @@
 // that subtree changes (part add/remove, and — since chips live under
 // parts — ASSIGNMENT add/remove or any PART/ASSIGNMENT property change).
 //
-// Overflow handling (Phase 4 whole-branch review finding I3): slots have a
-// minimum width (minSlotWidth) below which the instrument badge/chips no
-// longer fit. When n * minSlotWidth fits the available width, slots share it
-// equally (as before); once it doesn't, every slot is pinned to
-// minSlotWidth and the row is placed inside a horizontal-only juce::Viewport
-// so the strip scrolls instead of squeezing.
+// Sizing: every slot is slotWidth wide, left-aligned, whatever the panel
+// width; the spare room stays empty. When the slots do not all fit, the row
+// is placed inside a horizontal-only juce::Viewport so the strip scrolls
+// instead of squeezing them.
 namespace lotro
 {
 
@@ -26,6 +24,9 @@ class PartStripComponent : public juce::Component,
                             private juce::AsyncUpdater
 {
 public:
+    // Every card is this wide; the strip scrolls when they do not all fit.
+    static constexpr int slotWidth = 180;
+
     explicit PartStripComponent (SongDocument& document);
     ~PartStripComponent() override;
 
@@ -90,7 +91,6 @@ private:
 
     static constexpr int headerHeight = 20;
     static constexpr int addButtonWidth = 60;
-    static constexpr int minSlotWidth = 140;
 };
 
 } // namespace lotro

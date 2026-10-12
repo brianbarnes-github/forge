@@ -488,13 +488,13 @@ TEST_CASE ("SongsmithMainComponent: the transport strip heads the lower region, 
 
     CHECK (stripTopInView() >= Access::upperRegion (view).getBottom());
     CHECK (strip->getHeight() == TransportStrip::height);
-    CHECK (partTopInView() == stripTopInView() + TransportStrip::height);
+    CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockPanel::headerHeight);
 
     const int before = stripTopInView();
     Access::setUpperFraction (view, 0.3);
     view.resized();
     CHECK (stripTopInView() < before);
-    CHECK (partTopInView() == stripTopInView() + TransportStrip::height);
+    CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockPanel::headerHeight);
 }
 
 TEST_CASE ("SongsmithMainComponent: without a playback controller there is no transport strip", "[songsmith][transport]")
@@ -699,7 +699,9 @@ TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter lay
     const auto strip = view.getLocalArea (Access::transportStrip (view), Access::transportStrip (view)->getLocalBounds());
     const auto part = view.getLocalArea (&Access::partStrip (view), Access::partStrip (view).getLocalBounds());
     // Recorded from the unmodified splitter layout (1000x700): upper 0,0,1000,385; lower 0,391,1000,309;
-    // roll in lower 160,158,840,151; transport 0,391,1000,28; part strip 0,419,1000,110.
+    // roll in lower 160,158,840,151; transport 0,391,1000,28; part strip 0,419,1000,110. The part strip is
+    // now the first docked panel of the bottom zone (under the transport, above the preview), so it sits
+    // below its panel header and shares the zone's height by weight instead of being a fixed 110 px.
     // The stack's divider is laid out inside the height, so the split can differ by a few pixels.
     CHECK (std::abs (upper.getHeight() - 385) <= 4);
     CHECK (upper.getY() == 0);
@@ -707,10 +709,11 @@ TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter lay
     CHECK (lower.getBottom() == 700);
     CHECK (strip.getY() == lower.getY());
     CHECK (strip.getHeight() == 28);
-    CHECK (part.getY() == strip.getBottom());
-    CHECK (part.getHeight() == 110);
+    CHECK (part.getY() == strip.getBottom() + lotro::dock::DockPanel::headerHeight);
+    CHECK (part.getHeight() > 60);
     CHECK (roll.getX() == 160);
-    CHECK (roll.getY() == 28 + 110 + lotro::dock::DockPanel::headerHeight);
+    const auto partInLower = lower.getLocalArea (&Access::partStrip (view), Access::partStrip (view).getLocalBounds());
+    CHECK (roll.getY() > partInLower.getBottom() + lotro::dock::DockPanel::headerHeight);
     CHECK (roll.getWidth() == 840);
     CHECK (roll.getBottom() == lower.getHeight());
 }
@@ -891,12 +894,39 @@ TEST_CASE ("SongsmithMainComponent: with the preview docked elsewhere, showing d
     SongsmithMainComponent view (doc);
     view.setSize (1000, 700);
 
-    view.setLotroPreviewVisible (false);   // bottom zone empty
+    view.setLotroPreviewVisible (false);
+    view.setPartsVisible (false);          // bottom zone empty
     view.setDiagnosticsVisible (true);
 
     auto& diag = view.getDiagnostics();
     const auto d = Access::lowerRegion (view).getLocalArea (&diag, diag.getLocalBounds());
-    const int chrome = 110;   // part strip only: this view has no playback controller, so no transport strip
+    const int chrome = 0;   // this view has no playback controller, so no transport strip
     CHECK (d.getY() == chrome);
     CHECK (d.getBottom() == Access::lowerRegionHeight (view));
+}
+
+TEST_CASE ("SongsmithMainComponent: the Parts strip is a dock panel that can be hidden, floated and restored", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+
+    CHECK (view.isPartsVisible());
+    const auto wide = Access::partStrip (view).getWidth();
+    CHECK (wide > 0);
+
+    view.setPartsVisible (false);
+    CHECK_FALSE (view.isPartsVisible());
+    CHECK (lotro::dock::find (view.getDockLayout(), "parts")->visible == false);
+
+    view.setPartsVisible (true);
+    CHECK (view.isPartsVisible());
+    CHECK (Access::partStrip (view).getWidth() == wide);
+
+    auto layout = view.getDockLayout();
+    lotro::dock::setFloating (layout, "parts", lotro::dock::FloatBounds { 40, 40, 500, 200 });
+    view.setDockLayout (layout);
+    CHECK (view.isPartsVisible());
+    CHECK (lotro::dock::find (view.getDockLayout(), "parts")->mode == lotro::dock::Mode::floating);
 }

@@ -59,7 +59,28 @@ TEST_CASE ("dock: moveToZone appends last and renumbers both zones", "[dock][sta
     moveToZone (s, "midiEditor", Zone::bottom);
     CHECK (find (s, "midiEditor")->zone == Zone::bottom);
     CHECK (find (s, "midiEditor")->order > find (s, "lotroPreview")->order);
-    CHECK (find (s, "lotroPreview")->order == 0);
+    CHECK (find (s, "lotroPreview")->order < find (s, "midiEditor")->order);
+}
+
+TEST_CASE ("dock: the Parts panel defaults to docked, first in the bottom zone", "[dock][state]")
+{
+    const auto s = defaultLayout();
+    const auto* parts = find (s, "parts");
+    REQUIRE (parts != nullptr);
+    CHECK (parts->mode == Mode::docked);
+    CHECK (parts->visible);
+    CHECK (parts->zone == Zone::bottom);
+    CHECK (parts->order < find (s, "lotroPreview")->order);
+}
+
+TEST_CASE ("dock: a saved layout from before the Parts panel gains it above the preview", "[dock][state]")
+{
+    const auto s = fromJson ("{\"panels\": [{\"id\": \"lotroPreview\"}, {\"id\": \"midiEditor\"}]}");
+    const auto* parts = find (s, "parts");
+    REQUIRE (parts != nullptr);
+    CHECK (parts->visible);
+    CHECK (parts->zone == Zone::bottom);
+    CHECK (parts->order < find (s, "lotroPreview")->order);
 }
 
 TEST_CASE ("dock: JSON round-trips", "[dock][state]")

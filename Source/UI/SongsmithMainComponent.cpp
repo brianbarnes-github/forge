@@ -36,13 +36,12 @@ void SongsmithMainComponent::PreviewRegion::resized()
     roll.setBounds (area);
 }
 
-SongsmithMainComponent::LowerRegion::LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
-                                                   dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn)
-    : transport (transportIn), partStrip (partStripIn), bottomStack (bottomStackIn), diagnostics (diagnosticsIn)
+SongsmithMainComponent::LowerRegion::LowerRegion (juce::Component* transportIn, dock::DockStack& bottomStackIn,
+                                                   DiagnosticListView& diagnosticsIn)
+    : transport (transportIn), bottomStack (bottomStackIn), diagnostics (diagnosticsIn)
 {
     if (transport != nullptr)
         addAndMakeVisible (*transport);
-    addAndMakeVisible (partStrip);
     addAndMakeVisible (bottomStack);
 
     // Hidden by default (View -> Diagnostics list shows it) -- addChildComponent,
@@ -64,7 +63,6 @@ void SongsmithMainComponent::LowerRegion::resized()
     auto area = getLocalBounds();
     if (transport != nullptr)
         transport->setBounds (area.removeFromTop (TransportStrip::height));
-    partStrip.setBounds (area.removeFromTop (partStripHeight));
 
     if (diagnostics.isVisible() && bottomStack.items().empty())
     {
@@ -95,7 +93,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
       upperRegion (sourceHeader, trackList),
       previewRegion (previewAssignedPanel, previewRoll),
-      lowerRegion (transportStrip.get(), partStrip, bottomStack, diagnostics),
+      lowerRegion (transportStrip.get(), bottomStack, diagnostics),
       dockHost (topStack, bottomStack, upperRegion, lowerRegion, nullptr)
 {
     sourceHeader.setText (
@@ -123,10 +121,13 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     // The LOTRO preview is the first dockable panel; the dock host puts it in the
     // bottom zone (today's layout) and parents upperRegion/lowerRegion in topStack.
-    dockHost.setLowerChromeHeight ((transportStrip != nullptr ? TransportStrip::height : 0) + partStripHeight);
+    dockHost.setLowerChromeHeight (transportStrip != nullptr ? TransportStrip::height : 0);
     dockHost.addPanel (dock::panelDefs()[0], juce::Colour (SongsmithColours::accentAmber), previewRegion);
     dockHost.panel ("lotroPreview")->setTitle (
         juce::String::fromUTF8 ("\xe2\x96\xbc LOTRO PREVIEW \xc2\xb7 how it will sound in-game"));
+
+    // The Parts strip is the third dockable panel; it sits first in the bottom zone, above the preview.
+    dockHost.addPanel (dock::panelDefs()[2], juce::Colour (SongsmithColours::text), partStrip);
 
     trackEditor = std::make_unique<TrackEditorPanel> (doc);
     if (playback != nullptr)

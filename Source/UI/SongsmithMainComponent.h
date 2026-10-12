@@ -139,8 +139,7 @@ private:
     public:
         // `transportIn` (null when there is no playback) is the bar across the
         // top of the region; it rides along when the dock divider above is dragged.
-        LowerRegion (juce::Component* transportIn, PartStripComponent& partStripIn,
-                     dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn);
+        LowerRegion (juce::Component* transportIn, dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn);
         void resized() override;
 
         void setDiagnosticsVisible (bool shouldShow);
@@ -148,7 +147,6 @@ private:
 
     private:
         juce::Component* transport;
-        PartStripComponent& partStrip;
         dock::DockStack& bottomStack;
         DiagnosticListView& diagnostics;
         SplitterComponent innerSplitter { SplitterComponent::Orientation::topBottom };
@@ -169,6 +167,8 @@ public:
     }
     bool isLotroPreviewVisible() const { return dockHost.isVisible ("lotroPreview"); }
     void setLotroPreviewVisible (bool show) { dockHost.setVisible ("lotroPreview", show); }
+    bool isPartsVisible() const { return dockHost.isVisible ("parts"); }
+    void setPartsVisible (bool show) { dockHost.setVisible ("parts", show); }
     std::function<void (const dock::LayoutState&)> onDockLayoutChanged;
 
     // Opens the Tempo/Meter editor, or re-fronts it when already open.
@@ -267,7 +267,6 @@ private:
     dock::DockHost dockHost;
 
     static constexpr int sourceHeaderHeight = 20;
-    static constexpr int partStripHeight = 110;
     static constexpr int previewPanelWidth = 160;
 };
 

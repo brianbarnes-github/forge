@@ -93,8 +93,9 @@ std::optional<PanelState> panelFromVar (const juce::var& v)
 const std::vector<PanelDef>& panelDefs()
 {
     static const std::vector<PanelDef> defs {
-        { "lotroPreview", "LOTRO Preview", Zone::bottom,      Mode::docked,   true,  1.0,  120 },
-        { "midiEditor",   "MIDI Editor",   Zone::belowTracks, Mode::floating, false, 0.35, 160 },
+        { "lotroPreview", "LOTRO Preview", Zone::bottom,      Mode::docked,   true,  1.0,  120, 0 },
+        { "midiEditor",   "MIDI Editor",   Zone::belowTracks, Mode::floating, false, 0.35, 160, 0 },
+        { "parts",        "Parts",         Zone::bottom,      Mode::docked,   true,  0.6,  70,  -1 },
     };
     return defs;
 }
@@ -125,7 +126,7 @@ LayoutState normalise (LayoutState s, const std::vector<PanelDef>& defs)
     }
     for (const auto& d : defs)
         if (std::none_of (kept.begin(), kept.end(), [&] (const PanelState& k) { return k.id == d.id; }))
-            kept.push_back (stateFromDef (d, 0));
+            kept.push_back (stateFromDef (d, d.defaultOrder));
 
     s.panels = std::move (kept);
     renumber (s);
