@@ -849,12 +849,38 @@ TEST_CASE ("SongsmithMainComponent: a floating panel's bounds are reported when 
     CHECK (window->getBounds().intersects (primary));
 
     std::optional<lotro::dock::LayoutState> last;
-    view.onDockLayoutChanged = [&] (const lotro::dock::LayoutState& s) { last = s; };
+    int reports = 0;
+    view.onDockLayoutChanged = [&] (const lotro::dock::LayoutState& s) { last = s; ++reports; };
     window->setBounds (primary.getX() + 40, primary.getY() + 50, 500, 300);
+    window->setBounds (primary.getX() + 45, primary.getY() + 55, 510, 310);
+    window->setBounds (primary.getX() + 50, primary.getY() + 60, 520, 320);
+    // A drag is a burst of moves: they settle into one report, not one per event.
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (600);
+    CHECK (reports == 1);
     REQUIRE (last.has_value());
     const auto* saved = lotro::dock::find (*last, "midiEditor");
     REQUIRE (saved != nullptr);
     REQUIRE (saved->floatBounds.has_value());
     CHECK (saved->floatBounds->width == window->getWidth());
     CHECK (saved->floatBounds->height == window->getHeight());
+}
+
+TEST_CASE ("SongsmithMainComponent: after the Song is replaced, reopening a track starts on the default grid again", "[songsmith][layout][track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+    view.setDefaultGridSize (GridSize::Quarter);
+
+    Access::trackDoubleClicked (view, trackId);
+    const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
+    CHECK (Access::activeEditorGridTicks (view) == gridSizeToTicks (GridSize::Quarter, ticksPerQuarter));
+
+    view.setActiveEditorGridSize (GridSize::Sixteenth);   // the user changed it
+    view.documentReplaced();                              // panel stays visible, nothing loaded
+    Access::trackDoubleClicked (view, trackId);
+    CHECK (Access::activeEditorGridTicks (view) == gridSizeToTicks (GridSize::Quarter, ticksPerQuarter));
 }

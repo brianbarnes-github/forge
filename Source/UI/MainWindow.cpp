@@ -189,7 +189,9 @@ MainWindow::MainWindow()
     songsmith.setDockLayout (dock::fromJson (appSettings.dockLayout().toStdString()));
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
-        appSettings.setDockLayout (juce::String (dock::toJson (layout)));
+        const juce::String json (dock::toJson (layout));
+        if (json != appSettings.dockLayout())   // a window opening can report an unchanged layout
+            appSettings.setDockLayout (json);
     };
 }
 
@@ -207,6 +209,8 @@ MainWindow::~MainWindow()
 
     // Every quit path (close button, File -> Quit, OS shutdown) destroys the
     // window, so saving here covers them all.
+    // Float bounds are reported once a drag settles; take the live ones in case quit came first.
+    appSettings.setDockLayout (juce::String (dock::toJson (body->getSongsmith().getDockLayout())));
     WindowPlacement::saveWindow (*settings, mainWindowPlacementKey, *this);
     settings->saveIfNeeded();
 }

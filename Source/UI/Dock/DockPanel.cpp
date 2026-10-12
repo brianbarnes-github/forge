@@ -17,10 +17,12 @@ DockPanel::DockPanel (std::string id, juce::String titleIn, juce::Colour colour,
     closeButton.onClick = [this] { if (onClose) onClose(); };
     menuButton.onClick  = [this]
     {
-        buildZoneMenu().showMenuAsync ({}, [this] (int result)
+        buildZoneMenu().showMenuAsync ({}, [safe = juce::Component::SafePointer<DockPanel> (this)] (int result)
         {
-            if (result == 1 && onDockTo) onDockTo (Zone::belowTracks);
-            if (result == 2 && onDockTo) onDockTo (Zone::bottom);
+            if (safe == nullptr || ! safe->onDockTo)
+                return;
+            if (result == 1) safe->onDockTo (Zone::belowTracks);
+            if (result == 2) safe->onDockTo (Zone::bottom);
         });
     };
 }

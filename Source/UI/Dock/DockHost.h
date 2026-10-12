@@ -48,6 +48,14 @@ public:
     std::function<void (const LayoutState&)> onLayoutChanged;   // every user-driven change
 
 private:
+    // A drag of a floating window is a burst of move/resize events; report once it settles.
+    struct SettleTimer : juce::Timer
+    {
+        std::function<void()> onSettled;
+        void timerCallback() override { stopTimer(); if (onSettled) onSettled(); }
+    };
+    static constexpr int boundsSettleMs = 300;
+
     struct Entry
     {
         PanelDef def;
@@ -69,6 +77,7 @@ private:
     juce::Component* centreAround;
     std::vector<std::unique_ptr<Entry>> entries;
     LayoutState layout;
+    SettleTimer boundsTimer;
     int lowerChromeHeight = 138;
     bool lowerHasOtherContent = false;
     bool lowerCollapsed = false;

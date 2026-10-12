@@ -134,3 +134,46 @@ TEST_CASE ("dock host: a divider drag is written back to the state and reported"
     CHECK (f.host.state().upperWeight == 0.3);
     CHECK (f.host.state().lowerWeight == 0.7);
 }
+
+TEST_CASE ("dock host: dragging while the lower region is collapsed keeps the upper:panel ratio and the saved lower weight", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    f.host.setVisible ("midiEditor", true);
+    f.host.panel ("midiEditor")->onFloatToggle();          // docked below the tracks
+    f.host.panel ("lotroPreview")->onFloatToggle();        // bottom zone empty: lower collapses
+    const double lowerBefore = f.host.state().lowerWeight;
+
+    auto items = f.topStack.items();
+    REQUIRE (items.size() == 3);
+    items[0].weight = 3.0;      // upper
+    items[1].weight = 1.0;      // midiEditor
+    f.topStack.setItems (items);
+    f.topStack.onWeightsChanged (f.topStack.items());
+
+    const auto s = f.host.state();
+    CHECK (s.lowerWeight == lowerBefore);
+    CHECK (s.upperWeight / find (s, "midiEditor")->weight == 3.0);
+
+    f.host.panel ("lotroPreview")->onFloatToggle();        // dock the preview back: lower un-collapses
+    const auto after = f.host.state();
+    CHECK (after.lowerWeight == lowerBefore);
+    CHECK (after.upperWeight / find (after, "midiEditor")->weight == 3.0);
+}
+
+TEST_CASE ("dock host: applying a layout keeps the saved float bounds even when a window is open", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    f.host.setVisible ("midiEditor", true);   // an open floating window at its default place
+
+    auto layout = f.host.state();
+    const auto primary = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea;
+    find (layout, "midiEditor")->floatBounds = FloatBounds { primary.getX() + 33, primary.getY() + 44, 500, 300 };
+    f.host.apply (layout);
+
+    const auto* applied = find (f.host.state(), "midiEditor");
+    REQUIRE (applied->floatBounds.has_value());
+    CHECK (applied->floatBounds->x == primary.getX() + 33);
+    CHECK (applied->floatBounds->width == 500);
+}

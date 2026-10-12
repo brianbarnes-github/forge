@@ -15,12 +15,18 @@ DockHost::DockHost (DockStack& topStack, DockStack& bottomStack, juce::Component
     : top (topStack), bottom (bottomStack), upperComponent (upper), lowerComponent (lower),
       centreAround (centreFloatsAround), layout (defaultLayout())
 {
+    boundsTimer.onSettled = [this]
+    {
+        if (onLayoutChanged)
+            onLayoutChanged (state());
+    };
     top.onWeightsChanged    = [this] (const std::vector<DockStack::Item>& items) { weightsChanged (items, true); };
     bottom.onWeightsChanged = [this] (const std::vector<DockStack::Item>& items) { weightsChanged (items, false); };
 }
 
 DockHost::~DockHost()
 {
+    boundsTimer.stopTimer();
     top.onWeightsChanged = nullptr;
     bottom.onWeightsChanged = nullptr;
     for (auto& e : entries)
@@ -134,6 +140,18 @@ void DockHost::apply (const LayoutState& s)
 {
     layout = normalise (s, panelDefs());
     rebuild();
+
+    // A window that was already open does not move by itself: put it where the layout says.
+    // (Only here: other rebuilds run with bounds that may be staler than the live window.)
+    juce::Array<juce::Rectangle<int>> areas;
+    for (const auto& d : juce::Desktop::getInstance().getDisplays().displays)
+        areas.add (d.userArea);
+    const auto* primary = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+    for (auto& e : entries)
+        if (e->window != nullptr)
+            if (const auto* st = find (layout, e->def.id); st != nullptr && st->floatBounds)
+                e->window->setBounds (DockFloatWindow::resolveBounds (
+                    st->floatBounds, areas, primary != nullptr ? primary->userArea : juce::Rectangle<int> (0, 0, 1280, 720)));
 }
 
 void DockHost::userChanged()
@@ -147,8 +165,10 @@ void DockHost::weightsChanged (const std::vector<DockStack::Item>& items, bool t
 {
     for (const auto& it : items)
     {
-        if (it.id == "upper" && ! lowerCollapsed) layout.upperWeight = it.weight;
-        else if (it.id == "lower" && ! lowerCollapsed) layout.lowerWeight = it.weight;
+        // While collapsed, `lower` carries a placeholder weight that must not be saved; upper and
+        // the panels still keep the ratio the user dragged to.
+        if (it.id == "upper") layout.upperWeight = it.weight;
+        else if (it.id == "lower") { if (! lowerCollapsed) layout.lowerWeight = it.weight; }
         else if (auto* p = find (layout, it.id)) p->weight = it.weight;
     }
     (void) topLevel;
@@ -158,8 +178,8 @@ void DockHost::weightsChanged (const std::vector<DockStack::Item>& items, bool t
 
 void DockHost::rebuild()
 {
-    captureFloatBounds (layout);
-
+    // Not capturing float bounds here: callers that can destroy a window capture first, and a
+    // layout just handed to apply() must keep its own saved bounds.
     // 1. Windows that should not exist any more (docked, hidden): destroy first so
     //    their panels are free to move into a stack.
     for (auto& e : entries)
@@ -207,7 +227,7 @@ void DockHost::rebuild()
             const std::string id = e->def.id;
             e->window = std::make_unique<DockFloatWindow> (*e->panel, e->panel->getTitle(),
                                                            s->floatBounds, centreAround);
-            e->window->onBoundsChanged = [this] { if (onLayoutChanged) onLayoutChanged (state()); };
+            e->window->onBoundsChanged = [this] { boundsTimer.startTimer (boundsSettleMs); };
             e->window->onClosed = [this, id] { captureFloatBounds (layout); hide (layout, id); userChanged(); };
         }
     }

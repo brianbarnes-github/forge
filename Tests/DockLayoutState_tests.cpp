@@ -111,3 +111,31 @@ TEST_CASE ("dock: normalise drops unknown ids, adds missing, clamps weights and 
     CHECK (find (n, "midiEditor")->visible);   // kept: it was a valid field
     CHECK_FALSE (find (n, "midiEditor")->floatBounds.has_value());
 }
+
+TEST_CASE ("dock: absurd numbers in the JSON neither overflow nor leave the panel unreachable", "[dock][state]")
+{
+    const auto s = fromJson ("{\"panels\": [{\"id\": \"midiEditor\", \"mode\": \"floating\", \"visible\": true,"
+                             " \"zone\": \"belowTracks\", \"order\": 1e300, \"weight\": 1e300,"
+                             " \"floatBounds\": {\"x\": 1e300, \"y\": -1e300, \"width\": 1e300, \"height\": 600}}]}");
+    const auto* p = find (s, "midiEditor");
+    REQUIRE (p != nullptr);
+    CHECK (p->order >= 0);
+    CHECK (p->order <= 1000);
+    if (p->floatBounds)
+    {
+        CHECK (std::abs (p->floatBounds->x) <= 1000000);
+        CHECK (std::abs (p->floatBounds->y) <= 1000000);
+        CHECK (p->floatBounds->width <= 1000000);
+    }
+}
+
+TEST_CASE ("dock: a panel entry with only an id keeps that panel's defaults", "[dock][state]")
+{
+    const auto s = fromJson ("{\"panels\": [{\"id\": \"lotroPreview\"}, {\"id\": \"midiEditor\"}]}");
+    CHECK (find (s, "lotroPreview")->visible);
+    CHECK (find (s, "lotroPreview")->mode == Mode::docked);
+    CHECK (find (s, "lotroPreview")->zone == Zone::bottom);
+    CHECK_FALSE (find (s, "midiEditor")->visible);
+    CHECK (find (s, "midiEditor")->mode == Mode::floating);
+    CHECK (find (s, "midiEditor")->zone == Zone::belowTracks);
+}

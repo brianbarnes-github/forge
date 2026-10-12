@@ -44,6 +44,18 @@ double numberOr (const juce::var& v, double fallback)
     return (v.isDouble() || v.isInt() || v.isInt64()) ? static_cast<double> (v) : fallback;
 }
 
+// Saved numbers are untrusted: casting an out-of-range double to int is undefined, and a
+// huge coordinate could overflow later placement arithmetic.
+int intOr (const juce::var& v, int fallback)
+{
+    if (! (v.isDouble() || v.isInt() || v.isInt64()))
+        return fallback;
+    const double d = static_cast<double> (v);
+    if (! std::isfinite (d))
+        return fallback;
+    return static_cast<int> (std::clamp (d, -1.0e6, 1.0e6));
+}
+
 std::optional<PanelState> panelFromVar (const juce::var& v)
 {
     if (! v.isObject())
@@ -52,20 +64,28 @@ std::optional<PanelState> panelFromVar (const juce::var& v)
     if (! id.isString() || id.toString().isEmpty())
         return std::nullopt;
 
-    PanelState p { id.toString().toStdString(), Mode::docked, false, Zone::bottom, 0, 1.0, std::nullopt };
-    p.mode    = v.getProperty ("mode", {}).toString() == "floating" ? Mode::floating : Mode::docked;
-    p.zone    = v.getProperty ("zone", {}).toString() == "belowTracks" ? Zone::belowTracks : Zone::bottom;
+    // A key that is absent keeps that panel's registry default (an entry holding only an id is valid).
+    const auto name = id.toString().toStdString();
+    const auto defIt = std::find_if (panelDefs().begin(), panelDefs().end(), [&] (const PanelDef& d) { return d.id == name; });
+    PanelState p { name, Mode::docked, false, Zone::bottom, 0, 1.0, std::nullopt };
+    if (defIt != panelDefs().end())
+        p = stateFromDef (*defIt, 0);
+
+    if (v.hasProperty ("mode"))
+        p.mode = v.getProperty ("mode", {}).toString() == "floating" ? Mode::floating : Mode::docked;
+    if (v.hasProperty ("zone"))
+        p.zone = v.getProperty ("zone", {}).toString() == "belowTracks" ? Zone::belowTracks : Zone::bottom;
     const auto vis = v.getProperty ("visible", {});
-    p.visible = vis.isBool() && static_cast<bool> (vis);
-    p.order   = static_cast<int> (numberOr (v.getProperty ("order", {}), 0.0));
-    p.weight  = numberOr (v.getProperty ("weight", {}), 0.0);
+    if (vis.isBool())
+        p.visible = static_cast<bool> (vis);
+    p.order = intOr (v.getProperty ("order", {}), p.order);
+    if (v.hasProperty ("weight"))
+        p.weight = numberOr (v.getProperty ("weight", {}), 0.0);
 
     const auto fb = v.getProperty ("floatBounds", {});
     if (fb.isObject())
-        p.floatBounds = FloatBounds { static_cast<int> (numberOr (fb.getProperty ("x", {}), 0.0)),
-                                      static_cast<int> (numberOr (fb.getProperty ("y", {}), 0.0)),
-                                      static_cast<int> (numberOr (fb.getProperty ("width", {}), 0.0)),
-                                      static_cast<int> (numberOr (fb.getProperty ("height", {}), 0.0)) };
+        p.floatBounds = FloatBounds { intOr (fb.getProperty ("x", {}), 0), intOr (fb.getProperty ("y", {}), 0),
+                                      intOr (fb.getProperty ("width", {}), 0), intOr (fb.getProperty ("height", {}), 0) };
     return p;
 }
 } // namespace

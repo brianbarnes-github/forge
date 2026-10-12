@@ -163,12 +163,16 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     if (! trackNode.isValid())
         return;
 
-    const bool wasOpen = isTrackEditorOpen();
+    // A hidden editor, or one emptied by New / Open, starts afresh on the default grid; one that
+    // is showing a track keeps its grid.
+    const bool keepsGrid = isTrackEditorOpen() && trackEditor->getTrackId() != -1;
     dockHost.setCentreFloatsAround (getTopLevelComponent());
     trackEditor->setTrack (trackNode);
     dockHost.setVisible ("midiEditor", true);
-    if (! wasOpen)
-        setActiveEditorGridSize (defaultGridSize);   // a newly opened editor starts on the default grid
+    if (! keepsGrid)
+        setActiveEditorGridSize (defaultGridSize);
+    if (trackEditor->isShowing())
+        trackEditor->grabKeyboardFocus();   // now that it is shown, so Space reaches it
     refreshGhostTracksOnEditor();
 }
 
