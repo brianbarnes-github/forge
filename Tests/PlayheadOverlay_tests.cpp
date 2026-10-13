@@ -217,7 +217,7 @@ namespace
 {
     bool containsStrip (const PlayheadDirtyTracker::Dirty& d, int x)
     {
-        return std::find (d.xs.begin(), d.xs.begin() + d.count, x) != d.xs.begin() + d.count;
+        return std::find (d.xs.begin(), d.xs.end(), x) != d.xs.end();
     }
 
     const juce::Rectangle<int> farAway (300, 0, 100, 50);
@@ -246,7 +246,7 @@ TEST_CASE ("PlayheadDirtyTracker: nothing to repaint while the playhead is still
     constexpr int height = 50;
     t.onPositionChanged (100, width);
     t.onPaint (100, width, height, { 0, 0, width, 50 });
-    CHECK (t.onPositionChanged (100, width).count == 0);
+    CHECK (t.onPositionChanged (100, width).xs.empty());
 }
 
 TEST_CASE ("PlayheadDirtyTracker: a playhead outside the view never causes repeated repaints", "[playback][overlay][ghost]")
@@ -256,10 +256,10 @@ TEST_CASE ("PlayheadDirtyTracker: a playhead outside the view never causes repea
     constexpr int height = 50;
     t.onPositionChanged (-40, width);
     t.onPaint (-40, width, height, { 0, 0, width, 50 });
-    CHECK (t.onPositionChanged (-40, width).count == 0);
+    CHECK (t.onPositionChanged (-40, width).xs.empty());
     t.onPositionChanged (900, width);
     t.onPaint (900, width, height, { 0, 0, width, 50 });
-    CHECK (t.onPositionChanged (900, width).count == 0);
+    CHECK (t.onPositionChanged (900, width).xs.empty());
 }
 
 TEST_CASE ("PlayheadDirtyTracker: a repaint that covers the old line without redrawing it counts as erased", "[playback][overlay][ghost]")
@@ -272,5 +272,39 @@ TEST_CASE ("PlayheadDirtyTracker: a repaint that covers the old line without red
     t.onPaint (110, width, height, { 90, 0, 40, 50 });          // covers 100 and 110: 100 is wiped, 110 is drawn
     const auto dirty = t.onPositionChanged (110, width);
     CHECK (! containsStrip (dirty, 100));
-    CHECK (dirty.count == 0);
+    CHECK (dirty.xs.empty());
+}
+
+TEST_CASE ("PlayheadDirtyTracker: a one-row repaint at the live x does not make the tracker forget the full line drawn earlier", "[playback][overlay][ghost]")
+{
+    PlayheadDirtyTracker t;
+    constexpr int width = 500;
+    constexpr int height = 500;
+    t.onPositionChanged (100, width);
+    t.onPaint (100, width, height, { 99, 0, 4, height });      // the timer's strip: the whole line is drawn at 100
+
+    // The transport moves; dragging a volume slider repaints just its row (clip covers x 110, not the whole height).
+    t.onPaint (110, width, height, { 0, 100, 200, 50 });
+
+    const auto dirty = t.onPositionChanged (110, width);
+    CHECK (containsStrip (dirty, 100));                 // the line still on screen at 100, outside that row, must be erased
+    CHECK (containsStrip (dirty, 110));                 // and 110 was only drawn in that row
+}
+
+TEST_CASE ("PlayheadDirtyTracker: several one-row repaints at different x leave every drawn line to be erased", "[playback][overlay][ghost]")
+{
+    PlayheadDirtyTracker t;
+    constexpr int width = 500;
+    constexpr int height = 500;
+    t.onPositionChanged (100, width);
+    t.onPaint (100, width, height, { 99, 0, 4, height });
+    t.onPaint (110, width, height, { 0, 100, 200, 50 });   // row 3
+    t.onPaint (120, width, height, { 0, 200, 200, 50 });   // row 5, later
+    t.onPaint (130, width, height, { 0, 300, 200, 50 });   // row 7, later still
+
+    const auto dirty = t.onPositionChanged (130, width);
+    CHECK (containsStrip (dirty, 100));
+    CHECK (containsStrip (dirty, 110));
+    CHECK (containsStrip (dirty, 120));
+    CHECK (containsStrip (dirty, 130));
 }

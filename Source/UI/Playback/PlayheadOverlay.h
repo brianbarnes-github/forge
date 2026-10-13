@@ -6,8 +6,8 @@
 
 #include <array>
 #include <functional>
-#include <limits>
 #include <optional>
+#include <vector>
 
 namespace lotro
 {
@@ -17,9 +17,10 @@ namespace lotro
 // The overlay paints at the LIVE transport position but is told about moves only
 // by a 30 Hz timer, so any repaint of its area in between (a volume slider step
 // repainting its row, say) can draw the line at a position no notification has
-// seen yet. The tracker therefore remembers where the line was last actually
-// drawn, not where the last notification said it was, so the next notification
-// always erases what is really on screen.
+// seen yet, and usually only inside the repainted rows. The tracker therefore
+// remembers every x where a line is actually on screen (and whether it was drawn
+// the full height), not where the last notification said it was, so the next
+// notification always erases everything that is really there.
 class PlayheadDirtyTracker
 {
 public:
@@ -27,19 +28,22 @@ public:
 
     struct Dirty
     {
-        std::array<int, 2> xs {};   // strips to repaint: the line's old x and its new x
-        int count = 0;
+        std::vector<int> xs;   // strips to repaint: every line still on screen, and the new x
     };
 
     // The playhead is now at x (in the overlay's coordinates).
-    Dirty onPositionChanged (int x, int overlayWidth) noexcept;
+    Dirty onPositionChanged (int x, int overlayWidth) const;
 
     // paint() ran at the playhead's current x with this clip.
-    void onPaint (int x, int overlayWidth, int overlayHeight, juce::Rectangle<int> clip) noexcept;
+    void onPaint (int x, int overlayWidth, int overlayHeight, juce::Rectangle<int> clip);
 
 private:
-    static constexpr int none = std::numeric_limits<int>::min();
-    int drawnX = none;   // x of the line as last drawn and not since wiped
+    struct Drawn
+    {
+        int x = 0;
+        bool full = false;   // drawn over the overlay's whole height
+    };
+    std::vector<Drawn> drawn;   // lines on screen and not since wiped
 };
 
 // A mouse-transparent vertical line at the shared playhead. The owner supplies
