@@ -1,7 +1,7 @@
 # Testing notes
 
 - `DockLayoutState_tests.cpp` (`[dock][state]`) pins the default layout (today's page), show/hide/float/dock semantics, unknown ids as no-ops, `moveToZone` ordering, the JSON round trip and that empty, corrupt, wrong-typed or hostile JSON gives the defaults; `DockStackLayout_tests.cpp` the weighted sizing (minimums, no negatives, rounding) and divider drag; `DockStack_tests.cpp` / `DockPanel_tests.cpp` the stack layout and drag, the panel header and buttons, one content instance surviving a trip through a floating window, and `resolveBounds`; `DockHost_tests.cpp` the zones, float/dock, mode kept across hide/show, change reporting and the lower region collapsing. `SongsmithMainComponent_tests.cpp` `[songsmith][layout]` pins the first-run geometry (recorded from the old splitter layout; the upper height is within 4 px), the editor panel's open/dock/clear behaviour and the layout JSON round trip. `AppSettings_tests.cpp` pins `dock.layout`; `MenuModel_tests.cpp` the four View panel items. `PartStripComponent_tests.cpp` pins the fixed 180 px cards (same width for 1 or N parts, scrolling when they overflow). `TrackEditorPanel_tests.cpp` is the old window's suite ported to the panel.
-- Test count: **1290** (`ctest --test-dir build -N | tail -1`).
+- Test count: **1342** (`ctest --test-dir build -N | tail -1`).
 - `AppSettings_tests.cpp` pins the two confirmation keys, their defaults (on), the "anything but 0 is on" read rule and write-through save; `PreferencesDialog_tests.cpp` pins the page tree / splitter / page layout, the page registry, the Close button (`triggerClick()` is asynchronous, so the test pumps the dispatch loop) and the General page toggles. `AppSettings_tests.cpp` also pins the save-failure reporting (a failed save returns false, keeps the value for the session and clears on the next good save); `PreferencesDialog_tests.cpp` pins the failure notice (from either page, visible on open when the last save already failed, hidden again after a later good save) and the minimum size. `SongDocument_tests.cpp` pins `validateLoaded` accepting well-formed sections and rejecting damaged `SECTION` nodes, and `SectionEdit_tests.cpp` that documents built with the real split/move/resize operations (overlap included) pass it.
 - `NoteMerge_tests.cpp` (`[merge]`) pins `mergeSections`/`canMergeInto`: move vs copy in one undo step, invalid requests opening no transaction, provenance of inserted notes (target channel and drum flag, no raw ordering), section attribution, and the same-pitch rules (contained dropped, overlap and touch joined, bridging collapses two notes, chords coexist, earliest properties win, pre-existing target overlaps untouched, colliding carried notes joined). `TrackNotePreview_tests.cpp` pins the Alt press/drag/release callbacks (and that a plain press is unchanged) and the target-row outline/ghosts; `TrackListComponent_tests.cpp` the gesture (commit once on release, Ctrl copies, invalid targets and a click merge nothing, Esc cancels, scope of carried sections).
 - `ProgramChanges_tests.cpp` (`[instrument]`) pins `programChangesOf` (tick order, channel/program, the conductor has none), `instrumentSegmentsOf` (merged repeats, `sourceProgram` before a late first change, a change-less track, two changes on one tick) and `bandSegments`; `InstrumentEdit_tests.cpp` pins `splitAtTicks` and auto split (one undo step, nothing below two instruments, no empty section past the last one) and `setTrackInstrument` (rewrite/delete/insert, first change per channel, `sourceProgram`, no-op opens no transaction, undo restores). `TrackRowComponent_tests.cpp` / `TrackListComponent_tests.cpp` add the band menu (items, enabled state, ticked program, callbacks) and its wiring to the document. `NoteMerge_tests.cpp` `[merge][events]` pins All-events merging: in-range events only (half-open), channel rewrite, Move vs Copy and one-step undo, EOT/track-name never carried, no synthesized program change, event-only merges count as changed, and notes-only unchanged; `AppSettings_tests.cpp` / `ViewPreferencesPages_tests.cpp` pin `editing.mergeScope` and the Editing radios.
@@ -185,3 +185,49 @@ See `docs/BUILD.md` for how to run these.
 - `ConductorMarkers_tests.cpp` (`[hit]`) pins `markerAt` (line tolerance, a same-tick tempo and meter told apart by the half clicked, own-half beats distance then nearest wins, label areas only in the kind's own half, markers just off the left edge). `TrackNotePreview_tests.cpp` (`[marker-click]`) pins that a plain left press on a Conductor marker fires `onMarkerClicked` and, when the owner returns true (editor open), nothing else; when it returns false the press falls through to the old seek/select path; a double-click on a marker fires `onMarkerDoubleClicked`, elsewhere the plain double-click, a press elsewhere still seeks and selects, modified and right presses fall through, and a normal row never fires it; `TrackListComponent_tests.cpp` the same through `onConductorMarkerClicked`. `TempoMeterEditorWindow_tests.cpp` (`[select-event]`) pins `selectEvent` (right row among same-tick tempo and meter, scrolled into view from off-screen, unknown event returns false and changes nothing, sees an edit whose refresh is still pending) and `SongsmithMainComponent_tests.cpp` that a marker single-click is declined while the editor is closed and moves the selection of an open one, and `openTempoMeterEditorOnEvent` (the double-click) opens on that event.
 
 - Mixer (`docs/ARCHITECTURE.md` §9.14, §9.19): `SongFileRoundTrip_tests.cpp` pins `trackPlaybackPan` (absent is nullopt, clamping) and `validateLoaded` rejecting a bad `playbackPan`. `PlaybackEngine_tests.cpp` (`[playback][engine][pan|master]`) pins the pan override: an overridden track drops file CC10/CC42 and is panned on every channel (drums included), a track without one keeps its CC10 and gets no pan calls, the override survives a seek and Stop/Play and is re-applied after a live CC121, clearing restores the file's last CC10 (or centres), setting it mid-play pans once, not every block; and master gain at 100/50/0, playing or not, applied once on a mono buffer. `PlaybackSnapshot` and `PlaybackController` tests pin `panOverride` from `playbackPan` and that a pan change does not rebuild the snapshot, and master clamping and notification. `SourceMidiTarget_tests.cpp` pins the `MixerTarget` seam (channels, volume/pan/mute/solo setters, one coalesced `mixerChanged`). `MuteSoloIconButton_tests.cpp` pins the extracted icon button. `MixerPanelComponent_tests.cpp` pins strip creation and rebuild only when the channel list changes, drag gestures as one undo step, no echo between head sliders and faders, the master strip, dimming, and the mouse wheel being disabled on the faders and pan knob. `DockLayoutState_tests`, `DockHost_tests`, `MenuModel_tests` and `SongsmithMainComponent_tests` gained the `mixer` def (hidden by default, last in the bottom zone, gained by older saved layouts), the View → Mixer item and the 150 px minimum.
+
+- Loop range (`docs/ARCHITECTURE.md` §9.14, `[loop]`). Note that `ctest -R LoopRange` matches only one test; ctest names are the `TEST_CASE` strings.
+  - `LoopRange_tests.cpp` pins `normaliseLoopRange` (order, clamp, minimum), `snapLoopTick` (grid, Alt, grid 0), `nextLoopStep` (including the FP case that must give 480, not 481) and `LoopSpanCell` publish/read.
+  - `Transport_tests.cpp` pins `advanceTo`: it commits only from the expected position, stops at the end, and can move backwards without a seek bump.
+  - `PlaybackEngine_tests.cpp` pins the wrap:
+    - NoteOn frames exactly {4800, 14400, 24000} across wraps;
+    - the program is re-chased on each wrap;
+    - an event exactly at the loop end never fires;
+    - a start at or past the end never wraps;
+    - a start before the range plays into it;
+    - a 0.05 s loop wraps several times per block, with the `kMaxWrapsPerBlock` cap binding;
+    - clearing the loop plays on;
+    - a seek from inside `render()` wins over the wrap.
+  - `PlaybackController_tests.cpp` pins:
+    - the ordered range, one notice per change;
+    - ignored requests (nothing to play, too short, wholly past the end) keeping the old range;
+    - end clamping;
+    - the Play rule (`[start, end)` boundary, marker ignored then re-applied);
+    - tempo edits moving the seconds but not the ticks;
+    - a shortened Song clamping or dropping the span while keeping the ticks;
+    - `documentReplaced` clearing it;
+    - `setLoopRange`'s return value.
+  - `PlayheadOverlay_tests.cpp` pins `LoopRangeOverlay`: exact shaded columns, clipping, mouse transparency. It also pins the ruler: bracket bounds, bracket drag, click-to-clear with the 3 px latch, `onLoopEdgePressed`, marker priority, off-bracket presses still setting the marker or seeking, and shading.
+  - `TrackRowComponent_tests.cpp` pins the band drag:
+    - it reports `(pressTick, tickAtX, finished, unsnapped)` after 4 px;
+    - a band click reports nothing;
+    - presses outside the band, right presses and the conductor row never draw.
+  - `TrackListComponent_tests.cpp` pins:
+    - snapped and Alt drags;
+    - a drag within one grid cell setting nothing;
+    - an out-and-back drag restoring the previous range, or none;
+    - a drag that starts inside the range moving it;
+    - ruler brackets anchored on the other edge, even past it;
+    - click-to-clear;
+    - a range cleared mid-drag staying cleared;
+    - the overlay existing only with a controller.
+  - `PianoRollComponent_tests.cpp`, `TrackEditorPanel_tests.cpp` and `SourceRollEditor_tests.cpp` pin:
+    - the editor overlay;
+    - the editor ruler's anchored, grid-snapped bracket drag and click-to-clear;
+    - the timing bar repainting on a loop change;
+    - `isGestureActive`.
+  - `SongsmithMainComponent_tests.cpp` pins `currentLoopSnapTicks` (editor grid vs default grid) and the `escapePressed` precedence: it clears the range; it does nothing during a note drag; it cancels a section drag and keeps the range.
+  - Untested:
+    - mute/solo/pan/master across a wrap;
+    - live Alt on ruler bracket drags (synthetic events carry no live modifiers);
+    - `MainWindow`'s Esc re-route (only `escapePressed` is tested).

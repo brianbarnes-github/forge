@@ -1,6 +1,10 @@
 # Songsmith time selection with looping — design
 
-Status: draft for review (2026-10-12). TODO item #3.
+Status: implemented (2026-10-12; plan
+`docs/superpowers/plans/2026-10-12-songsmith-loop-range.md`, code walkthrough
+`docs/ARCHITECTURE.md` §9.14). TODO item #3. This document has been updated to
+describe what was built; the points where the build refined the draft are
+marked *As built*.
 
 ## Goal
 
@@ -40,30 +44,50 @@ touches the Song's MIDI, the ABC export, the undo stack or the saved
 - **Snap:** both edges snap to the current grid (the same grid-size setting that
   note editing uses). Holding Alt drags unsnapped, to the exact tick under the
   pointer. A drag that ends with zero length (or shorter than one grid step when
-  snapped) creates nothing and leaves any existing range alone.
+  snapped) creates nothing and leaves any existing range alone. *As built:* the
+  minimum is `kMinLoopSeconds` (0.05 s, at the tempo at the range start). The
+  range follows the pointer live. When the drag becomes too short, e.g. back in
+  the anchor's grid cell, the range from before the drag is put back, or cleared
+  if there was none. The drag starts only after 4 px, so a band click just
+  selects the row. The snap grid is the MIDI editor's grid while it shows a
+  track, else the Preferences ▸ Editing default grid (Off = unsnapped). The
+  editor panel's own ruler snaps to its roll's grid.
 - **Show:** a translucent band across all tracks and the editor roll (like
   `MarkerOverlay`, fully mouse-transparent), plus start / end handles in the
   timing bar.
 - **Adjust:** dragging a handle in the timing bar moves that edge (same snap
   rules). Dragging inside an existing range in a band moves the whole range,
   keeping its length. A new drag that starts **outside** the existing range
-  replaces it.
+  replaces it. *As built:* a ruler edge drag is anchored on the other edge as
+  it was at the press, so dragging past it swaps the edges. A moved range's
+  start snaps to the grid and stops at tick 0. At the Song end the controller
+  clamps the end, so the range gets shorter.
 - **Clear:** Esc clears the range, as does clicking an edge handle in the timing
-  bar without dragging (as the marker triangle clears the marker today). New /
+  bar without dragging (as the marker triangle clears the marker today;
+  *as built*, "without dragging" means the pointer never got 3 px from the
+  press). New /
   Open clears it (`documentReplaced`). Editing the Song does not.
 - **Bounds:** edges are clamped to `[0, endSeconds]`. A range that extends past
   the end of the Song after an edit is clamped when read (the stored ticks are
-  not rewritten).
+  not rewritten). *As built:* if the clamped span is shorter than 0.05 s, no
+  loop is published; it returns when the Song grows. `getLoopRange()`, which the
+  UI draws, still returns the stored ticks, so the shading can differ from what
+  the engine loops. No notice fires when the span is dropped or restored.
 
 ### Playing
 
 - **Range always loops.** There is no loop toggle: a selected range loops, no
   range means no loop. Clearing the range is how looping stops.
-- **Play with a range:** starts at the range start and wraps from the range end
-  back to the range start. The range overrides the start marker while it exists
-  (the marker is untouched and applies again once the range is cleared). With no
-  range, Play behaves exactly as today.
-- **Stop** returns to the play-start, which with a range is the range start.
+- **Play with a range:** seeks to the range start only when the playhead is
+  outside `[start, end)`. When it is already inside the range, Play resumes
+  from there. Either way it wraps from the range end back to the range start.
+  The range overrides the start marker while it exists (the marker is untouched
+  and applies again once the range is cleared). With no range, Play behaves
+  exactly as today. *As built:* "a range exists" means a span is published to
+  the engine. After an edit shortens the Song so much that the span is dropped,
+  Play takes the normal marker/playhead path.
+- **Stop** returns to the play-start: the range start, or the in-range position
+  Play resumed from.
 - **Seeks:** a seek or click that lands **inside** the range plays on from there
   and still wraps at the range end. A seek that lands **before** the range plays
   forward into it and then loops. A seek that lands **at or past the range end**
@@ -89,29 +113,40 @@ source-MIDI side, so the later LOTRO playback target (see the mixer spec's
   `getLoopRange` (`std::optional<LoopRange>` with `startTick < endTick`) and
   `Listener::playbackLoopChanged()`. `setLoopRange` is ignored while there is
   nothing to play (the same `endSeconds() > 0` test as `setMarkerTick`) and
-  normalises reversed arguments. `documentReplaced` clears it.
+  normalises reversed arguments. `documentReplaced` clears it. *As built:*
+  `setLoopRange` returns `bool`, true when the request was accepted (including
+  when the result equals the current range). A result that is too short or lies
+  wholly past the Song end is rejected and leaves the range unchanged.
 - The range is stored in **ticks** and converted to seconds through the current
   snapshot's `TempoMap`; the controller republishes the seconds pair to the
   engine on every change and on every snapshot swap, so tempo edits move the loop
   edges with the music.
-- `play()` seeks to the range start when a range exists, else to the marker as
-  today. `PlaybackController` owns this decision; the transport stays dumb.
+- `play()` seeks to the range start when a range exists and the playhead is
+  outside it, else (no range) to the marker as today. `PlaybackController` owns
+  this decision; the transport stays dumb.
 
 ### Engine (the wrap)
 
-- The engine holds the loop as two atomics, `loopStartSeconds` and
-  `loopEndSeconds` (negative = off), written by the controller on the message
-  thread and read once per block.
+- The engine holds the loop in a `LoopSpanCell`. The controller writes it on
+  the message thread and the audio thread reads it once per block. *As built*
+  it is a seqlock (version counter plus start, end and active atomics) rather
+  than two bare atomics, so a block never sees a start from one range and an end
+  from another. A torn read falls back to the last consistent value.
 - **Sample-accurate wrap inside `renderBlockUnscaled`.** If the block starts
   inside `[loopStart, loopEnd)` and would cross `loopEnd`, the engine renders up
   to `loopEnd`, sets the playhead to `loopStart`, chases there
   (`releaseAll`, `chase`, `firstEventAtOrAfter`) and renders the rest of the
   block from `loopStart`; a very short loop can wrap more than once in a block,
-  so this is a loop with a safe iteration cap (a block can never wrap more than
-  its length in samples allows, and a degenerate loop shorter than one sample is
-  rejected at `setLoopRange`).
+  so this is a loop with a safe iteration cap. *As built:* the cap is
+  `kMaxWrapsPerBlock` = 4, and loops shorter than 0.05 s are rejected at
+  `setLoopRange`. A wrapping segment delivers only events strictly before the
+  loop end, so an event exactly on the end plays after the wrap. Known gap:
+  a block longer than 4 × the loop length (more than ~9600 frames at the
+  minimum) renders past the loop end once the cap binds and exits the loop.
+  This is unreachable at normal buffer sizes.
 - The wrap uses the same `Transport` position update the end-of-block advance
-  uses, so the message thread still sees a continuously valid position and a
+  uses (*as built*, `Transport::advanceTo(from, to, end)`, which may move
+  backwards; `advance` is now a wrapper for it), so the message thread still sees a continuously valid position and a
   concurrent message-thread seek still wins (the CAS drop path is kept).
 - A playhead that starts the block at or past `loopEnd` (the "seek past the end"
   case) never wraps.
@@ -127,32 +162,51 @@ source-MIDI side, so the later LOTRO playback target (see the mixer spec's
 - **Ruler:** `TimelineRuler` draws the two edge handles and a shaded span for the
   range (rows 1-2) and routes handle press / drag / click-to-clear to new
   callbacks (`onLoopEdgeDragged`, `onClearLoop`), next to the existing
-  `onSetMarker` / `onSeek` / `onClearMarker`.
+  `onSetMarker` / `onSeek` / `onClearMarker`. *As built:* the ruler also has
+  `onLoopEdgePressed (bool isStart)`, fired by the press that grabs a bracket,
+  so its owner can capture the other edge as the drag's anchor. The marker's
+  triangle keeps priority where it overlaps a bracket. A ruler drag carries no
+  modifiers, so its owner reads Alt from the live keyboard state.
 - **Band:** `TrackRowComponent` forwards a left press / drag / release in
   `inInstrumentBand` (not popup-menu, not on the conductor row) as
-  `onLoopRangeDragged (tickAtX, finished)`, and a drag that starts on an existing
-  range inside the band as a move. The right-click menu is untouched.
-  `TrackListComponent` converts x to ticks with its `TimelineViewState`, applies
-  the grid snap (shared snap helper, Alt = off) and calls the controller.
+  `onLoopRangeDragged (pressTick, tickAtX, finished, unsnapped)`. Every drag
+  step reports `finished = false` once the pointer is 4 px from the press, and
+  the release reports `finished = true` only after such a step. The right-click
+  menu is untouched, and the press still selects the row. `TrackListComponent`
+  decides at the first drag step whether this is a move (the press tick lies
+  inside the existing range) or a draw. It converts x to ticks with its
+  `TimelineViewState`, applies the grid snap (`snapLoopTick`, Alt = off) and
+  calls the controller.
 - **Overlay:** a `LoopRangeOverlay` (new class beside `MarkerOverlay` in
   `PlayheadOverlay.{h,cpp}`) draws the translucent band over the track canvas and
   the editor roll. Fully mouse-transparent; listens to
   `playbackLoopChanged`.
-- **Keyboard:** Esc clears the range when the main window or a panel has focus and
-  no text editor, popup or drag is active (it must not steal Esc from the note
-  editor's cancel-gesture handling; the precise precedence is settled in the plan
-  against `SourceRollEditor`'s existing Esc handling).
-- **Menu / commands:** no new menu item is required. A Transport-menu
-  "Clear Loop Range" entry is optional (see Open questions).
+- **Keyboard:** Esc clears the range when no text editor or drag is active. *As
+  built:* `SourceRollEditor` turned out to have no Esc handling of its own, so
+  nothing in the note editor consumes the key. `MainWindow::keyPressed` keeps
+  its text-input guard and then calls `SongsmithMainComponent::escapePressed()`,
+  which does one thing per press:
+  1. It cancels a section or merge drag, keeping the range.
+  2. Otherwise, during a note-editor drag (`isGestureActive()` chain), it does
+     nothing and does not consume the key.
+  3. Otherwise it clears the range.
+
+  Known gap: Esc does not reach `MainWindow` from a floating MIDI-editor panel
+  (`DockFloatWindow` has no `keyPressed`).
+- **Menu / commands:** no new menu item (see Open questions, resolved);
+  `allCommandIds` stays 34.
 
 ### Pure helpers (JUCE-free, unit-tested)
 
 - `snapLoopTick (tick, gridTicks, altHeld)` — range-edge snapping.
 - `normaliseLoopRange (a, b, endTick)` — ordering, clamping, minimum length.
-- `LoopRange` with a `contains (tick)` and `toSeconds (TempoMap)` helper.
+- `LoopRange` with a `contains (tick)` and `toSeconds (TempoMap)` helper. *As
+  built:* `LoopRange` is a plain `{startTick, endTick}` struct. The containment
+  and seconds conversion live in `PlaybackController` (`effectiveLoopSpan`, which
+  yields a `LoopSpan` in seconds) and in `TrackListComponent` (move vs draw).
 - The engine wrap arithmetic (how many samples until `loopEnd`, remaining samples
   after the wrap) as a small pure function so the block-splitting logic is tested
-  without a sink.
+  without a sink: `nextLoopStep`.
 
 ## Testing
 
@@ -163,7 +217,9 @@ Integration over unit where it counts, with `RecordingSink` as in the pan tests:
   `loopStart` (check sample offsets). A loop shorter than a block wraps correctly
   more than once. Starting at or past `loopEnd` never wraps. A seek inside the
   loop keeps wrapping; a seek past it does not. A concurrent message-thread seek
-  during a wrap block still wins. Mute / solo / pan / master apply across a wrap.
+  during a wrap block still wins. Mute / solo / pan / master apply across a wrap
+  (*not built*: no test of its own; they are untouched by construction, since the
+  wrap sits inside `renderBlockUnscaled`).
 - Controller: `setLoopRange` / `clearLoopRange` / `documentReplaced`, ignored when
   nothing is loaded, reversed arguments normalised, `play()` starts at the range
   start and the marker applies again after clearing, the tick range follows a
@@ -183,10 +239,22 @@ Integration over unit where it counts, with `RecordingSink` as in the pan tests:
 - LOTRO-preview playback (only the seam: the range lives on the transport side).
 - Audio-thread allocation or locking of any kind.
 
-## Open questions (for the plan, not blockers)
+## Open questions (resolved)
 
-- Whether to add a Transport-menu "Clear Loop Range" item (and its `MenuCommandId`;
-  `allCommandIds` would become 35) in addition to Esc and the handle click.
-- Exact Esc precedence against the editor's gesture-cancel handling.
-- Whether the band drag should auto-scroll the canvas when dragging past the
-  visible edge (the marker drag in the ruler does not today).
+- Transport-menu "Clear Loop Range" item: **not built**. Esc and the bracket
+  click suffice; `allCommandIds` stays 34.
+- Esc precedence: section/merge drag cancel first (range kept), then nothing
+  during a note-editor drag, then clear the range (see Keyboard above).
+- Auto-scroll while band-dragging past the visible edge: **not built**, the same
+  as the marker drag in the ruler.
+
+## Known gaps (as built)
+
+- Esc from a floating MIDI-editor panel never reaches `MainWindow`.
+- The marker triangle's 16 × 12 px hit box shadows a loop bracket when the marker
+  sits on or near a loop edge.
+- A block longer than 4 × the loop length exits the loop (the
+  `kMaxWrapsPerBlock` cap). This is unreachable at normal buffer sizes.
+- Notes sounding at the loop start are not retriggered on a wrap, the same as
+  after a seek, as this spec accepts above.
+- After a Song shrink drops the span, the overlay still shows the stored range.

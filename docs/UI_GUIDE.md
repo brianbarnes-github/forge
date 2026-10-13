@@ -112,9 +112,10 @@ When you say…       …I'll know you mean
 | 29 | **About dialog**              | **Help → About...** (`MainWindow`'s `HelpAbout`) → `showAboutDialog` (`Source/UI/AboutBox.{h,cpp}`): a modal `DialogWindow` centred over the main window, showing `AboutComponent`'s "SongSmith", "Created by Vydor", `Version <x.y.z>` and `Build <commit count> (<short hash>)` — `-dirty` after the hash if built from uncommitted changes, `Build unknown` if built without git. Ask testers for the Build line to know exactly which commit they're running |
 | 30 | **Transport strip**          | `TransportStrip` (`Source/UI/Playback/TransportStrip.{h,cpp}`) — 28 px row of `\|<` (go to start), `<<` (back one bar), Play/Pause, Stop, `>\|` (go to end); centred in the bar across the top of the lower region of the Songsmith view (just under the MIDI canvas, above the Parts panel; it rides along when the top dock divider (#6) is dragged) and at the top of the Track editor panel (#28), both bound to the one `PlaybackController` |
 | 31 | **Mute / Solo buttons**      | drawn speaker (mute) and headphone (solo) toggle icons on the second line of the track head (`TrackHeadComponent`, see #10) of every non-conductor row (#10); session-only, never saved or undoable |
-| 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. Tempo and meter are edited in the Tempo and Meter window (see below). Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
+| 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. Tempo and meter are edited in the Tempo and Meter window (see below). Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead. A loop range (#35) is shaded through both rows with an amber bracket at each edge: drag a bracket to move that edge (snapped to the grid, Alt for free), or click it without dragging to clear the range |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
 | 34 | **Mixer panel**              | `MixerPanelComponent` (`Source/UI/Mixer/`) — the `mixer` dock panel (hidden by default; View → Mixer; last in the bottom zone). A pinned Master strip (volume fader, 0-100, session-only) sits left of a horizontally scrolling row of per-track `MixerStripComponent`s: pan knob (moving it overrides the file's pan, double-click returns to the file's own pan), a volume fader filling the height beneath it (double-click resets to 100), the mute and solo icons and, at the bottom, the track number and name. A small "MIDI" label above the Master fader names the active playback target. The mouse wheel does nothing on the faders and knob. Volume and mute/solo stay in step with the track heads; pan lives only here |
+| 35 | **Loop range**               | `LoopRangeOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) plus brackets in the timing bar (#32); held on `PlaybackController` — a translucent amber span with an edge line at each end, drawn across every track row and the Track editor's roll. Left-drag in a track's instrument band (#10) to draw it; while it exists playback loops it. Session-only: not saved, not undoable, cleared by New / Open and by Esc. See "Loop range" under Playback below |
 
 ## Songsmith view
 
@@ -195,7 +196,9 @@ When you say…       …I'll know you mean
   current zoom. Right-click the band for **Auto split on instrument change** (disabled with
   fewer than two instruments) and **Set track instrument to ▸** (a General MIDI list; the track's
   first instrument is ticked; the whole track becomes that one instrument, undoable in one
-  step). It is extra height, so the
+  step). Left-drag along the band (any non-conductor row) to draw or move the loop range
+  (#35, see Playback below); it never starts a drag to a part, and the press still selects the
+  row. It is extra height, so the
   notes area keeps its size: toggling it on/off is
   transient (never persisted) and adds/removes that track from the set of
   translucent ghost overlays shown in the Track
@@ -258,7 +261,8 @@ When you say…       …I'll know you mean
   rather than opening a second one. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
   below for the editing gestures — plus translucent overlays of any tracks
-  currently ghost-toggled on in the track list (#10). Closing it only hides
+  currently ghost-toggled on in the track list (#10). The loop range (#35), when
+  one is set, is shaded over its roll too, with brackets in its own timing bar. Closing it only hides
   it (View → MIDI Editor shows it again); New / Open clears the loaded track
   but keeps the panel's mode and visibility.
 - **Source piano roll** (#13, `PianoRollComponent`, `Role::Source`) — shows the
@@ -372,6 +376,43 @@ When you say…       …I'll know you mean
   SoundFont" dialog. The audio device opens on the first Play, not at
   startup. The Track editor window is 56 px taller than it was before
   playback (strip 28 + timing bar 28) when playback is attached.
+- **Loop range** (#35) — repeats a stretch of time while you edit. It is an
+  audition aid only: never saved in the Song, never undoable, never exported.
+  New / Open clear it; editing the Song does not.
+  - **Draw.** Left-drag in the instrument band of any non-conductor track row (#10). The range covers
+    every track, not just the one you dragged on. The press is one edge and the pointer the
+    other, in either direction. Both edges snap to the grid: the MIDI editor's grid while it
+    shows a track, otherwise the default grid from Preferences ▸ Editing (Off = no snapping).
+    Hold **Alt** to drag freely. The drag only starts after 4 px, so a click in the band just
+    selects the row. While you drag, the range follows the pointer. If it ends shorter than
+    0.05 s, for example back in the grid cell you started in, nothing is created and any earlier
+    range is left as it was.
+  - **Move.** A band drag that starts inside an existing range moves the whole range, keeping
+    its length (its start snaps to the grid, Alt for free). It stops at the start of the Song;
+    at the end of the Song the range is cut short.
+  - **Replace.** A band drag that starts outside the range draws a new one in its place.
+  - **Adjust.** Drag either bracket in a timing bar (#32), in the main view or in the Track
+    editor, to move that edge. Dragging it past the other edge swaps them. The edge snaps to the
+    grid; Alt drags it freely (in the editor the grid is that roll's grid).
+  - **Clear.** Click a bracket without dragging (moving less than 3 px), or press **Esc**. Esc
+    does one thing per press: during a section or merge drag it cancels that drag and keeps
+    the range; during a note drag in the Track editor it does nothing; otherwise it clears the
+    range. Esc does nothing while a text field has focus. It also does not reach the main
+    window from a floating MIDI editor panel, so click into the main window first.
+  - **Play.** While a range exists, playback always loops it: from the range end it jumps back
+    to the range start, with no gap. Play starts at the range start, unless the playhead is
+    already inside the range, in which case it carries on from there. The start marker is
+    ignored while a range exists and applies again once the range is cleared. Stop returns to
+    where Play started. A seek inside the range keeps looping, and a seek before it plays into
+    it and then loops. A seek at or past the range end plays on to the end of the Song.
+  - **While looping.** Mute, solo, volume, pan and the master fader work as usual. Notes,
+    tempo and meter can be edited; the range is held in musical time, so it follows a tempo
+    change. A note that is still sounding from before the range start is not restarted on each
+    pass, the same as after a seek. If an edit shortens the Song past the range, the loop is cut
+    at the Song end; if that leaves less than 0.05 s, playback stops looping until the Song
+    grows again, but the shaded range stays on screen.
+  - **Snags.** When the start marker sits on or near a range edge, its triangle covers that
+    bracket: move the marker first.
 - **Diagnostics** (#23, `DiagnosticListView`, hosted directly) — the bare list
   only, not the full `DiagnosticsPane`: import diagnostics land here; the
   ABC-preview half only exists in the export panel. Hidden by default;
