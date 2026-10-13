@@ -79,7 +79,8 @@ void TimelineRuler::mouseDown (const juce::MouseEvent& e)
         for (const auto edge : { LoopEdge::start, LoopEdge::end })
         {
             const auto bracket = loopHandleBounds (edge == LoopEdge::start);
-            if (bracket.has_value() && bracket->contains (e.getPosition()))
+            // Not where the info column hides it: brackets are only drawn right of contentLeft.
+            if (bracket.has_value() && bracket->contains (e.getPosition()) && e.x >= contentLeft)
             {
                 pressedOnLoopHandle = true;
                 dragEdge = edge;

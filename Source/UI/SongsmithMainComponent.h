@@ -94,7 +94,6 @@ public:
     bool splitSections()   { return trackList.splitAtPointer(); }
     bool deleteSections()  { return trackList.deleteSelectedSections(); }
     void selectAll()       { trackList.selectAll(); }
-    bool cancelSectionDrag() { return trackList.cancelSectionDrag(); }
     // Escape (MainWindow::keyPressed, after its text-input guard). Precedence: a section or
     // merge drag is cancelled; otherwise, while a note-editor drag is in progress nothing
     // happens; otherwise the loop range is cleared. Returns false when nothing happened.

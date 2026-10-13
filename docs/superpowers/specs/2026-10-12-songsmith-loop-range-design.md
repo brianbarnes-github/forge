@@ -193,7 +193,7 @@ source-MIDI side, so the later LOTRO playback target (see the mixer spec's
   `PlayheadOverlay.{h,cpp}`) draws the translucent band over the track canvas and
   the editor roll. Fully mouse-transparent; listens to
   `playbackLoopChanged`.
-- **Keyboard:** Esc clears the range when no text editor or drag is active. *As
+- **Keyboard:** Esc clears the range when no text editor is active. *As
   built:* `SourceRollEditor` turned out to have no Esc handling of its own, so
   nothing in the note editor consumes the key. `MainWindow::keyPressed` keeps
   its text-input guard and then calls `SongsmithMainComponent::escapePressed()`,

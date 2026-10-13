@@ -32,14 +32,18 @@ public:
     void setMasterPercent (int percent) noexcept { master.store (juce::jlimit (0, 100, percent), std::memory_order_release); }
     int masterPercent() const noexcept { return master.load (std::memory_order_acquire); }
 
-    // The loop span the playhead wraps within (nullopt = no loop). Any thread
-    // (single writer); the audio thread reads it once per block.
-    void setLoopSpan (std::optional<LoopSpan> span) noexcept { loopCell.publish (span); }
+    // The loop span the playhead wraps within (nullopt = no loop). Message
+    // thread (the single writer); the audio thread reads it once per block.
+    void setLoopSpan (std::optional<LoopSpan> span) noexcept
+    {
+        lastPublishedSpan = span;
+        loopCell.publish (span);
+    }
 
-    // TEST-ONLY: the span last published by setLoopSpan. Not const because the
-    // cell's read() updates its audio-thread cache; call it only while no audio
-    // thread is rendering (tests render on the calling thread).
-    std::optional<LoopSpan> loopSpanForTesting() noexcept { return loopCell.read(); }
+    // TEST-ONLY: the span last published by setLoopSpan. Message thread; it
+    // reads the writer-side copy, never the cell, so it is safe while the
+    // audio thread renders.
+    std::optional<LoopSpan> loopSpanForTesting() const noexcept { return lastPublishedSpan; }
 
 private:
     void chase (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
@@ -59,6 +63,7 @@ private:
     unsigned seenSeekGeneration = 0;
     std::atomic<int> master { 100 };
     LoopSpanCell loopCell;
+    std::optional<LoopSpan> lastPublishedSpan;   // message thread only: what setLoopSpan last published
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
     bool insideLoopLastBlock = false; // audio thread only: the last block left the playhead inside the loop
 };

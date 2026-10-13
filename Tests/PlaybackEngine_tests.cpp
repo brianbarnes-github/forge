@@ -1203,3 +1203,20 @@ TEST_CASE ("PlaybackEngine loop: a message-thread seek during the wrap block win
     CHECK (sink.releaseAllCount == releases + 1);   // re-chased at the seek target
     CHECK (transport.getPositionSeconds() == Catch::Approx (0.3 + 512 * kFrame).margin (kFrame));
 }
+
+// loopSpanForTesting is const: it returns the writer-side copy and never reads the
+// cell, whose read() writes the audio-thread-only cache (a race while the device runs).
+TEST_CASE ("PlaybackEngine loop: loopSpanForTesting reports the last published span without reading the cell", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Rig rig (doc);
+    const PlaybackEngine& engine = rig.engine;
+    CHECK_FALSE (engine.loopSpanForTesting().has_value());
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    REQUIRE (engine.loopSpanForTesting().has_value());
+    CHECK (engine.loopSpanForTesting()->startSeconds == kLoopStart);
+    CHECK (engine.loopSpanForTesting()->endSeconds == kLoopEnd);
+    rig.engine.setLoopSpan (std::nullopt);
+    CHECK_FALSE (engine.loopSpanForTesting().has_value());
+}

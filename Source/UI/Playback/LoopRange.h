@@ -28,7 +28,7 @@ struct LoopSpan
     double endSeconds = 0.0;
 };
 
-// Single-writer (message thread), single-reader (audio thread) cell. read() never blocks:
+// Single-writer (the message thread), single-reader (the audio thread) cell. read() never blocks:
 // it returns the last consistent value it saw (nullopt = no loop).
 class LoopSpanCell
 {

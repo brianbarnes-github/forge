@@ -407,6 +407,33 @@ TEST_CASE ("TimelineRuler: grabbing a loop bracket reports which edge before its
     CHECK (log.size() == 3);
 }
 
+TEST_CASE ("TimelineRuler: a loop bracket's part under the info column cannot be grabbed", "[playback][ruler][loop]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    std::optional<double> marker;
+    std::optional<LoopRange> loop = LoopRange { 1000.0, 3000.0 };   // start bracket x 100 .. 108
+    setUpLoopRuler (ruler, marker, loop);
+    ruler.setContentLeft (104);   // hides the bracket's left half (it is not drawn there)
+    std::vector<bool> pressed;
+    int clears = 0;
+    ruler.onLoopEdgePressed = [&] (bool isStart) { pressed.push_back (isStart); };
+    ruler.onClearLoop = [&] { ++clears; };
+    std::vector<double> markerSets;   // not stored: a marker triangle here would win over the bracket
+    ruler.onSetMarker = [&] (double tick) { markerSets.push_back (tick); };
+
+    ruler.mouseDown (mouseAt (ruler, 102, 5));   // the hidden half: an ordinary press
+    ruler.mouseUp (mouseAt (ruler, 102, 5));
+    CHECK (pressed.empty());
+    CHECK (clears == 0);
+    CHECK (markerSets == std::vector<double> { 1020.0 });
+
+    ruler.mouseDown (mouseAt (ruler, 106, 5));   // the visible half still grabs it
+    ruler.mouseUp (mouseAt (ruler, 106, 5));
+    CHECK (pressed == std::vector<bool> { true });
+    CHECK (clears == 1);
+}
+
 TEST_CASE ("TimelineRuler: clicking a loop bracket without moving clears the range; a drag that comes back does not", "[playback][ruler][loop]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
