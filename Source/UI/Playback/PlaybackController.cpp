@@ -202,22 +202,25 @@ void PlaybackController::clearMarker()
     listeners.call ([] (Listener& l) { l.playbackMarkerChanged(); });
 }
 
-void PlaybackController::setLoopRange (double startTick, double endTick)
+bool PlaybackController::setLoopRange (double startTick, double endTick)
 {
     flushRebuild();
     if (snapshot == nullptr || ! (snapshot->endSeconds() > 0.0))
-        return;
+        return false;
     const auto& tempo = snapshot->tempo();
     const double endLimit = tempo.secondsToTicks (snapshot->endSeconds());
     // kMinLoopSeconds in ticks at the range's start (tempo can vary along the Song).
     const double lo = std::clamp (std::min (startTick, endTick), 0.0, endLimit);
     const double minTicks = tempo.secondsToTicks (tempo.ticksToSeconds (lo) + kMinLoopSeconds) - lo;
     const auto normalised = normaliseLoopRange (startTick, endTick, endLimit, minTicks);
-    if (! normalised.has_value() || sameRange (normalised, loopRange))
-        return;
+    if (! normalised.has_value())
+        return false;
+    if (sameRange (normalised, loopRange))
+        return true;
     loopRange = normalised;
     publishLoopSpan();
     listeners.call ([] (Listener& l) { l.playbackLoopChanged(); });
+    return true;
 }
 
 void PlaybackController::clearLoopRange()

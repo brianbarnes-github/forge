@@ -794,7 +794,9 @@ TEST_CASE ("TrackRowComponent: a left drag in the instrument band reports a loop
     CHECK (rig.calls[0].tick == Catch::Approx (10.0 * to.x + 7.0));
     CHECK_FALSE (rig.calls[0].finished);
     CHECK_FALSE (rig.calls[0].unsnapped);
-    CHECK_FALSE (rig.host.isDragAndDropActive());
+    // That no drag-and-drop starts cannot be checked headless: startDragging needs a real
+    // dragging mouse source and returns early without one, so isDragAndDropActive() is
+    // false either way. The band branch's early return in mouseDrag is the guard.
 
     const auto alt = juce::ModifierKeys (juce::ModifierKeys::altModifier | juce::ModifierKeys::leftButtonModifier);
     row.mouseDrag (dragEventAt (row, press, to + juce::Point<int> (5, 0), alt));

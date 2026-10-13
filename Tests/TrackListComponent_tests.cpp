@@ -3473,3 +3473,37 @@ TEST_CASE ("TrackListComponent: a loop range cleared during a band drag stays cl
     rig.bandDrag (303, { 457 });
     CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2520.0 }));
 }
+
+TEST_CASE ("TrackListComponent: an out-and-back band drag leaves no range, or the range from before it", "[track-list][loop]")
+{
+    LoopListRig rig;
+    struct LoopCounter : PlaybackController::Listener
+    {
+        int changes = 0;
+        void playbackLoopChanged() override { ++changes; }
+    } counter;
+    rig.controller->addListener (&counter);
+
+    // Press at tick 1030 (anchor 1080), out to 2000 (a live range), back to 1050 (snaps to the anchor).
+    rig.bandDrag (303, { 400, 305 });
+    CHECK_FALSE (rig.range().has_value());
+    CHECK (counter.changes == 2);   // shown once, removed once
+
+    // Out, back, out again: the drag still draws.
+    rig.bandDrag (303, { 400, 305, 457 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2520.0 }));
+
+    // A range outside the press is restored when the drag comes back to nothing.
+    rig.controller->setLoopRange (4800.0, 6000.0);
+    counter.changes = 0;
+    rig.bandDrag (303, { 400, 305 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 4800.0, 6000.0 }));
+    CHECK (counter.changes == 2);   // replaced live, restored once
+
+    // A drag that never leaves the anchor's grid cell leaves it alone without any notice.
+    counter.changes = 0;
+    rig.bandDrag (303, { 307 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 4800.0, 6000.0 }));
+    CHECK (counter.changes == 0);
+    rig.controller->removeListener (&counter);
+}

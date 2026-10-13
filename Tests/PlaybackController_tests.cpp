@@ -659,3 +659,19 @@ TEST_CASE ("PlaybackController: documentReplaced clears the range", "[playback][
     CHECK (counter.loopChanges == 2);
     r.controller.removeListener (&counter);
 }
+
+TEST_CASE ("PlaybackController: setLoopRange reports whether the request was accepted", "[playback][controller][loop]")
+{
+    Rig r;
+    CHECK_FALSE (r.controller.setLoopRange (480.0, 1920.0));   // nothing to play
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    CHECK_FALSE (r.controller.setLoopRange (480.0, 485.0));    // too short
+    CHECK (r.controller.setLoopRange (960.0, 1920.0));
+    CHECK (r.controller.setLoopRange (960.0, 1920.0));         // the same range again: still accepted
+    CHECK (r.controller.setLoopRange (4800.0, 20000.0));       // clamped to the Song end: accepted
+    CHECK (r.controller.setLoopRange (4800.0, 21000.0));       // clamps to the same range: accepted
+    CHECK_FALSE (r.controller.setLoopRange (2880.0, 2885.0));  // too short: rejected, range kept
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (r.controller.getLoopRange()->startTick == Approx (4800.0));
+    CHECK_FALSE (r.controller.setLoopRange (12000.0, 14000.0));   // wholly past the Song end
+}

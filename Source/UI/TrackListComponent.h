@@ -396,7 +396,9 @@ private:
         double anchorTick = 0.0;    // drawing: the snapped press tick
         double startTick = 0.0;     // moving: the range's start and length at the press
         double length = 0.0;
-        bool   hadRange = false;    // a range existed at some step: if it is gone, it was cleared
+        std::optional<LoopRange> before;   // drawing: the range from before the gesture, put back
+                                           // whenever the drag is too short to make one
+        bool   hadRange = false;    // a range existed after the last step: if it is gone, it was cleared
         bool   cancelled = false;   // cleared mid-drag: inert until the release
     };
     std::optional<LoopBandGesture> loopBandGesture;

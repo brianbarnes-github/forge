@@ -68,8 +68,10 @@ public:
     // clamps them to the Song; it is ignored with nothing to play, and a result
     // shorter than kMinLoopSeconds (or wholly past the Song end) leaves the current
     // range unchanged. While a range exists, Play starts at its start unless the
-    // playhead is already inside it, and the start marker is ignored.
-    void setLoopRange (double startTick, double endTick);
+    // playhead is already inside it, and the start marker is ignored. Returns whether
+    // the request was accepted (the range now is its ordered, clamped form, even if
+    // that was already the range); false = ignored, the range is unchanged.
+    bool setLoopRange (double startTick, double endTick);
     void clearLoopRange();
     std::optional<LoopRange> getLoopRange() const { return loopRange; }
 

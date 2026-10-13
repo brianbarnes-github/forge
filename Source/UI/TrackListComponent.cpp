@@ -165,9 +165,11 @@ void TrackListComponent::loopBandDragged (double pressTick, double tick, bool fi
     {
         if (finished)
             return;   // a release with no drag step before it: not a gesture
+        // Move or draw is decided once, here at the first drag step, from the range as it is now.
         LoopBandGesture g;
         const auto range = playback->getLoopRange();
         g.hadRange = range.has_value();
+        g.before = range;
         if (range.has_value() && pressTick >= range->startTick && pressTick < range->endTick)
         {
             g.moving = true;
@@ -197,12 +199,18 @@ void TrackListComponent::loopBandDragged (double pressTick, double tick, bool fi
         const double start = juce::jmax (0.0, snapLoop (juce::jmax (0.0, g.startTick + (tick - pressTick)), unsnapped));
         playback->setLoopRange (start, start + g.length);
     }
-    else
+    else if (! playback->setLoopRange (g.anchorTick, snapLoop (tick, unsnapped)))
     {
-        playback->setLoopRange (g.anchorTick, snapLoop (tick, unsnapped));
+        // Too short (e.g. back at the anchor): show what was there before the drag, so a
+        // release here creates nothing and leaves any earlier range alone. Both calls are
+        // no-ops (no notice) when that is already the range.
+        if (g.before.has_value())
+            playback->setLoopRange (g.before->startTick, g.before->endTick);
+        else
+            playback->clearLoopRange();
     }
-    if (loopBandGesture.has_value() && playback->getLoopRange().has_value())
-        loopBandGesture->hadRange = true;
+    if (loopBandGesture.has_value())
+        loopBandGesture->hadRange = playback->getLoopRange().has_value();
 }
 
 void TrackListComponent::loopEdgeDragged (double tick)
