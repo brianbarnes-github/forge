@@ -33,6 +33,7 @@ public:
         virtual void muteSoloChanged() {}
         virtual void playbackMarkerChanged() {}
         virtual void masterChanged() {}
+        virtual void playbackLoopChanged() {}
     };
 
     PlaybackController (SongDocument& document, EventSink& sink);
@@ -62,6 +63,16 @@ public:
     void clearMarker();
     std::optional<double> getMarkerTick() const { return markerTick; }
 
+    // The loop range: playback wraps from its end back to its start. Session-only;
+    // held in ticks so it follows tempo edits. setLoopRange orders the edges and
+    // clamps them to the Song; it is ignored with nothing to play, and a result
+    // shorter than kMinLoopSeconds (or wholly past the Song end) leaves the current
+    // range unchanged. While a range exists, Play starts at its start unless the
+    // playhead is already inside it, and the start marker is ignored.
+    void setLoopRange (double startTick, double endTick);
+    void clearLoopRange();
+    std::optional<LoopRange> getLoopRange() const { return loopRange; }
+
     bool isPlaying() const { return transport.isPlaying(); }
     double getPositionSeconds() const { return transport.getPositionSeconds(); }
     double getPositionTicks() const;
@@ -88,6 +99,8 @@ private:
     void applyTrackGain (const juce::ValueTree& track);
     void applyTrackPan (const juce::ValueTree& track);
     void applyMuteSolo();
+    std::optional<LoopSpan> effectiveLoopSpan() const;
+    void publishLoopSpan();
     void handleAsyncUpdate() override;
     void timerCallback() override;
 
@@ -111,6 +124,7 @@ private:
     juce::ListenerList<Listener> listeners;
 
     std::optional<double> markerTick;
+    std::optional<LoopRange> loopRange;
     double lastReportedPosition = -1.0;
     bool lastReportedPlaying = false;
     int masterLevel = 100;

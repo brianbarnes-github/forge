@@ -36,6 +36,11 @@ public:
     // (single writer); the audio thread reads it once per block.
     void setLoopSpan (std::optional<LoopSpan> span) noexcept { loopCell.publish (span); }
 
+    // TEST-ONLY: the span last published by setLoopSpan. Not const because the
+    // cell's read() updates its audio-thread cache; call it only while no audio
+    // thread is rendering (tests render on the calling thread).
+    std::optional<LoopSpan> loopSpanForTesting() noexcept { return loopCell.read(); }
+
 private:
     void chase (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
     void releaseNewlyMutedTracks (const PlaybackSnapshot& snapshot) noexcept;

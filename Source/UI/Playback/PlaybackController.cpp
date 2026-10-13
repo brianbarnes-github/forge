@@ -2,10 +2,24 @@
 
 #include "UI/MeterSegments.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace lotro
 {
+
+namespace
+{
+    bool sameRange (const std::optional<LoopRange>& a, const std::optional<LoopRange>& b) noexcept
+    {
+        if (a.has_value() != b.has_value())
+            return false;
+        // Exact identity on purpose (an unchanged range must not re-notify), written
+        // without == to keep -Wfloat-equal quiet.
+        const auto same = [] (double x, double y) { return ! (x < y) && ! (y < x); };
+        return ! a.has_value() || (same (a->startTick, b->startTick) && same (a->endTick, b->endTick));
+    }
+}
 
 PlaybackController::PlaybackController (SongDocument& document, EventSink& sink)
     : doc (document),
@@ -90,6 +104,7 @@ void PlaybackController::rebuild()
     snapshot = buildSnapshot (doc);
     muteSolo.apply (*snapshot);
     playbackEngine.publishSnapshot (snapshot);
+    publishLoopSpan();   // re-derive the seconds: a tempo edit moves them; a shorter Song clamps them
 }
 
 void PlaybackController::applyMuteSolo()
@@ -110,8 +125,17 @@ void PlaybackController::play()
         return;
     if (onBeforePlay && ! onBeforePlay())
         return;
-    if (markerTick.has_value())
+    if (const auto loop = effectiveLoopSpan())
+    {
+        // The start marker is ignored while a loop is in effect.
+        const double position = transport.getPositionSeconds();
+        if (! (position >= loop->startSeconds && position < loop->endSeconds))
+            transport.seek (loop->startSeconds);
+    }
+    else if (markerTick.has_value())
+    {
         transport.seek (snapshot->tempo().ticksToSeconds (*markerTick));
+    }
     transport.play (snapshot->endSeconds());
     listeners.call ([] (Listener& l) { l.playbackStateChanged(); l.playbackPositionChanged(); });
 }
@@ -178,6 +202,55 @@ void PlaybackController::clearMarker()
     listeners.call ([] (Listener& l) { l.playbackMarkerChanged(); });
 }
 
+void PlaybackController::setLoopRange (double startTick, double endTick)
+{
+    flushRebuild();
+    if (snapshot == nullptr || ! (snapshot->endSeconds() > 0.0))
+        return;
+    const auto& tempo = snapshot->tempo();
+    const double endLimit = tempo.secondsToTicks (snapshot->endSeconds());
+    // kMinLoopSeconds in ticks at the range's start (tempo can vary along the Song).
+    const double lo = std::clamp (std::min (startTick, endTick), 0.0, endLimit);
+    const double minTicks = tempo.secondsToTicks (tempo.ticksToSeconds (lo) + kMinLoopSeconds) - lo;
+    const auto normalised = normaliseLoopRange (startTick, endTick, endLimit, minTicks);
+    if (! normalised.has_value() || sameRange (normalised, loopRange))
+        return;
+    loopRange = normalised;
+    publishLoopSpan();
+    listeners.call ([] (Listener& l) { l.playbackLoopChanged(); });
+}
+
+void PlaybackController::clearLoopRange()
+{
+    if (! loopRange.has_value())
+        return;
+    loopRange.reset();
+    publishLoopSpan();
+    listeners.call ([] (Listener& l) { l.playbackLoopChanged(); });
+}
+
+std::optional<LoopSpan> PlaybackController::effectiveLoopSpan() const
+{
+    if (! loopRange.has_value() || snapshot == nullptr)
+        return std::nullopt;
+    const auto& tempo = snapshot->tempo();
+    const double start = tempo.ticksToSeconds (loopRange->startTick);
+    // The engine wraps whenever the loop end falls inside a block, even past the
+    // Song end, so the published end must never exceed the Song end.
+    const double end = std::min (tempo.ticksToSeconds (loopRange->endTick), snapshot->endSeconds());
+    // The tolerance absorbs tick/second round-trip error for a range set at exactly
+    // the minimum; the stored ticks are kept either way (the loop returns if the Song grows).
+    constexpr double tolerance = 1.0e-9;
+    if (! (end - start >= kMinLoopSeconds - tolerance))
+        return std::nullopt;
+    return LoopSpan { start, end };
+}
+
+void PlaybackController::publishLoopSpan()
+{
+    playbackEngine.setLoopSpan (effectiveLoopSpan());
+}
+
 void PlaybackController::setMuted (juce::int64 trackId, bool muted)
 {
     muteSolo.setMuted (trackId, muted);
@@ -197,9 +270,10 @@ void PlaybackController::documentReplaced()
     transport.reset();   // not stop()+goToStart(): those would leave the old Song's play-start behind
     muteSolo.clear();
     markerTick.reset();
+    loopRange.reset();   // before rebuild(), which publishes the (now absent) loop span
     cancelPendingUpdate();
     rebuild();   // unconditional: the whole document changed
-    listeners.call ([] (Listener& l) { l.playbackStateChanged(); l.playbackPositionChanged(); l.muteSoloChanged(); l.playbackMarkerChanged(); });
+    listeners.call ([] (Listener& l) { l.playbackStateChanged(); l.playbackPositionChanged(); l.muteSoloChanged(); l.playbackMarkerChanged(); l.playbackLoopChanged(); });
 }
 
 void PlaybackController::timerCallback()

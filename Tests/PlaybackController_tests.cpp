@@ -454,3 +454,208 @@ TEST_CASE ("PlaybackController: master percent is clamped, reaches the engine an
     CHECK (counter.changes == 3);
     r.controller.removeListener (&counter);
 }
+
+// Loop range. The Rig's Song runs at the default 120 BPM, 480 PPQ: 960 ticks = 1 s,
+// so kMinLoopSeconds (0.05 s) is 48 ticks.
+namespace
+{
+    struct LoopCounter : PlaybackController::Listener
+    {
+        int loopChanges = 0;
+        void playbackLoopChanged() override { ++loopChanges; }
+    };
+}
+
+TEST_CASE ("PlaybackController: setLoopRange stores an ordered range and notifies once", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);   // a 10 s Song
+    r.controller.flushRebuild();
+    LoopCounter counter;
+    r.controller.addListener (&counter);
+
+    r.controller.setLoopRange (1920.0, 480.0);   // reversed edges
+    const auto range = r.controller.getLoopRange();
+    REQUIRE (range.has_value());
+    CHECK (range->startTick == Approx (480.0));
+    CHECK (range->endTick == Approx (1920.0));
+    CHECK (counter.loopChanges == 1);
+
+    r.controller.setLoopRange (480.0, 1920.0);   // the same range again: no change, no notice
+    CHECK (counter.loopChanges == 1);
+
+    const auto span = r.controller.engine().loopSpanForTesting();
+    REQUIRE (span.has_value());
+    CHECK (span->startSeconds == Approx (0.5));
+    CHECK (span->endSeconds == Approx (2.0));
+
+    r.controller.clearLoopRange();
+    CHECK (! r.controller.getLoopRange().has_value());
+    CHECK (! r.controller.engine().loopSpanForTesting().has_value());
+    CHECK (counter.loopChanges == 2);
+    r.controller.clearLoopRange();               // already clear: no spurious notice
+    CHECK (counter.loopChanges == 2);
+    r.controller.removeListener (&counter);
+}
+
+TEST_CASE ("PlaybackController: setLoopRange is ignored with nothing to play and when too short", "[playback][controller][loop]")
+{
+    Rig r;                                       // a new, empty Song
+    LoopCounter counter;
+    r.controller.addListener (&counter);
+    r.controller.setLoopRange (480.0, 1920.0);
+    CHECK (! r.controller.getLoopRange().has_value());
+    CHECK (counter.loopChanges == 0);
+
+    addNote (addTrack (r.doc), 60, 0, 9600);     // no explicit flush: setLoopRange flushes
+    r.controller.setLoopRange (480.0, 485.0);    // 5 ticks ~ 0.005 s < kMinLoopSeconds
+    CHECK (! r.controller.getLoopRange().has_value());
+    CHECK (counter.loopChanges == 0);
+
+    r.controller.setLoopRange (960.0, 1920.0);
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (counter.loopChanges == 1);
+
+    r.controller.setLoopRange (2880.0, 2885.0);  // too short: the existing range is kept
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (r.controller.getLoopRange()->startTick == Approx (960.0));
+    CHECK (r.controller.getLoopRange()->endTick == Approx (1920.0));
+
+    r.controller.setLoopRange (12000.0, 14000.0);   // wholly past the 9600-tick Song end: kept
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (r.controller.getLoopRange()->startTick == Approx (960.0));
+    CHECK (counter.loopChanges == 1);
+    r.controller.removeListener (&counter);
+}
+
+TEST_CASE ("PlaybackController: the range is clamped to the end of the Song", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);     // ends at tick 9600 = 10 s
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (4800.0, 20000.0);
+    const auto range = r.controller.getLoopRange();
+    REQUIRE (range.has_value());
+    CHECK (range->startTick == Approx (4800.0));
+    CHECK (range->endTick == Approx (9600.0));
+    const auto span = r.controller.engine().loopSpanForTesting();
+    REQUIRE (span.has_value());
+    CHECK (span->endSeconds == Approx (10.0));
+}
+
+TEST_CASE ("PlaybackController: play() starts at the range start unless the playhead is inside it", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (480.0, 960.0);    // 0.5 .. 1.0 s
+
+    r.controller.play();                         // playhead at 0: outside, so to the start
+    CHECK (r.controller.getPositionSeconds() == Approx (0.5));
+    r.controller.pause();
+
+    r.controller.seekToTick (720.0);             // 0.75 s, inside: resume in place
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (0.75));
+    r.controller.pause();
+
+    r.controller.seekToTick (960.0);             // exactly the end is outside [start, end)
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (0.5));
+    r.controller.pause();
+
+    r.controller.setMarkerTick (1920.0);         // 2 s: ignored while the range exists
+    r.controller.seekToTick (720.0);
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (0.75));
+    r.controller.pause();
+    r.controller.seekToTick (0.0);
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (0.5));
+    r.controller.pause();
+    REQUIRE (r.controller.getMarkerTick().has_value());
+    CHECK (*r.controller.getMarkerTick() == Approx (1920.0));   // untouched
+
+    r.controller.clearLoopRange();               // the marker applies again
+    r.controller.seekToTick (720.0);
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (2.0));
+}
+
+TEST_CASE ("PlaybackController: a tempo edit moves the loop edges with the music", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (480.0, 960.0);
+    auto span = r.controller.engine().loopSpanForTesting();
+    REQUIRE (span.has_value());
+    CHECK (span->startSeconds == Approx (0.5));
+    CHECK (span->endSeconds == Approx (1.0));
+
+    addTempo (r.doc, 0, 60.0);                   // halve the tempo: 480 ticks = 1 s
+    r.controller.flushRebuild();
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (r.controller.getLoopRange()->startTick == Approx (480.0));
+    CHECK (r.controller.getLoopRange()->endTick == Approx (960.0));
+    span = r.controller.engine().loopSpanForTesting();
+    REQUIRE (span.has_value());
+    CHECK (span->startSeconds == Approx (1.0));
+    CHECK (span->endSeconds == Approx (2.0));
+}
+
+TEST_CASE ("PlaybackController: an edit that shortens the Song clamps the published loop span", "[playback][controller][loop]")
+{
+    Rig r;
+    auto t = addTrack (r.doc);
+    addNote (t, 60, 0, 9600);                    // 10 s
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (4800.0, 9600.0);  // 5 .. 10 s
+    auto note = SongDocument::getNotesNode (t).getChild (0);
+
+    r.doc.setProperty (note, SongIDs::durationTicks, 7200);   // the Song now ends at 7.5 s
+    r.controller.flushRebuild();
+    auto span = r.controller.engine().loopSpanForTesting();
+    REQUIRE (span.has_value());
+    CHECK (span->startSeconds == Approx (5.0));
+    CHECK (span->endSeconds == Approx (7.5));
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (r.controller.getLoopRange()->endTick == Approx (9600.0));   // ticks kept
+
+    r.doc.setProperty (note, SongIDs::durationTicks, 4810);   // ends ~5.01 s: span < kMinLoopSeconds
+    r.controller.flushRebuild();
+    CHECK (! r.controller.engine().loopSpanForTesting().has_value());
+    REQUIRE (r.controller.getLoopRange().has_value());
+    CHECK (r.controller.getLoopRange()->startTick == Approx (4800.0));
+    CHECK (r.controller.getLoopRange()->endTick == Approx (9600.0));
+
+    r.controller.seekToTick (960.0);             // with the span suppressed, Play is the plain path
+    r.controller.play();
+    CHECK (r.controller.getPositionSeconds() == Approx (1.0));
+    r.controller.pause();
+
+    r.doc.setProperty (note, SongIDs::durationTicks, 9600);   // grows back: the loop returns
+    r.controller.flushRebuild();
+    span = r.controller.engine().loopSpanForTesting();
+    REQUIRE (span.has_value());
+    CHECK (span->startSeconds == Approx (5.0));
+    CHECK (span->endSeconds == Approx (10.0));
+}
+
+TEST_CASE ("PlaybackController: documentReplaced clears the range", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    LoopCounter counter;
+    r.controller.addListener (&counter);
+    r.controller.setLoopRange (480.0, 960.0);
+    REQUIRE (counter.loopChanges == 1);
+
+    r.doc.resetToEmpty();
+    r.controller.documentReplaced();
+    CHECK (! r.controller.getLoopRange().has_value());
+    CHECK (! r.controller.engine().loopSpanForTesting().has_value());
+    CHECK (counter.loopChanges == 2);
+    r.controller.removeListener (&counter);
+}
