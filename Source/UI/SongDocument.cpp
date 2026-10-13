@@ -43,6 +43,7 @@ namespace SongIDs
     const juce::Identifier sourceProgram ("sourceProgram");
     const juce::Identifier importBatch ("importBatch");
     const juce::Identifier playbackVolume ("playbackVolume");
+    const juce::Identifier playbackPan ("playbackPan");
 
     const juce::Identifier pitch ("pitch");
     const juce::Identifier startTick ("startTick");
@@ -93,6 +94,14 @@ int trackPlaybackVolume (const juce::ValueTree& track)
 {
     const auto v = track.getProperty (SongIDs::playbackVolume);
     return v.isInt() ? juce::jlimit (0, 100, (int) v) : 100;
+}
+
+std::optional<int> trackPlaybackPan (const juce::ValueTree& track)
+{
+    const auto v = track.getProperty (SongIDs::playbackPan);
+    if (! v.isInt())
+        return std::nullopt;
+    return juce::jlimit (-100, 100, (int) v);
 }
 
 SongDocument::SongDocument()
@@ -373,6 +382,13 @@ std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree
             const auto volume = track.getProperty (SongIDs::playbackVolume);
             if (! volume.isInt() || (int) volume < 0 || (int) volume > 100)
                 return bad ("a track volume is out of range.");
+        }
+
+        if (track.hasProperty (SongIDs::playbackPan))
+        {
+            const auto pan = track.getProperty (SongIDs::playbackPan);
+            if (! pan.isInt() || (int) pan < -100 || (int) pan > 100)
+                return bad ("a track pan is out of range.");
         }
 
         const auto sections = track.getChildWithName (SongIDs::SECTIONS);

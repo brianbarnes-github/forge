@@ -172,3 +172,35 @@ TEST_CASE ("song file: out-of-range or non-integer playbackVolume is rejected", 
         CHECK (error->kind() == SongFileErrorKind::InvalidStructure);
     }
 }
+
+TEST_CASE ("trackPlaybackPan: absent is nullopt, present is clamped", "[songdocument][pan]")
+{
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    CHECK (! trackPlaybackPan (track).has_value());
+    track.setProperty (SongIDs::playbackPan, -40, nullptr);
+    CHECK (trackPlaybackPan (track) == std::optional<int> (-40));
+    track.setProperty (SongIDs::playbackPan, 500, nullptr);
+    CHECK (trackPlaybackPan (track) == std::optional<int> (100));
+    track.setProperty (SongIDs::playbackPan, "left", nullptr);
+    CHECK (! trackPlaybackPan (track).has_value());
+}
+
+TEST_CASE ("validateLoaded rejects an out-of-range or non-integer playbackPan", "[songdocument][pan]")
+{
+    for (const juce::var bad : { juce::var (101), juce::var (-101), juce::var ("x"), juce::var (0.5) })
+    {
+        SongDocument doc;
+        auto t = doc.addTrack ("A", (int) 0xFFAABBCC, 1, doc.mintImportBatch());
+        t.setProperty (SongIDs::playbackPan, bad, nullptr);
+        const auto error = SongDocument::validateLoaded (doc.getTree());
+        REQUIRE (error.has_value());
+        CHECK (error->kind() == SongFileErrorKind::InvalidStructure);
+    }
+    for (const int good : { -100, 0, 100 })
+    {
+        SongDocument doc;
+        auto t = doc.addTrack ("A", (int) 0xFFAABBCC, 1, doc.mintImportBatch());
+        t.setProperty (SongIDs::playbackPan, good, nullptr);
+        CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+    }
+}
