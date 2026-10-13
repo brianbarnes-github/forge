@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MuteSoloIconButton.h"
 #include "SongDocument.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -95,23 +96,6 @@ public:
     // Null when not editing.
     juce::TextEditor* renameEditorForTesting() { return renameEditor.get(); }
 
-private:
-    class IconButton : public juce::Button
-    {
-    public:
-        enum class Kind { Mute, Solo };
-        IconButton (Kind k, juce::Colour onColour) : juce::Button ({}), kind (k), onColourValue (onColour)
-        {
-            setClickingTogglesState (true);
-            setWantsKeyboardFocus (false);
-        }
-        void paintButton (juce::Graphics& g, bool isOver, bool isDown) override;
-    private:
-        Kind kind;
-        juce::Colour onColourValue;
-    };
-
-public:
     juce::Button& muteButtonForTesting() { return muteButton; }
     juce::Button& soloButtonForTesting() { return soloButton; }
     juce::Slider& volumeSliderForTesting() { return volumeSlider; }
@@ -126,8 +110,8 @@ private:
 
     juce::ValueTree track;
     int             index;
-    IconButton      muteButton { IconButton::Kind::Mute, juce::Colours::orangered };
-    IconButton      soloButton { IconButton::Kind::Solo, juce::Colours::gold };
+    MuteSoloIconButton muteButton { MuteSoloIconButton::Kind::Mute, juce::Colours::orangered };
+    MuteSoloIconButton soloButton { MuteSoloIconButton::Kind::Solo, juce::Colours::gold };
     juce::Slider    volumeSlider;
     juce::String    tempoText;
     bool            dragging = false;        // between the slider's onDragStart and onDragEnd

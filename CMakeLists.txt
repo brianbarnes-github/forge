@@ -167,6 +167,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/TrackNotePreview.cpp
     Source/UI/TrackRowComponent.cpp
     Source/UI/TrackHeadComponent.cpp
+    Source/UI/MuteSoloIconButton.cpp
     Source/UI/TrackListComponent.cpp
     Source/UI/TrackEditorPanel.cpp
     Source/UI/WindowPlacement.cpp

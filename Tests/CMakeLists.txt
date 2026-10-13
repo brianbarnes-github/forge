@@ -86,6 +86,7 @@ add_executable(forge_tests
     SongsmithColours_tests.cpp
     TrackRowComponent_tests.cpp
     TrackHeadComponent_tests.cpp
+    MuteSoloIconButton_tests.cpp
     GmProgramNames_tests.cpp
     WindowPlacement_tests.cpp
     AboutBox_tests.cpp
@@ -142,6 +143,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackListComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackRowComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackHeadComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/MuteSoloIconButton.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewPipeline.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteDiff.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteSource.cpp
