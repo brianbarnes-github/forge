@@ -7,6 +7,9 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <string>
+#include <vector>
+
 using namespace lotro;
 using namespace lotro::playbacktest;
 
@@ -377,6 +380,31 @@ TEST_CASE ("TimelineRuler: dragging a loop bracket moves that edge and never set
     CHECK (markerSets == 0);
     CHECK (! marker.has_value());
     CHECK (clears == 0);
+}
+
+TEST_CASE ("TimelineRuler: grabbing a loop bracket reports which edge before its drag; other presses do not", "[playback][ruler][loop]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    std::optional<double> marker;
+    std::optional<LoopRange> loop = LoopRange { 1000.0, 3000.0 };   // x 100 .. 300
+    setUpLoopRuler (ruler, marker, loop);
+    std::vector<std::string> log;
+    ruler.onLoopEdgePressed = [&] (bool isStart) { log.push_back (isStart ? "press start" : "press end"); };
+    ruler.onLoopEdgeDragged = [&] (bool, double) { log.push_back ("drag"); };
+
+    ruler.mouseDown (mouseAt (ruler, 297, 5));   // the end bracket
+    ruler.mouseDrag (mouseAt (ruler, 257, 5));
+    ruler.mouseUp (mouseAt (ruler, 257, 5));
+    ruler.mouseDown (mouseAt (ruler, 102, 5));   // the start bracket
+    ruler.mouseUp (mouseAt (ruler, 102, 5));
+    CHECK (log == std::vector<std::string> { "press end", "drag", "press start" });
+
+    ruler.mouseDown (mouseAt (ruler, 200, 5));   // inside the range, off both brackets: the marker
+    ruler.mouseUp (mouseAt (ruler, 200, 5));
+    ruler.mouseDown (mouseAt (ruler, 102, 5, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier)));
+    ruler.mouseUp (mouseAt (ruler, 102, 5));
+    CHECK (log.size() == 3);
 }
 
 TEST_CASE ("TimelineRuler: clicking a loop bracket without moving clears the range; a drag that comes back does not", "[playback][ruler][loop]")

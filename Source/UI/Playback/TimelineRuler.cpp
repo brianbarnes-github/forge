@@ -84,6 +84,8 @@ void TimelineRuler::mouseDown (const juce::MouseEvent& e)
                 pressedOnLoopHandle = true;
                 dragEdge = edge;
                 loopPressPosition = e.getPosition();
+                if (onLoopEdgePressed)
+                    onLoopEdgePressed (edge == LoopEdge::start);
                 return;
             }
         }

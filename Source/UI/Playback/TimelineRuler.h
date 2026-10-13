@@ -70,6 +70,8 @@ public:
     // clears the range instead. The marker's triangle wins where they overlap.
     std::function<void (bool isStart, double tick)> onLoopEdgeDragged;
     std::function<void()> onClearLoop;
+    // Fired by the press that grabs a bracket, before any onLoopEdgeDragged of its drag.
+    std::function<void (bool isStart)> onLoopEdgePressed;
 
     // Where the loop range is (none = not set). Needs setMarks' xForTick to draw.
     void setLoopRange (std::function<std::optional<LoopRange>()> loopRangeIn)

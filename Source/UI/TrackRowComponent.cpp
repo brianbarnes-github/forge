@@ -230,6 +230,8 @@ void TrackRowComponent::paint (juce::Graphics& g)
 
 void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
 {
+    bandDragActive = false;
+    bandDragStarted = false;
     if (e.mods.isPopupMenu() && inHeadArea (e.getPosition()))
     {
         head.showContextMenu();
@@ -249,6 +251,12 @@ void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
     {
         head.openColourPicker();
         return;
+    }
+    // A left press in the band may become a loop-range drag (see mouseDrag); it still selects.
+    if (! e.mods.isPopupMenu() && inInstrumentBand (e.getPosition()) && ! isConductorTrack() && tickForLocalX)
+    {
+        bandDragActive = true;
+        bandPressTick = tickForLocalX (e.x);
     }
     if (onTrackSelected)
         onTrackSelected (getTrackId(), e.mods);
@@ -282,6 +290,15 @@ void TrackRowComponent::instrumentMenuChosen (int itemId)
         onSetInstrumentRequested (getTrackId(), itemId - 1000);
 }
 
+void TrackRowComponent::mouseUp (const juce::MouseEvent& e)
+{
+    const bool report = bandDragActive && bandDragStarted;
+    bandDragActive = false;
+    bandDragStarted = false;
+    if (report && tickForLocalX && onLoopRangeDragged)
+        onLoopRangeDragged (bandPressTick, tickForLocalX (e.x), true, e.mods.isAltDown());
+}
+
 void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)
 {
     if (isConductorTrack())
@@ -296,6 +313,17 @@ void TrackRowComponent::mouseDoubleClick (const juce::MouseEvent&)
 
 void TrackRowComponent::mouseDrag (const juce::MouseEvent& e)
 {
+    if (bandDragActive)
+    {
+        if (e.getDistanceFromDragStart() >= 4 && tickForLocalX)
+        {
+            bandDragStarted = true;
+            if (onLoopRangeDragged)
+                onLoopRangeDragged (bandPressTick, tickForLocalX (e.x), false, e.mods.isAltDown());
+        }
+        return;   // never the drag-to-part below
+    }
+
     // Only start a drag once the mouse has actually moved a few pixels, so a
     // plain click (already handled in mouseDown) doesn't also fire a
     // zero-distance drag.

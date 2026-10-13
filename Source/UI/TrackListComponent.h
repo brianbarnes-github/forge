@@ -206,6 +206,22 @@ private:
             refreshConductorTempo();
     }
     void playbackStateChanged() override { refreshConductorTempo(); }
+    // The ruler is not a controller listener: its shading and brackets follow here.
+    void playbackLoopChanged() override
+    {
+        if (ruler != nullptr)
+            ruler->repaint();
+    }
+
+    // Loop-range gestures. A band drag from a row (pressTick, tick, finished, Alt):
+    // the first step of a gesture decides, from the range as it is then, whether it
+    // draws a new range (anchored on the snapped press tick) or moves the existing
+    // one (the press fell inside it); each step calls setLoopRange, the finished
+    // one ends the gesture. A ruler bracket drag is anchored on the other edge as it
+    // was at the bracket's press, so dragging past it flips the pair cleanly.
+    void loopBandDragged (double pressTick, double tick, bool finished, bool unsnapped);
+    void loopEdgeDragged (double tick);
+    double snapLoop (double tick, bool unsnapped) const;
 
     // While playing, page-flips the shared view so the playhead stays visible.
     // Does nothing when stopped, so a ruler click never scrolls the view.
@@ -276,6 +292,10 @@ public:
     // Fired at the end of refreshOverlay(): after every zoom, scroll, fit, resize
     // and song-length change.
     std::function<void()> onViewChanged;
+
+    // The grid, in ticks, that loop-range edges snap to (a band drag or a ruler
+    // bracket drag; Alt bypasses it). Unset or <= 0 = unsnapped.
+    std::function<int()> loopSnapTicks;
 
 private:
 
@@ -370,6 +390,18 @@ private:
     };
     std::optional<MergeGesture> mergeGesture;
 
+    struct LoopBandGesture
+    {
+        bool   moving = false;      // the press fell inside the range: move it
+        double anchorTick = 0.0;    // drawing: the snapped press tick
+        double startTick = 0.0;     // moving: the range's start and length at the press
+        double length = 0.0;
+        bool   hadRange = false;    // a range existed at some step: if it is gone, it was cleared
+        bool   cancelled = false;   // cleared mid-drag: inert until the release
+    };
+    std::optional<LoopBandGesture> loopBandGesture;
+    std::optional<double> loopEdgeAnchor;   // the ruler bracket drag's fixed (other) edge
+
     static SectionDragPreview previewFor (const SectionGesture& g, int tick);
 
     // Declared after `playback`/`content`: destroyed first, before the
@@ -377,6 +409,7 @@ private:
     std::unique_ptr<TimelineRuler>    ruler;
     std::unique_ptr<PlayheadOverlay>  overlay;
     std::unique_ptr<MarkerOverlay>    markerOverlay;
+    std::unique_ptr<LoopRangeOverlay> loopOverlay;
     std::unique_ptr<EventMarkerOverlay> eventMarkerOverlay;   // independent of playback
     int                               overlayRepaintCount = 0;   // test observability
 

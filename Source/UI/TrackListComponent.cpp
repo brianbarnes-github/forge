@@ -88,6 +88,9 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
         ruler.reset();
         overlay.reset();
         markerOverlay.reset();
+        loopOverlay.reset();
+        loopBandGesture.reset();
+        loopEdgeAnchor.reset();
     }
     else if (ruler == nullptr)
     {
@@ -99,7 +102,25 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
         ruler->setMarker ([this] { return playback != nullptr ? playback->getMarkerTick() : std::nullopt; });
         ruler->onSetMarker = [this] (double tick) { if (playback != nullptr) playback->setMarkerTick (tick); };
         ruler->onClearMarker = [this] { if (playback != nullptr) playback->clearMarker(); };
+        ruler->setLoopRange ([this] { return playback != nullptr ? playback->getLoopRange() : std::nullopt; });
+        ruler->onLoopEdgePressed = [this] (bool isStart)
+        {
+            loopEdgeAnchor.reset();
+            if (playback != nullptr)
+                if (const auto range = playback->getLoopRange())
+                    loopEdgeAnchor = isStart ? range->endTick : range->startTick;
+        };
+        ruler->onLoopEdgeDragged = [this] (bool, double tick) { loopEdgeDragged (tick); };
+        ruler->onClearLoop = [this]
+        {
+            loopEdgeAnchor.reset();
+            if (playback != nullptr)
+                playback->clearLoopRange();
+        };
         addAndMakeVisible (*ruler);
+        // Under the playhead and marker lines, so they stay visible inside the range.
+        loopOverlay = std::make_unique<LoopRangeOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
+        addAndMakeVisible (*loopOverlay);
         overlay = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
         addAndMakeVisible (*overlay);   // added after the viewport, so it draws on top
         markerOverlay = std::make_unique<MarkerOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
@@ -127,6 +148,71 @@ void TrackListComponent::refreshOverlay()
         ruler->repaint();
     if (markerOverlay != nullptr)
         markerOverlay->repaint();
+    if (loopOverlay != nullptr)
+        loopOverlay->repaint();
+}
+
+double TrackListComponent::snapLoop (double tick, bool unsnapped) const
+{
+    return snapLoopTick (tick, loopSnapTicks ? loopSnapTicks() : 0, unsnapped);
+}
+
+void TrackListComponent::loopBandDragged (double pressTick, double tick, bool finished, bool unsnapped)
+{
+    if (playback == nullptr)
+        return;
+    if (! loopBandGesture.has_value())
+    {
+        if (finished)
+            return;   // a release with no drag step before it: not a gesture
+        LoopBandGesture g;
+        const auto range = playback->getLoopRange();
+        g.hadRange = range.has_value();
+        if (range.has_value() && pressTick >= range->startTick && pressTick < range->endTick)
+        {
+            g.moving = true;
+            g.startTick = range->startTick;
+            g.length = range->endTick - range->startTick;
+        }
+        else
+        {
+            g.anchorTick = snapLoop (pressTick, unsnapped);
+        }
+        loopBandGesture = g;
+    }
+
+    const auto g = *loopBandGesture;
+    if (finished)
+        loopBandGesture.reset();
+    // Cleared mid-drag (e.g. Esc): the rest of this drag must not bring it back.
+    if (g.cancelled || (g.hadRange && ! playback->getLoopRange().has_value()))
+    {
+        if (loopBandGesture.has_value())
+            loopBandGesture->cancelled = true;
+        return;
+    }
+    if (g.moving)
+    {
+        // Snapped, and never before the Song start, so the length is kept.
+        const double start = juce::jmax (0.0, snapLoop (juce::jmax (0.0, g.startTick + (tick - pressTick)), unsnapped));
+        playback->setLoopRange (start, start + g.length);
+    }
+    else
+    {
+        playback->setLoopRange (g.anchorTick, snapLoop (tick, unsnapped));
+    }
+    if (loopBandGesture.has_value() && playback->getLoopRange().has_value())
+        loopBandGesture->hadRange = true;
+}
+
+void TrackListComponent::loopEdgeDragged (double tick)
+{
+    // Nothing to move once the range is gone (cleared mid-drag) or if the press found none.
+    if (playback == nullptr || ! loopEdgeAnchor.has_value() || ! playback->getLoopRange().has_value())
+        return;
+    // The ruler reports no modifiers; Alt is read from the live keyboard state.
+    const bool unsnapped = juce::ModifierKeys::getCurrentModifiers().isAltDown();
+    playback->setLoopRange (*loopEdgeAnchor, snapLoop (tick, unsnapped));
 }
 
 void TrackListComponent::followPlayhead (bool playing)
@@ -170,6 +256,7 @@ void TrackListComponent::rebuild()
     gesture.reset();
     sectionView.drag.reset();
     mergeGesture.reset();
+    loopBandGesture.reset();
     sectionView.merge.reset();
     content.rows.clear();
 
@@ -181,6 +268,12 @@ void TrackListComponent::rebuild()
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
+        // Row-local x -> tick: the row's notes start at trackInfoWidth, the frame of timelineView.
+        row->tickForLocalX = [this] (int x) { return (double) timelineView.tickForX (x - TrackRowComponent::trackInfoWidth); };
+        row->onLoopRangeDragged = [this] (double pressTick, double tick, bool finished, bool unsnapped)
+        {
+            loopBandDragged (pressTick, tick, finished, unsnapped);
+        };
         row->onConductorActivated = [this] { if (onTempoMeterRequested) onTempoMeterRequested(); };
         row->onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { return onConductorMarkerClicked && onConductorMarkerClicked (kind, tick); };
         row->onConductorMarkerOpened = [this] (TempoMeterKind kind, int tick)
@@ -952,6 +1045,8 @@ void TrackListComponent::resized()
         overlay->setBounds (viewport.getBounds().withTrimmedLeft (notePreviewOriginX()).withWidth (previewWidth()));
     if (markerOverlay != nullptr)
         markerOverlay->setBounds (overlay->getBounds());
+    if (loopOverlay != nullptr)
+        loopOverlay->setBounds (overlay->getBounds());
     eventMarkerOverlay->setBounds (viewport.getBounds().withTrimmedLeft (notePreviewOriginX()).withWidth (previewWidth()));
 
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())

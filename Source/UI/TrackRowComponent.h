@@ -45,6 +45,7 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent& e) override;
     void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp (const juce::MouseEvent& e) override;
     void mouseDoubleClick (const juce::MouseEvent& e) override;
 
     // Row height bounds used by TrackListComponent (Ctrl+wheel resizes the rows
@@ -78,6 +79,15 @@ public:
     // whose first-segment program is ticked.
     juce::PopupMenu buildInstrumentMenu() const;
     void instrumentMenuChosen (int itemId);
+
+    // A left press in the instrument band of a non-conductor row (it still selects the
+    // track) followed by a drag of 4 px or more draws a loop range instead of dragging
+    // the track to a part: every drag step reports (pressTick, tickAtX, false, Alt held)
+    // and the release (pressTick, tickAtX, true, Alt held). A press that never moved
+    // 4 px reports nothing. Ticks come from tickForLocalX (row-local x -> tick), which
+    // the list sets; while it is unset no band drag starts.
+    std::function<void (double pressTick, double tickAtX, bool finished, bool unsnapped)> onLoopRangeDragged;
+    std::function<double (int x)> tickForLocalX;
 
     std::function<void (juce::int64)> onAutoSplitRequested;
     std::function<void (juce::int64, int)> onSetInstrumentRequested;
@@ -185,6 +195,9 @@ private:
     TrackHeadComponent head;
     TrackNotePreview notePreview;
     bool             silencedBySolo = false;
+    bool             bandDragActive = false;    // a left press in the band: its drag draws a loop range
+    bool             bandDragStarted = false;   // that drag has gone 4 px and reported a step
+    double           bandPressTick = 0.0;
 };
 
 } // namespace lotro

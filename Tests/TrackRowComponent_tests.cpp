@@ -5,6 +5,7 @@
 #include "UI/TimelineViewState.h"
 #include "UI/SongsmithColours.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace lotro;
@@ -722,4 +723,168 @@ TEST_CASE ("TrackRowComponent: a left-click on the swatch opens the picker inste
     CHECK (gotId == (juce::int64) track.getProperty (SongIDs::trackId));
     CHECK (gotArgb == 0xFF123456u);
     CHECK (gotStarts);
+}
+
+namespace
+{
+    // A drag or release event: unlike eventAt, the press position differs from the
+    // current one, so getDistanceFromDragStart() is the real distance.
+    juce::MouseEvent dragEventAt (juce::Component& target, juce::Point<int> downPos, juce::Point<int> localPos,
+                                  juce::ModifierKeys mods = {})
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                  localPos.toFloat(), mods,
+                                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &target, &target,
+                                  juce::Time::getCurrentTime(), downPos.toFloat(),
+                                  juce::Time::getCurrentTime(), 1, true);
+    }
+
+    // A drag-and-drop container around the row, so the row's drag-to-part path can find one.
+    struct DragHost : public juce::Component, public juce::DragAndDropContainer {};
+
+    struct LoopDragCall { double pressTick; double tick; bool finished; bool unsnapped; };
+
+    // A draggable track (it has a note) in a 600 px row whose band maps x to 10 * x + 7 ticks.
+    struct BandDragRig
+    {
+        juce::ScopedJuceInitialiser_GUI juceInit;
+        SongDocument doc;
+        juce::ValueTree track;
+        TimelineViewState view;
+        DragHost host;
+        std::unique_ptr<TrackRowComponent> row;
+        std::vector<LoopDragCall> calls;
+        int selected = 0;
+
+        explicit BandDragRig (bool conductor = false)
+        {
+            track = conductor ? doc.getConductorTrack() : doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+            if (! conductor)
+                lotro::playbacktest::addNote (track, 60, 0, 9600);
+            row = std::make_unique<TrackRowComponent> (track, 1, view);
+            host.setBounds (0, 0, 600, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+            host.addAndMakeVisible (*row);
+            row->setBounds (host.getLocalBounds());
+            row->tickForLocalX = [] (int x) { return 10.0 * x + 7.0; };
+            row->onLoopRangeDragged = [this] (double p, double t, bool f, bool u) { calls.push_back ({ p, t, f, u }); };
+            row->onTrackSelected = [this] (juce::int64, const juce::ModifierKeys&) { ++selected; };
+        }
+    };
+}
+
+TEST_CASE ("TrackRowComponent: a left drag in the instrument band reports a loop range instead of a part drag", "[track-row][loop]")
+{
+    BandDragRig rig;
+    auto& row = *rig.row;
+    REQUIRE (row.canDrag());   // so the drag-to-part path would otherwise run
+    const juce::Point<int> press { TrackRowComponent::trackInfoWidth + 40, 5 };
+    REQUIRE (TrackRowComponent::inInstrumentBand (press));
+
+    row.mouseDown (eventAt (row, press, 1));
+    CHECK (rig.selected == 1);   // the band press still selects the track
+    CHECK (rig.calls.empty());
+
+    row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (2, 0)));
+    CHECK (rig.calls.empty());   // under 4 px: not a drag yet
+
+    const auto to = press + juce::Point<int> (30, 4);   // leaving the band does not matter
+    row.mouseDrag (dragEventAt (row, press, to));
+    REQUIRE (rig.calls.size() == 1);
+    CHECK (rig.calls[0].pressTick == Catch::Approx (10.0 * press.x + 7.0));
+    CHECK (rig.calls[0].tick == Catch::Approx (10.0 * to.x + 7.0));
+    CHECK_FALSE (rig.calls[0].finished);
+    CHECK_FALSE (rig.calls[0].unsnapped);
+    CHECK_FALSE (rig.host.isDragAndDropActive());
+
+    const auto alt = juce::ModifierKeys (juce::ModifierKeys::altModifier | juce::ModifierKeys::leftButtonModifier);
+    row.mouseDrag (dragEventAt (row, press, to + juce::Point<int> (5, 0), alt));
+    REQUIRE (rig.calls.size() == 2);
+    CHECK (rig.calls[1].unsnapped);
+
+    row.mouseUp (dragEventAt (row, press, to + juce::Point<int> (9, 0)));
+    REQUIRE (rig.calls.size() == 3);
+    CHECK (rig.calls[2].finished);
+    CHECK (rig.calls[2].tick == Catch::Approx (10.0 * (to.x + 9) + 7.0));
+    CHECK (rig.calls[2].pressTick == Catch::Approx (10.0 * press.x + 7.0));
+
+    // The gesture is over: a later drag without a new press reports nothing.
+    row.mouseDrag (dragEventAt (row, press, to + juce::Point<int> (20, 0)));
+    CHECK (rig.calls.size() == 3);
+}
+
+TEST_CASE ("TrackRowComponent: a band press released without a drag reports no loop range", "[track-row][loop]")
+{
+    BandDragRig rig;
+    auto& row = *rig.row;
+    const juce::Point<int> press { TrackRowComponent::trackInfoWidth + 40, 5 };
+    row.mouseDown (eventAt (row, press, 1));
+    row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (3, 0)));
+    row.mouseUp (dragEventAt (row, press, press + juce::Point<int> (3, 0)));
+    CHECK (rig.calls.empty());
+    CHECK (rig.selected == 1);
+}
+
+TEST_CASE ("TrackRowComponent: presses outside the band, right presses in it and the conductor's band never draw a loop range", "[track-row][loop]")
+{
+    {
+        // In the head: a drag there is the drag-to-part path, never a loop range.
+        BandDragRig rig;
+        auto& row = *rig.row;
+        const juce::Point<int> press { 60, 5 };
+        REQUIRE (TrackRowComponent::inHeadArea (press));
+        row.mouseDown (eventAt (row, press, 1));
+        CHECK (rig.selected == 1);
+        row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        row.mouseUp (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        CHECK (rig.calls.empty());
+    }
+    {
+        // Just below the band, over the notes area (the row's own handlers, as if the
+        // preview did not take the press).
+        BandDragRig rig;
+        auto& row = *rig.row;
+        const juce::Point<int> press { TrackRowComponent::trackInfoWidth + 40, TrackRowComponent::instrumentBandHeight };
+        REQUIRE_FALSE (TrackRowComponent::inInstrumentBand (press));
+        row.mouseDown (eventAt (row, press, 1));
+        row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        row.mouseUp (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        CHECK (rig.calls.empty());
+    }
+    {
+        // A right press in the band builds the instrument menu, not a range.
+        BandDragRig rig;
+        auto& row = *rig.row;
+        const juce::Point<int> press { TrackRowComponent::trackInfoWidth + 40, 5 };
+        const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+        row.mouseDown (eventAt (row, press, 1, right));
+        CHECK (rig.selected == 0);   // the band's menu, not a selection
+        juce::PopupMenu::dismissAllActiveMenus();
+        row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (30, 0), right));
+        row.mouseUp (dragEventAt (row, press, press + juce::Point<int> (30, 0), right));
+        CHECK (rig.calls.empty());
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    }
+    {
+        // A right press after an unreleased left band press must not resume the old gesture.
+        BandDragRig rig;
+        auto& row = *rig.row;
+        const juce::Point<int> press { TrackRowComponent::trackInfoWidth + 40, 5 };
+        row.mouseDown (eventAt (row, press, 1));
+        row.mouseDown (eventAt (row, press, 1, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier)));
+        juce::PopupMenu::dismissAllActiveMenus();
+        row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        CHECK (rig.calls.empty());
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    }
+    {
+        // The conductor's band: still selects, never a range.
+        BandDragRig rig (/*conductor*/ true);
+        auto& row = *rig.row;
+        const juce::Point<int> press { TrackRowComponent::trackInfoWidth + 40, 5 };
+        row.mouseDown (eventAt (row, press, 1));
+        CHECK (rig.selected == 1);
+        row.mouseDrag (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        row.mouseUp (dragEventAt (row, press, press + juce::Point<int> (30, 0)));
+        CHECK (rig.calls.empty());
+    }
 }

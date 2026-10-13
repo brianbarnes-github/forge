@@ -78,6 +78,7 @@ namespace lotro
         static int overlayRepaints (const TrackListComponent& c) { return c.overlayRepaintCount; }
         static EventMarkerOverlay* eventMarkerOverlay (TrackListComponent& c) { return c.eventMarkerOverlay.get(); }
         static MarkerOverlay* markerOverlay (TrackListComponent& c) { return c.markerOverlay.get(); }
+        static LoopRangeOverlay* loopOverlay (TrackListComponent& c) { return c.loopOverlay.get(); }
         static SectionViewState& sectionView (TrackListComponent& c) { return c.sectionView; }
         static void mergePress (TrackListComponent& c, juce::int64 trackId, SectionHit hit, juce::ModifierKeys mods = {}) { c.mergePressed (trackId, hit, mods); }
         static bool mergeDrag (TrackListComponent& c, juce::Point<int> screen, juce::ModifierKeys mods = {}) { return c.mergeDragged (screen, mods); }
@@ -3218,4 +3219,257 @@ TEST_CASE ("TrackListComponent: view changes without onViewChanged set do not cr
     wheelAt (list, Access::notePreviewOriginX (list), 1.0f, {});
     Access::horizontalBar (list).setCurrentRangeStart (3000.0, juce::sendNotificationSync);
     CHECK (list.getTimelineView().getScrollOffsetTicks() == Catch::Approx (3000.0));
+}
+
+namespace
+{
+    // A Song of one 9600-tick (10 s at the default 120 bpm, 480 PPQ) track in an
+    // 800 px list at 0.1 px per tick and no scroll: in a row, tick = 10 * (x - 200);
+    // on the ruler the same. The shortest loop (kMinLoopSeconds) is 48 ticks.
+    struct LoopListRig
+    {
+        juce::ScopedJuceInitialiser_GUI juceInit;
+        SongDocument doc;
+        juce::ValueTree track;
+        lotro::playbacktest::RecordingSink sink;
+        std::unique_ptr<PlaybackController> controller;
+        std::unique_ptr<TrackListComponent> list;
+
+        LoopListRig()
+        {
+            track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+            lotro::playbacktest::addNote (track, 60, 0, 9600);
+            controller = std::make_unique<PlaybackController> (doc, sink);
+            controller->flushRebuild();
+            list = std::make_unique<TrackListComponent> (doc);
+            list->setPlayback (controller.get());
+            list->setSize (800, 300);
+            Access::timelineViewMut (*list).setPixelsPerTick (0.1);
+            Access::timelineViewMut (*list).setScrollOffsetTicks (0.0);
+            list->loopSnapTicks = [] { return 120; };
+        }
+
+        TrackRowComponent& row() { return *Access::rowFor (*list, (juce::int64) track.getProperty (SongIDs::trackId)); }
+
+        static juce::MouseEvent event (juce::Component& target, juce::Point<int> downPos, juce::Point<int> pos,
+                                       juce::ModifierKeys mods = {})
+        {
+            return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos.toFloat(), mods,
+                                     0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &target, &target,
+                                     juce::Time::getCurrentTime(), downPos.toFloat(),
+                                     juce::Time::getCurrentTime(), 1, pos != downPos);
+        }
+
+        // A left press at band x `fromX`, drags through `throughX`, release at the last.
+        void bandDrag (int fromX, std::vector<int> throughX, juce::ModifierKeys mods = {})
+        {
+            auto& r = row();
+            const juce::Point<int> down { fromX, 5 };
+            REQUIRE (TrackRowComponent::inInstrumentBand (down));
+            r.mouseDown (event (r, down, down, mods));
+            for (int x : throughX)
+                r.mouseDrag (event (r, down, { x, 5 }, mods));
+            r.mouseUp (event (r, down, { throughX.back(), 5 }, mods));
+        }
+
+        std::optional<std::pair<double, double>> range() const
+        {
+            const auto r = controller->getLoopRange();
+            if (! r.has_value())
+                return std::nullopt;
+            return std::make_pair (r->startTick, r->endTick);
+        }
+    };
+
+    using TickPair = std::pair<double, double>;
+}
+
+TEST_CASE ("TrackListComponent: dragging in a track's band sets a grid-snapped loop range; Alt leaves it unsnapped", "[track-list][loop]")
+{
+    LoopListRig rig;
+    REQUIRE (Access::notePreviewOriginX (*rig.list) == 200);
+    REQUIRE (rig.list->rulerForTesting() != nullptr);
+    CHECK_FALSE (rig.list->rulerForTesting()->loopHandleBounds (true).has_value());
+
+    // Press at tick 1030, drag via 2000 to 2570: none of them a multiple of 120.
+    auto& row = rig.row();
+    const juce::Point<int> down { 303, 5 };
+    row.mouseDown (LoopListRig::event (row, down, down));
+    row.mouseDrag (LoopListRig::event (row, down, { 400, 5 }));
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2040.0 }));   // the shading follows the pointer (2000 snaps to 2040)
+    row.mouseDrag (LoopListRig::event (row, down, { 457, 5 }));
+    row.mouseUp (LoopListRig::event (row, down, { 457, 5 }));
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2520.0 }));
+    // The ruler shows it (its brackets need the range).
+    CHECK (rig.list->rulerForTesting()->loopHandleBounds (true).has_value());
+
+    rig.controller->clearLoopRange();
+    const juce::ModifierKeys alt (juce::ModifierKeys::altModifier | juce::ModifierKeys::leftButtonModifier);
+    rig.bandDrag (303, { 400, 457 }, alt);
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1030.0, 2570.0 }));
+
+    // Dragging leftwards from the press makes the press the end.
+    rig.controller->clearLoopRange();
+    rig.bandDrag (457, { 303 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2520.0 }));
+}
+
+TEST_CASE ("TrackListComponent: a band drag within one grid cell sets no loop range and keeps an existing one", "[track-list][loop]")
+{
+    LoopListRig rig;
+    // Ticks 1150 .. 1250: 100 ticks unsnapped (longer than the 48-tick minimum), but both snap to 1200.
+    rig.bandDrag (315, { 325 });
+    CHECK_FALSE (rig.range().has_value());
+
+    // Without a grid the same drag is a range (so the fixture is long enough).
+    rig.list->loopSnapTicks = nullptr;
+    rig.bandDrag (315, { 325 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1150.0, 1250.0 }));
+
+    // Outside that range, a too-short drag leaves it alone.
+    rig.list->loopSnapTicks = [] { return 120; };
+    rig.bandDrag (513, { 517 });   // 3130 .. 3170: both snap to 3120
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1150.0, 1250.0 }));
+}
+
+TEST_CASE ("TrackListComponent: a band drag that starts inside the loop range moves it, keeping its length", "[track-list][loop]")
+{
+    LoopListRig rig;
+    rig.controller->setLoopRange (1200.0, 2400.0);
+    REQUIRE (rig.range() == std::optional<TickPair> (TickPair { 1200.0, 2400.0 }));
+
+    // Grab at tick 1800, move by 630 ticks: the start 1830 snaps to 1800, the length stays 1200.
+    rig.bandDrag (380, { 410, 443 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1800.0, 3000.0 }));
+
+    // With Alt the start is not snapped: grab at 2000, move by 37 ticks.
+    const juce::ModifierKeys alt (juce::ModifierKeys::altModifier | juce::ModifierKeys::leftButtonModifier);
+    rig.bandDrag (400, { 403, 404 }, alt);   // 403 is under 4 px from the press: no step yet
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1840.0, 3040.0 }));
+
+    // A move that would start before the Song starts at 0 and keeps the length:
+    // grab at 2000, drag to 100 (the start would be -60).
+    rig.bandDrag (400, { 210 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 0.0, 1200.0 }));
+}
+
+TEST_CASE ("TrackListComponent: dragging a ruler bracket moves that edge, anchored on the other edge even past it", "[track-list][loop][ruler]")
+{
+    LoopListRig rig;
+    auto* ruler = rig.list->rulerForTesting();
+    REQUIRE (ruler != nullptr);
+    rig.controller->setLoopRange (1200.0, 2400.0);
+    const auto startBracket = ruler->loopHandleBounds (true);
+    const auto endBracket = ruler->loopHandleBounds (false);
+    REQUIRE (startBracket.has_value());
+    REQUIRE (endBracket.has_value());
+    REQUIRE (startBracket->getX() == 320);   // ruler x = 200 + tick / 10
+    REQUIRE (endBracket->getRight() == 440);
+
+    // The end edge: 2670 snaps to 2640.
+    const juce::Point<int> endDown { 437, 5 };
+    ruler->mouseDown (LoopListRig::event (*ruler, endDown, endDown));
+    ruler->mouseDrag (LoopListRig::event (*ruler, endDown, { 467, 5 }));
+    ruler->mouseUp (LoopListRig::event (*ruler, endDown, { 467, 5 }));
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1200.0, 2640.0 }));
+
+    // The start edge: to 1730 (snaps to 1680), past the end to 3600, then back to 3000.
+    // Every step is anchored on the end as it was at the press (2640).
+    const juce::Point<int> startDown { 322, 5 };
+    ruler->mouseDown (LoopListRig::event (*ruler, startDown, startDown));
+    ruler->mouseDrag (LoopListRig::event (*ruler, startDown, { 373, 5 }));
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1680.0, 2640.0 }));
+    ruler->mouseDrag (LoopListRig::event (*ruler, startDown, { 560, 5 }));
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 2640.0, 3600.0 }));
+    ruler->mouseDrag (LoopListRig::event (*ruler, startDown, { 500, 5 }));
+    ruler->mouseUp (LoopListRig::event (*ruler, startDown, { 500, 5 }));
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 2640.0, 3000.0 }));
+}
+
+TEST_CASE ("TrackListComponent: clicking a ruler bracket clears the loop range; a drag after clearing does nothing", "[track-list][loop][ruler]")
+{
+    LoopListRig rig;
+    auto* ruler = rig.list->rulerForTesting();
+    REQUIRE (ruler != nullptr);
+    rig.controller->setLoopRange (1200.0, 2400.0);
+
+    const juce::Point<int> startDown { 322, 5 };
+    ruler->mouseDown (LoopListRig::event (*ruler, startDown, startDown));
+    ruler->mouseUp (LoopListRig::event (*ruler, startDown, startDown));
+    CHECK_FALSE (rig.range().has_value());
+
+    // Cleared mid-drag (e.g. Escape): the rest of the drag must not bring a range back.
+    rig.controller->setLoopRange (1200.0, 2400.0);
+    ruler->mouseDown (LoopListRig::event (*ruler, startDown, startDown));
+    rig.controller->clearLoopRange();
+    ruler->mouseDrag (LoopListRig::event (*ruler, startDown, { 373, 5 }));
+    ruler->mouseUp (LoopListRig::event (*ruler, startDown, { 373, 5 }));
+    CHECK_FALSE (rig.range().has_value());
+}
+
+TEST_CASE ("TrackListComponent: the loop overlay exists only while a controller is set, over the note strips", "[track-list][loop]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setSize (800, 300);
+    CHECK (Access::loopOverlay (list) == nullptr);
+
+    list.setPlayback (&controller);
+    auto* loopOverlay = Access::loopOverlay (list);
+    REQUIRE (loopOverlay != nullptr);
+    REQUIRE (Access::markerOverlay (list) != nullptr);
+    CHECK (loopOverlay->getBounds() == Access::markerOverlay (list)->getBounds());
+    CHECK_FALSE (loopOverlay->getBounds().isEmpty());
+    CHECK (loopOverlay->getParentComponent() == &list);
+    CHECK_FALSE (loopOverlay->currentXs().has_value());
+
+    controller.setLoopRange (1200.0, 2400.0);
+    const auto xs = loopOverlay->currentXs();
+    REQUIRE (xs.has_value());
+    CHECK (xs->first == Access::timelineView (list).xForTick (1200));
+
+    list.setSize (700, 300);   // the same bounds rule on resize
+    CHECK (Access::loopOverlay (list)->getBounds() == Access::markerOverlay (list)->getBounds());
+
+    list.setPlayback (nullptr);
+    CHECK (Access::loopOverlay (list) == nullptr);
+}
+
+TEST_CASE ("TrackListComponent: a loop range cleared during a band drag stays cleared for the rest of it", "[track-list][loop]")
+{
+    LoopListRig rig;
+    auto& row = rig.row();
+
+    // Moving: grab inside [1200, 2400], one step, cleared (e.g. Esc), then more steps.
+    rig.controller->setLoopRange (1200.0, 2400.0);
+    const juce::Point<int> inside { 380, 5 };
+    row.mouseDown (LoopListRig::event (row, inside, inside));
+    row.mouseDrag (LoopListRig::event (row, inside, { 413, 5 }));   // +330: start 1530 snaps to 1560
+    REQUIRE (rig.range() == std::optional<TickPair> (TickPair { 1560.0, 2760.0 }));
+    rig.controller->clearLoopRange();
+    row.mouseDrag (LoopListRig::event (row, inside, { 430, 5 }));
+    row.mouseDrag (LoopListRig::event (row, inside, { 443, 5 }));
+    row.mouseUp (LoopListRig::event (row, inside, { 443, 5 }));
+    CHECK_FALSE (rig.range().has_value());
+
+    // Drawing: the drag's own range, cleared, does not come back either.
+    const juce::Point<int> outside { 303, 5 };
+    row.mouseDown (LoopListRig::event (row, outside, outside));
+    row.mouseDrag (LoopListRig::event (row, outside, { 400, 5 }));
+    REQUIRE (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2040.0 }));
+    rig.controller->clearLoopRange();
+    row.mouseDrag (LoopListRig::event (row, outside, { 430, 5 }));
+    row.mouseDrag (LoopListRig::event (row, outside, { 457, 5 }));
+    row.mouseUp (LoopListRig::event (row, outside, { 457, 5 }));
+    CHECK_FALSE (rig.range().has_value());
+
+    // The next press starts afresh.
+    rig.bandDrag (303, { 457 });
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2520.0 }));
 }
