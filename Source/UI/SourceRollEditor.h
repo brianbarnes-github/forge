@@ -92,6 +92,9 @@ public:
     // an empty-space click from a note gesture).
     bool isOverNote (juce::Point<int> pos) const { return hitTestNote (pos).isValid(); }
 
+    // A move, resize or rubber-band drag is in progress (between mouseDown and mouseUp).
+    bool isGestureActive() const noexcept { return dragMode != DragMode::None; }
+
 private:
     enum class DragMode { None, Move, ResizeLeft, ResizeRight, RubberBand };
 

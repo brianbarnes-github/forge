@@ -50,6 +50,10 @@ public:
 
     bool hasPlayheadForTesting() const noexcept { return playhead != nullptr; }
     bool hasMarkerOverlayForTesting() const noexcept { return markerOverlay != nullptr; }
+    bool hasLoopOverlayForTesting() const noexcept { return loopOverlay != nullptr; }
+
+    // Source role with an editor: a note move/resize/rubber-band drag is in progress.
+    bool isEditorGestureActive() const noexcept { return sourceEditor != nullptr && sourceEditor->isGestureActive(); }
 
     Role getRole() const noexcept { return role; }
 
@@ -116,6 +120,7 @@ public:
 
 private:
     friend struct PianoRollComponentTestAccess;
+    friend struct SongsmithMainComponentTestAccess;   // drives a note gesture through handleEditorMouseDown/Up
 
     class Canvas : public juce::Component
     {
@@ -212,6 +217,8 @@ private:
 
     // PlaybackController::Listener
     void playbackMarkerChanged() override { if (onViewChanged) onViewChanged(); }
+    // The timing bar above draws the loop's shading and brackets but is not a controller listener.
+    void playbackLoopChanged() override { if (onViewChanged) onViewChanged(); }
     void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
     void followPlayhead (bool playing);
     void layoutPlayhead();
@@ -256,6 +263,7 @@ private:
     PlaybackController* playback = nullptr; // Source role only; not owned.
     std::unique_ptr<PlayheadOverlay> playhead;
     std::unique_ptr<MarkerOverlay> markerOverlay;
+    std::unique_ptr<LoopRangeOverlay> loopOverlay;   // under the playhead and marker lines
     // A plain left click on empty canvas (no drag) drops the start marker; the
     // press decides eligibility, the release (still near the press) commits.
     bool markerClickCandidate = false;

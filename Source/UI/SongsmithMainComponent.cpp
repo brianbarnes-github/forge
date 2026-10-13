@@ -110,6 +110,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     trackList.onViewChanged = [this] { if (tempoMeterWindow != nullptr) tempoMeterWindow->timelineViewChanged(); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
     trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
+    trackList.loopSnapTicks = [this] { return currentLoopSnapTicks(); };
     trackList.onTrackAppearanceChanged = [this] (juce::int64 trackId)
     {
         partStrip.trackAppearanceChanged();
@@ -247,6 +248,27 @@ void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
 
     const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
     trackEditor->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
+}
+
+int SongsmithMainComponent::currentLoopSnapTicks() const
+{
+    if (isTrackEditorLoaded())
+        return trackEditor->getGridTicks();
+    const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
+    return gridSizeToTicks (defaultGridSize, ticksPerQuarter);
+}
+
+bool SongsmithMainComponent::escapePressed()
+{
+    // One action per press, in this order.
+    if (trackList.cancelSectionDrag())
+        return true;
+    if (trackEditor->isNoteGestureActive())
+        return false;   // the editor has no Escape of its own; the press must not reach past its drag
+    if (playback == nullptr || ! playback->getLoopRange().has_value())
+        return false;
+    playback->clearLoopRange();
+    return true;
 }
 
 void SongsmithMainComponent::openTempoMeterEditor()

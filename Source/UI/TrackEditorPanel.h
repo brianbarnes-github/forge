@@ -10,6 +10,7 @@
 #include "SourceTrackNoteSource.h"
 
 #include <functional>
+#include <optional>
 
 namespace lotro
 {
@@ -39,6 +40,8 @@ namespace lotro
         void setFollowPlayhead (bool on) { roll.setFollowPlayhead (on); }
         bool getFollowPlayhead() const { return roll.getFollowPlayhead(); }
         void quantizeSelection();
+        // A note move/resize/rubber-band drag is in progress in the roll.
+        bool isNoteGestureActive() const noexcept { return roll.isEditorGestureActive(); }
 
         void setGhostTracks (std::vector<juce::ValueTree> tracks);
 
@@ -68,6 +71,7 @@ namespace lotro
 
     private:
         friend struct TrackEditorPanelTestAccess;
+        friend struct SongsmithMainComponentTestAccess;
 
         // Strip on top, ruler under it (same width as the roll, so a ruler x
         // is a roll x), then the roll filling the rest.
@@ -81,6 +85,7 @@ namespace lotro
             TransportStrip strip;
             TimelineRuler ruler;
             PianoRollComponent& roll;
+            std::optional<double> loopEdgeAnchor;   // the ruler bracket drag's fixed (other) edge
         };
 
         void titleChanged();

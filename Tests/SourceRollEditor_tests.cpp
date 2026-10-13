@@ -119,6 +119,26 @@ TEST_CASE ("SourceRollEditor: dragging on empty canvas rubber-bands every note i
     CHECK (f.editor.getRubberBandRect().isEmpty());
 }
 
+TEST_CASE ("SourceRollEditor: a move or rubber-band drag is a gesture in progress until the release; a shift-click is not", "[source-roll-editor]")
+{
+    Fixture f;
+    CHECK_FALSE (f.editor.isGestureActive());
+
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);   // a move
+    CHECK (f.editor.isGestureActive());
+    f.editor.mouseUp (f.centreOf (f.noteA));
+    CHECK_FALSE (f.editor.isGestureActive());
+
+    const juce::Point<int> empty (f.geometry.getKeyboardGutterWidth() + 2, f.geometry.yForPitch (70));
+    f.editor.mouseDown (empty, {}, false);   // a rubber band
+    CHECK (f.editor.isGestureActive());
+    f.editor.mouseUp (empty);
+    CHECK_FALSE (f.editor.isGestureActive());
+
+    f.editor.mouseDown (f.centreOf (f.noteB), juce::ModifierKeys (juce::ModifierKeys::shiftModifier), false);
+    CHECK_FALSE (f.editor.isGestureActive());
+}
+
 TEST_CASE ("SourceRollEditor: dragging a selected note's body moves startTick and pitch together, one undo transaction", "[source-roll-editor]")
 {
     Fixture f;

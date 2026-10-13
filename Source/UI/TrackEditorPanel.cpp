@@ -46,6 +46,29 @@ namespace lotro
         ruler.setMarker ([&controller] { return controller.getMarkerTick(); });
         ruler.onSetMarker = [&controller] (double tick) { controller.setMarkerTick (tick); };
         ruler.onClearMarker = [&controller] { controller.clearMarker(); };
+        ruler.setLoopRange ([&controller] { return controller.getLoopRange(); });
+        // The press records the OTHER edge; every drag step is anchored on it, so an edge
+        // dragged past the other one flips the pair instead of jumping.
+        ruler.onLoopEdgePressed = [this, &controller] (bool isStart)
+        {
+            loopEdgeAnchor.reset();
+            if (const auto range = controller.getLoopRange())
+                loopEdgeAnchor = isStart ? range->endTick : range->startTick;
+        };
+        ruler.onLoopEdgeDragged = [this, &controller, &rollIn] (bool, double tick)
+        {
+            // Nothing to move once the range is gone (cleared mid-drag) or if the press found none.
+            if (! loopEdgeAnchor.has_value() || ! controller.getLoopRange().has_value())
+                return;
+            // The ruler reports no modifiers; Alt is read from the live keyboard state.
+            const bool unsnapped = juce::ModifierKeys::getCurrentModifiers().isAltDown();
+            controller.setLoopRange (*loopEdgeAnchor, snapLoopTick (tick, rollIn.getGridTicks(), unsnapped));
+        };
+        ruler.onClearLoop = [this, &controller]
+        {
+            loopEdgeAnchor.reset();
+            controller.clearLoopRange();
+        };
         rollIn.onViewChanged = [this] { ruler.repaint(); };
         addAndMakeVisible (strip);
         addAndMakeVisible (ruler);

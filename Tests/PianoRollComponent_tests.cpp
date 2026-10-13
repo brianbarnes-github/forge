@@ -79,6 +79,7 @@ namespace lotro
         static int hoveredPitch (const PianoRollComponent& c) { return c.hoveredPitch; }
         static juce::Component* playhead (PianoRollComponent& c) { return c.playhead.get(); }
         static MarkerOverlay* markerOverlay (PianoRollComponent& c) { return c.markerOverlay.get(); }
+        static LoopRangeOverlay* loopOverlay (PianoRollComponent& c) { return c.loopOverlay.get(); }
         static int playheadX (const PianoRollComponent& c) { return c.playhead->currentX(); }
         static int playheadRepaints (const PianoRollComponent& c) { return c.playheadRepaintCount; }
         static bool timelineFitted (const PianoRollComponent& c) { return c.timelineFitted; }
@@ -1044,6 +1045,50 @@ TEST_CASE ("PianoRollComponent: the start marker is drawn by an overlay between 
 
     f.roll.setPlayback (nullptr);
     CHECK (! f.roll.hasMarkerOverlayForTesting());
+}
+
+TEST_CASE ("PianoRollComponent: the loop range is shaded by an overlay under the playhead and marker, over the notes only", "[piano-roll][loop]")
+{
+    PlayheadRollFixture f;
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    preview.setPlayback (&f.controller);
+    CHECK (! preview.hasLoopOverlayForTesting());
+
+    CHECK (! f.roll.hasLoopOverlayForTesting());
+    f.roll.setPlayback (&f.controller);
+    REQUIRE (f.roll.hasLoopOverlayForTesting());
+    auto* overlay = Access::loopOverlay (f.roll);
+    CHECK (! overlay->currentXs().has_value());
+
+    REQUIRE (f.controller.setLoopRange (1440.0, 3360.0));
+    const auto xs = overlay->currentXs();
+    REQUIRE (xs.has_value());
+    CHECK (xs->first == f.roll.xForTickInComponent (1440.0));
+    CHECK (xs->second == f.roll.xForTickInComponent (3360.0));
+
+    // Below the playhead and marker lines, and the gutter above them all.
+    CHECK (f.roll.getIndexOfChildComponent (overlay) < f.roll.getIndexOfChildComponent (Access::playhead (f.roll)));
+    CHECK (f.roll.getIndexOfChildComponent (overlay) < f.roll.getIndexOfChildComponent (Access::markerOverlay (f.roll)));
+    CHECK (f.roll.getIndexOfChildComponent (overlay) < f.roll.getIndexOfChildComponent (&Access::gutter (f.roll)));
+    // Laid out like the playhead: over the scrolling canvas, not the scroll bars.
+    CHECK (overlay->getBounds() == Access::playhead (f.roll)->getBounds());
+    CHECK (! overlay->getBounds().isEmpty());
+
+    f.roll.setPlayback (nullptr);
+    CHECK (! f.roll.hasLoopOverlayForTesting());
+}
+
+TEST_CASE ("PianoRollComponent: a loop range change tells the timing bar above to repaint", "[piano-roll][loop]")
+{
+    PlayheadRollFixture f;
+    f.roll.setPlayback (&f.controller);
+    int viewChanges = 0;
+    f.roll.onViewChanged = [&viewChanges] { ++viewChanges; };
+
+    REQUIRE (f.controller.setLoopRange (1440.0, 3360.0));
+    CHECK (viewChanges == 1);
+    f.controller.clearLoopRange();
+    CHECK (viewChanges == 2);
 }
 
 namespace

@@ -153,6 +153,7 @@ private:
     // the public API for behavior that's otherwise only ever triggered
     // internally (a row click) or by JUCE's async update mechanism.
     friend struct TrackListComponentTestAccess;
+    friend struct SongsmithMainComponentTestAccess;   // starts a section drag to test Escape's precedence
 
     class ListContent : public juce::Component
     {

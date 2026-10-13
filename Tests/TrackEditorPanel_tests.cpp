@@ -221,3 +221,109 @@ TEST_CASE ("TrackEditorPanel: the timing bar draws bar lines from the keyboard g
     for (int x = 0; x < gutter; ++x)
         CHECK (image.getPixelAt (x, lowerRow) == background);
 }
+
+namespace
+{
+    juce::MouseEvent rulerEvent (juce::Component& target, juce::Point<int> downPos, juce::Point<int> pos)
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos.toFloat(), juce::ModifierKeys(),
+                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &target, &target,
+                                 juce::Time::getCurrentTime(), downPos.toFloat(),
+                                 juce::Time::getCurrentTime(), 1, pos != downPos);
+    }
+
+    std::optional<std::pair<double, double>> loopOf (const PlaybackController& c)
+    {
+        const auto r = c.getLoopRange();
+        if (! r.has_value())
+            return std::nullopt;
+        return std::make_pair (r->startTick, r->endTick);
+    }
+
+    using TickPair = std::pair<double, double>;
+}
+
+TEST_CASE ("TrackEditorPanel: dragging a ruler bracket moves that loop edge, snapped to the roll's grid and anchored on the other edge", "[track-editor][loop][ruler]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackEditorPanel window (doc);
+    window.setPlayback (&controller);
+    window.setSize (800, 400);
+    window.setTrack (track);
+    window.setGridTicks (240);   // the editor's own grid (an eighth at 480 PPQ)
+
+    using Access = TrackEditorPanelTestAccess;
+    auto& ruler = Access::ruler (window);
+    auto& roll = Access::roll (window);
+    // Every target below is 20 ticks past a multiple of 240 (a fitted pixel is about 13 ticks),
+    // so only a snapped edge lands on the multiple.
+    const auto at = [&roll] (double tick) { return juce::Point<int> (roll.xForTickInComponent (tick), 5); };
+
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+    const auto endBracket = ruler.loopHandleBounds (false);
+    REQUIRE (endBracket.has_value());
+
+    // The end edge: 2900 snaps to 2880.
+    const juce::Point<int> endDown { endBracket->getRight() - 3, endBracket->getCentreY() };
+    ruler.mouseDown (rulerEvent (ruler, endDown, endDown));
+    ruler.mouseDrag (rulerEvent (ruler, endDown, at (2900.0)));
+    ruler.mouseUp (rulerEvent (ruler, endDown, at (2900.0)));
+    CHECK (loopOf (controller) == std::optional<TickPair> (TickPair { 1200.0, 2880.0 }));
+
+    // The start edge: to 1700 (1680), past the end to 3620 (3600), then back to 3140 (3120).
+    // Every step is anchored on the end as it was at the press (2880).
+    const auto startBracket = ruler.loopHandleBounds (true);
+    REQUIRE (startBracket.has_value());
+    const juce::Point<int> startDown { startBracket->getX() + 2, startBracket->getCentreY() };
+    ruler.mouseDown (rulerEvent (ruler, startDown, startDown));
+    ruler.mouseDrag (rulerEvent (ruler, startDown, at (1700.0)));
+    CHECK (loopOf (controller) == std::optional<TickPair> (TickPair { 1680.0, 2880.0 }));
+    ruler.mouseDrag (rulerEvent (ruler, startDown, at (3620.0)));
+    CHECK (loopOf (controller) == std::optional<TickPair> (TickPair { 2880.0, 3600.0 }));
+    ruler.mouseDrag (rulerEvent (ruler, startDown, at (3140.0)));
+    ruler.mouseUp (rulerEvent (ruler, startDown, at (3140.0)));
+    CHECK (loopOf (controller) == std::optional<TickPair> (TickPair { 2880.0, 3120.0 }));
+}
+
+TEST_CASE ("TrackEditorPanel: clicking a ruler bracket clears the loop range; a drag after clearing does nothing", "[track-editor][loop][ruler]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackEditorPanel window (doc);
+    window.setPlayback (&controller);
+    window.setSize (800, 400);
+    window.setTrack (track);
+    window.setGridTicks (240);
+
+    using Access = TrackEditorPanelTestAccess;
+    auto& ruler = Access::ruler (window);
+    auto& roll = Access::roll (window);
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+    const auto startBracket = ruler.loopHandleBounds (true);
+    REQUIRE (startBracket.has_value());
+    const juce::Point<int> startDown { startBracket->getX() + 2, startBracket->getCentreY() };
+
+    ruler.mouseDown (rulerEvent (ruler, startDown, startDown));
+    ruler.mouseUp (rulerEvent (ruler, startDown, startDown));
+    CHECK_FALSE (controller.getLoopRange().has_value());
+
+    // Cleared mid-drag (e.g. Escape): the rest of the drag must not bring a range back.
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+    ruler.mouseDown (rulerEvent (ruler, startDown, startDown));
+    controller.clearLoopRange();
+    const juce::Point<int> to { roll.xForTickInComponent (1700.0), 5 };
+    ruler.mouseDrag (rulerEvent (ruler, startDown, to));
+    ruler.mouseUp (rulerEvent (ruler, startDown, to));
+    CHECK_FALSE (controller.getLoopRange().has_value());
+}

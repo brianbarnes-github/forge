@@ -10,6 +10,7 @@
 #include "PlaybackTestSupport.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/Playback/TransportStrip.h"
+#include "UI/SectionEdit.h"
 #include "UI/SongModelBridge.h"
 #include "UI/Dock/DockFloatWindow.h"
 #include "UI/Dock/DockPanel.h"
@@ -102,6 +103,22 @@ namespace lotro
         {
             return c.trackEditor->getGridTicks();
         }
+        // A press/release on the editor roll's canvas (canvas pixels), through the same
+        // handler the real Canvas::mouseDown/mouseUp call (minus their grabKeyboardFocus).
+        static void editorMouseDown (SongsmithMainComponent& c, juce::Point<int> pos)
+        {
+            c.trackEditor->roll.handleEditorMouseDown (pos, {}, false);
+        }
+        static void editorMouseUp (SongsmithMainComponent& c, juce::Point<int> pos)
+        {
+            c.trackEditor->roll.handleEditorMouseUp (pos);
+        }
+        static void sectionPress (SongsmithMainComponent& c, juce::int64 trackId, SectionHit hit, int tick)
+        {
+            c.trackList.sectionPressed (trackId, hit, tick, {});
+        }
+        static void sectionDrag (SongsmithMainComponent& c, int tick) { c.trackList.sectionDragged (tick); }
+        static bool sectionDragShown (const SongsmithMainComponent& c) { return c.trackList.sectionView.drag.has_value(); }
         // previewRegion is a child of lowerRegion, so its bounds are already
         // relative to lowerRegion's own local space -- compare against
         // lowerRegion's height (not lowerRegion.getBottom(), which is in
@@ -1041,4 +1058,111 @@ TEST_CASE ("SongsmithMainComponent: the Parts strip is a dock panel that can be 
     view.setDockLayout (layout);
     CHECK (view.isPartsVisible());
     CHECK (lotro::dock::find (view.getDockLayout(), "parts")->mode == lotro::dock::Mode::floating);
+}
+
+TEST_CASE ("SongsmithMainComponent: loop edges snap to the loaded editor's grid, else to the default grid at the document's PPQ", "[songsmith][loop][track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, 120, nullptr);   // not 480: a hardcoded PPQ fails
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+    auto& list = Access::trackList (view);
+    REQUIRE (list.loopSnapTicks != nullptr);
+
+    // No editor loaded: the default grid.
+    view.setDefaultGridSize (GridSize::Quarter);
+    CHECK (view.currentLoopSnapTicks() == 120);
+    CHECK (list.loopSnapTicks() == 120);
+
+    // A loaded editor whose grid was changed from the default: its grid.
+    Access::trackDoubleClicked (view, trackId);
+    REQUIRE (view.isTrackEditorLoaded());
+    view.setActiveEditorGridSize (GridSize::Sixteenth);
+    CHECK (view.currentLoopSnapTicks() == 30);
+    CHECK (list.loopSnapTicks() == 30);
+
+    // Hidden again, the editor no longer decides: the (changed) default does.
+    view.setDefaultGridSize (GridSize::Eighth);
+    view.setMidiEditorVisible (false);
+    REQUIRE_FALSE (view.isTrackEditorLoaded());
+    CHECK (view.currentLoopSnapTicks() == 60);
+    CHECK (list.loopSnapTicks() == 60);
+}
+
+TEST_CASE ("SongsmithMainComponent: Escape clears the loop range, and does nothing when there is none", "[songsmith][loop]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    playbacktest::addNote (track, 60, 0, 9600);
+    playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 700);
+
+    CHECK_FALSE (view.escapePressed());   // nothing to clear: the key is not consumed
+
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+    CHECK (view.escapePressed());
+    CHECK_FALSE (controller.getLoopRange().has_value());
+    CHECK_FALSE (view.escapePressed());
+}
+
+TEST_CASE ("SongsmithMainComponent: Escape during a note-editor drag leaves the loop range; after the release it clears it", "[songsmith][loop][track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    playbacktest::addNote (track, 60, 0, 9600);
+    playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 700);
+    Access::trackDoubleClicked (view, (juce::int64) track.getProperty (SongIDs::trackId));
+    REQUIRE (view.isTrackEditorLoaded());
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+
+    // A press on empty canvas (the pitch-127 row, far above the note) starts a rubber band.
+    const juce::Point<int> empty { 300, 2 };
+    Access::editorMouseDown (view, empty);
+    CHECK_FALSE (view.escapePressed());
+    CHECK (controller.getLoopRange().has_value());
+
+    Access::editorMouseUp (view, empty);
+    CHECK (view.escapePressed());   // a loaded editor alone does not block it
+    CHECK_FALSE (controller.getLoopRange().has_value());
+}
+
+TEST_CASE ("SongsmithMainComponent: Escape during a section drag cancels only the drag; the next one clears the loop range", "[songsmith][loop][sections]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = playbacktest::addTrack (doc);
+    playbacktest::addNote (track, 60, 0, 9600);
+    const auto id = (juce::int64) track.getProperty (SongIDs::trackId);
+    splitAt (doc, { id }, 4800);
+    playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 700);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);   // let the track list build its rows
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+
+    const auto second = sectionsOf (track)[1];
+    Access::sectionPress (view, id, { second.id, SectionZone::Body }, 6000);
+    Access::sectionDrag (view, 6500);
+    REQUIRE (Access::sectionDragShown (view));
+
+    CHECK (view.escapePressed());
+    CHECK_FALSE (Access::sectionDragShown (view));
+    CHECK (controller.getLoopRange().has_value());
+
+    CHECK (view.escapePressed());
+    CHECK_FALSE (controller.getLoopRange().has_value());
 }

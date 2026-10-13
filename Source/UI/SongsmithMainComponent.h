@@ -95,6 +95,14 @@ public:
     bool deleteSections()  { return trackList.deleteSelectedSections(); }
     void selectAll()       { trackList.selectAll(); }
     bool cancelSectionDrag() { return trackList.cancelSectionDrag(); }
+    // Escape (MainWindow::keyPressed, after its text-input guard). Precedence: a section or
+    // merge drag is cancelled; otherwise, while a note-editor drag is in progress nothing
+    // happens; otherwise the loop range is cleared. Returns false when nothing happened.
+    bool escapePressed();
+
+    // The grid, in ticks, loop-range edges snap to: the loaded editor's grid, else the
+    // default grid (Preferences ▸ Editing) at the document's ticksPerQuarter.
+    int currentLoopSnapTicks() const;
     // Menu paths: no pointer is consulted (the pointer is over the menu).
     bool splitAtMarker()          { return trackList.splitSections (std::nullopt, -1); }
     bool canSplitAtMarker() const { return trackList.canSplitAtMarker(); }

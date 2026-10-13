@@ -48,6 +48,7 @@ PianoRollComponent::~PianoRollComponent()
     if (playback != nullptr)
         playback->removeListener (this);
     markerOverlay.reset();
+    loopOverlay.reset();
     playhead.reset(); // before the viewport: its scroll callbacks touch the playhead
 }
 
@@ -72,17 +73,21 @@ void PianoRollComponent::setPlayback (PlaybackController* controller)
     if (playback != nullptr)
         playback->removeListener (this);
     markerOverlay.reset();
+    loopOverlay.reset();
     playhead.reset();
     playback = controller;
     if (playback == nullptr)
         return;
 
     playback->addListener (this);
+    // Under the playhead and marker lines, so they stay visible inside the range.
+    loopOverlay = std::make_unique<LoopRangeOverlay> (*playback, [this] (double tick) { return xForTickInComponent (tick); });
+    addAndMakeVisible (*loopOverlay);
     playhead = std::make_unique<PlayheadOverlay> (*playback, [this] (double tick) { return xForTickInComponent (tick); });
     addAndMakeVisible (*playhead);
     markerOverlay = std::make_unique<MarkerOverlay> (*playback, [this] (double tick) { return xForTickInComponent (tick); });
     addAndMakeVisible (*markerOverlay);
-    gutter.toFront (false); // order: viewport < playhead < marker < gutter, so the lines never draw over the keys
+    gutter.toFront (false); // order: viewport < loop < playhead < marker < gutter, so nothing draws over the keys
     layoutPlayhead();
 }
 
@@ -96,6 +101,8 @@ void PianoRollComponent::layoutPlayhead()
                              .withTrimmedRight (viewport.getVerticalScrollBar().isVisible() ? viewport.getScrollBarThickness() : 0));
     if (markerOverlay != nullptr)
         markerOverlay->setBounds (playhead->getBounds());
+    if (loopOverlay != nullptr)
+        loopOverlay->setBounds (playhead->getBounds());
 }
 
 void PianoRollComponent::refreshPlayhead()
@@ -108,6 +115,8 @@ void PianoRollComponent::refreshPlayhead()
         onViewChanged();
     if (markerOverlay != nullptr)
         markerOverlay->repaint();
+    if (loopOverlay != nullptr)
+        loopOverlay->repaint();
 }
 
 void PianoRollComponent::followPlayhead (bool playing)
