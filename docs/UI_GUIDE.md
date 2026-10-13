@@ -55,10 +55,10 @@ the classic editor's sibling pane.
 
 ## Dockable panels
 
-The MIDI editor (#28), the LOTRO preview (#20) and the Parts strip (#15) are panels (`Source/UI/Dock/`). Each has a
+The MIDI editor (#28), the LOTRO preview (#20), the Parts strip (#15) and the Mixer (#34) are panels (`Source/UI/Dock/`). Each has a
 20 px header with its title and three controls: **Float** / **Dock** (toggles between the page
 and its own window), **...** (the "Dock to" menu: *Below track list* or *Bottom*, plus a ticked *Always on top* item while the
-panel floats; right-clicking anywhere on the header, over its buttons too, opens it) and **x** (hide). View → MIDI Editor / LOTRO Preview / Parts show or hide them
+panel floats; right-clicking anywhere on the header, over its buttons too, opens it) and **x** (hide). View → MIDI Editor / LOTRO Preview / Parts / Mixer show or hide them
 again, remembering whether each was docked or floating.
 
 - **Zones.** *Below track list* (between the track list and the lower region; the editor's
@@ -114,6 +114,7 @@ When you say…       …I'll know you mean
 | 31 | **Mute / Solo buttons**      | drawn speaker (mute) and headphone (solo) toggle icons on the second line of the track head (`TrackHeadComponent`, see #10) of every non-conductor row (#10); session-only, never saved or undoable |
 | 32 | **Timing bar** (seek ruler)  | `TimelineRuler` (`Source/UI/Playback/TimelineRuler.{h,cpp}`, marks from `TimelineRulerMarks.{h,cpp}`) — two-row, 28 px strip above the main track canvas (#9) and above the Track editor's roll (#13). Beat-1 bar lines cross both rows: bar number on top, that line's clock time below (`m:ss`, or `m:ss.mmm` when labelled bars are ≥ 80 px apart). Zoomed far enough (beats ≥ 24 px apart) beat ticks appear in the top row, labelled bar.beat (`17.2`), with no clock time, and bar labels read `17.1`; zoomed out, bar lines thin to every 1, 2, 5, 10… bars (labels ≥ 48 px apart). A beat is one note of the denominator of the meter in force (6/8 = six eighth-note beats); bars and beats are laid out per meter, so bar numbers continue across meter changes and the bar grid in the roll follows them too; clock times follow the tempo map. Tempo and meter are edited in the Tempo and Meter window (see below). Left-click or drag sets the start marker at the exact tick under the pointer (its amber line runs through both rows with a down-pointing triangle at the top, continuing down the canvas; pressing the triangle clears it); right-click or drag moves the playhead instead |
 | 33 | **Playhead**                 | `PlayheadOverlay` (`Source/UI/Playback/PlayheadOverlay.{h,cpp}`) — mouse-transparent vertical line over the note previews (main) or over the roll below the keyboard gutter (editor) |
+| 34 | **Mixer panel**              | `MixerPanelComponent` (`Source/UI/Mixer/`) — the `mixer` dock panel (hidden by default; View → Mixer; last in the bottom zone). A pinned Master strip (volume fader, 0-100, session-only) sits left of a horizontally scrolling row of per-track `MixerStripComponent`s: pan knob (a "MIDI" marker while the pan follows the file; moving the knob overrides it, double-click returns to the file's own pan), mute and solo icons, a volume fader (double-click resets to 100) and the track number and name. The mouse wheel does nothing on the faders and knob. Volume and mute/solo stay in step with the track heads; pan lives only here |
 
 ## Songsmith view
 
@@ -421,6 +422,8 @@ View
                                           (ticked while shown; checked by default)
   Parts                                ← shows/hides the Parts panel (#15)
                                           (ticked while shown; checked by default)
+  Mixer                                ← shows/hides the Mixer panel (#34)
+                                          (ticked while shown; unchecked by default)
 ```
 
 **File → Import ▸ MIDI…** and dropping a `.mid`/`.midi` file both import into
@@ -502,6 +505,7 @@ View
   MIDI Editor                         ← ticked while visible
   LOTRO Preview                       ← ticked while visible
   Parts                               ← ticked while visible
+  Mixer                               ← ticked while visible
 
 Help
   About…

@@ -104,7 +104,7 @@ Out of scope here: any LOTRO engine, target-switching UI, transport changes.
 ## Docking and menu
 
 - Registry entry: id `mixer`, title "Mixer", `Zone::bottom`, docked, **hidden by
-  default**, `defaultOrder` after Parts, `defaultWeight` about 0.6, `minSize`
+  default**, `defaultOrder` 1, last in the bottom zone, `defaultWeight` about 0.6, `minSize`
   about 150. Saved layouts from before it existed gain it through
   `defaultOrder`.
 - `MenuCommandId::ViewMixerToggle`, `MenuState::mixerVisible`;
