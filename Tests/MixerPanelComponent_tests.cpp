@@ -280,3 +280,15 @@ TEST_CASE ("MixerPanel: a note edit only refreshes, keeping the same strips", "[
     CHECK (panel.trackStripForTesting (0) == before);
     CHECK (before->getChannelName() == "Lead");
 }
+
+TEST_CASE ("MixerPanel: the wheel is disabled on the faders and the pan knob", "[mixer][panel]")
+{
+    Rig r;
+    addTrack (r.doc, "A");
+    MixerPanelComponent panel (r.active);
+    auto* strip = panel.trackStripForTesting (0);
+    REQUIRE (strip != nullptr);
+    CHECK (! strip->faderForTesting().isScrollWheelEnabled());
+    CHECK (! strip->panForTesting().isScrollWheelEnabled());
+    CHECK (! panel.masterFaderForTesting().isScrollWheelEnabled());
+}

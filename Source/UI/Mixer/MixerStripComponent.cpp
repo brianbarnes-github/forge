@@ -22,6 +22,9 @@ void MixerStripComponent::configureFader (juce::Slider& s)
     s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     s.setRange (0.0, 100.0, 1.0);
     s.setDoubleClickReturnValue (true, 100.0);
+    // As the head's slider: wheel moves are never bracketed by onDragStart /
+    // onDragEnd (one undo step per tick), and the wheel belongs to the viewport.
+    s.setScrollWheelEnabled (false);
     // NN% in a bubble while dragging (a bubble needs no TooltipWindow).
     s.setTextValueSuffix ("%");
     s.setPopupDisplayEnabled (true, false, nullptr);
@@ -35,6 +38,8 @@ MixerStripComponent::MixerStripComponent (MixerTarget& mixerTarget, juce::int64 
     panKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     panKnob.setRange (-100.0, 100.0, 1.0);
     panKnob.setValue (0.0, juce::dontSendNotification);
+    // A wheel tick would silently turn a file-following pan into an override.
+    panKnob.setScrollWheelEnabled (false);
     panKnob.setTooltip ("Pan");
     // JUCE brackets mouse drags with onDragStart / onDragEnd but not keyboard
     // steps, so any change outside a bracket starts its own gesture (as the head's slider).
