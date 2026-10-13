@@ -10,9 +10,9 @@
 namespace lotro
 {
 
-// One track's channel strip in the mixer panel: pan knob, "MIDI" marker while
-// the pan follows the file, mute/solo, a vertical volume fader and the
-// number + name label. Every user change goes straight to the MixerTarget;
+// One track's channel strip in the mixer panel: pan knob, a vertical volume
+// fader filling the height beneath it, the mute/solo row and the number + name
+// label at the bottom. Every user change goes straight to the MixerTarget;
 // refresh() mirrors the target's state back without notifications.
 class MixerStripComponent : public juce::Component
 {
@@ -38,7 +38,6 @@ public:
     juce::Slider& panForTesting() { return panKnob; }
     juce::Button& muteForTesting() { return muteButton; }
     juce::Button& soloForTesting() { return soloButton; }
-    bool showsMidiPanMarkerForTesting() const { return midiMarker.isVisible(); }
     bool isDimmedForTesting() const { return fader.getAlpha() < 1.0f; }
 
 private:
@@ -56,7 +55,6 @@ private:
     juce::String name;
 
     PanKnob panKnob;
-    juce::Label midiMarker;
     MuteSoloIconButton muteButton { MuteSoloIconButton::Kind::Mute, juce::Colours::orangered };
     MuteSoloIconButton soloButton { MuteSoloIconButton::Kind::Solo, juce::Colours::gold };
     juce::Slider fader;

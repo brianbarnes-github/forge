@@ -10,7 +10,7 @@ namespace
 {
     constexpr int padding = 4;
     constexpr int knobSize = 36;
-    constexpr int markerHeight = 12;
+    constexpr int gap = 2;   // between knob / fader / buttons / label (kept small: the dock minimum is tight)
     constexpr int buttonRowHeight = 20;
     constexpr int buttonSize = 20;
     constexpr int nameHeight = 30;
@@ -53,13 +53,6 @@ MixerStripComponent::MixerStripComponent (MixerTarget& mixerTarget, juce::int64 
     panKnob.onClear = [this] { target.setPan (id, std::nullopt, true); };
     addAndMakeVisible (panKnob);
 
-    midiMarker.setText ("MIDI", juce::dontSendNotification);
-    midiMarker.setJustificationType (juce::Justification::centred);
-    midiMarker.setFont (juce::Font (juce::FontOptions (9.0f)));
-    midiMarker.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
-    midiMarker.setTooltip ("Pan follows the MIDI file. Move the knob to override; double-click to follow the file again.");
-    addAndMakeVisible (midiMarker);
-
     muteButton.setTooltip ("Mute");
     soloButton.setTooltip ("Solo");
     muteButton.onClick = [this] { target.setMuted (id, muteButton.getToggleState()); };
@@ -95,7 +88,6 @@ void MixerStripComponent::refresh (const MixerChannel& c)
 
     fader.setValue (c.volume, juce::dontSendNotification);
     panKnob.setValue (c.pan.value_or (0), juce::dontSendNotification);
-    midiMarker.setVisible (! c.pan.has_value());
     muteButton.setToggleState (c.muted, juce::dontSendNotification);
     soloButton.setToggleState (c.soloed, juce::dontSendNotification);
 
@@ -108,17 +100,18 @@ void MixerStripComponent::resized()
 {
     auto area = getLocalBounds().reduced (padding);
     panKnob.setBounds (area.removeFromTop (knobSize).withSizeKeepingCentre (knobSize, knobSize));
-    midiMarker.setBounds (area.removeFromTop (markerHeight));
 
-    auto buttons = area.removeFromTop (buttonRowHeight);
-    const int buttonsWidth = buttonSize * 2 + padding;
-    buttons = buttons.withSizeKeepingCentre (buttonsWidth, buttonRowHeight);
+    // Bottom-up: name label, then the mute/solo row; the fader takes what is left.
+    nameLabel.setBounds (area.removeFromBottom (nameHeight));
+    area.removeFromBottom (gap);
+    auto buttons = area.removeFromBottom (buttonRowHeight)
+                       .withSizeKeepingCentre (buttonSize * 2 + padding, buttonRowHeight);
     muteButton.setBounds (buttons.removeFromLeft (buttonSize));
     buttons.removeFromLeft (padding);
     soloButton.setBounds (buttons.removeFromLeft (buttonSize));
+    area.removeFromBottom (gap);
 
-    nameLabel.setBounds (area.removeFromBottom (nameHeight));
-    area.removeFromTop (padding);
+    area.removeFromTop (gap);
     fader.setBounds (area);
 }
 

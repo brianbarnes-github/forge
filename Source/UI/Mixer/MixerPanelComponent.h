@@ -31,6 +31,7 @@ public:
     int numTrackStripsForTesting() const { return (int) strips.size(); }
     MixerStripComponent* trackStripForTesting (int index);
     juce::Slider& masterFaderForTesting() { return masterFader; }
+    juce::Label& targetLabelForTesting() { return targetLabel; }
 
 private:
     // Holds the track strips and draws the 1 px dividers between them.
@@ -48,6 +49,7 @@ private:
 
     juce::Slider masterFader;
     juce::Label masterLabel;
+    juce::Label targetLabel;   // names the active playback target ("MIDI"; LOTRO later)
 
     // Declared before the viewport so the viewport (which shows it) is destroyed first.
     StripHolder holder;

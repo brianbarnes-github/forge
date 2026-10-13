@@ -139,21 +139,65 @@ TEST_CASE ("MixerPanel: pan knob override and double-click clearing", "[mixer][p
     MixerPanelComponent panel (r.active);
     panel.setSize (400, 300);
     auto* strip = panel.trackStripForTesting (0);
-    CHECK (strip->showsMidiPanMarkerForTesting());
+    CHECK (! t.hasProperty (SongIDs::playbackPan));
 
     auto& knob = strip->panForTesting();
     knob.setValue (-60.0, juce::sendNotificationSync);
     CHECK (trackPlaybackPan (t) == std::optional<int> (-60));
     r.target.flushPendingForTesting();
     strip = panel.trackStripForTesting (0);
-    CHECK (! strip->showsMidiPanMarkerForTesting());
+    CHECK (juce::roundToInt (strip->panForTesting().getValue()) == -60);
 
     strip->panForTesting().mouseDoubleClick (doubleClickOn (strip->panForTesting()));
     CHECK (! t.hasProperty (SongIDs::playbackPan));
     r.target.flushPendingForTesting();
     strip = panel.trackStripForTesting (0);
-    CHECK (strip->showsMidiPanMarkerForTesting());
     CHECK (juce::roundToInt (strip->panForTesting().getValue()) == 0);
+}
+
+TEST_CASE ("MixerStrip: pan knob on top, fader fills the middle, mute/solo below it", "[mixer][panel][layout]")
+{
+    Rig r;
+    addTrack (r.doc, "A");
+    MixerPanelComponent panel (r.active);
+    panel.setSize (400, MixerPanelComponent::minimumHeight);
+    auto* strip = panel.trackStripForTesting (0);
+    // Test at the smallest strip area the dock allows, then a tall one.
+    for (const int h : { 130, 400 })
+    {
+        strip->setSize (MixerStripComponent::width, h);
+        const auto pan = strip->panForTesting().getBounds();
+        const auto fader = strip->faderForTesting().getBounds();
+        const auto mute = strip->muteForTesting().getBounds();
+        const auto solo = strip->soloForTesting().getBounds();
+        CHECK (fader.getHeight() >= 20);
+        CHECK (fader.getY() >= pan.getBottom());
+        CHECK (fader.getBottom() <= mute.getY());
+        CHECK (fader.getBottom() <= solo.getY());
+        CHECK (mute.getY() >= fader.getBottom());
+        CHECK (mute.getBottom() <= h);
+        CHECK (! mute.intersects (solo));
+    }
+    // The fader takes all remaining height: it grows with the strip.
+    strip->setSize (MixerStripComponent::width, 130);
+    const int small = strip->faderForTesting().getHeight();
+    strip->setSize (MixerStripComponent::width, 400);
+    CHECK (strip->faderForTesting().getHeight() == small + 270);
+}
+
+TEST_CASE ("MixerPanel: the pinned Master area names the playback target", "[mixer][panel]")
+{
+    Rig r;
+    MixerPanelComponent panel (r.active);
+    panel.setSize (400, MixerPanelComponent::minimumHeight);
+    auto& label = panel.targetLabelForTesting();
+    CHECK (label.getText() == "MIDI");
+    CHECK (label.isVisible());
+    bool self = true, kids = true;
+    label.getInterceptsMouseClicks (self, kids);
+    CHECK (! self);
+    CHECK (label.getX() < MixerPanelComponent::masterWidth);
+    CHECK (! label.getBounds().intersects (panel.masterFaderForTesting().getBounds()));
 }
 
 TEST_CASE ("MixerPanel: a pan drag is one undo step", "[mixer][panel][pan]")

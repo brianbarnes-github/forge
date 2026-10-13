@@ -10,6 +10,7 @@ namespace
     constexpr int stripPitch = MixerStripComponent::width + gutter;
     constexpr int masterPadding = 4;
     constexpr int masterLabelHeight = 30;
+    constexpr int targetLabelHeight = 12;
 }
 
 MixerPanelComponent::MixerPanelComponent (ActivePlaybackTarget& active)
@@ -25,6 +26,13 @@ MixerPanelComponent::MixerPanelComponent (ActivePlaybackTarget& active)
     masterLabel.setFont (juce::Font (juce::FontOptions (11.0f, juce::Font::bold)));
     masterLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
     addAndMakeVisible (masterLabel);
+
+    targetLabel.setText ("MIDI", juce::dontSendNotification);
+    targetLabel.setJustificationType (juce::Justification::centred);
+    targetLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
+    targetLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
+    targetLabel.setInterceptsMouseClicks (false, false);
+    addAndMakeVisible (targetLabel);
 
     viewport.setViewedComponent (&holder, false);
     viewport.setScrollBarsShown (false, true);
@@ -82,6 +90,7 @@ void MixerPanelComponent::resized()
     auto area = getLocalBounds();
     auto master = area.removeFromLeft (masterWidth).reduced (masterPadding);
     masterLabel.setBounds (master.removeFromBottom (masterLabelHeight));
+    targetLabel.setBounds (master.removeFromTop (targetLabelHeight));
     masterFader.setBounds (master);
     area.removeFromLeft (gutter);
     viewport.setBounds (area);
