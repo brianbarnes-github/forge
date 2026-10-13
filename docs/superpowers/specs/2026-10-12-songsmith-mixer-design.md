@@ -1,6 +1,6 @@
 # Songsmith Mixer panel — design
 
-Status: draft for review (2026-10-12). TODO item #2.
+Status: implemented (2026-10-12). TODO item #2.
 
 ## Goal
 
@@ -34,9 +34,10 @@ the panel.
   `playbackVolume` / `playbackPan` on the `MIDI_TRACK` nodes through
   `SongDocument` (undoable) and uses `PlaybackController` for mute, solo and
   master.
-- **`ActivePlaybackTarget`**: a tiny holder returning the active `MixerTarget`
-  and notifying when it changes. Today it always returns the source-MIDI
-  target. `MixerPanel` rebinds to its strips when it notifies.
+- **`ActivePlaybackTarget`**: a tiny holder returning the one active
+  `MixerTarget` (today always the source-MIDI target). Notify-and-rebind is
+  deferred to the LOTRO-playback phase: the panel and strips currently hold a
+  `MixerTarget&` bound at construction.
 - LOTRO parts will need their own state. `ASSIGNMENT.volumePercent` is the LOTRO
   export offset, not an audition level, and must not be reused.
 - **Open, decided in the LOTRO-playback phase:** what makes a side active
@@ -74,8 +75,9 @@ Out of scope here: any LOTRO engine, target-switching UI, transport changes.
     `resetChannel`, and again when the value changes (like
     `releaseNewlyMutedTracks` tracks `appliedAudible`), so sounding notes pan
     live.
-  - Clearing the override re-chases the current position so the file's last
-    CC10 before the playhead takes effect again.
+  - Clearing the override does a targeted restore (`PlaybackEngine::applyPanChanges`):
+    the file's last CC10/CC42 before the playhead is re-sent (a later CC121
+    counts as centre), not a full re-chase of the position.
 - `PlaybackController::valueTreePropertyChanged` handles `playbackPan` on a
   `MIDI_TRACK` like `playbackVolume` (`applyTrackPan`, no rebuild, which would
   cut held notes).
