@@ -17,6 +17,9 @@
 #include "TrackListComponent.h"
 
 #include "Playback/TransportStrip.h"
+#include "Mixer/ActivePlaybackTarget.h"
+#include "Mixer/MixerPanelComponent.h"
+#include "Mixer/SourceMidiTarget.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -169,6 +172,13 @@ public:
     void setLotroPreviewVisible (bool show) { dockHost.setVisible ("lotroPreview", show); }
     bool isPartsVisible() const { return dockHost.isVisible ("parts"); }
     void setPartsVisible (bool show) { dockHost.setVisible ("parts", show); }
+    // No mixer without a playback controller: always hidden then, and showing it does nothing.
+    bool isMixerVisible() const { return mixerPanel != nullptr && dockHost.isVisible ("mixer"); }
+    void setMixerVisible (bool show)
+    {
+        if (mixerPanel != nullptr)
+            dockHost.setVisible ("mixer", show);
+    }
     std::function<void (const dock::LayoutState&)> onDockLayoutChanged;
 
     // Opens the Tempo/Meter editor, or re-fronts it when already open.
@@ -242,6 +252,13 @@ private:
     GridSize                 defaultGridSize = GridSize::Off;
 
     PartStripComponent        partStrip;
+
+    // The mixer, created only when there is a playback controller. Declared in construction order
+    // (target, the active-target holder, then the panel that reads both) so the panel goes first,
+    // and all before dockHost below, which re-parents the panel and must be destroyed before it.
+    std::unique_ptr<SourceMidiTarget>     mixerTarget;
+    std::unique_ptr<ActivePlaybackTarget> activeTarget;
+    std::unique_ptr<MixerPanelComponent>  mixerPanel;
 
     PianoRollComponent          previewRoll { PianoRollComponent::Role::Preview };
     PreviewAssignedPanel        previewAssignedPanel;

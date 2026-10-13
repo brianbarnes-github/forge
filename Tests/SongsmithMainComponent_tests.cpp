@@ -19,6 +19,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 using namespace lotro;
 
 namespace lotro
@@ -87,6 +89,11 @@ namespace lotro
             return c.trackList;
         }
         static PianoRollComponent& previewRoll (SongsmithMainComponent& c) { return c.previewRoll; }
+        static lotro::dock::DockPanel* mixerDockPanel (SongsmithMainComponent& c) { return c.dockHost.panel ("mixer"); }
+        static std::vector<lotro::dock::DockStack::Item> bottomStackItems (SongsmithMainComponent& c)
+        {
+            return c.bottomStack.items();
+        }
         static bool activeEditorFollows (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getFollowPlayhead();
@@ -903,6 +910,90 @@ TEST_CASE ("SongsmithMainComponent: with the preview docked elsewhere, showing d
     const int chrome = 0;   // this view has no playback controller, so no transport strip
     CHECK (d.getY() == chrome);
     CHECK (d.getBottom() == Access::lowerRegionHeight (view));
+}
+
+namespace
+{
+std::vector<std::string> bottomIds (SongsmithMainComponent& view)
+{
+    std::vector<std::string> out;
+    for (const auto& it : SongsmithMainComponentTestAccess::bottomStackItems (view))
+        out.push_back (it.id);
+    return out;
+}
+} // namespace
+
+TEST_CASE ("SongsmithMainComponent: the Mixer is a hidden dock panel that the toggle shows last in the bottom zone", "[songsmith][layout][dock][mixer]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 800);
+
+    REQUIRE (Access::mixerDockPanel (view) != nullptr);
+    CHECK_FALSE (view.isMixerVisible());
+    CHECK (bottomIds (view) == std::vector<std::string> { "parts", "lotroPreview" });
+
+    int changes = 0;
+    view.onDockLayoutChanged = [&] (const lotro::dock::LayoutState&) { ++changes; };
+    view.setMixerVisible (true);
+    CHECK (view.isMixerVisible());
+    CHECK (changes == 1);
+    CHECK (bottomIds (view) == std::vector<std::string> { "parts", "lotroPreview", "mixer" });
+    CHECK (Access::mixerDockPanel (view)->isVisible());
+    CHECK (Access::mixerDockPanel (view)->getHeight() > 0);
+    CHECK (lotro::dock::find (view.getDockLayout(), "mixer")->visible);
+
+    view.setMixerVisible (false);
+    CHECK_FALSE (view.isMixerVisible());
+    CHECK (changes == 2);
+    CHECK (bottomIds (view) == std::vector<std::string> { "parts", "lotroPreview" });
+}
+
+TEST_CASE ("SongsmithMainComponent: the docked Mixer keeps its 150 px minimum when the bottom zone is cramped", "[songsmith][layout][dock][mixer]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 800);
+    view.setMixerVisible (true);
+
+    const auto items = Access::bottomStackItems (view);
+    const auto it = std::find_if (items.begin(), items.end(), [] (const auto& i) { return i.id == "mixer"; });
+    REQUIRE (it != items.end());
+    CHECK (it->minSize == 150);
+
+    auto layout = view.getDockLayout();   // starve the mixer of weight: its minimum still holds
+    lotro::dock::find (layout, "mixer")->weight = 0.001;
+    view.setDockLayout (layout);
+    CHECK (Access::mixerDockPanel (view)->getHeight() >= 150);
+}
+
+TEST_CASE ("SongsmithMainComponent: without a playback controller there is no Mixer, even if the layout shows it", "[songsmith][layout][dock][mixer]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+
+    CHECK (Access::mixerDockPanel (view) == nullptr);
+    CHECK_FALSE (view.isMixerVisible());
+
+    int changes = 0;
+    view.onDockLayoutChanged = [&] (const lotro::dock::LayoutState&) { ++changes; };
+    view.setMixerVisible (true);
+    CHECK_FALSE (view.isMixerVisible());
+    CHECK (changes == 0);
+
+    auto layout = view.getDockLayout();
+    lotro::dock::show (layout, "mixer");
+    view.setDockLayout (layout);
+    CHECK_FALSE (view.isMixerVisible());
+    CHECK (bottomIds (view) == std::vector<std::string> { "parts", "lotroPreview" });
 }
 
 TEST_CASE ("SongsmithMainComponent: the Parts strip is a dock panel that can be hidden, floated and restored", "[songsmith][layout][dock]")

@@ -100,6 +100,7 @@ const std::vector<PanelDef>& panelDefs()
         { "lotroPreview", "LOTRO Preview", Zone::bottom,      Mode::docked,   true,  1.0,  120, 0 },
         { "midiEditor",   "MIDI Editor",   Zone::belowTracks, Mode::floating, false, 0.35, 160, 0 },
         { "parts",        "Parts",         Zone::bottom,      Mode::docked,   true,  0.6,  70,  -1 },
+        { "mixer",        "Mixer",         Zone::bottom,      Mode::docked,   false, 0.6,  150, 1 },
     };
     return defs;
 }

@@ -228,7 +228,7 @@ TEST_CASE ("MenuModel: View items are ticked from their visibility flags indepen
         MenuState s; s.exportPanelVisible = exportPanel; s.diagnosticsVisible = diag;
         return menuNamed (buildMenus (s), "View");
     };
-    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Editor", "LOTRO Preview", "Parts" });
+    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Editor", "LOTRO Preview", "Parts", "Mixer" });
     CHECK_FALSE (itemWith (view (false, true), ViewExportPanelToggle).ticked);
     CHECK (itemWith (view (false, true), ViewDiagnosticsToggle).ticked);
     CHECK (itemWith (view (true, false), ViewExportPanelToggle).ticked);
@@ -257,6 +257,18 @@ TEST_CASE ("MenuModel: the Parts item is enabled and ticked from its own flag", 
     CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewPartsToggle).ticked);
     s.partsVisible = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewPartsToggle).ticked);
+}
+
+TEST_CASE ("MenuModel: the Mixer item follows Parts and is ticked from its own flag", "[menu-model][mixer]")
+{
+    MenuState s;
+    CHECK (labels (menuNamed (buildMenus (s), "View"))
+           == V { "Export ABC panel", "Diagnostics list", "MIDI Editor", "LOTRO Preview", "Parts", "Mixer" });
+    CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).enabled);
+    CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).ticked);
+    s.mixerVisible = true;
+    CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).ticked);
+    CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewPartsToggle).ticked);
 }
 
 TEST_CASE ("MenuModel: Help menu", "[menu-model]")
@@ -299,5 +311,5 @@ TEST_CASE ("MenuModel: Tempo and Meter... needs a time base", "[menu-model]")
     CHECK_FALSE (itemWith (menuNamed (buildMenus ({}), "Edit"), EditTempoMeter).enabled);
     MenuState s; s.hasTimeBase = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "Edit"), EditTempoMeter).enabled);
-    CHECK (allCommandIds.size() == 33);
+    CHECK (allCommandIds.size() == 34);
 }

@@ -45,6 +45,17 @@ TEST_CASE ("dock host: the default layout docks the preview at the bottom and hi
     CHECK (f.previewContent.getParentComponent() == f.host.panel ("lotroPreview"));
 }
 
+TEST_CASE ("dock host: a layout that shows a panel nobody registered leaves it out of the stacks", "[dock][host][mixer]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;   // registers lotroPreview and midiEditor only, as a host without playback has no mixer
+    auto s = defaultLayout();
+    show (s, "mixer");
+    f.host.apply (s);
+    CHECK (Fixture::ids (f.bottomStack) == std::vector<std::string> { "lotroPreview" });
+    CHECK (f.host.panel ("mixer") == nullptr);
+}
+
 TEST_CASE ("dock host: showing the editor opens a floating window; docking it keeps the same content", "[dock][host]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -54,7 +65,7 @@ TEST_CASE ("dock host: showing the editor opens a floating window; docking it ke
     REQUIRE (editor != nullptr);
     CHECK (dynamic_cast<DockFloatWindow*> (editor->getTopLevelComponent()) != nullptr);
     CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "upper", "lower" });
-    CHECK (f.host.state().panels.size() == 3);
+    CHECK (f.host.state().panels.size() == 4);
 
     editor->onFloatToggle();   // dock it
     CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "upper", "midiEditor", "lower" });

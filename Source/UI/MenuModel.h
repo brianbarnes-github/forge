@@ -46,6 +46,7 @@ enum MenuCommandId : int
     ViewMidiEditorToggle,
     ViewLotroPreviewToggle,
     ViewPartsToggle,
+    ViewMixerToggle,
     EditTempoMeter,
     HelpAbout,
 
@@ -57,14 +58,14 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 33> allCommandIds {
+inline constexpr std::array<MenuCommandId, 34> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
     TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewMidiEditorToggle,
-    ViewLotroPreviewToggle, ViewPartsToggle, EditTempoMeter, HelpAbout };
+    ViewLotroPreviewToggle, ViewPartsToggle, ViewMixerToggle, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
@@ -85,6 +86,7 @@ struct MenuState
     bool midiEditorVisible = false;
     bool lotroPreviewVisible = false;
     bool partsVisible = false;
+    bool mixerVisible = false;
     bool isPlaying = false;
     bool hasMarker = false;
     bool hasSelectedSections = false;    // canvas selection non-empty
@@ -202,7 +204,8 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         item (ViewDiagnosticsToggle, "Diagnostics list",  {}, true, s.diagnosticsVisible),
         item (ViewMidiEditorToggle,  "MIDI Editor",       {}, true, s.midiEditorVisible),
         item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible),
-        item (ViewPartsToggle,        "Parts",            {}, true, s.partsVisible) } });
+        item (ViewPartsToggle,        "Parts",            {}, true, s.partsVisible),
+        item (ViewMixerToggle,        "Mixer",            {}, true, s.mixerVisible) } });
 
     menus.push_back ({ "Help", { item (HelpAbout, "About...") } });
     return menus;

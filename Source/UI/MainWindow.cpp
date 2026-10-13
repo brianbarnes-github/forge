@@ -244,6 +244,7 @@ MenuState MainWindow::currentMenuState()
     s.midiEditorVisible  = songsmith.isMidiEditorVisible();
     s.lotroPreviewVisible = songsmith.isLotroPreviewVisible();
     s.partsVisible       = songsmith.isPartsVisible();
+    s.mixerVisible       = songsmith.isMixerVisible();
     s.isPlaying          = playback.isPlaying();
     s.hasMarker          = playback.getMarkerTick().has_value();
     s.hasSelectedSections = songsmith.hasSelectedSections();
@@ -353,6 +354,10 @@ void MainWindow::menuItemSelected (int menuItemID, int)
             return;
         case ViewPartsToggle:
             body->getSongsmith().setPartsVisible (! body->getSongsmith().isPartsVisible());
+            menuItemsChanged();
+            return;
+        case ViewMixerToggle:
+            body->getSongsmith().setMixerVisible (! body->getSongsmith().isMixerVisible());
             menuItemsChanged();
             return;
         default: return;

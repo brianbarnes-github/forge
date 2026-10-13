@@ -129,6 +129,16 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     // The Parts strip is the third dockable panel; it sits first in the bottom zone, above the preview.
     dockHost.addPanel (dock::panelDefs()[2], juce::Colour (SongsmithColours::text), partStrip);
 
+    // The Mixer (hidden by default, last in the bottom zone) drives the source MIDI's playback, so
+    // there is none without a controller; the dock host then leaves its layout entry unshown.
+    if (playback != nullptr)
+    {
+        mixerTarget  = std::make_unique<SourceMidiTarget> (doc, *playback);
+        activeTarget = std::make_unique<ActivePlaybackTarget> (*mixerTarget);
+        mixerPanel   = std::make_unique<MixerPanelComponent> (*activeTarget);
+        dockHost.addPanel (dock::panelDefs()[3], juce::Colour (SongsmithColours::text), *mixerPanel);
+    }
+
     trackEditor = std::make_unique<TrackEditorPanel> (doc);
     if (playback != nullptr)
         trackEditor->setPlayback (playback);

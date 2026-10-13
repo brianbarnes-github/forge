@@ -83,6 +83,48 @@ TEST_CASE ("dock: a saved layout from before the Parts panel gains it above the 
     CHECK (parts->order < find (s, "lotroPreview")->order);
 }
 
+TEST_CASE ("dock: the Mixer panel is registered and defaults to hidden, docked, last in the bottom zone", "[dock][state][mixer]")
+{
+    const auto& defs = panelDefs();
+    REQUIRE (defs.size() == 4);
+    CHECK (defs[3].id == "mixer");
+    CHECK (defs[3].title == "Mixer");
+    CHECK (defs[3].minSize == 150);
+    CHECK (defs[3].defaultWeight == Approx (0.6));
+
+    const auto s = defaultLayout();
+    const auto* mixer = find (s, "mixer");
+    REQUIRE (mixer != nullptr);
+    CHECK_FALSE (mixer->visible);
+    CHECK (mixer->mode == Mode::docked);
+    CHECK (mixer->zone == Zone::bottom);
+    CHECK (mixer->order > find (s, "lotroPreview")->order);
+    CHECK (mixer->order > find (s, "parts")->order);
+}
+
+TEST_CASE ("dock: a saved layout from before the Mixer existed gains it hidden, below the preview", "[dock][state][mixer]")
+{
+    const auto s = fromJson ("{\"panels\": [{\"id\": \"parts\"}, {\"id\": \"lotroPreview\"}, {\"id\": \"midiEditor\"}]}");
+    const auto* mixer = find (s, "mixer");
+    REQUIRE (mixer != nullptr);
+    CHECK_FALSE (mixer->visible);
+    CHECK (mixer->mode == Mode::docked);
+    CHECK (mixer->zone == Zone::bottom);
+    CHECK (mixer->order > find (s, "lotroPreview")->order);
+    CHECK (find (s, "parts")->order < find (s, "lotroPreview")->order);
+}
+
+TEST_CASE ("dock: the Mixer's visibility and weight survive a JSON round trip", "[dock][state][mixer]")
+{
+    auto s = defaultLayout();
+    show (s, "mixer");
+    find (s, "mixer")->weight = 0.25;
+    const auto back = fromJson (toJson (s));
+    REQUIRE (find (back, "mixer") != nullptr);
+    CHECK (find (back, "mixer")->visible);
+    CHECK (find (back, "mixer")->weight == Approx (0.25));
+}
+
 TEST_CASE ("dock: JSON round-trips", "[dock][state]")
 {
     auto s = defaultLayout();
