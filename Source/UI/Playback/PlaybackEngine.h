@@ -2,6 +2,7 @@
 
 #include "UI/Playback/EventSink.h"
 #include "UI/Playback/HandOff.h"
+#include "UI/Playback/LoopRange.h"
 #include "UI/Playback/PlaybackSnapshot.h"
 #include "UI/Playback/Transport.h"
 
@@ -9,6 +10,7 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 
 namespace lotro
 {
@@ -30,12 +32,18 @@ public:
     void setMasterPercent (int percent) noexcept { master.store (juce::jlimit (0, 100, percent), std::memory_order_release); }
     int masterPercent() const noexcept { return master.load (std::memory_order_acquire); }
 
+    // The loop span the playhead wraps within (nullopt = no loop). Any thread
+    // (single writer); the audio thread reads it once per block.
+    void setLoopSpan (std::optional<LoopSpan> span) noexcept { loopCell.publish (span); }
+
 private:
     void chase (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
     void releaseNewlyMutedTracks (const PlaybackSnapshot& snapshot) noexcept;
     void applyPanChanges (const PlaybackSnapshot& snapshot, double positionSeconds, bool playing) noexcept;
     void deliverControl (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept;
     void renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
+    void renderSegment (const PlaybackSnapshot& snapshot, float* left, float* right, int samples,
+                        double segPos, double eventsBeforeSeconds) noexcept;
 
     Transport& transport;
     EventSink& sink;
@@ -45,6 +53,7 @@ private:
     bool wasPlaying = false;
     unsigned seenSeekGeneration = 0;
     std::atomic<int> master { 100 };
+    LoopSpanCell loopCell;
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
 };
 

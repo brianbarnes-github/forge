@@ -41,9 +41,9 @@ void Transport::reset() noexcept
     seekGeneration.fetch_add (1);
 }
 
-bool Transport::advance (double fromSeconds, double seconds, double endSeconds) noexcept
+bool Transport::advanceTo (double fromSeconds, double toSeconds, double endSeconds) noexcept
 {
-    const double next = std::min (fromSeconds + seconds, endSeconds);
+    const double next = std::min (toSeconds, endSeconds);
     double expected = fromSeconds;
 
     // A single CAS against the position the block started from: if the message

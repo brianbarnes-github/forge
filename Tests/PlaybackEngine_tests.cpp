@@ -1,4 +1,5 @@
 #include "PlaybackTestSupport.h"
+#include "UI/Playback/LoopRange.h"
 #include "UI/Playback/PlaybackEngine.h"
 #include "UI/Playback/PlaybackSnapshot.h"
 #include "UI/Playback/Transport.h"
@@ -9,6 +10,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include <algorithm>
+#include <optional>
 #include <vector>
 
 using namespace lotro;
@@ -958,4 +960,214 @@ TEST_CASE ("engine: master percent on a mono buffer is applied once", "[playback
     rig.engine.renderBlock (mono, 0, 256);
     CHECK (mono.getSample (0, 0) == Catch::Approx (0.5f));
     CHECK (mono.getSample (0, 255) == Catch::Approx (0.5f));
+}
+
+namespace
+{
+    // The frames at which a NoteOn of `pitch` reached the sink, in order.
+    std::vector<long> noteOnFrames (const RecordingSink& sink, int pitch)
+    {
+        std::vector<long> frames;
+        for (const auto& r : sink.records)
+            if (r.event.kind == PlaybackEventKind::NoteOn && r.event.data1 == pitch)
+                frames.push_back (r.frame);
+        return frames;
+    }
+
+    // A song with a program change, a held note over the whole loop (pitch 60,
+    // 0..10 s) and a short note at 0.5 s (pitch 64, ends 0.75 s). 120 BPM and
+    // 480 PPQ, so 1 tick = 1/960 s. Returns the track.
+    juce::ValueTree addLoopSong (SongDocument& doc)
+    {
+        auto t = addTrack (doc);
+        addEvent (t, 0, { 0xC0, 9 });
+        addNote (t, 60, 0, 9600);
+        addNote (t, 64, 480, 240);
+        return t;
+    }
+
+    // Moves the playhead from inside its first render() call, i.e. while a
+    // block is being rendered (the message thread seeking mid-block).
+    struct SeekingSink : RecordingSink
+    {
+        Transport* transport = nullptr;
+        double seekTo = -1.0;
+
+        void render (float* left, float* right, int n) noexcept override
+        {
+            RecordingSink::render (left, right, n);
+            if (transport != nullptr && seekTo >= 0.0)
+            {
+                transport->seek (seekTo);
+                seekTo = -1.0;
+            }
+        }
+    };
+
+    constexpr double kLoopStart = 0.4, kLoopEnd = 0.6;   // 19200 .. 28800 frames, 9600 frames long
+    constexpr double kFrame = 1.0 / sr;
+}
+
+TEST_CASE ("PlaybackEngine loop: a block crossing the loop end wraps sample-accurately", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    rig.transport.seek (kLoopStart);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (1);
+    const int releases = rig.sink.releaseAllCount;
+    rig.render (59);   // 60 * 512 = 30720 frames: wraps at frames 9600, 19200 and 28800 (none on a block boundary)
+
+    // The 0.5 s note is 4800 frames into every pass.
+    CHECK (noteOnFrames (rig.sink, 64) == std::vector<long> { 4800, 14400, 24000 });
+    CHECK (rig.sink.releaseAllCount == releases + 3);   // one release per wrap, no spurious re-chase
+    CHECK (rig.transport.isPlaying());
+    CHECK (rig.transport.getPositionSeconds() == Catch::Approx (0.44).margin (kFrame));   // 1920 frames past the last wrap
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOff) == 0);   // the 0.75 s NoteOff lies past the loop
+}
+
+TEST_CASE ("PlaybackEngine loop: each wrap re-chases the program before the loop start", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    rig.transport.seek (kLoopStart);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (60);
+    int program9 = 0;   // the file's own program change (the snapshot also adds a default per channel)
+    for (const auto& r : rig.sink.records)
+        if (r.event.kind == PlaybackEventKind::Program && r.event.data1 == 9)
+            ++program9;
+    CHECK (program9 == 4);   // the first chase plus three wraps
+}
+
+TEST_CASE ("PlaybackEngine loop: an event exactly at the loop end does not fire before the wrap", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addNote (addLoopSong (doc), 67, 576, 240);   // 0.6 s: the loop end
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    // A start off the sample grid: the first wrapping segment rounds up past 0.6 s.
+    rig.transport.seek (kLoopStart + 0.00001);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (60);
+    REQUIRE (noteOnFrames (rig.sink, 64).size() == 3);   // it did loop
+    CHECK (noteOnFrames (rig.sink, 67).empty());
+}
+
+TEST_CASE ("PlaybackEngine loop: a playhead at or past the loop end never wraps", "[playback][engine][loop]")
+{
+    for (const double start : { 0.7, kLoopEnd })
+    {
+        SongDocument doc;
+        addLoopSong (doc);
+        Rig rig (doc);
+        rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+        rig.transport.seek (start);
+        rig.transport.play (rig.snapshot->endSeconds());
+        rig.render (1);
+        const int releases = rig.sink.releaseAllCount;
+        rig.render (10);
+        CHECK (rig.transport.getPositionSeconds() == Catch::Approx (start + 11 * 512 * kFrame).margin (kFrame));
+        CHECK (rig.sink.releaseAllCount == releases);
+    }
+}
+
+TEST_CASE ("PlaybackEngine loop: a playhead before the range plays into it and then loops", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (70);   // 35840 frames: the end at 28800, one wrap, then 7040 frames into the loop
+
+    CHECK (noteOnFrames (rig.sink, 64) == std::vector<long> { 24000, 33600 });
+    CHECK (rig.transport.getPositionSeconds() == Catch::Approx (kLoopStart + 7040 * kFrame).margin (kFrame));
+}
+
+TEST_CASE ("PlaybackEngine loop: a loop shorter than a block wraps at most kMaxWrapsPerBlock times and stays in range", "[playback][engine][loop]")
+{
+    constexpr double shortEnd = 0.45;   // 2400 frames
+    SECTION ("a 9600-frame block is exactly kMaxWrapsPerBlock passes")
+    {
+        SongDocument doc;
+        addLoopSong (doc);
+        Rig rig (doc);
+        juce::AudioBuffer<float> big (2, 9600);
+        rig.engine.setLoopSpan (LoopSpan { kLoopStart, shortEnd });
+        rig.transport.seek (kLoopStart);
+        rig.transport.play (rig.snapshot->endSeconds());
+        rig.engine.renderBlock (big, 0, 9600);
+
+        const auto chases = rig.sink.resets.size() / rig.snapshot->channels().size();
+        CHECK (chases == (size_t) kMaxWrapsPerBlock + 1);       // the first chase plus four wraps
+        CHECK (rig.sink.releaseAllCount == kMaxWrapsPerBlock + 1);
+        CHECK (rig.transport.getPositionSeconds() >= kLoopStart);
+        CHECK (rig.transport.getPositionSeconds() < shortEnd);
+        CHECK (rig.sink.framesRendered == 9600);
+    }
+    SECTION ("a longer block stops wrapping at the cap")
+    {
+        SongDocument doc;
+        addLoopSong (doc);
+        Rig rig (doc);
+        juce::AudioBuffer<float> big (2, 12000);   // five passes' worth
+        rig.engine.setLoopSpan (LoopSpan { kLoopStart, shortEnd });
+        rig.transport.seek (kLoopStart);
+        rig.transport.play (rig.snapshot->endSeconds());
+        rig.engine.renderBlock (big, 0, 12000);
+
+        CHECK (rig.sink.releaseAllCount == kMaxWrapsPerBlock + 1);
+        CHECK (rig.sink.framesRendered == 12000);
+    }
+}
+
+TEST_CASE ("PlaybackEngine loop: clearing the loop plays on past the old end", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (70);
+    REQUIRE (rig.transport.getPositionSeconds() == Catch::Approx (kLoopStart + 7040 * kFrame).margin (kFrame));
+    const int releases = rig.sink.releaseAllCount;
+
+    rig.engine.setLoopSpan (std::nullopt);
+    rig.render (20);   // 10240 frames: through 0.6 s to 0.76 s
+    CHECK (rig.transport.getPositionSeconds() == Catch::Approx (kLoopStart + (7040 + 10240) * kFrame).margin (kFrame));
+    CHECK (rig.sink.releaseAllCount == releases);
+    CHECK (rig.sink.count (PlaybackEventKind::NoteOff) == 1);   // the 0.75 s NoteOff now plays
+}
+
+TEST_CASE ("PlaybackEngine loop: a message-thread seek during the wrap block wins and re-chases", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Transport transport;
+    SeekingSink sink;
+    PlaybackEngine engine { transport, sink };
+    juce::AudioBuffer<float> buffer { 2, 512 };
+    engine.prepare (sr, 512);
+    auto snapshot = buildSnapshot (doc);
+    engine.publishSnapshot (snapshot);
+
+    engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    transport.seek (0.59);                     // 480 frames before the loop end: this block wraps
+    transport.play (snapshot->endSeconds());
+    sink.transport = &transport;
+    sink.seekTo = 0.3;                         // lands during the block's first segment
+    engine.renderBlock (buffer, 0, 512);
+
+    CHECK (sink.releaseAllCount == 2);         // the first chase and the wrap
+    CHECK (transport.getPositionSeconds() == Catch::Approx (0.3));   // the seek won over the block's commit
+
+    const int releases = sink.releaseAllCount;
+    engine.renderBlock (buffer, 0, 512);
+    CHECK (sink.releaseAllCount == releases + 1);   // re-chased at the seek target
+    CHECK (transport.getPositionSeconds() == Catch::Approx (0.3 + 512 * kFrame).margin (kFrame));
 }

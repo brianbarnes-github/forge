@@ -10,8 +10,8 @@ namespace lotro
 // seconds (see TempoMap).
 //
 // Thread affinity: play(), pause(), stop(), seek(), goToStart(), goToEnd() are
-// message-thread only. advance() is audio-thread only: it moves the playhead
-// from the position the block STARTED at, and is dropped (returns false,
+// message-thread only. advance() and advanceTo() are audio-thread only: they
+// move the playhead from the position the block STARTED at, and are dropped (return false,
 // touches nothing) when the position is no longer that value, i.e. the message
 // thread moved it during the block.
 class Transport
@@ -33,7 +33,15 @@ public:
     // the previous Song's play-start), seek generation bumped.
     void reset() noexcept;
 
-    bool advance (double fromSeconds, double seconds, double endSeconds) noexcept;
+    // Audio-thread only. Moves the playhead from fromSeconds to
+    // min(toSeconds, endSeconds) (backwards too: a loop wrap) in one CAS; clears
+    // playing when the result reaches endSeconds. Returns false, touching
+    // nothing, when the position is no longer fromSeconds.
+    bool advanceTo (double fromSeconds, double toSeconds, double endSeconds) noexcept;
+    bool advance (double fromSeconds, double seconds, double endSeconds) noexcept
+    {
+        return advanceTo (fromSeconds, fromSeconds + seconds, endSeconds);
+    }
 
 private:
     std::atomic<bool> playing { false };

@@ -196,25 +196,68 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
     applyPanChanges (*snapshot, position, true);   // after a chase: nothing left to do
     wasPlaying = true;
 
-    const double blockSeconds = (double) numSamples / sampleRate;
-    const auto& events = snapshot->events();
+    // The block as segments: a segment ends at the block end or, with a loop,
+    // at the loop end, where the playhead wraps back to the loop start
+    // (sample-accurately, at most kMaxWrapsPerBlock times per block).
+    const auto loop = loopCell.read();
+    double segPos = position;
+    int done = 0;
+    int wraps = 0;
+    while (done < numSamples)
+    {
+        const auto step = nextLoopStep (segPos, numSamples - done, sampleRate,
+                                        wraps < kMaxWrapsPerBlock ? loop : std::nullopt);
+        const double segSeconds = (double) step.samples / sampleRate;
+        // A wrapping segment delivers only what lies before the loop end: an
+        // event at the end belongs after the loop, not to the segment's last
+        // frame (the ceil'd segment may reach just past the end).
+        const double eventsBefore = step.wraps ? loop->endSeconds : segPos + segSeconds;
+        renderSegment (*snapshot, left + done, right + done, step.samples, segPos, eventsBefore);
+        done += step.samples;
+        if (step.wraps)
+        {
+            sink.releaseAll();
+            chase (*snapshot, loop->startSeconds);
+            nextEvent = snapshot->firstEventAtOrAfter (loop->startSeconds);
+            segPos = loop->startSeconds;
+            ++wraps;
+        }
+        else
+        {
+            segPos += segSeconds;
+        }
+    }
+
+    const double endSeconds = snapshot->endSeconds();
+    const bool advanced = transport.advanceTo (position, segPos, endSeconds);
+    // If the advance was dropped the message thread moved the playhead: the
+    // sentinel forces a re-chase on the next block.
+    expectedPosition = advanced ? std::min (segPos, endSeconds) : -1.0;
+}
+
+// Renders `samples` frames starting at segPos, delivering the events before
+// eventsBeforeSeconds at their frame (clamped into the segment).
+void PlaybackEngine::renderSegment (const PlaybackSnapshot& snapshot, float* left, float* right, int samples,
+                                    double segPos, double eventsBeforeSeconds) noexcept
+{
+    const auto& events = snapshot.events();
     int rendered = 0;
-    while (nextEvent < events.size() && events[nextEvent].seconds < position + blockSeconds)
+    while (nextEvent < events.size() && events[nextEvent].seconds < eventsBeforeSeconds)
     {
         const auto& e = events[nextEvent];
-        const int offset = juce::jlimit (rendered, numSamples, (int) std::llround ((e.seconds - position) * sampleRate));
+        const int offset = juce::jlimit (rendered, samples, (int) std::llround ((e.seconds - segPos) * sampleRate));
         if (offset > rendered)
         {
             sink.render (left + rendered, right + rendered, offset - rendered);
             rendered = offset;
         }
         if (e.kind == PlaybackEventKind::Control)
-            deliverControl (*snapshot, e);
+            deliverControl (snapshot, e);
         else if (e.kind != PlaybackEventKind::NoteOn)
             sink.handle (e);
-        else if (snapshot->isAudible (e.trackIndex))
+        else if (snapshot.isAudible (e.trackIndex))
         {
-            const int scaled = scaleVelocity (e.data2, snapshot->gainPercent (e.trackIndex));
+            const int scaled = scaleVelocity (e.data2, snapshot.gainPercent (e.trackIndex));
             if (scaled > 0)
             {
                 PlaybackEvent heard = e;
@@ -224,14 +267,8 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
         }
         ++nextEvent;
     }
-    if (rendered < numSamples)
-        sink.render (left + rendered, right + rendered, numSamples - rendered);
-
-    const double endSeconds = snapshot->endSeconds();
-    const bool advanced = transport.advance (position, blockSeconds, endSeconds);
-    // If the advance was dropped the message thread moved the playhead: the
-    // sentinel forces a re-chase on the next block.
-    expectedPosition = advanced ? std::min (position + blockSeconds, endSeconds) : -1.0;
+    if (rendered < samples)
+        sink.render (left + rendered, right + rendered, samples - rendered);
 }
 
 } // namespace lotro

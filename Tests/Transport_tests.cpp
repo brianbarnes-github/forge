@@ -75,3 +75,32 @@ TEST_CASE ("Transport: seeks bump the generation and clamp at zero", "[playback]
     t.goToStart();
     CHECK (t.getPositionSeconds() == Approx (0.0));
 }
+
+TEST_CASE ("Transport::advanceTo commits only from the expected position and stops at the end", "[playback][transport]")
+{
+    Transport t;
+    t.play (2.0);
+    CHECK (t.advanceTo (0.0, 0.5, 2.0));
+    CHECK (t.getPositionSeconds() == Approx (0.5));
+    CHECK (t.isPlaying());
+
+    CHECK (! t.advanceTo (0.0, 0.7, 2.0));       // stale start: dropped
+    CHECK (t.getPositionSeconds() == Approx (0.5));
+    CHECK (t.isPlaying());
+
+    CHECK (t.advanceTo (0.5, 3.0, 2.0));         // clamped to the end, which stops
+    CHECK (t.getPositionSeconds() == Approx (2.0));
+    CHECK (! t.isPlaying());
+}
+
+TEST_CASE ("Transport::advanceTo may move the playhead backwards (a loop wrap) and keeps playing", "[playback][transport]")
+{
+    Transport t;
+    t.play (2.0);
+    REQUIRE (t.advanceTo (0.0, 0.5, 2.0));
+    const unsigned generation = t.getSeekGeneration();
+    CHECK (t.advanceTo (0.5, 0.45, 2.0));
+    CHECK (t.getPositionSeconds() == Approx (0.45));
+    CHECK (t.isPlaying());
+    CHECK (t.getSeekGeneration() == generation);   // not a seek
+}
