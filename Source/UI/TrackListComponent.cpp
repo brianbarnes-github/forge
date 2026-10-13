@@ -271,6 +271,9 @@ void TrackListComponent::rebuild()
 
 void TrackListComponent::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
 {
+    // The head has no pan control, so a pan change needs neither a refresh nor a rebuild.
+    if (tree.hasType (SongIDs::MIDI_TRACK) && property == SongIDs::playbackPan)
+        return;
     // The head edits itself: a rebuild here would destroy the slider / colour picker /
     // rename editor in the middle of the gesture that caused the change.
     if (tree.hasType (SongIDs::MIDI_TRACK)

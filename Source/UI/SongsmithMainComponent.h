@@ -214,10 +214,10 @@ private:
     // add/removeListener calls) to the selected PART node and each of its
     // currently-assigned MIDI_TRACK nodes. Coalesced through AsyncUpdater,
     // same rationale as TrackListComponent/PartStripComponent. Playback
-    // volume cannot change the preview, so a slider drag recomputes nothing.
+    // volume and pan cannot change the preview, so a slider drag recomputes nothing.
     void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier& property) override
     {
-        if (property != SongIDs::playbackVolume)
+        if (property != SongIDs::playbackVolume && property != SongIDs::playbackPan)
             triggerAsyncUpdate();
     }
     void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree&) override { triggerAsyncUpdate(); }

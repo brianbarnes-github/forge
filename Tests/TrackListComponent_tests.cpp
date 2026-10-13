@@ -1228,6 +1228,15 @@ TEST_CASE ("TrackList: a head edit refreshes in place, any other track property 
     CHECK (f.row() != nullptr);
 }
 
+TEST_CASE ("TrackList: a pan change neither rebuilds the rows nor refreshes the head", "[track-list][head][pan]")
+{
+    HeadEditFixture f;
+    REQUIRE (f.rowBefore != nullptr);
+    f.doc.setProperty (f.track, SongIDs::playbackPan, 40);
+    HeadEditFixture::pump();
+    CHECK (f.notRebuilt());
+}
+
 TEST_CASE ("TrackList: a name or colour change, edit or undo, reports the track's appearance changed; volume does not", "[track-list][head]")
 {
     HeadEditFixture f;

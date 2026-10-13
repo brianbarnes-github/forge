@@ -225,6 +225,27 @@ TEST_CASE ("SongsmithMainComponent: a volume change on a previewed part's track 
     juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
 }
 
+TEST_CASE ("SongsmithMainComponent: a pan change on a previewed part's track does not recompute the preview", "[track-editor][pan]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    lotro::playbacktest::addNote (track, 60, 0, 480);
+    const auto partId = (juce::int64) doc.addPart ("Lute", "Part 1").getProperty (SongIDs::partId);
+    REQUIRE (doc.assignTrackToPart (partId, trackId));
+
+    SongsmithMainComponent main (doc);
+    Access::selectPartForPreview (main, partId);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+    REQUIRE_FALSE (Access::previewUpdatePending (main));
+
+    doc.setProperty (track, SongIDs::playbackPan, 40);
+    CHECK_FALSE (Access::previewUpdatePending (main));
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+}
+
 TEST_CASE ("SongsmithMainComponent: double-clicking a second track re-points the existing window rather than opening a new one", "[track-editor]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
