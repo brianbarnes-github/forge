@@ -51,6 +51,7 @@ add_executable(forge_tests
     Transport_tests.cpp
     PlaybackEngine_tests.cpp
     PlaybackController_tests.cpp
+    SourceMidiTarget_tests.cpp
     PlayheadOverlay_tests.cpp
     TransportStrip_tests.cpp
     SynthVoice_tests.cpp
@@ -112,6 +113,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/Transport.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackEngine.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackController.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Mixer/SourceMidiTarget.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/SynthVoice.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TransportStrip.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TimelineRuler.cpp
