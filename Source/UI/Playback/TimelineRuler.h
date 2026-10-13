@@ -1,5 +1,6 @@
 #pragma once
 
+#include "UI/Playback/LoopRange.h"
 #include "UI/Playback/TimelineRulerMarks.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -15,7 +16,9 @@ namespace lotro
 // line below. A left press or drag sets the start marker to the exact tick under
 // the pointer (the marker's line and triangle are drawn here, continuing into
 // the canvas below via MarkerOverlay); a right press or drag moves the playhead
-// instead. Pressing the marker's triangle clears the marker.
+// instead. Pressing the marker's triangle clears the marker. A loop range is
+// shaded through both rows with a bracket at each edge; dragging a bracket moves
+// that edge and clicking one clears the range.
 class TimelineRuler : public juce::Component, public juce::SettableTooltipClient
 {
 public:
@@ -62,10 +65,28 @@ public:
     // The marker's triangle, in ruler coordinates; none while no marker is set.
     std::optional<juce::Rectangle<int>> markerHandleBounds() const;
 
+    // A left press on a loop edge's bracket grabs that edge: dragging reports the
+    // tick under the pointer for it, and releasing without having moved 3 px
+    // clears the range instead. The marker's triangle wins where they overlap.
+    std::function<void (bool isStart, double tick)> onLoopEdgeDragged;
+    std::function<void()> onClearLoop;
+
+    // Where the loop range is (none = not set). Needs setMarks' xForTick to draw.
+    void setLoopRange (std::function<std::optional<LoopRange>()> loopRangeIn)
+    {
+        loopRange = std::move (loopRangeIn);
+        repaint();
+    }
+
+    // An edge's bracket (8 x 12 px in the top row; the start bracket extends
+    // right from its edge, the end bracket left), in ruler coordinates; none
+    // while no range is set.
+    std::optional<juce::Rectangle<int>> loopHandleBounds (bool isStart) const;
+
     void paint (juce::Graphics& g) override;
     void mouseDown (const juce::MouseEvent& e) override;
-    void mouseDrag (const juce::MouseEvent& e) override { applyPointer (e, /*pressed*/ false); }
-    void mouseUp (const juce::MouseEvent&) override { handleWasPressed = false; }
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp (const juce::MouseEvent& e) override;
 
 private:
     void applyPointer (const juce::MouseEvent& e, bool pressed);
@@ -74,8 +95,15 @@ private:
     std::function<int (double)> xForTick;
     std::function<RulerGrid()> grid;
     std::function<std::optional<double>()> marker;
+    std::function<std::optional<LoopRange>()> loopRange;
     int contentLeft = 0;
     bool handleWasPressed = false;   // a press that cleared the marker: its drag must not set it again
+
+    enum class LoopEdge { start, end };
+    std::optional<LoopEdge> dragEdge;      // the loop edge grabbed by the current press
+    bool pressedOnLoopHandle = false;      // so the press and its drag never set the marker
+    bool loopDragMoved = false;            // the pointer has been 3 px or more from the press point
+    juce::Point<int> loopPressPosition;
 };
 
 } // namespace lotro

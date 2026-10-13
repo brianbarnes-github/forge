@@ -103,4 +103,45 @@ void MarkerOverlay::paint (juce::Graphics& g)
     g.fillRect (*x, 0, 1, getHeight());
 }
 
+LoopRangeOverlay::LoopRangeOverlay (PlaybackController& controllerIn, std::function<int (double)> tickToXIn)
+    : controller (controllerIn), tickToX (std::move (tickToXIn))
+{
+    setInterceptsMouseClicks (false, false);
+    controller.addListener (this);
+}
+
+LoopRangeOverlay::~LoopRangeOverlay()
+{
+    controller.removeListener (this);
+}
+
+std::optional<std::pair<int, int>> LoopRangeOverlay::currentXs() const
+{
+    const auto range = controller.getLoopRange();
+    if (! range.has_value() || ! tickToX)
+        return std::nullopt;
+    return std::make_pair (tickToX (range->startTick), tickToX (range->endTick));
+}
+
+void LoopRangeOverlay::paint (juce::Graphics& g)
+{
+    const auto xs = currentXs();
+    if (! xs.has_value())
+        return;
+    const int first = juce::jmax (0, xs->first);
+    const int last = juce::jmin (getWidth(), xs->second);   // exclusive
+    if (first >= last)
+        return;
+
+    const auto amber = juce::Colour (SongsmithColours::accentAmber);
+    g.setColour (amber.withAlpha (0.14f));
+    g.fillRect (first, 0, last - first, getHeight());
+
+    g.setColour (amber.withAlpha (0.6f));
+    if (xs->first >= 0 && xs->first < getWidth())
+        g.fillRect (xs->first, 0, 1, getHeight());
+    if (xs->second - 1 >= 0 && xs->second - 1 < getWidth())
+        g.fillRect (xs->second - 1, 0, 1, getHeight());
+}
+
 } // namespace lotro

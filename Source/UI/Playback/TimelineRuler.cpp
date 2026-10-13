@@ -16,11 +16,58 @@ std::optional<juce::Rectangle<int>> TimelineRuler::markerHandleBounds() const
     return juce::Rectangle<int> (xForTick (*tick) - handleWidth / 2, 0, handleWidth, handleHeight);
 }
 
+namespace
+{
+    constexpr int loopHandleWidth = 8, loopHandleHeight = 12;
+    constexpr int loopClickSlop = 3;   // a bracket press that never moves this far is a click (clear)
+}
+
+std::optional<juce::Rectangle<int>> TimelineRuler::loopHandleBounds (bool isStart) const
+{
+    if (! loopRange || ! xForTick)
+        return std::nullopt;
+    const auto range = loopRange();
+    if (! range.has_value())
+        return std::nullopt;
+    if (isStart)
+        return juce::Rectangle<int> (xForTick (range->startTick), 0, loopHandleWidth, loopHandleHeight);
+    return juce::Rectangle<int> (xForTick (range->endTick) - loopHandleWidth, 0, loopHandleWidth, loopHandleHeight);
+}
+
+void TimelineRuler::mouseDrag (const juce::MouseEvent& e)
+{
+    if (pressedOnLoopHandle)
+    {
+        if (e.getPosition().getDistanceFrom (loopPressPosition) >= loopClickSlop)
+            loopDragMoved = true;
+        if (dragEdge.has_value() && tickForX && onLoopEdgeDragged)
+            onLoopEdgeDragged (*dragEdge == LoopEdge::start, tickForX (e.x));
+        return;
+    }
+    applyPointer (e, /*pressed*/ false);
+}
+
+void TimelineRuler::mouseUp (const juce::MouseEvent& e)
+{
+    const bool loopClick = pressedOnLoopHandle && ! loopDragMoved
+                           && e.getPosition().getDistanceFrom (loopPressPosition) < loopClickSlop;
+    handleWasPressed = false;
+    pressedOnLoopHandle = false;
+    loopDragMoved = false;
+    dragEdge.reset();
+    if (loopClick && onClearLoop)
+        onClearLoop();
+}
+
 void TimelineRuler::mouseDown (const juce::MouseEvent& e)
 {
     handleWasPressed = false;
+    pressedOnLoopHandle = false;
+    loopDragMoved = false;
+    dragEdge.reset();
     if (! e.mods.isRightButtonDown() && ! e.mods.isPopupMenu())
     {
+        // The marker's triangle first: it keeps priority over a loop bracket beneath it.
         const auto handle = markerHandleBounds();
         if (handle.has_value() && handle->contains (e.getPosition()))
         {
@@ -29,13 +76,24 @@ void TimelineRuler::mouseDown (const juce::MouseEvent& e)
                 onClearMarker();
             return;
         }
+        for (const auto edge : { LoopEdge::start, LoopEdge::end })
+        {
+            const auto bracket = loopHandleBounds (edge == LoopEdge::start);
+            if (bracket.has_value() && bracket->contains (e.getPosition()))
+            {
+                pressedOnLoopHandle = true;
+                dragEdge = edge;
+                loopPressPosition = e.getPosition();
+                return;
+            }
+        }
     }
     applyPointer (e, /*pressed*/ true);
 }
 
 void TimelineRuler::applyPointer (const juce::MouseEvent& e, bool)
 {
-    if (handleWasPressed || ! tickForX)
+    if (handleWasPressed || pressedOnLoopHandle || ! tickForX)
         return;
 
     const double tick = juce::jmax (0.0, tickForX (e.x));
@@ -65,6 +123,18 @@ void TimelineRuler::paint (juce::Graphics& g)
         g.reduceClipRegion (contentLeft, 0, juce::jmax (0, visiblePixels), getHeight());
         g.setFont (juce::Font (juce::FontOptions (9.0f)));
 
+        // The loop range's shading sits under the marks, through both rows.
+        if (const auto range = loopRange ? loopRange() : std::optional<LoopRange>(); range.has_value())
+        {
+            const int first = xForTick (range->startTick);
+            const int last = xForTick (range->endTick);   // exclusive
+            if (first < last)
+            {
+                g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.14f));
+                g.fillRect (first, 0, last - first, getHeight());
+            }
+        }
+
         for (const auto& mark : computeRulerMarks (firstTick, lastTick, pixelsPerTick, grid()))
         {
             const int x = xForTick (mark.tick);
@@ -82,6 +152,26 @@ void TimelineRuler::paint (juce::Graphics& g)
                 g.setColour (juce::Colour (SongsmithColours::textMuted));
                 g.drawText (mark.timeLabel, x + 3, rowHeight, 64, rowHeight - 1, juce::Justification::centredLeft, false);
             }
+        }
+
+        // Each edge: a faint line through both rows (continuing LoopRangeOverlay's
+        // below) and a bracket in the top row opening into the range. Drawn before
+        // the marker, which stays on top.
+        const auto amber = juce::Colour (SongsmithColours::accentAmber);
+        for (const bool isStart : { true, false })
+        {
+            const auto bracket = loopHandleBounds (isStart);
+            if (! bracket.has_value())
+                continue;
+            constexpr int stroke = 2;
+            const int uprightX = isStart ? bracket->getX() : bracket->getRight() - stroke;
+            g.setColour (amber.withAlpha (0.6f));
+            g.fillRect (isStart ? bracket->getX() : bracket->getRight() - 1, bracket->getBottom(),
+                        1, getHeight() - bracket->getBottom());
+            g.setColour (amber);
+            g.fillRect (uprightX, bracket->getY(), stroke, bracket->getHeight());
+            g.fillRect (bracket->getX(), bracket->getY(), bracket->getWidth(), stroke);
+            g.fillRect (bracket->getX(), bracket->getBottom() - stroke, bracket->getWidth(), stroke);
         }
 
         if (const auto handle = markerHandleBounds())

@@ -7,6 +7,7 @@
 #include <array>
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace lotro
@@ -83,6 +84,29 @@ public:
 
 private:
     void playbackMarkerChanged() override { repaint(); }
+
+    PlaybackController& controller;
+    std::function<int (double)> tickToX;
+};
+
+// A translucent amber band over the loop range [start, end), with a faint line
+// at each edge, running the full height of the canvas (the ruler above carries
+// the edge handles). Draws nothing while no range is set, and draws whatever
+// range the controller holds, clipped to this component (after an edit shortens
+// the Song the range may run past its end). Mouse-transparent; same ownership
+// and mapping contract as MarkerOverlay.
+class LoopRangeOverlay : public juce::Component, private PlaybackController::Listener
+{
+public:
+    LoopRangeOverlay (PlaybackController& controllerIn, std::function<int (double tick)> tickToXIn);
+    ~LoopRangeOverlay() override;
+
+    void paint (juce::Graphics& g) override;
+    // The range's x span [first, second), unclipped; none while no range is set.
+    std::optional<std::pair<int, int>> currentXs() const;
+
+private:
+    void playbackLoopChanged() override { repaint(); }
 
     PlaybackController& controller;
     std::function<int (double)> tickToX;
