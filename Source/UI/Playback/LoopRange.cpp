@@ -26,6 +26,9 @@ double snapLoopTick (double tick, int gridTicks, bool unsnapped) noexcept
 void LoopSpanCell::publish (std::optional<LoopSpan> span) noexcept
 {
     version.fetch_add (1, std::memory_order_release);   // odd: write in progress
+    // A release RMW alone does not stop the later relaxed data stores becoming visible
+    // before the odd version on weakly ordered CPUs; this fence does.
+    std::atomic_thread_fence (std::memory_order_release);
     active.store (span.has_value(), std::memory_order_relaxed);
     start.store (span ? span->startSeconds : 0.0, std::memory_order_relaxed);
     end.store (span ? span->endSeconds : 0.0, std::memory_order_relaxed);
