@@ -415,3 +415,42 @@ TEST_CASE ("PlaybackController: changing playbackVolume updates the live snapsho
     CHECK (r.controller.currentSnapshot() == before);
     CHECK (before->gainPercent (index) == 25);
 }
+
+TEST_CASE ("PlaybackController: changing playbackPan updates the live snapshot without rebuilding", "[playback][controller][pan]")
+{
+    Rig r;
+    auto t = addTrack (r.doc);
+    addNote (t, 60, 0, 480);
+    r.controller.flushRebuild();
+    const auto before = r.controller.currentSnapshot();
+    const int index = before->trackIndexForId ((juce::int64) t.getProperty (SongIDs::trackId));
+    REQUIRE (index >= 0);
+    REQUIRE (! before->panOverride (index).has_value());
+    t.setProperty (SongIDs::playbackPan, -30, nullptr);
+    r.controller.flushRebuild();
+    CHECK (r.controller.currentSnapshot() == before);
+    CHECK (before->panOverride (index) == std::optional<int> (-30));
+    t.removeProperty (SongIDs::playbackPan, nullptr);
+    r.controller.flushRebuild();
+    CHECK (r.controller.currentSnapshot() == before);
+    CHECK (! before->panOverride (index).has_value());
+}
+
+TEST_CASE ("PlaybackController: master percent is clamped, reaches the engine and notifies", "[playback][controller][master]")
+{
+    struct Counter : PlaybackController::Listener { int changes = 0; void masterChanged() override { ++changes; } };
+    Rig r;
+    Counter counter;
+    r.controller.addListener (&counter);
+    CHECK (r.controller.masterPercent() == 100);
+    r.controller.setMasterPercent (40);
+    CHECK (r.controller.masterPercent() == 40);
+    CHECK (r.controller.engine().masterPercent() == 40);
+    r.controller.setMasterPercent (150);
+    CHECK (r.controller.masterPercent() == 100);
+    r.controller.setMasterPercent (-5);
+    CHECK (r.controller.masterPercent() == 0);
+    CHECK (r.controller.engine().masterPercent() == 0);
+    CHECK (counter.changes == 3);
+    r.controller.removeListener (&counter);
+}

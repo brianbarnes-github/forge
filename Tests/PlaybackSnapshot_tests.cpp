@@ -4,6 +4,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <optional>
+
 using namespace lotro;
 using namespace lotro::playbacktest;
 using Catch::Approx;
@@ -241,4 +243,34 @@ TEST_CASE ("buildSnapshot: gain comes from the track's playbackVolume, default 1
     const auto snap = buildSnapshot (doc);
     CHECK (snap->gainPercent (snap->trackIndexForId ((juce::int64) a.getProperty (SongIDs::trackId))) == 30);
     CHECK (snap->gainPercent (snap->trackIndexForId ((juce::int64) b.getProperty (SongIDs::trackId))) == 100);
+}
+
+TEST_CASE ("buildSnapshot: panOverride comes from the track's playbackPan, absent gives none", "[playback][pan]")
+{
+    SongDocument doc;
+    auto a = addTrack (doc);
+    auto b = addTrack (doc);
+    a.setProperty (SongIDs::playbackPan, -40, nullptr);
+    addNote (a, 60, 0, 480);
+    addNote (b, 62, 0, 480);
+    const auto snap = buildSnapshot (doc);
+    const int ia = snap->trackIndexForId ((juce::int64) a.getProperty (SongIDs::trackId));
+    const int ib = snap->trackIndexForId ((juce::int64) b.getProperty (SongIDs::trackId));
+    REQUIRE (snap->panOverride (ia).has_value());
+    CHECK (*snap->panOverride (ia) == -40);
+    CHECK (! snap->panOverride (ib).has_value());
+}
+
+TEST_CASE ("PlaybackSnapshot: setPanOverride clamps and clears", "[playback][pan]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 0, 480);
+    const auto snap = buildSnapshot (doc);
+    snap->setPanOverride (0, 150);
+    CHECK (snap->panOverride (0) == std::optional<int> (100));
+    snap->setPanOverride (0, -100);
+    CHECK (snap->panOverride (0) == std::optional<int> (-100));
+    snap->setPanOverride (0, std::nullopt);
+    CHECK (! snap->panOverride (0).has_value());
+    CHECK (snap->appliedPan (0) == PlaybackSnapshot::kNoPan);
 }

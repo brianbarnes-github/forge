@@ -39,6 +39,11 @@ void PlaybackController::valueTreePropertyChanged (juce::ValueTree& tree, const 
         applyTrackGain (tree);
         return;   // audition gain only: a rebuild would cut held notes
     }
+    if (property == SongIDs::playbackPan)
+    {
+        applyTrackPan (tree);
+        return;   // mixer pan only: a rebuild would cut held notes
+    }
     // Cosmetic track properties never change what is heard; rebuilding would cut held notes.
     if (property == SongIDs::name || property == SongIDs::colorArgb)
         return;
@@ -53,6 +58,22 @@ void PlaybackController::applyTrackGain (const juce::ValueTree& track)
     const int index = snapshot->trackIndexForId ((juce::int64) track.getProperty (SongIDs::trackId, (juce::int64) -1));
     if (index >= 0)
         snapshot->setGainPercent (index, trackPlaybackVolume (track));
+}
+
+void PlaybackController::applyTrackPan (const juce::ValueTree& track)
+{
+    if (snapshot == nullptr || ! track.hasType (SongIDs::MIDI_TRACK))
+        return;
+    const int index = snapshot->trackIndexForId ((juce::int64) track.getProperty (SongIDs::trackId, (juce::int64) -1));
+    if (index >= 0)
+        snapshot->setPanOverride (index, trackPlaybackPan (track));
+}
+
+void PlaybackController::setMasterPercent (int percent)
+{
+    masterLevel = juce::jlimit (0, 100, percent);
+    playbackEngine.setMasterPercent (masterLevel);
+    listeners.call ([] (Listener& l) { l.masterChanged(); });
 }
 
 void PlaybackController::handleAsyncUpdate() { rebuild(); }

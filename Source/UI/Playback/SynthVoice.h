@@ -36,6 +36,7 @@ public:
     void releaseChannel (int virtualChannel) noexcept override;
     void releaseAll() noexcept override;
     void resetChannel (int virtualChannel) noexcept override;
+    void setChannelPan (int virtualChannel, int pan) noexcept override;
     void render (float* left, float* right, int numFrames) noexcept override;
 
 private:

@@ -5,6 +5,7 @@
 
 #include <juce_data_structures/juce_data_structures.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -59,11 +60,14 @@ struct RecordingSink : EventSink
     struct Record { long frame; PlaybackEvent event; };
     struct Reset { size_t recordsBefore; int channel; };   // records.size() when resetChannel() was called
     std::vector<Record> records;
+    struct Pan { size_t recordsBefore; int channel; int pan; };   // records.size() when setChannelPan() was called
     std::vector<Reset> resets;
+    std::vector<Pan> pans;
     std::vector<int> releasedChannels;
     long framesRendered = 0;
     int releaseAllCount = 0;
     bool replaced = false;      // set true to make the next beginBlock() report a replaced sink
+    float fill = 0.0f;          // the sample value render() writes
 
     void prepare (double, int) override {}
     bool beginBlock() noexcept override { const bool r = replaced; replaced = false; return r; }
@@ -71,7 +75,14 @@ struct RecordingSink : EventSink
     void releaseChannel (int c) noexcept override { releasedChannels.push_back (c); }
     void releaseAll() noexcept override { ++releaseAllCount; }
     void resetChannel (int c) noexcept override { resets.push_back ({ records.size(), c }); }
-    void render (float*, float*, int n) noexcept override { framesRendered += n; }
+    void setChannelPan (int c, int pan) noexcept override { pans.push_back ({ records.size(), c, pan }); }
+    void render (float* left, float* right, int n) noexcept override
+    {
+        std::fill (left, left + n, fill);
+        if (right != left)
+            std::fill (right, right + n, fill);
+        framesRendered += n;
+    }
 
     int count (PlaybackEventKind k) const
     {

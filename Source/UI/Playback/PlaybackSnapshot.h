@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace lotro
@@ -68,9 +69,27 @@ public:
         gain[(size_t) trackIndex].store ((std::uint8_t) juce::jlimit (0, 100, percent), std::memory_order_release);
     }
 
+    // The track's mixer pan override (-100..100, 0 = centre); none means the
+    // file's own CC10 pan plays. Set on the message thread, read on the audio thread.
+    static constexpr int kNoPan = -128;   // storage sentinel for "no override"
+    std::optional<int> panOverride (int trackIndex) const noexcept
+    {
+        const int v = pan[(size_t) trackIndex].load (std::memory_order_acquire);
+        return v == kNoPan ? std::nullopt : std::optional<int> (v);
+    }
+    void setPanOverride (int trackIndex, std::optional<int> value) noexcept
+    {
+        pan[(size_t) trackIndex].store ((std::int8_t) (value.has_value() ? juce::jlimit (-100, 100, *value) : kNoPan),
+                                        std::memory_order_release);
+    }
+
     // Audio-thread-only: which tracks the engine has already released voices for.
     bool appliedAudible (int trackIndex) const noexcept { return applied[(size_t) trackIndex] != 0; }
     void setAppliedAudible (int trackIndex, bool value) const noexcept { applied[(size_t) trackIndex] = value ? 1 : 0; }
+
+    // Audio-thread-only: the pan override the engine last acted on (kNoPan = none).
+    int appliedPan (int trackIndex) const noexcept { return appliedPanValues[(size_t) trackIndex]; }
+    void setAppliedPan (int trackIndex, int value) const noexcept { appliedPanValues[(size_t) trackIndex] = (std::int8_t) value; }
 
 private:
     TempoMap tempoMap;
@@ -80,7 +99,9 @@ private:
     std::vector<std::vector<int>> byTrack;
     std::unique_ptr<std::atomic<std::uint8_t>[]> audible;
     std::unique_ptr<std::atomic<std::uint8_t>[]> gain;
+    std::unique_ptr<std::atomic<std::int8_t>[]> pan;
     mutable std::vector<std::uint8_t> applied;
+    mutable std::vector<std::int8_t> appliedPanValues;
     double endTime = 0.0;
 };
 

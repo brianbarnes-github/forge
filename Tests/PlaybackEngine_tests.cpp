@@ -658,3 +658,304 @@ TEST_CASE ("PlaybackEngine: gain 0 drops NoteOn but a sounding note still gets i
     CHECK (rig.sink.count (PlaybackEventKind::NoteOn) == 1);    // only the first
     CHECK (rig.sink.count (PlaybackEventKind::NoteOff) == 2);   // both offs delivered
 }
+
+namespace
+{
+    int countPanControls (const RecordingSink& sink, int trackIndex, size_t fromRecord = 0)
+    {
+        int n = 0;
+        for (size_t i = fromRecord; i < sink.records.size(); ++i)
+        {
+            const auto& e = sink.records[i].event;
+            n += (e.kind == PlaybackEventKind::Control && e.trackIndex == trackIndex && (e.data1 == 10 || e.data1 == 42)) ? 1 : 0;
+        }
+        return n;
+    }
+
+    const RecordingSink::Pan* lastPanFor (const RecordingSink& sink, int channel)
+    {
+        const RecordingSink::Pan* last = nullptr;
+        for (const auto& p : sink.pans)
+            if (p.channel == channel) last = &p;
+        return last;
+    }
+
+    size_t lastResetFor (const RecordingSink& sink, int channel)
+    {
+        size_t before = 0;
+        bool found = false;
+        for (const auto& r : sink.resets)
+            if (r.channel == channel) { before = r.recordsBefore; found = true; }
+        REQUIRE (found);
+        return before;
+    }
+
+    // The override is in force on `channel`: its last pan is `pan` and came after
+    // the channel's last reset (a CC121 reset centres pan, so order matters).
+    void checkOverrideApplied (const RecordingSink& sink, int channel, int pan)
+    {
+        const auto* p = lastPanFor (sink, channel);
+        REQUIRE (p != nullptr);
+        CHECK (p->pan == pan);
+        CHECK (p->recordsBefore > lastResetFor (sink, channel));
+    }
+}
+
+TEST_CASE ("engine: an overridden track drops its file CC10 and is panned on every channel", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 0, { 0xB0, 10, 20 });
+    addEvent (t, 0, { 0xB0, 42, 5 });
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, -50, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    CHECK (countPanControls (rig.sink, idx) == 0);
+    REQUIRE (! rig.snapshot->channelsOfTrack (idx).empty());
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+    {
+        const auto* p = lastPanFor (rig.sink, vch);
+        REQUIRE (p != nullptr);
+        CHECK (p->pan == -50);
+    }
+}
+
+TEST_CASE ("engine: a track without an override keeps its file CC10 and gets no pan call", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 0, { 0xB0, 10, 20 });
+    addNote (t, 60, 0, 9600);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    CHECK (countPanControls (rig.sink, trackIndexOf (*rig.snapshot, t)) == 1);
+    CHECK (rig.sink.pans.empty());
+}
+
+TEST_CASE ("engine: the override survives a seek", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 0, { 0xB0, 10, 20 });
+    addEvent (t, 2400, { 0xB0, 10, 90 });     // 2.5 s
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, -50, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.seek (1.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    const size_t afterFirst = rig.sink.records.size();
+    rig.transport.seek (4.0);                 // both CC10s now lie before the playhead
+    rig.render (2);
+    CHECK (countPanControls (rig.sink, idx, afterFirst) == 0);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+        checkOverrideApplied (rig.sink, vch, -50);
+}
+
+TEST_CASE ("engine: the override survives Stop and Play", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 0, { 0xB0, 10, 20 });
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, 30, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.seek (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (4);
+    rig.transport.stop();
+    rig.render (1);
+    const size_t resetsBefore = rig.sink.resets.size();
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    REQUIRE (rig.sink.resets.size() > resetsBefore);
+    CHECK (countPanControls (rig.sink, idx) == 0);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+        checkOverrideApplied (rig.sink, vch, 30);
+}
+
+TEST_CASE ("engine: a file CC10 during playback is dropped for an overridden track", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 480, { 0xB0, 10, 90 });      // 0.5 s, reached by the live loop
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, -50, nullptr);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (100);                         // ~1.07 s
+    CHECK (countPanControls (rig.sink, trackIndexOf (*rig.snapshot, t)) == 0);
+}
+
+TEST_CASE ("engine: a file CC121 during playback re-applies the override", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 480, { 0xB0, 121, 0 });      // 0.5 s: reset all controllers centres pan in tsf
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, -50, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (100);
+    size_t resetAt = 0;
+    bool sawReset = false;
+    for (size_t i = 0; i < rig.sink.records.size(); ++i)
+        if (rig.sink.records[i].event.kind == PlaybackEventKind::Control && rig.sink.records[i].event.data1 == 121)
+        { resetAt = i; sawReset = true; }
+    REQUIRE (sawReset);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+    {
+        const auto* p = lastPanFor (rig.sink, vch);
+        REQUIRE (p != nullptr);
+        CHECK (p->pan == -50);
+        CHECK (p->recordsBefore > resetAt);
+    }
+}
+
+TEST_CASE ("engine: clearing the override restores the file's last CC10", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addEvent (t, 0, { 0xB0, 10, 20 });
+    addEvent (t, 480, { 0xB0, 10, 100 });     // 0.5 s
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, -50, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (100);                         // ~1.07 s: past tick 480
+    const size_t before = rig.sink.records.size();
+    rig.snapshot->setPanOverride (idx, std::nullopt);
+    rig.render (1);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+    {
+        bool restored = false;
+        for (size_t i = before; i < rig.sink.records.size(); ++i)
+        {
+            const auto& e = rig.sink.records[i].event;
+            restored |= e.kind == PlaybackEventKind::Control && e.virtualChannel == vch && e.data1 == 10 && e.data2 == 100;
+        }
+        CHECK (restored);
+    }
+    // The next block does not restore again.
+    const size_t afterRestore = rig.sink.records.size();
+    rig.render (1);
+    CHECK (countPanControls (rig.sink, idx, afterRestore) == 0);
+}
+
+TEST_CASE ("engine: clearing the override with no file CC10 centres the channel", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addNote (t, 60, 0, 9600);
+    t.setProperty (SongIDs::playbackPan, -50, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (10);
+    rig.snapshot->setPanOverride (idx, std::nullopt);
+    rig.render (1);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+    {
+        const auto* p = lastPanFor (rig.sink, vch);
+        REQUIRE (p != nullptr);
+        CHECK (p->pan == 0);
+    }
+}
+
+TEST_CASE ("engine: setting an override mid-play pans the track at once", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addNote (t, 60, 0, 9600);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (10);
+    REQUIRE (rig.sink.pans.empty());
+    rig.snapshot->setPanOverride (idx, 75);
+    rig.render (1);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+    {
+        const auto* p = lastPanFor (rig.sink, vch);
+        REQUIRE (p != nullptr);
+        CHECK (p->pan == 75);
+    }
+    const size_t pansAfter = rig.sink.pans.size();
+    rig.render (5);
+    CHECK (rig.sink.pans.size() == pansAfter);   // applied once, not every block
+}
+
+TEST_CASE ("engine: every virtual channel of a multi-channel track is panned", "[playback][engine][pan]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc, "T", 1);
+    addNote (t, 60, 0, 9600, 100, 1);
+    addNote (t, 64, 0, 9600, 100, 2);
+    addNote (t, 36, 0, 9600, 100, 10);   // drums
+    t.setProperty (SongIDs::playbackPan, 40, nullptr);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    REQUIRE (rig.snapshot->channelsOfTrack (idx).size() == 3);
+    rig.transport.seek (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (2);
+    for (int vch : rig.snapshot->channelsOfTrack (idx))
+        checkOverrideApplied (rig.sink, vch, 40);
+}
+
+TEST_CASE ("engine: master percent scales the rendered block and 100 is unity", "[playback][engine][master]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 0, 9600);
+    Rig rig (doc);
+    rig.sink.fill = 1.0f;
+    CHECK (rig.engine.masterPercent() == 100);
+
+    auto checkBlock = [&rig] (float expected)
+    {
+        rig.render (1);
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            CHECK (rig.buffer.getSample (ch, 0) == Catch::Approx (expected));
+            CHECK (rig.buffer.getSample (ch, 511) == Catch::Approx (expected));
+        }
+    };
+
+    // Not playing.
+    checkBlock (1.0f);
+    rig.engine.setMasterPercent (50);
+    CHECK (rig.engine.masterPercent() == 50);
+    checkBlock (0.5f);
+    rig.engine.setMasterPercent (0);
+    checkBlock (0.0f);
+
+    // Playing.
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.engine.setMasterPercent (100);
+    checkBlock (1.0f);
+    rig.engine.setMasterPercent (50);
+    checkBlock (0.5f);
+    rig.engine.setMasterPercent (0);
+    checkBlock (0.0f);
+}
+
+TEST_CASE ("engine: master percent on a mono buffer is applied once", "[playback][engine][master]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 0, 9600);
+    Rig rig (doc);
+    rig.sink.fill = 1.0f;
+    juce::AudioBuffer<float> mono (1, 256);
+    rig.engine.setMasterPercent (50);
+    rig.engine.renderBlock (mono, 0, 256);
+    CHECK (mono.getSample (0, 0) == Catch::Approx (0.5f));
+    CHECK (mono.getSample (0, 255) == Catch::Approx (0.5f));
+}

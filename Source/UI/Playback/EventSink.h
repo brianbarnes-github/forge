@@ -23,6 +23,9 @@ public:
     // releaseAll() and before chasing, so a chase never inherits controllers
     // left over from earlier playback. Does not touch preset/bank.
     virtual void resetChannel (int virtualChannel) noexcept = 0;
+    // Pans one virtual channel: -100 hard left, 0 centre, 100 hard right. The
+    // engine uses it for the mixer's per-track pan override.
+    virtual void setChannelPan (int virtualChannel, int pan) noexcept = 0;
     virtual void render (float* left, float* right, int numFrames) noexcept = 0;   // overwrites
 };
 

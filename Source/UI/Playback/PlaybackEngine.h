@@ -7,6 +7,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <atomic>
 #include <memory>
 
 namespace lotro
@@ -25,9 +26,16 @@ public:
     void prepare (double sampleRateIn, int maxBlockSize);
     void renderBlock (juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
 
+    // Master output level, 0..100 (linear; unity at 100). Any thread.
+    void setMasterPercent (int percent) noexcept { master.store (juce::jlimit (0, 100, percent), std::memory_order_release); }
+    int masterPercent() const noexcept { return master.load (std::memory_order_acquire); }
+
 private:
     void chase (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
     void releaseNewlyMutedTracks (const PlaybackSnapshot& snapshot) noexcept;
+    void applyPanChanges (const PlaybackSnapshot& snapshot, double positionSeconds, bool playing) noexcept;
+    void deliverControl (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept;
+    void renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
 
     Transport& transport;
     EventSink& sink;
@@ -36,6 +44,7 @@ private:
     size_t nextEvent = 0;
     bool wasPlaying = false;
     unsigned seenSeekGeneration = 0;
+    std::atomic<int> master { 100 };
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
 };
 

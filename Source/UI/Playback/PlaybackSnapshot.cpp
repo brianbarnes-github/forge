@@ -15,12 +15,15 @@ PlaybackSnapshot::PlaybackSnapshot (TempoMap tempoIn, std::vector<PlaybackEvent>
       byTrack (trackIdList.size()),
       audible (new std::atomic<std::uint8_t>[trackIdList.size()]),
       gain (new std::atomic<std::uint8_t>[trackIdList.size()]),
-      applied (trackIdList.size(), 1)
+      pan (new std::atomic<std::int8_t>[trackIdList.size()]),
+      applied (trackIdList.size(), 1),
+      appliedPanValues (trackIdList.size(), (std::int8_t) kNoPan)
 {
     for (size_t i = 0; i < trackIdList.size(); ++i)
     {
         audible[i].store (1, std::memory_order_relaxed);
         gain[i].store (100, std::memory_order_relaxed);
+        pan[i].store ((std::int8_t) kNoPan, std::memory_order_relaxed);
     }
     for (size_t c = 0; c < channelList.size(); ++c)
         byTrack[(size_t) channelList[c].trackIndex].push_back ((int) c);
@@ -156,7 +159,10 @@ std::shared_ptr<PlaybackSnapshot> buildSnapshot (const SongDocument& doc)
 
     auto snapshot = std::make_shared<PlaybackSnapshot> (tempo, std::move (all), std::move (channels), std::move (trackIds));
     for (int i = 0; i < doc.getNumTracks(); ++i)
+    {
         snapshot->setGainPercent (i, trackPlaybackVolume (doc.getTrack (i)));
+        snapshot->setPanOverride (i, trackPlaybackPan (doc.getTrack (i)));
+    }
     return snapshot;
 }
 

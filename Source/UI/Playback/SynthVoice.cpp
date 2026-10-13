@@ -137,6 +137,14 @@ void SynthVoice::resetChannel (int virtualChannel) noexcept
     tsf_channel_midi_control (f, virtualChannel, 64, 0);   // sustain off (also ends sustain-held voices)
 }
 
+void SynthVoice::setChannelPan (int virtualChannel, int pan) noexcept
+{
+    if (current == nullptr || current->synth == nullptr || virtualChannel < 0 || virtualChannel >= kMaxVirtualChannels)
+        return;
+    // Allocation-free: every channel exists from build().
+    tsf_channel_set_pan (current->synth, virtualChannel, (float) (juce::jlimit (-100, 100, pan) + 100) / 200.0f);
+}
+
 void SynthVoice::render (float* left, float* right, int numFrames) noexcept
 {
     if (current == nullptr || current->synth == nullptr)

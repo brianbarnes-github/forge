@@ -32,6 +32,7 @@ public:
         virtual void playbackStateChanged() {}
         virtual void muteSoloChanged() {}
         virtual void playbackMarkerChanged() {}
+        virtual void masterChanged() {}
     };
 
     PlaybackController (SongDocument& document, EventSink& sink);
@@ -71,6 +72,10 @@ public:
     bool isSoloed (juce::int64 trackId) const { return muteSolo.isSoloed (trackId); }
     bool isSilencedBySolo (juce::int64 trackId) const { return muteSolo.isSilencedBySolo (trackId); }
 
+    // Session master level, 0..100 (clamped); unity at 100.
+    void setMasterPercent (int percent);
+    int masterPercent() const noexcept { return masterLevel; }
+
     const SongDocument& document() const noexcept { return doc; }
 
     void documentReplaced();
@@ -81,6 +86,7 @@ private:
     bool isPlaybackRelevant (const juce::ValueTree& tree) const;
     void rebuild();
     void applyTrackGain (const juce::ValueTree& track);
+    void applyTrackPan (const juce::ValueTree& track);
     void applyMuteSolo();
     void handleAsyncUpdate() override;
     void timerCallback() override;
@@ -107,6 +113,7 @@ private:
     std::optional<double> markerTick;
     double lastReportedPosition = -1.0;
     bool lastReportedPlaying = false;
+    int masterLevel = 100;
 };
 
 } // namespace lotro
