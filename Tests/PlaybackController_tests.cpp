@@ -675,3 +675,54 @@ TEST_CASE ("PlaybackController: setLoopRange reports whether the request was acc
     CHECK (r.controller.getLoopRange()->startTick == Approx (4800.0));
     CHECK_FALSE (r.controller.setLoopRange (12000.0, 14000.0));   // wholly past the Song end
 }
+
+// The engine remembers that the playhead was inside the loop: an edit that leaves it
+// at or past the loop end (a narrower range, a faster tempo) wraps it, where a seek
+// past the end would play on.
+TEST_CASE ("PlaybackController: narrowing the range past a looping playhead wraps it back into the loop", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (960.0, 3840.0);   // 1 s .. 4 s
+    r.controller.play();
+    r.render (200);                              // ~2.13 s in
+    REQUIRE (r.controller.getPositionSeconds() > 2.0);
+
+    r.controller.setLoopRange (960.0, 1920.0);   // 1 s .. 2 s: the playhead is past the new end
+    r.render (600);
+    CHECK (r.controller.isPlaying());
+    CHECK (r.controller.getPositionSeconds() >= 1.0);
+    CHECK (r.controller.getPositionSeconds() < 2.0);
+}
+
+TEST_CASE ("PlaybackController: a tempo speed-up while looping keeps the playhead in the loop", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (960.0, 1920.0);   // 1 s .. 2 s
+    r.controller.play();
+    r.render (150);                              // 1.6 s
+    addTempo (r.doc, 0, 240.0);                  // double the tempo: the loop is now 0.5 s .. 1 s
+    r.controller.flushRebuild();
+    r.render (200);
+    CHECK (r.controller.getPositionSeconds() >= 0.5);
+    CHECK (r.controller.getPositionSeconds() < 1.0);
+}
+
+TEST_CASE ("PlaybackController: a block much longer than the loop does not carry the playhead out of it", "[playback][controller][loop]")
+{
+    Rig r;
+    addNote (addTrack (r.doc), 60, 0, 9600);
+    r.controller.flushRebuild();
+    r.controller.setLoopRange (960.0, 1008.0);   // 1 s .. 1.05 s: 2400 frames
+    r.controller.play();
+    juce::AudioBuffer<float> big (2, 13000);     // over five passes: the wrap cap binds
+    r.controller.engine().renderBlock (big, 0, 13000);
+    CHECK (r.controller.getPositionSeconds() >= 1.0);
+    CHECK (r.controller.getPositionSeconds() < 1.05);
+    r.render (100);
+    CHECK (r.controller.getPositionSeconds() >= 1.0);
+    CHECK (r.controller.getPositionSeconds() < 1.05);
+}

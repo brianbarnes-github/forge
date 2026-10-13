@@ -405,6 +405,8 @@ When you say…       …I'll know you mean
     ignored while a range exists and applies again once the range is cleared. Stop returns to
     where Play started. A seek inside the range keeps looping, and a seek before it plays into
     it and then loops. A seek at or past the range end plays on to the end of the Song.
+    Moving the range end before a looping playhead, or a faster tempo that does the same,
+    jumps the playhead back to the range start instead.
   - **While looping.** Mute, solo, volume, pan and the master fader work as usual. Notes,
     tempo and meter can be edited; the range is held in musical time, so it follows a tempo
     change. A note that is still sounding from before the range start is not restarted on each

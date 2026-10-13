@@ -95,7 +95,10 @@ touches the Song's MIDI, the ABC export, the undo stack or the saved
   inside the range).
 - **Edits while looping** keep working: a snapshot rebuild already re-chases
   from the current position, and the loop range is held in ticks so it follows
-  tempo edits.
+  tempo edits. *As built:* an edit that leaves a looping playhead at or past the
+  new range end (the end dragged or the range moved before the playhead, or a
+  faster tempo pulling the edges in) wraps it straight back to the range start;
+  only a seek past the end plays on.
 - **Muting / mixer changes** behave as during normal playback.
 
 ### Scope
@@ -140,16 +143,25 @@ source-MIDI side, so the later LOTRO playback target (see the mixer spec's
   so this is a loop with a safe iteration cap. *As built:* the cap is
   `kMaxWrapsPerBlock` = 4, and loops shorter than 0.05 s are rejected at
   `setLoopRange`. A wrapping segment delivers only events strictly before the
-  loop end, so an event exactly on the end plays after the wrap. Known gap:
-  a block longer than 4 × the loop length (more than ~9600 frames at the
-  minimum) renders past the loop end once the cap binds and exits the loop.
-  This is unreachable at normal buffer sizes.
+  loop end, so an event exactly on the end plays after the wrap. When the cap
+  binds (a block longer than 4 × the loop length, more than ~9600 frames at the
+  minimum; unreachable at normal buffer sizes), the rest of the block only lets
+  the synth ring out, with no events, and the playhead stays at the loop start,
+  so it never leaves the loop.
 - The wrap uses the same `Transport` position update the end-of-block advance
   uses (*as built*, `Transport::advanceTo(from, to, end)`, which may move
   backwards; `advance` is now a wrapper for it), so the message thread still sees a continuously valid position and a
   concurrent message-thread seek still wins (the CAS drop path is kept).
 - A playhead that starts the block at or past `loopEnd` (the "seek past the end"
-  case) never wraps.
+  case) never wraps. *As built,* with one exception: the engine keeps an
+  audio-thread latch, `insideLoopLastBlock`, set when the previous block left the
+  playhead inside `[loopStart, loopEnd)`. If it is set, there was no seek (same
+  seek generation, and the playhead is where the engine left it) and the block
+  starts at or past `loopEnd`, the block wraps to `loopStart` at once. This
+  covers a range narrowed or moved before a looping playhead and a tempo
+  speed-up while looping (the playhead is in seconds, the edges in ticks). A
+  snapshot swap keeps the latch; Stop/pause, a seek, a dropped commit and a
+  cleared loop reset it.
 - Master gain, pan override and mute / solo apply unchanged because the wrap
   sits inside `renderBlockUnscaled`, below the master-gain wrapper.
 - Notes held across the wrap are released by the chase's `releaseAll` (tails ring
@@ -216,7 +228,9 @@ Integration over unit where it counts, with `RecordingSink` as in the pan tests:
   chase happens at `loopStart`, and the events after the wrap are those after
   `loopStart` (check sample offsets). A loop shorter than a block wraps correctly
   more than once. Starting at or past `loopEnd` never wraps. A seek inside the
-  loop keeps wrapping; a seek past it does not. A concurrent message-thread seek
+  loop keeps wrapping; a seek past it does not. *As built,* also: narrowing the
+  range past a looping playhead, a tempo speed-up while looping and a block over
+  4 × the loop all leave the playhead inside the loop. A concurrent message-thread seek
   during a wrap block still wins. Mute / solo / pan / master apply across a wrap
   (*not built*: no test of its own; they are untouched by construction, since the
   wrap sits inside `renderBlockUnscaled`).
@@ -253,8 +267,9 @@ Integration over unit where it counts, with `RecordingSink` as in the pan tests:
 - Esc from a floating MIDI-editor panel never reaches `MainWindow`.
 - The marker triangle's 16 × 12 px hit box shadows a loop bracket when the marker
   sits on or near a loop edge.
-- A block longer than 4 × the loop length exits the loop (the
-  `kMaxWrapsPerBlock` cap). This is unreachable at normal buffer sizes.
+- A block longer than 4 × the loop length (the `kMaxWrapsPerBlock` cap) stays
+  silent after the fourth wrap, apart from tails, with the playhead held at the
+  loop start. This is unreachable at normal buffer sizes.
 - Notes sounding at the loop start are not retriggered on a wrap, the same as
   after a seek, as this spec accepts above.
 - After a Song shrink drops the span, the overlay still shows the stored range.

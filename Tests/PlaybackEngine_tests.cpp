@@ -1076,6 +1076,33 @@ TEST_CASE ("PlaybackEngine loop: a playhead at or past the loop end never wraps"
     }
 }
 
+TEST_CASE ("PlaybackEngine loop: a seek past the end while looping plays on; a narrowed range wraps at once", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    rig.transport.seek (kLoopStart);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (10);   // 5120 frames into the loop
+    REQUIRE (rig.transport.getPositionSeconds() == Catch::Approx (kLoopStart + 5120 * kFrame).margin (kFrame));
+
+    SECTION ("a seek past the end")
+    {
+        rig.transport.seek (0.7);
+        rig.render (10);
+        CHECK (rig.transport.getPositionSeconds() == Catch::Approx (0.7 + 5120 * kFrame).margin (kFrame));
+    }
+    SECTION ("the end moved before the playhead")
+    {
+        const int releases = rig.sink.releaseAllCount;
+        rig.engine.setLoopSpan (LoopSpan { kLoopStart, 0.45 });   // the playhead (~0.507 s) is past it
+        rig.render (1);
+        CHECK (rig.sink.releaseAllCount == releases + 1);          // one wrap, at the block start
+        CHECK (rig.transport.getPositionSeconds() == Catch::Approx (kLoopStart + 512 * kFrame).margin (kFrame));
+    }
+}
+
 TEST_CASE ("PlaybackEngine loop: a playhead before the range plays into it and then loops", "[playback][engine][loop]")
 {
     SongDocument doc;
@@ -1123,6 +1150,11 @@ TEST_CASE ("PlaybackEngine loop: a loop shorter than a block wraps at most kMaxW
 
         CHECK (rig.sink.releaseAllCount == kMaxWrapsPerBlock + 1);
         CHECK (rig.sink.framesRendered == 12000);
+        CHECK (rig.transport.getPositionSeconds() >= kLoopStart);   // the remainder never escapes the loop
+        CHECK (rig.transport.getPositionSeconds() < shortEnd);
+        rig.render (20);
+        CHECK (rig.transport.getPositionSeconds() >= kLoopStart);
+        CHECK (rig.transport.getPositionSeconds() < shortEnd);
     }
 }
 

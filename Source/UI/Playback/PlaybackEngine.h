@@ -60,6 +60,7 @@ private:
     std::atomic<int> master { 100 };
     LoopSpanCell loopCell;
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
+    bool insideLoopLastBlock = false; // audio thread only: the last block left the playhead inside the loop
 };
 
 } // namespace lotro

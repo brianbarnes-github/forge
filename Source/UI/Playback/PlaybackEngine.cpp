@@ -173,7 +173,16 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
                         || (playing && ! samePosition (position, expectedPosition));
     seenSeekGeneration = seekGeneration;
 
-    if (swapped || seeked || (! playing && wasPlaying))
+    const auto loop = loopCell.read();
+    // A playhead this engine left inside the loop that now starts at or past
+    // the loop end (the range was narrowed or moved, or a tempo edit moved the
+    // edges) wraps at once. A seek past the end clears the latch (seeked), so
+    // it still plays on. A new snapshot does not: a tempo edit is one.
+    const bool wrapOnEntry = playing && wasPlaying && ! seeked && insideLoopLastBlock
+                             && loop.has_value() && position >= loop->endSeconds;
+    insideLoopLastBlock = false;
+
+    if (swapped || seeked || (! playing && wasPlaying) || wrapOnEntry)
         sink.releaseAll();
     if (snapshot != nullptr)
         releaseNewlyMutedTracks (*snapshot);
@@ -188,25 +197,32 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
         return;
     }
 
-    if (swapped || seeked || ! wasPlaying)
+    const double startPos = wrapOnEntry ? loop->startSeconds : position;
+    if (swapped || seeked || ! wasPlaying || wrapOnEntry)
     {
-        chase (*snapshot, position);
-        nextEvent = snapshot->firstEventAtOrAfter (position);
+        chase (*snapshot, startPos);
+        nextEvent = snapshot->firstEventAtOrAfter (startPos);
     }
-    applyPanChanges (*snapshot, position, true);   // after a chase: nothing left to do
+    applyPanChanges (*snapshot, startPos, true);   // after a chase: nothing left to do
     wasPlaying = true;
 
     // The block as segments: a segment ends at the block end or, with a loop,
     // at the loop end, where the playhead wraps back to the loop start
     // (sample-accurately, at most kMaxWrapsPerBlock times per block).
-    const auto loop = loopCell.read();
-    double segPos = position;
+    double segPos = startPos;
     int done = 0;
-    int wraps = 0;
+    int wraps = wrapOnEntry ? 1 : 0;
     while (done < numSamples)
     {
-        const auto step = nextLoopStep (segPos, numSamples - done, sampleRate,
-                                        wraps < kMaxWrapsPerBlock ? loop : std::nullopt);
+        const auto step = nextLoopStep (segPos, numSamples - done, sampleRate, loop);
+        if (step.wraps && wraps >= kMaxWrapsPerBlock)
+        {
+            // The cap binds: the rest of the block only lets the sink ring out,
+            // with no events and the playhead held where the last wrap chased
+            // it (the loop start), so it never runs on past the loop end.
+            sink.render (left + done, right + done, numSamples - done);
+            break;
+        }
         const double segSeconds = (double) step.samples / sampleRate;
         // A wrapping segment delivers only what lies before the loop end: an
         // event at the end belongs after the loop, not to the segment's last
@@ -233,6 +249,8 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
     // If the advance was dropped the message thread moved the playhead: the
     // sentinel forces a re-chase on the next block.
     expectedPosition = advanced ? std::min (segPos, endSeconds) : -1.0;
+    insideLoopLastBlock = advanced && loop.has_value()
+                          && segPos >= loop->startSeconds && segPos < loop->endSeconds;
 }
 
 // Renders `samples` frames starting at segPos, delivering the events before
