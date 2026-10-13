@@ -87,6 +87,7 @@ add_executable(forge_tests
     TrackRowComponent_tests.cpp
     TrackHeadComponent_tests.cpp
     MuteSoloIconButton_tests.cpp
+    MixerPanelComponent_tests.cpp
     GmProgramNames_tests.cpp
     WindowPlacement_tests.cpp
     AboutBox_tests.cpp
@@ -115,6 +116,8 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackEngine.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackController.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Mixer/SourceMidiTarget.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Mixer/MixerStripComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Mixer/MixerPanelComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/SynthVoice.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TransportStrip.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TimelineRuler.cpp

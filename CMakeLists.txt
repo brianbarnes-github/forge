@@ -126,6 +126,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/Playback/PlaybackEngine.cpp
     Source/UI/Playback/PlaybackController.cpp
     Source/UI/Mixer/SourceMidiTarget.cpp
+    Source/UI/Mixer/MixerStripComponent.cpp
+    Source/UI/Mixer/MixerPanelComponent.cpp
     Source/UI/Playback/SynthVoice.cpp
     Source/UI/Playback/TransportStrip.cpp
     Source/UI/Playback/TimelineRuler.cpp
