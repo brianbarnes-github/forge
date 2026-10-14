@@ -835,6 +835,28 @@ TEST_CASE ("SongsmithMainComponent: zooming the track list repaints the open Tem
     main.fitTrackTimelineToDocument();
 }
 
+TEST_CASE ("SongsmithMainComponent: a floating panel forwards Delete and Ctrl+S, but not other keys, to the window shortcuts", "[songsmith][layout][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+    std::vector<juce::KeyPress> forwarded;
+    view.onFloatingShortcut = [&forwarded] (const juce::KeyPress& k) { forwarded.push_back (k); return true; };
+
+    view.setMidiEditorVisible (true);
+    auto* window = dynamic_cast<lotro::dock::DockFloatWindow*> (
+        SongsmithMainComponentTestAccess::editorPanel (view)->getTopLevelComponent());
+    REQUIRE (window != nullptr);
+
+    const juce::KeyPress save ('s', juce::ModifierKeys::commandModifier, 0);
+    const juce::KeyPress del (juce::KeyPress::deleteKey);
+    CHECK (window->keyPressed (save));
+    CHECK (window->keyPressed (del));
+    CHECK_FALSE (window->keyPressed (juce::KeyPress ('q')));
+    CHECK (forwarded.size() == 2);
+}
+
 TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter layout", "[songsmith][layout]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

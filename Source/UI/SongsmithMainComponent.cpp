@@ -170,7 +170,11 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     };
     dockHost.onFloatingKey = [this] (const juce::KeyPress& key)
     {
-        return key == juce::KeyPress (juce::KeyPress::escapeKey) && escapePressed();
+        if (key == juce::KeyPress (juce::KeyPress::escapeKey))
+            return escapePressed();
+        const bool save = key == juce::KeyPress ('s', juce::ModifierKeys::commandModifier, 0);
+        const bool del = key == juce::KeyPress (juce::KeyPress::deleteKey);
+        return (save || del) && onFloatingShortcut && onFloatingShortcut (key);
     };
     dockHost.apply (dock::defaultLayout());
 }

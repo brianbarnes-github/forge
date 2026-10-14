@@ -187,6 +187,7 @@ MainWindow::MainWindow()
     // A failed save is not announced: the layout still applies this session and is retried at quit.
     auto& songsmith = body->getSongsmith();
     songsmith.setDockLayout (dock::fromJson (appSettings.dockLayout().toStdString()));
+    songsmith.onFloatingShortcut = [this] (const juce::KeyPress& key) { return keyPressed (key); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
         const juce::String json (dock::toJson (layout));

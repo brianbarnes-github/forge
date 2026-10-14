@@ -215,6 +215,9 @@ public:
         if (mixerPanel != nullptr)
             dockHost.setVisible ("mixer", show);
     }
+    // Window shortcuts (Ctrl+S, Delete) a floating panel did not handle; the owner runs them as if
+    // the main window had the focus. Return true if consumed. Esc is handled here.
+    std::function<bool (const juce::KeyPress&)> onFloatingShortcut;
     std::function<void (const dock::LayoutState&)> onDockLayoutChanged;
 
     // Opens the Tempo/Meter editor, or re-fronts it when already open.
