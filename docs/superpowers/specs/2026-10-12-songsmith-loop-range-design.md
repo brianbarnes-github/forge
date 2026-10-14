@@ -176,8 +176,8 @@ source-MIDI side, so the later LOTRO playback target (see the mixer spec's
   callbacks (`onLoopEdgeDragged`, `onClearLoop`), next to the existing
   `onSetMarker` / `onSeek` / `onClearMarker`. *As built:* the ruler also has
   `onLoopEdgePressed (bool isStart)`, fired by the press that grabs a bracket,
-  so its owner can capture the other edge as the drag's anchor. The marker's
-  triangle keeps priority where it overlaps a bracket. A ruler drag carries no
+  so its owner can capture the other edge as the drag's anchor. A loop bracket's
+  hit box wins where it overlaps the marker's triangle. A ruler drag carries no
   modifiers, so its owner reads Alt from the live keyboard state.
 - **Band:** `TrackRowComponent` forwards a left press / drag / release in
   `inInstrumentBand` (not popup-menu, not on the conductor row) as
@@ -265,8 +265,6 @@ Integration over unit where it counts, with `RecordingSink` as in the pan tests:
 ## Known gaps (as built)
 
 - Esc from a floating MIDI-editor panel never reaches `MainWindow`.
-- The marker triangle's 16 × 12 px hit box shadows a loop bracket when the marker
-  sits on or near a loop edge.
 - A block longer than 4 × the loop length (the `kMaxWrapsPerBlock` cap) stays
   silent after the fourth wrap, apart from tails, with the playhead held at the
   loop start. This is unreachable at normal buffer sizes.

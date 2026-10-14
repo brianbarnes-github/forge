@@ -67,15 +67,6 @@ void TimelineRuler::mouseDown (const juce::MouseEvent& e)
     dragEdge.reset();
     if (! e.mods.isRightButtonDown() && ! e.mods.isPopupMenu())
     {
-        // The marker's triangle first: it keeps priority over a loop bracket beneath it.
-        const auto handle = markerHandleBounds();
-        if (handle.has_value() && handle->contains (e.getPosition()))
-        {
-            handleWasPressed = true;
-            if (onClearMarker)
-                onClearMarker();
-            return;
-        }
         for (const auto edge : { LoopEdge::start, LoopEdge::end })
         {
             const auto bracket = loopHandleBounds (edge == LoopEdge::start);
@@ -89,6 +80,15 @@ void TimelineRuler::mouseDown (const juce::MouseEvent& e)
                     onLoopEdgePressed (edge == LoopEdge::start);
                 return;
             }
+        }
+        // A loop bracket wins where it overlaps the marker's triangle (checked above); the rest of the triangle clears the marker.
+        const auto handle = markerHandleBounds();
+        if (handle.has_value() && handle->contains (e.getPosition()))
+        {
+            handleWasPressed = true;
+            if (onClearMarker)
+                onClearMarker();
+            return;
         }
     }
     applyPointer (e, /*pressed*/ true);

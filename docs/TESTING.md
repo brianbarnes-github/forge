@@ -210,7 +210,7 @@ See `docs/BUILD.md` for how to run these.
     - `documentReplaced` clearing it;
     - `setLoopRange`'s return value;
     - a looping playhead staying in the loop when the range is narrowed past it, after a tempo speed-up and through a block over 4 × the loop.
-  - `PlayheadOverlay_tests.cpp` pins `LoopRangeOverlay`: exact shaded columns, clipping, mouse transparency. It also pins the ruler: bracket bounds, bracket drag, click-to-clear with the 3 px latch, `onLoopEdgePressed`, marker priority, off-bracket presses still setting the marker or seeking, a bracket's part hidden under the info column not grabbing, and shading.
+  - `PlayheadOverlay_tests.cpp` pins `LoopRangeOverlay`: exact shaded columns, clipping, mouse transparency. It also pins the ruler: bracket bounds, bracket drag, click-to-clear with the 3 px latch, `onLoopEdgePressed`, the bracket winning over the marker triangle, off-bracket presses still setting the marker or seeking, a bracket's part hidden under the info column not grabbing, and shading.
   - `TrackRowComponent_tests.cpp` pins the band drag:
     - it reports `(pressTick, tickAtX, finished, unsnapped)` after 4 px;
     - a band click reports nothing;

@@ -413,8 +413,8 @@ When you say…       …I'll know you mean
     pass, the same as after a seek. If an edit shortens the Song past the range, the loop is cut
     at the Song end; if that leaves less than 0.05 s, playback stops looping until the Song
     grows again, but the shaded range stays on screen.
-  - **Snags.** When the start marker sits on or near a range edge, its triangle covers that
-    bracket: move the marker first.
+  - **Overlap.** Where the start marker's triangle overlaps a range bracket, the bracket wins;
+    press the part of the triangle outside the bracket to clear the marker.
 - **Diagnostics** (#23, `DiagnosticListView`, hosted directly) — the bare list
   only, not the full `DiagnosticsPane`: import diagnostics land here; the
   ABC-preview half only exists in the export panel. Hidden by default;

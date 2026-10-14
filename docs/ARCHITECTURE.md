@@ -787,7 +787,7 @@ Units:
     - `TimelineRuler::setLoopRange(fn)` shades the span through both rows, under the marks. It draws an 8 × 12 px bracket in the top row at each edge, opening into the range (`loopHandleBounds(isStart)`), with a faint edge line below it. Brackets are drawn before the marker.
     - A left press on a bracket, right of `setContentLeft` (where it is drawn), fires `onLoopEdgePressed(isStart)`; a press on a bracket's hidden part under the info column is an ordinary ruler press. Its drag calls `onLoopEdgeDragged(isStart, tickForX(x))` with the raw tick and never sets the marker.
     - Releasing calls `onClearLoop` if the pointer never got ≥ 3 px from the press. This is a latch, so an out-and-back drag is still a drag.
-    - The marker's triangle is hit-tested first and keeps priority where the two overlap.
+    - A loop bracket is hit-tested before the marker's triangle and wins where the two overlap; the rest of the triangle still clears the marker.
     - The ruler is not a listener, so its hosts repaint it from `playbackLoopChanged`: `TrackListComponent` directly, `PianoRollComponent` via `onViewChanged`.
   - *Gestures.* `TrackListComponent::loopBandDragged` receives the row's `onLoopRangeDragged` and keeps a `LoopBandGesture`. The first drag step decides between move and draw from the range as it is then.
     - **Move.** A press tick inside the range moves the range, keeping its length. Each step sets the start to the snapped `start + delta`, clamped at 0. At the Song end the controller clamps the end, so the length shrinks.
@@ -821,7 +821,6 @@ Data flow: a `SOURCE_MIDI`/`TEMPO_MAP` edit → `AsyncUpdater` (coalesced) → `
 - LOTRO preview playback is a later project.
 - Loop range:
   - Esc does not reach `MainWindow` from a floating MIDI-editor panel (`DockFloatWindow` has no `keyPressed`), so it does not clear the range while focus is there.
-  - The marker triangle's 16 × 12 hit box shadows a loop bracket when the marker sits on or near a loop edge.
   - A block longer than 4 × the loop length (> ~9600 frames at the 0.05 s minimum and 48 kHz) hits `kMaxWrapsPerBlock`. The rest of that block is silent apart from tails, with the playhead held at the loop start. This is unreachable at normal buffer sizes.
   - Notes already sounding at the loop start are not retriggered on a wrap, the same as after a seek. A note held across the loop start is silent after the first pass.
   - After an edit shortens the Song so much that the span is dropped, the overlay and ruler still draw the stored range.

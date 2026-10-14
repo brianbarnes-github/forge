@@ -508,27 +508,36 @@ TEST_CASE ("TimelineRuler: with a loop range, presses off the brackets still set
     CHECK (clears == 0);
 }
 
-TEST_CASE ("TimelineRuler: the marker's triangle wins over a loop bracket at the same place", "[playback][ruler][loop][marker]")
+TEST_CASE ("TimelineRuler: a loop bracket wins over the marker's triangle where they overlap", "[playback][ruler][loop][marker]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
     std::optional<double> marker = 1000.0;
     std::optional<LoopRange> loop = LoopRange { 1000.0, 3000.0 };   // start bracket 100..108, triangle 92..108
     setUpLoopRuler (ruler, marker, loop);
+    int pressed = 0;
     int drags = 0;
     int clears = 0;
     ruler.onClearMarker = [&] { marker.reset(); };
     ruler.onSetMarker = [&] (double t) { marker = t; };
+    ruler.onLoopEdgePressed = [&] (bool) { ++pressed; };
     ruler.onLoopEdgeDragged = [&] (bool, double) { ++drags; };
     ruler.onClearLoop = [&] { ++clears; };
 
+    // Over the bracket: the bracket is grabbed and the marker is left alone.
     ruler.mouseDown (mouseAt (ruler, 102, 5));
-    CHECK (! marker.has_value());
+    CHECK (pressed == 1);
     ruler.mouseDrag (mouseAt (ruler, 142, 5));
     ruler.mouseUp (mouseAt (ruler, 142, 5));
-    CHECK (! marker.has_value());
-    CHECK (drags == 0);
+    CHECK (marker.has_value());
+    CHECK (drags >= 1);
     CHECK (clears == 0);
+
+    // The part of the triangle outside the bracket still clears the marker.
+    ruler.mouseDown (mouseAt (ruler, 94, 5));
+    ruler.mouseUp (mouseAt (ruler, 94, 5));
+    CHECK (pressed == 1);
+    CHECK (! marker.has_value());
 }
 
 TEST_CASE ("TimelineRuler: the loop range is shaded through both rows and its brackets are drawn", "[playback][ruler][loop]")
