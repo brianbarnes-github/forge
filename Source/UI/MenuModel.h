@@ -46,6 +46,7 @@ enum MenuCommandId : int
     ViewSourceToggle,
     ViewMidiEditorToggle,
     ViewLotroPreviewToggle,
+    ViewTracksToggle,
     ViewPartsToggle,
     ViewMixerToggle,
     EditTempoMeter,
@@ -59,14 +60,14 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 35> allCommandIds {
+inline constexpr std::array<MenuCommandId, 36> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
     TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewSourceToggle, ViewMidiEditorToggle,
-    ViewLotroPreviewToggle, ViewPartsToggle, ViewMixerToggle, EditTempoMeter, HelpAbout };
+    ViewLotroPreviewToggle, ViewTracksToggle, ViewPartsToggle, ViewMixerToggle, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
@@ -87,6 +88,7 @@ struct MenuState
     bool sourceVisible = true;
     bool midiEditorVisible = false;
     bool lotroPreviewVisible = false;
+    bool tracksVisible = false;
     bool partsVisible = false;
     bool mixerVisible = false;
     bool isPlaying = false;
@@ -207,6 +209,7 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         item (ViewSourceToggle,      "MIDI Source",       {}, true, s.sourceVisible),
         item (ViewMidiEditorToggle,  "MIDI Editor",       {}, true, s.midiEditorVisible),
         item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible),
+        item (ViewTracksToggle,       "Tracks",           {}, true, s.tracksVisible),
         item (ViewPartsToggle,        "Parts",            {}, true, s.partsVisible),
         item (ViewMixerToggle,        "Mixer",            {}, true, s.mixerVisible) } });
 

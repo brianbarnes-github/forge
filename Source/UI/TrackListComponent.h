@@ -81,6 +81,8 @@ public:
     // (key not consumed) when no gesture is in flight.
     bool cancelSectionDrag();
 
+    // A click on a track chip elsewhere (the Tracks bar): the same head selection as clicking the head.
+    void selectTrackExternally (juce::int64 trackId, const juce::ModifierKeys& mods) { selectTrack (trackId, mods); }
     juce::int64 getSelectedTrackId() const noexcept { return selectedTrackId; }
     const std::set<juce::int64>& getSelectedTrackIds() const noexcept { return selectedTrackIds; }
 

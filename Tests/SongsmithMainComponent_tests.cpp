@@ -70,6 +70,7 @@ namespace lotro
             c.trackDoubleClicked (trackId);
         }
         static PartStripComponent& partStrip (SongsmithMainComponent& c) { return c.partStrip; }
+        static TrackChipBar& trackChipBar (SongsmithMainComponent& c) { return c.trackChipBar; }
         static lotro::dock::DockPanel* editorPanel (SongsmithMainComponent& c) { return c.dockHost.panel ("midiEditor"); }
         static TransportStrip* transportStrip (SongsmithMainComponent& c) { return c.transportStrip.get(); }
         static juce::Component& upperRegion (SongsmithMainComponent& c) { return c.upperRegion; }
@@ -567,6 +568,50 @@ TEST_CASE ("SongsmithMainComponent: hiding the MIDI source region lifts the tran
 
     view.setSourceVisible (true);
     CHECK (stripTop() == before);
+}
+
+TEST_CASE ("SongsmithMainComponent: the Tracks bar is hidden at first, sits between the transport strip and Parts, and a chip click selects the track", "[songsmith][tracks]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Lute", (int) 0xFF336699, 1, 1);
+    lotro::playbacktest::addNote (track, 60, 0, 480);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 800);
+    view.setVisible (true);   // a bare component starts invisible; the parent walk below needs the root visible
+
+    using Access = SongsmithMainComponentTestAccess;
+    // The view is not on the desktop, so isShowing() is always false: walk the parents instead.
+    const auto reachable = [&] (juce::Component& c)
+    {
+        for (auto* p = &c; p != nullptr; p = p->getParentComponent())
+            if (! p->isVisible()) return false;
+        return true;
+    };
+    CHECK_FALSE (view.isTracksVisible());
+    CHECK_FALSE (reachable (Access::trackChipBar (view)));
+
+    view.setTracksVisible (true);
+    CHECK (view.isTracksVisible());
+    auto& bar = Access::trackChipBar (view);
+    REQUIRE (reachable (bar));
+    bar.refreshForTesting();
+    REQUIRE (bar.chipCountForTesting() == 1);
+
+    auto topInView = [&] (juce::Component& c) { return view.getLocalArea (&c, c.getLocalBounds()).getY(); };
+    CHECK (topInView (bar) >= topInView (*Access::transportStrip (view)) + TransportStrip::height);
+    CHECK (topInView (bar) < topInView (Access::partStrip (view)));
+
+    auto* chip = bar.chipComponentForTesting (0);
+    chip->mouseDown (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), juce::Point<float> (4.0f, 4.0f),
+                                       juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                       chip, chip, juce::Time::getCurrentTime(), juce::Point<float> (4.0f, 4.0f),
+                                       juce::Time::getCurrentTime(), 1, false));
+    CHECK (Access::trackList (view).getSelectedTrackId() == trackId);
+    CHECK (Access::trackList (view).getSelectedTrackIds().count (trackId) == 1);
 }
 
 TEST_CASE ("SongsmithMainComponent: without a playback controller there is no transport strip", "[songsmith][transport]")

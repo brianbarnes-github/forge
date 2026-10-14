@@ -86,7 +86,7 @@ TEST_CASE ("dock: a saved layout from before the Parts panel gains it above the 
 TEST_CASE ("dock: the Mixer panel is registered and defaults to hidden, docked, last in the bottom zone", "[dock][state][mixer]")
 {
     const auto& defs = panelDefs();
-    REQUIRE (defs.size() == 4);
+    REQUIRE (defs.size() == 5);
     CHECK (defs[3].id == "mixer");
     CHECK (defs[3].title == "Mixer");
     CHECK (defs[3].minSize == 150);
@@ -112,6 +112,33 @@ TEST_CASE ("dock: a saved layout from before the Mixer existed gains it hidden, 
     CHECK (mixer->zone == Zone::bottom);
     CHECK (mixer->order > find (s, "lotroPreview")->order);
     CHECK (find (s, "parts")->order < find (s, "lotroPreview")->order);
+}
+
+TEST_CASE ("dock: the Tracks panel is registered, hidden and docked at the top of the bottom zone", "[dock][state][tracks]")
+{
+    const auto& defs = panelDefs();
+    REQUIRE (defs.size() == 5);
+    CHECK (defs[4].id == "tracks");
+    CHECK (defs[4].title == "Tracks");
+
+    const auto s = defaultLayout();
+    const auto* tracks = find (s, "tracks");
+    REQUIRE (tracks != nullptr);
+    CHECK_FALSE (tracks->visible);
+    CHECK (tracks->mode == Mode::docked);
+    CHECK (tracks->zone == Zone::bottom);
+    CHECK (tracks->order < find (s, "parts")->order);
+    CHECK (tracks->order < find (s, "lotroPreview")->order);
+}
+
+TEST_CASE ("dock: a saved layout from before the Tracks panel existed gains it hidden, above Parts", "[dock][state][tracks]")
+{
+    const auto s = fromJson ("{\"panels\": [{\"id\": \"parts\"}, {\"id\": \"lotroPreview\"}, {\"id\": \"midiEditor\"}, {\"id\": \"mixer\"}]}");
+    const auto* tracks = find (s, "tracks");
+    REQUIRE (tracks != nullptr);
+    CHECK_FALSE (tracks->visible);
+    CHECK (tracks->zone == Zone::bottom);
+    CHECK (tracks->order < find (s, "parts")->order);
 }
 
 TEST_CASE ("dock: the Mixer's visibility and weight survive a JSON round trip", "[dock][state][mixer]")

@@ -17,6 +17,7 @@
 #include "TrackListComponent.h"
 
 #include "Playback/TransportStrip.h"
+#include "TrackChipBar.h"
 #include "Mixer/ActivePlaybackTarget.h"
 #include "Mixer/MixerPanelComponent.h"
 #include "Mixer/SourceMidiTarget.h"
@@ -177,6 +178,8 @@ public:
     }
     bool isSourceVisible() const { return dockHost.isUpperVisible(); }
     void setSourceVisible (bool show) { dockHost.setUpperVisible (show); }
+    bool isTracksVisible() const { return dockHost.isVisible ("tracks"); }
+    void setTracksVisible (bool show) { dockHost.setVisible ("tracks", show); }
     bool isLotroPreviewVisible() const { return dockHost.isVisible ("lotroPreview"); }
     void setLotroPreviewVisible (bool show) { dockHost.setVisible ("lotroPreview", show); }
     bool isPartsVisible() const { return dockHost.isVisible ("parts"); }
@@ -261,6 +264,7 @@ private:
     GridSize                 defaultGridSize = GridSize::Off;
 
     PartStripComponent        partStrip;
+    TrackChipBar              trackChipBar;
 
     // The mixer, created only when there is a playback controller. Declared in construction order
     // (target, the active-target holder, then the panel that reads both) so the panel goes first,

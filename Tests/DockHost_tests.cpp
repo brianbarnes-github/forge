@@ -65,7 +65,7 @@ TEST_CASE ("dock host: showing the editor opens a floating window; docking it ke
     REQUIRE (editor != nullptr);
     CHECK (dynamic_cast<DockFloatWindow*> (editor->getTopLevelComponent()) != nullptr);
     CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "upper", "lower" });
-    CHECK (f.host.state().panels.size() == 4);
+    CHECK (f.host.state().panels.size() == 5);
 
     editor->onFloatToggle();   // dock it
     CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "upper", "midiEditor", "lower" });

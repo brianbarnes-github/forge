@@ -101,6 +101,7 @@ const std::vector<PanelDef>& panelDefs()
         { "midiEditor",   "MIDI Editor",   Zone::belowTracks, Mode::floating, false, 0.35, 160, 0 },
         { "parts",        "Parts",         Zone::bottom,      Mode::docked,   true,  0.6,  70,  -1 },
         { "mixer",        "Mixer",         Zone::bottom,      Mode::docked,   false, 0.6,  150, 1 },
+        { "tracks",       "Tracks",        Zone::bottom,      Mode::docked,   false, 0.2,  60,  -2 },
     };
     return defs;
 }

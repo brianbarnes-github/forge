@@ -90,6 +90,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       playback (playbackIn),
       trackList (document),
       partStrip (document),
+      trackChipBar (document),
       transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
       upperRegion (sourceHeader, trackList),
       previewRegion (previewAssignedPanel, previewRoll),
@@ -116,6 +117,10 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         partStrip.trackAppearanceChanged();
         trackEditor->trackAppearanceChanged (trackId);
     };
+    trackChipBar.onTrackClicked = [this] (juce::int64 trackId, const juce::ModifierKeys& mods)
+    {
+        trackList.selectTrackExternally (trackId, mods);
+    };
     partStrip.onPartSelected = [this] (juce::int64 partId) { selectPartForPreview (partId); };
 
     addAndMakeVisible (topStack);
@@ -129,6 +134,10 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     // The Parts strip is the third dockable panel; it sits first in the bottom zone, above the preview.
     dockHost.addPanel (dock::panelDefs()[2], juce::Colour (SongsmithColours::text), partStrip);
+
+    // The Tracks bar (hidden by default) sits above Parts: chips to click or drag onto a part card.
+    dockHost.addPanel (dock::panelDefs()[4], juce::Colour (SongsmithColours::text), trackChipBar);
+    dockHost.panel ("tracks")->setTitle (juce::String::fromUTF8 ("TRACKS \xc2\xb7 drag onto a part"));
 
     // The Mixer (hidden by default, last in the bottom zone) drives the source MIDI's playback, so
     // there is none without a controller; the dock host then leaves its layout entry unshown.

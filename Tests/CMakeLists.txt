@@ -66,6 +66,7 @@ add_executable(forge_tests
     TimelineViewState_tests.cpp
     TrackListComponent_tests.cpp
     PartStripComponent_tests.cpp
+    TrackChipBar_tests.cpp
     PreviewPipeline_tests.cpp
     PreviewNoteDiff_tests.cpp
     PreviewNoteSource_tests.cpp
@@ -178,6 +179,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/AssignmentChipComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartSlotComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PartStripComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/TrackChipBar.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewAssignedPanel.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/DiagnosticListView.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SongsmithMainComponent.cpp)
