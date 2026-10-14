@@ -160,6 +160,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/PianoRollComponent.cpp
     Source/UI/SourceRollEditor.cpp
     Source/UI/SplitterComponent.cpp
+    Source/UI/ThreePaneSplitter.cpp
     Source/UI/Dock/DockLayoutState.cpp
     Source/UI/Dock/DockStackLayout.cpp
     Source/UI/Dock/DockStack.cpp

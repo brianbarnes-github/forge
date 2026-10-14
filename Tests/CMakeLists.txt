@@ -83,6 +83,7 @@ add_executable(forge_tests
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
     SplitterComponent_tests.cpp
+    ThreePaneSplitter_tests.cpp
     TrackNotePreview_tests.cpp
     SongsmithColours_tests.cpp
     TrackRowComponent_tests.cpp
@@ -166,6 +167,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Preferences/PreferencesDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SourceRollEditor.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/ThreePaneSplitter.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockLayoutState.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStackLayout.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStack.cpp

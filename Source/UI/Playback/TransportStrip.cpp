@@ -45,8 +45,21 @@ juce::Path transportIconPath (TransportIcon icon)
     return p;
 }
 
-TransportStrip::TransportStrip (PlaybackController& controllerIn) : controller (controllerIn)
+namespace
 {
+    constexpr int buttonWidth = 36, buttonGap = 4, buttonCount = 5, sideAreaMinWidth = 24;
+    constexpr int buttonRowWidth = buttonCount * buttonWidth + (buttonCount - 1) * buttonGap;
+}
+
+TransportStrip::TransportStrip (PlaybackController& controllerIn)
+    : controller (controllerIn),
+      splitter ({ sideAreaMinWidth, buttonRowWidth, sideAreaMinWidth })
+{
+    // TODO: the left and right areas are empty placeholders, to be filled later.
+    for (auto* a : { &leftArea, &centreArea, &rightArea })
+        addAndMakeVisible (*a);
+    centreArea.onBoundsChanged = [this] { layoutButtons(); };
+
     for (auto* b : buttonsForTesting())
     {
         b->setWantsKeyboardFocus (false);
@@ -70,6 +83,9 @@ TransportStrip::TransportStrip (PlaybackController& controllerIn) : controller (
     stopButton.onClick   = [this] { controller.stop(); refreshPlayIcon(); };
     endButton.onClick    = [this] { controller.goToEnd(); };
 
+    addAndMakeVisible (splitter);   // last: its bars sit above the areas
+    splitter.setComponents (&leftArea, &centreArea, &rightArea);
+
     controller.addListener (this);
     refreshPlayIcon();
 }
@@ -86,15 +102,19 @@ void TransportStrip::paint (juce::Graphics& g)
 
 void TransportStrip::resized()
 {
-    // The row of buttons, centred in the bar.
-    const int w = 36, gap = 4;
+    splitter.setBounds (getLocalBounds());   // lays out the three areas, which re-centres the buttons
+    layoutButtons();
+}
+
+void TransportStrip::layoutButtons()
+{
+    // The row of buttons, centred in the middle area.
     const auto buttons = buttonsForTesting();
-    const int count = (int) buttons.size();
-    auto row = getLocalBounds().reduced (0, 3).withSizeKeepingCentre (count * w + (count - 1) * gap, getHeight() - 6);
+    auto row = centreArea.getBounds().reduced (0, 3).withSizeKeepingCentre (buttonRowWidth, getHeight() - 6);
     for (auto* b : buttons)
     {
-        b->setBounds (row.removeFromLeft (w));
-        row.removeFromLeft (gap);
+        b->setBounds (row.removeFromLeft (buttonWidth));
+        row.removeFromLeft (buttonGap);
     }
 }
 

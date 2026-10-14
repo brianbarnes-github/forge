@@ -80,7 +80,7 @@ TEST_CASE ("TransportStrip: stop and go-to buttons drive the controller", "[play
     CHECK (controller.getPositionSeconds() == Approx (0.0));
 }
 
-TEST_CASE ("TransportStrip: the buttons are centred in the bar", "[playback][strip]")
+TEST_CASE ("TransportStrip: the bar starts as three equal areas with the buttons centred in the middle one", "[playback][strip]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -88,14 +88,56 @@ TEST_CASE ("TransportStrip: the buttons are centred in the bar", "[playback][str
     PlaybackController controller (doc, sink);
     TransportStrip strip (controller);
 
-    for (const int width : { 300, 641, 1200 })
+    for (const int width : { 600, 900, 1200 })
     {
         strip.setSize (width, TransportStrip::height);
+        const auto left = strip.leftAreaForTesting().getBounds();
+        const auto mid = strip.centreAreaForTesting().getBounds();
+        const auto right = strip.rightAreaForTesting().getBounds();
+
+        CHECK (std::abs (left.getWidth() - mid.getWidth()) <= 8);
+        CHECK (std::abs (mid.getWidth() - right.getWidth()) <= 8);
+        CHECK (left.getRight() <= mid.getX());
+        CHECK (mid.getRight() <= right.getX());
+
         const auto buttons = strip.buttonsForTesting();
-        const int left = buttons.front()->getX();
-        const int right = buttons.back()->getRight();
-        CHECK (std::abs ((left + right) / 2 - width / 2) <= 1);
-        CHECK (left >= 0);
-        CHECK (right <= width);
+        const int centreOfButtons = (buttons.front()->getX() + buttons.back()->getRight()) / 2;
+        CHECK (std::abs (centreOfButtons - (mid.getX() + mid.getWidth() / 2)) <= 1);
+        CHECK (buttons.front()->getX() >= mid.getX());
+        CHECK (buttons.back()->getRight() <= mid.getRight());
     }
+}
+
+TEST_CASE ("TransportStrip: the buttons stay inside the middle area on a narrow bar", "[playback][strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller);
+
+    strip.setSize (300, TransportStrip::height);
+    const auto mid = strip.centreAreaForTesting().getBounds();
+    CHECK (strip.buttonsForTesting().front()->getX() >= mid.getX());
+    CHECK (strip.buttonsForTesting().back()->getRight() <= mid.getRight());
+}
+
+TEST_CASE ("TransportStrip: dragging a divider resizes the areas and the buttons follow the middle one", "[playback][strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller);
+    strip.setSize (900, TransportStrip::height);
+
+    const int rightBefore = strip.rightAreaForTesting().getX();
+    strip.dragDividerForTesting (0, 100);
+
+    CHECK (strip.leftAreaForTesting().getRight() == 100);
+    CHECK (strip.rightAreaForTesting().getX() == rightBefore);
+
+    const auto mid = strip.centreAreaForTesting().getBounds();
+    const auto buttons = strip.buttonsForTesting();
+    CHECK (std::abs ((buttons.front()->getX() + buttons.back()->getRight()) / 2 - (mid.getX() + mid.getWidth() / 2)) <= 1);
 }
