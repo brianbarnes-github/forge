@@ -41,6 +41,7 @@ DockFloatWindow::~DockFloatWindow()
 {
     onBoundsChanged = nullptr;   // detaching the content resizes the window; that is not a user change
     onClosed = nullptr;
+    onKeyPressed = nullptr;
     setContentNonOwned (nullptr, false);
 }
 
@@ -62,6 +63,11 @@ void DockFloatWindow::resized()
     juce::DocumentWindow::resized();
     if (onBoundsChanged)
         onBoundsChanged();
+}
+
+bool DockFloatWindow::keyPressed (const juce::KeyPress& key)
+{
+    return onKeyPressed && onKeyPressed (key);
 }
 
 void DockFloatWindow::closeButtonPressed()

@@ -10,6 +10,6 @@ Next up, in the order the user listed them. Each item gets its own design (brain
 ## Older open items (from the dock-panels handoff)
 
 - [ ] A floating editor left visible reopens empty at every launch and centres on the primary display, not over the main window.
-- [ ] Floated panels do not forward Ctrl+S / Ctrl+Z / Delete (or Esc, so Esc does not clear the loop range from a floating MIDI editor) to the main window.
+- [ ] Floated panels do not forward Ctrl+S / Ctrl+Z / Delete to the main window. (Esc is forwarded now: `DockHost::onFloatingKey` → `escapePressed()`, so it clears the loop range from a floating MIDI editor.)
 - [ ] The Dock and x buttons inside a floating window destroy that window during their own click (no crash known; check on Windows).
 - [ ] View menu items are not generated from the `panelDefs()` registry.

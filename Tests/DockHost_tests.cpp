@@ -79,6 +79,26 @@ TEST_CASE ("dock host: showing the editor opens a floating window; docking it ke
     CHECK (f.editorContent.getParentComponent() == editor);
 }
 
+TEST_CASE ("dock host: a floating window forwards unhandled Esc to the host hook", "[dock][host]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    int calls = 0;
+    f.host.onFloatingKey = [&calls] (const juce::KeyPress& k)
+    {
+        ++calls;
+        return k == juce::KeyPress (juce::KeyPress::escapeKey);
+    };
+    f.host.setVisible ("midiEditor", true);
+    auto* window = dynamic_cast<DockFloatWindow*> (f.host.panel ("midiEditor")->getTopLevelComponent());
+    REQUIRE (window != nullptr);
+
+    CHECK (window->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
+    CHECK (calls == 1);
+    CHECK_FALSE (window->keyPressed (juce::KeyPress ('x')));
+    CHECK (calls == 2);
+}
+
 TEST_CASE ("dock host: hiding then showing keeps the mode, and changes are reported", "[dock][host]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

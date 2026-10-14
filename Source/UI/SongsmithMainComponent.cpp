@@ -162,6 +162,10 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         if (onDockLayoutChanged)
             onDockLayoutChanged (layout);
     };
+    dockHost.onFloatingKey = [this] (const juce::KeyPress& key)
+    {
+        return key == juce::KeyPress (juce::KeyPress::escapeKey) && escapePressed();
+    };
     dockHost.apply (dock::defaultLayout());
 }
 

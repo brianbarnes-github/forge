@@ -268,6 +268,7 @@ void DockHost::rebuild()
             const std::string id = e->def.id;
             e->window = std::make_unique<DockFloatWindow> (*e->panel, e->panel->getTitle(),
                                                            s->floatBounds, centreAround);
+            e->window->onKeyPressed = [this] (const juce::KeyPress& k) { return onFloatingKey && onFloatingKey (k); };
             e->window->onBoundsChanged = [this] { boundsTimer.startTimer (boundsSettleMs); };
             e->window->onClosed = [this, id] { captureFloatBounds (layout); hide (layout, id); userChanged(); };
         }

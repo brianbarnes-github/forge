@@ -50,6 +50,9 @@ public:
     // `lower` collapses to its chrome when the bottom zone is empty and nothing else fills it.
     void setLowerHasOtherContent (bool);
 
+    // Keys a floating window's content did not handle; return true if consumed. Lets the main
+    // window's shortcuts (Esc) work while focus is in a floated panel.
+    std::function<bool (const juce::KeyPress&)> onFloatingKey;
     std::function<void (const LayoutState&)> onLayoutChanged;   // every user-driven change
 
 private:

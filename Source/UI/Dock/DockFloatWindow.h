@@ -23,6 +23,8 @@ public:
     FloatBounds currentBounds() const;
     std::function<void()> onClosed;
     std::function<void()> onBoundsChanged;   // the user moved or resized the window
+    std::function<bool (const juce::KeyPress&)> onKeyPressed;   // keys the panel did not handle
+    bool keyPressed (const juce::KeyPress&) override;
     void closeButtonPressed() override;
     void moved() override;
     void resized() override;
