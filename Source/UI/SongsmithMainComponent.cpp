@@ -37,11 +37,14 @@ void SongsmithMainComponent::PreviewRegion::resized()
 }
 
 SongsmithMainComponent::LowerRegion::LowerRegion (juce::Component* transportIn, dock::DockStack& bottomStackIn,
-                                                   DiagnosticListView& diagnosticsIn)
-    : transport (transportIn), bottomStack (bottomStackIn), diagnostics (diagnosticsIn)
+                                                   DiagnosticListView& diagnosticsIn, dock::DockStack& topStackIn)
+    : transport (transportIn), transportDivider (topStackIn), bottomStack (bottomStackIn), diagnostics (diagnosticsIn)
 {
     if (transport != nullptr)
+    {
         addAndMakeVisible (*transport);
+        addAndMakeVisible (transportDivider);
+    }
     addAndMakeVisible (bottomStack);
 
     // Hidden by default (View -> Diagnostics list shows it) -- addChildComponent,
@@ -62,7 +65,10 @@ void SongsmithMainComponent::LowerRegion::resized()
 {
     auto area = getLocalBounds();
     if (transport != nullptr)
+    {
         transport->setBounds (area.removeFromTop (TransportStrip::height));
+        transportDivider.setBounds (area.removeFromTop (dock::DockStack::dividerSize));
+    }
 
     if (diagnostics.isVisible() && bottomStack.items().empty())
     {
@@ -94,7 +100,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
       upperRegion (sourceHeader, trackList),
       previewRegion (previewAssignedPanel, previewRoll),
-      lowerRegion (transportStrip.get(), bottomStack, diagnostics),
+      lowerRegion (transportStrip.get(), bottomStack, diagnostics, topStack),
       dockHost (topStack, bottomStack, upperRegion, lowerRegion, nullptr)
 {
     sourceHeader.setText (
@@ -127,7 +133,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     // The LOTRO preview is the first dockable panel; the dock host puts it in the
     // bottom zone (today's layout) and parents upperRegion/lowerRegion in topStack.
-    dockHost.setLowerChromeHeight (transportStrip != nullptr ? TransportStrip::height : 0);
+    dockHost.setLowerChromeHeight (transportStrip != nullptr ? TransportStrip::height + dock::DockStack::dividerSize : 0);
     dockHost.addPanel (dock::panelDefs()[0], juce::Colour (SongsmithColours::accentAmber), previewRegion);
     dockHost.panel ("lotroPreview")->setTitle (
         juce::String::fromUTF8 ("\xe2\x96\xbc LOTRO PREVIEW \xc2\xb7 how it will sound in-game"));

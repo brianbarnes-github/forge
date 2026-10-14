@@ -150,14 +150,38 @@ private:
     public:
         // `transportIn` (null when there is no playback) is the bar across the
         // top of the region; it rides along when the dock divider above is dragged.
-        LowerRegion (juce::Component* transportIn, dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn);
+        LowerRegion (juce::Component* transportIn, dock::DockStack& bottomStackIn, DiagnosticListView& diagnosticsIn,
+                     dock::DockStack& topStackIn);
         void resized() override;
 
         void setDiagnosticsVisible (bool shouldShow);
         bool isDiagnosticsVisible() const noexcept { return diagnostics.isVisible(); }
 
     private:
+        // The bar between the transport strip and what is docked beneath it. The strip itself
+        // has a fixed height, so dragging this bar drags the top stack's last divider instead.
+        class Divider : public juce::Component
+        {
+        public:
+            explicit Divider (dock::DockStack& stackIn) : stack (stackIn)
+            {
+                setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+            }
+            void paint (juce::Graphics& g) override { g.fillAll (juce::Colours::grey); }
+            void mouseDown (const juce::MouseEvent&) override { stack.beginDrag(); }
+            void mouseDrag (const juce::MouseEvent& e) override
+            {
+                if (stack.dividerCount() > 0)
+                    stack.dragBar (stack.dividerCount() - 1, e.getDistanceFromDragStartY());
+            }
+            void mouseUp (const juce::MouseEvent& e) override { stack.endDrag (e.mouseWasDraggedSinceMouseDown()); }
+
+        private:
+            dock::DockStack& stack;
+        };
+
         juce::Component* transport;
+        Divider transportDivider;
         dock::DockStack& bottomStack;
         DiagnosticListView& diagnostics;
         SplitterComponent innerSplitter { SplitterComponent::Orientation::topBottom };

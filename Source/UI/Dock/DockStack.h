@@ -34,12 +34,14 @@ public:
 
     void resized() override;
 
-private:
-    class Bar;
-
+    // The divider drag, also driven from outside for a bar that sits inside a child
+    // (the lower region's bar under the transport strip drags the last divider).
     void beginDrag();
     void dragBar (int index, int deltaY);
     void endDrag (bool moved);
+
+private:
+    class Bar;
 
     std::vector<Item> currentItems;
     std::vector<Item> dragStart;

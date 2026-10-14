@@ -534,13 +534,48 @@ TEST_CASE ("SongsmithMainComponent: the transport strip heads the lower region, 
 
     CHECK (stripTopInView() >= Access::upperRegion (view).getBottom());
     CHECK (strip->getHeight() == TransportStrip::height);
-    CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockPanel::headerHeight);
+    CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockStack::dividerSize + lotro::dock::DockPanel::headerHeight);
 
     const int before = stripTopInView();
     Access::setUpperFraction (view, 0.3);
     view.resized();
     CHECK (stripTopInView() < before);
-    CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockPanel::headerHeight);
+    CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockStack::dividerSize + lotro::dock::DockPanel::headerHeight);
+}
+
+TEST_CASE ("SongsmithMainComponent: a draggable bar separates the transport strip from the panels beneath it", "[songsmith][transport][dock]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 800);
+
+    using Access = SongsmithMainComponentTestAccess;
+    auto* strip = Access::transportStrip (view);
+    REQUIRE (strip != nullptr);
+    auto& lower = Access::lowerRegion (view);
+    auto stripTop = [&] { return view.getLocalArea (strip, strip->getLocalBounds()).getY(); };
+
+    const auto barPoint = juce::Point<int> (50, strip->getBottom() + 1);
+    auto* bar = lower.getComponentAt (barPoint);
+    REQUIRE (bar != nullptr);
+    REQUIRE (bar != &lower);
+    CHECK (bar->getBounds().getHeight() == lotro::dock::DockStack::dividerSize);
+    CHECK (bar->getY() == strip->getBottom());
+
+    auto event = [&] (juce::Point<float> pos, juce::Point<float> down, bool dragged)
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), pos,
+                                 juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                 bar, bar, juce::Time::getCurrentTime(), down, juce::Time::getCurrentTime(), 1, dragged);
+    };
+    const int before = stripTop();
+    bar->mouseDown (event ({ 4.0f, 3.0f }, { 4.0f, 3.0f }, false));
+    bar->mouseDrag (event ({ 4.0f, -47.0f }, { 4.0f, 3.0f }, true));   // up 50 px
+    bar->mouseUp (event ({ 4.0f, -47.0f }, { 4.0f, 3.0f }, true));
+    CHECK (stripTop() < before);
 }
 
 TEST_CASE ("SongsmithMainComponent: hiding the MIDI source region lifts the transport strip to the top and showing it restores it", "[songsmith][transport][source]")
@@ -602,7 +637,7 @@ TEST_CASE ("SongsmithMainComponent: the Tracks bar is hidden at first, sits betw
     REQUIRE (bar.chipCountForTesting() == 1);
 
     auto topInView = [&] (juce::Component& c) { return view.getLocalArea (&c, c.getLocalBounds()).getY(); };
-    CHECK (topInView (bar) >= topInView (*Access::transportStrip (view)) + TransportStrip::height);
+    CHECK (topInView (bar) >= topInView (*Access::transportStrip (view)) + TransportStrip::height + lotro::dock::DockStack::dividerSize);
     CHECK (topInView (bar) < topInView (Access::partStrip (view)));
 
     auto* chip = bar.chipComponentForTesting (0);
@@ -826,7 +861,7 @@ TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter lay
     CHECK (lower.getBottom() == 700);
     CHECK (strip.getY() == lower.getY());
     CHECK (strip.getHeight() == 28);
-    CHECK (part.getY() == strip.getBottom() + lotro::dock::DockPanel::headerHeight);
+    CHECK (part.getY() == strip.getBottom() + lotro::dock::DockStack::dividerSize + lotro::dock::DockPanel::headerHeight);
     CHECK (part.getHeight() > 60);
     CHECK (roll.getX() == 160);
     const auto partInLower = lower.getLocalArea (&Access::partStrip (view), Access::partStrip (view).getLocalBounds());
