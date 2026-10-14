@@ -43,6 +43,7 @@ enum MenuCommandId : int
     TransportClearMarker,
     ViewExportPanelToggle,
     ViewDiagnosticsToggle,
+    ViewSourceToggle,
     ViewMidiEditorToggle,
     ViewLotroPreviewToggle,
     ViewPartsToggle,
@@ -58,13 +59,13 @@ enum MenuCommandId : int
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 34> allCommandIds {
+inline constexpr std::array<MenuCommandId, 35> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
-    TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewMidiEditorToggle,
+    TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewSourceToggle, ViewMidiEditorToggle,
     ViewLotroPreviewToggle, ViewPartsToggle, ViewMixerToggle, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
@@ -83,6 +84,7 @@ struct MenuState
     bool trackEditorOpen = false;
     bool exportPanelVisible = false;
     bool diagnosticsVisible = false;
+    bool sourceVisible = true;
     bool midiEditorVisible = false;
     bool lotroPreviewVisible = false;
     bool partsVisible = false;
@@ -202,6 +204,7 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
     menus.push_back ({ "View", {
         item (ViewExportPanelToggle, "Export ABC panel",  {}, true, s.exportPanelVisible),
         item (ViewDiagnosticsToggle, "Diagnostics list",  {}, true, s.diagnosticsVisible),
+        item (ViewSourceToggle,      "MIDI Source",       {}, true, s.sourceVisible),
         item (ViewMidiEditorToggle,  "MIDI Editor",       {}, true, s.midiEditorVisible),
         item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible),
         item (ViewPartsToggle,        "Parts",            {}, true, s.partsVisible),

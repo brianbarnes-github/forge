@@ -35,6 +35,11 @@ public:
     void setVisible (const std::string& id, bool);   // remembers the mode
     DockPanel* panel (const std::string& id);
 
+    // The MIDI source region (`upper`) is not a panel: it is shown or hidden as a whole, and when
+    // hidden the rest of the top stack (the transport strip and any docked panels) takes its space.
+    bool isUpperVisible() const noexcept { return layout.upperVisible; }
+    void setUpperVisible (bool);
+
     // Retitles the panel header and, if floating, its window.
     void setTitle (const std::string& id, const juce::String&);
     // Floating windows with no saved position open centred over this.

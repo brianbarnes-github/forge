@@ -40,6 +40,7 @@ struct LayoutState
 {
     double upperWeight = 0.55;
     double lowerWeight = 0.45;
+    bool   upperVisible = true;       // the MIDI source region (header + track list); not a panel
     std::vector<PanelState> panels;   // one per registered def, any order
 };
 

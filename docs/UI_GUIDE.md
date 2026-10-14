@@ -58,7 +58,7 @@ the classic editor's sibling pane.
 The MIDI editor (#28), the LOTRO preview (#20), the Parts strip (#15) and the Mixer (#34) are panels (`Source/UI/Dock/`). Each has a
 20 px header with its title and three controls: **Float** / **Dock** (toggles between the page
 and its own window), **...** (the "Dock to" menu: *Below track list* or *Bottom*, plus a ticked *Always on top* item while the
-panel floats; right-clicking anywhere on the header, over its buttons too, opens it) and **x** (hide). View → MIDI Editor / LOTRO Preview / Parts / Mixer show or hide them
+panel floats; right-clicking anywhere on the header, over its buttons too, opens it) and **x** (hide). View → MIDI Editor / LOTRO Preview / Parts / Mixer show or hide them. **View → MIDI Source** (ticked by default) shows or hides the whole MIDI source region (header, track list, ruler, conductor row); hidden, the transport strip and the docked panels take its space
 again, remembering whether each was docked or floating.
 
 - **Zones.** *Below track list* (between the track list and the lower region; the editor's

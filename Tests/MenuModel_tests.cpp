@@ -228,7 +228,7 @@ TEST_CASE ("MenuModel: View items are ticked from their visibility flags indepen
         MenuState s; s.exportPanelVisible = exportPanel; s.diagnosticsVisible = diag;
         return menuNamed (buildMenus (s), "View");
     };
-    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Editor", "LOTRO Preview", "Parts", "Mixer" });
+    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Source", "MIDI Editor", "LOTRO Preview", "Parts", "Mixer" });
     CHECK_FALSE (itemWith (view (false, true), ViewExportPanelToggle).ticked);
     CHECK (itemWith (view (false, true), ViewDiagnosticsToggle).ticked);
     CHECK (itemWith (view (true, false), ViewExportPanelToggle).ticked);
@@ -263,12 +263,21 @@ TEST_CASE ("MenuModel: the Mixer item follows Parts and is ticked from its own f
 {
     MenuState s;
     CHECK (labels (menuNamed (buildMenus (s), "View"))
-           == V { "Export ABC panel", "Diagnostics list", "MIDI Editor", "LOTRO Preview", "Parts", "Mixer" });
+           == V { "Export ABC panel", "Diagnostics list", "MIDI Source", "MIDI Editor", "LOTRO Preview", "Parts", "Mixer" });
     CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).enabled);
     CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).ticked);
     s.mixerVisible = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).ticked);
     CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewPartsToggle).ticked);
+}
+
+TEST_CASE ("MenuModel: the MIDI Source item is ticked by default and follows its flag", "[menu-model][source]")
+{
+    MenuState s;
+    CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewSourceToggle).enabled);
+    CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewSourceToggle).ticked);
+    s.sourceVisible = false;
+    CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewSourceToggle).ticked);
 }
 
 TEST_CASE ("MenuModel: Help menu", "[menu-model]")
@@ -311,5 +320,5 @@ TEST_CASE ("MenuModel: Tempo and Meter... needs a time base", "[menu-model]")
     CHECK_FALSE (itemWith (menuNamed (buildMenus ({}), "Edit"), EditTempoMeter).enabled);
     MenuState s; s.hasTimeBase = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "Edit"), EditTempoMeter).enabled);
-    CHECK (allCommandIds.size() == 34);
+    CHECK (allCommandIds.size() == 35);
 }

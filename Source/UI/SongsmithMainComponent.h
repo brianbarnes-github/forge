@@ -175,6 +175,8 @@ public:
         dockHost.setCentreFloatsAround (getTopLevelComponent());
         dockHost.setVisible ("midiEditor", show);
     }
+    bool isSourceVisible() const { return dockHost.isUpperVisible(); }
+    void setSourceVisible (bool show) { dockHost.setUpperVisible (show); }
     bool isLotroPreviewVisible() const { return dockHost.isVisible ("lotroPreview"); }
     void setLotroPreviewVisible (bool show) { dockHost.setVisible ("lotroPreview", show); }
     bool isPartsVisible() const { return dockHost.isVisible ("parts"); }

@@ -132,6 +132,55 @@ TEST_CASE ("dock host: floating the preview empties the bottom zone and collapse
     CHECK (f.lower.getHeight() == lowerBefore);
 }
 
+TEST_CASE ("dock host: hiding the source region gives its space to lower; showing it restores the split", "[dock][host][source]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    CHECK (f.host.isUpperVisible());
+    const int upperBefore = f.upper.getHeight(), lowerBefore = f.lower.getHeight();
+    const int changesBefore = f.changes;
+
+    f.host.setUpperVisible (false);
+    CHECK_FALSE (f.host.isUpperVisible());
+    CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "lower" });
+    CHECK_FALSE (f.upper.isVisible());
+    CHECK (f.lower.getHeight() == 700);
+    CHECK_FALSE (f.host.state().upperVisible);
+    CHECK (f.changes > changesBefore);
+
+    f.host.setUpperVisible (true);
+    CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "upper", "lower" });
+    CHECK (f.upper.isVisible());
+    CHECK (f.upper.getHeight() == upperBefore);
+    CHECK (f.lower.getHeight() == lowerBefore);
+}
+
+TEST_CASE ("dock host: with the source region hidden and the bottom zone empty, lower still fills the window", "[dock][host][source]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    f.host.panel ("lotroPreview")->onFloatToggle();   // empties the bottom zone: lower would collapse
+    f.host.setUpperVisible (false);
+    CHECK (f.lower.getHeight() == 700);
+
+    f.host.setUpperVisible (true);
+    CHECK (f.lower.getHeight() == 138);   // collapsed to its chrome again
+}
+
+TEST_CASE ("dock host: apply honours a saved hidden source region and floating panels still work", "[dock][host][source]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    auto s = defaultLayout();
+    s.upperVisible = false;
+    f.host.apply (s);
+    CHECK_FALSE (f.host.isUpperVisible());
+    CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "lower" });
+
+    f.host.setVisible ("midiEditor", true);   // floats; the top stack is unchanged
+    CHECK (Fixture::ids (f.topStack) == std::vector<std::string> { "lower" });
+}
+
 TEST_CASE ("dock host: a divider drag is written back to the state and reported", "[dock][host]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

@@ -542,6 +542,33 @@ TEST_CASE ("SongsmithMainComponent: the transport strip heads the lower region, 
     CHECK (partTopInView() == stripTopInView() + TransportStrip::height + lotro::dock::DockPanel::headerHeight);
 }
 
+TEST_CASE ("SongsmithMainComponent: hiding the MIDI source region lifts the transport strip to the top and showing it restores it", "[songsmith][transport][source]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+    view.setSize (1000, 800);
+
+    using Access = SongsmithMainComponentTestAccess;
+    auto* strip = Access::transportStrip (view);
+    REQUIRE (strip != nullptr);
+    auto stripTop = [&] { return view.getLocalArea (strip, strip->getLocalBounds()).getY(); };
+
+    CHECK (view.isSourceVisible());
+    const int before = stripTop();
+    CHECK (before > 100);
+
+    view.setSourceVisible (false);
+    CHECK_FALSE (view.isSourceVisible());
+    CHECK_FALSE (Access::upperRegion (view).isVisible());
+    CHECK (stripTop() == 0);
+
+    view.setSourceVisible (true);
+    CHECK (stripTop() == before);
+}
+
 TEST_CASE ("SongsmithMainComponent: without a playback controller there is no transport strip", "[songsmith][transport]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

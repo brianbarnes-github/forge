@@ -143,6 +143,24 @@ TEST_CASE ("dock: JSON round-trips", "[dock][state]")
     CHECK (find (back, "lotroPreview")->zone == Zone::bottom);
 }
 
+TEST_CASE ("dock: the MIDI source region is visible by default and its flag round-trips through JSON", "[dock][state][source]")
+{
+    CHECK (defaultLayout().upperVisible);
+
+    auto s = defaultLayout();
+    s.upperVisible = false;
+    CHECK_FALSE (fromJson (toJson (s)).upperVisible);
+    s.upperVisible = true;
+    CHECK (fromJson (toJson (s)).upperVisible);
+}
+
+TEST_CASE ("dock: a layout saved before the source flag existed, or with a bad one, shows the source region", "[dock][state][source]")
+{
+    CHECK (fromJson ("{\"upperWeight\": 0.5, \"lowerWeight\": 0.5, \"panels\": []}").upperVisible);
+    CHECK (fromJson ("{\"upperVisible\": \"no\", \"panels\": []}").upperVisible);
+    CHECK (fromJson ("{\"upperVisible\": 0, \"panels\": []}").upperVisible);
+}
+
 TEST_CASE ("dock: corrupt, empty, wrong-typed or hostile JSON gives the defaults", "[dock][state]")
 {
     for (const char* text : { "", "garbage", "{", "[]", "null", "{\"panels\": 5}",

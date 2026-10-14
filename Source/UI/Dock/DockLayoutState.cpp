@@ -198,6 +198,7 @@ std::string toJson (const LayoutState& s)
     auto* root = new juce::DynamicObject();
     root->setProperty ("upperWeight", s.upperWeight);
     root->setProperty ("lowerWeight", s.lowerWeight);
+    root->setProperty ("upperVisible", s.upperVisible);
 
     juce::Array<juce::var> panels;
     for (const auto& p : s.panels)
@@ -234,6 +235,9 @@ LayoutState fromJson (const std::string& text)
     LayoutState s;
     s.upperWeight = numberOr (parsed.getProperty ("upperWeight", {}), 0.0);
     s.lowerWeight = numberOr (parsed.getProperty ("lowerWeight", {}), 0.0);
+    // Only a real boolean counts; a layout saved before this flag existed, or a bad value, shows the region.
+    if (const auto v = parsed.getProperty ("upperVisible", {}); v.isBool())
+        s.upperVisible = (bool) v;
     if (const auto* arr = parsed.getProperty ("panels", {}).getArray())
         for (const auto& v : *arr)
             if (auto p = panelFromVar (v))

@@ -103,6 +103,15 @@ void DockHost::addPanel (const PanelDef& def, juce::Colour titleColour, juce::Co
     entries.push_back (std::move (e));
 }
 
+void DockHost::setUpperVisible (bool shouldShow)
+{
+    if (layout.upperVisible == shouldShow)
+        return;
+    captureFloatBounds (layout);
+    layout.upperVisible = shouldShow;
+    userChanged();
+}
+
 void DockHost::captureFloatBounds (LayoutState& s) const
 {
     for (const auto& e : entries)
@@ -235,10 +244,12 @@ void DockHost::rebuild()
     };
 
     auto bottomItems = itemsFor (Zone::bottom);
-    lowerCollapsed = bottomItems.empty() && ! lowerHasOtherContent;
+    // With `upper` hidden, `lower` is the only thing left to fill the window, so it never collapses.
+    lowerCollapsed = bottomItems.empty() && ! lowerHasOtherContent && layout.upperVisible;
 
     std::vector<DockStack::Item> topItems;
-    topItems.push_back ({ "upper", &upperComponent, layout.upperWeight, upperMinSize });
+    if (layout.upperVisible)
+        topItems.push_back ({ "upper", &upperComponent, layout.upperWeight, upperMinSize });
     for (auto& it : itemsFor (Zone::belowTracks))
         topItems.push_back (std::move (it));
     topItems.push_back ({ "lower", &lowerComponent, lowerCollapsed ? collapsedWeight : layout.lowerWeight,
