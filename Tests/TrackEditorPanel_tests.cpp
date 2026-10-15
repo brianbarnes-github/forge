@@ -20,6 +20,7 @@ namespace lotro
         static PianoRollComponent& roll (TrackEditorPanel& w) { return w.roll; }
         static juce::Component& content (TrackEditorPanel& w) { return *w.content; }
         static juce::MenuBarComponent& menuBar (TrackEditorPanel& w) { return w.menuBar; }
+        static int menuActivations (TrackEditorPanel& w) { return w.menuModel.activationsForTesting(); }
     };
 }
 
@@ -393,4 +394,44 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (bar.getParentComponent() == &panel);
     CHECK (bar.getBounds() == juce::Rectangle<int> (0, 0, 700, TrackEditorPanel::menuBarHeight));
     CHECK (Access::content (panel).getY() == bar.getBottom());
+}
+
+namespace
+{
+    juce::MouseEvent leftMouseAt (juce::Component& c, juce::Point<float> p)
+    {
+        const auto t = juce::Time::getCurrentTime();
+        return { juce::Desktop::getInstance().getMainMouseSource(), p,
+                 juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
+                 juce::MouseInputSource::defaultPressure, juce::MouseInputSource::defaultOrientation,
+                 juce::MouseInputSource::defaultRotation, juce::MouseInputSource::defaultTiltX,
+                 juce::MouseInputSource::defaultTiltY, &c, &c, t, p, t, 1, false };
+    }
+}
+
+TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu title leaves the menu bar unarmed", "[track-editor-window][editor-menu]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);
+    panel.setSize (700, 400);
+    // The bar's hit-test (reallyContains -> contains) needs a peer, so the panel goes on the desktop.
+    panel.addToDesktop (0);
+    panel.setVisible (true);
+
+    using Access = TrackEditorPanelTestAccess;
+    auto& bar = Access::menuBar (panel);
+    REQUIRE (bar.getNumChildComponents() == 5);   // one item component per title
+    for (int i = 0; i < bar.getNumChildComponents(); ++i)
+    {
+        const auto centre = bar.getChildComponent (i)->getBounds().getCentre().toFloat();
+        // JUCE never opens a popup for an empty menu and never reports it closed, so a
+        // forwarded press would leave the bar armed (title lit, hover switching titles).
+        bar.mouseDown (leftMouseAt (bar, centre));
+        bar.mouseUp (leftMouseAt (bar, centre));
+        bar.mouseDrag (leftMouseAt (bar, centre));
+        bar.mouseMove (leftMouseAt (bar, centre));
+        CHECK (Access::menuActivations (panel) == 0);
+    }
+    panel.removeFromDesktop();
 }

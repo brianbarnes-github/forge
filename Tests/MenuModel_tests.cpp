@@ -404,3 +404,14 @@ TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate,
     for (const auto& m : menus)
         CHECK (m.items.empty());
 }
+
+TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")
+{
+    const std::vector<bool> hasItems { true, false, false, true, false };
+    CHECK (nextOpenableMenu (hasItems, 0, +1) == 3);
+    CHECK (nextOpenableMenu (hasItems, 0, -1) == 3);   // wraps left past the empty View
+    CHECK (nextOpenableMenu (hasItems, 3, +1) == 0);   // wraps right
+    CHECK (nextOpenableMenu ({ false, true, false }, 1, +1) == -1);   // only the open one has items
+    CHECK (nextOpenableMenu ({ false, false, false }, 0, +1) == -1);
+    CHECK (nextOpenableMenu ({}, 0, +1) == -1);
+}

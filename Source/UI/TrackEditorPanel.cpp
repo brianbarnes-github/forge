@@ -43,6 +43,77 @@ namespace lotro
 
     void TrackEditorPanel::MenuModel::menuItemSelected (int, int) {}
 
+    void TrackEditorPanel::MenuModel::menuBarActivated (bool isActive)
+    {
+        if (isActive)
+            ++activations;
+    }
+
+    int TrackEditorPanel::MenuBar::titleAt (const juce::MouseEvent& e)
+    {
+        // The bar's only children are its title components, in menu order.
+        const auto p = e.getEventRelativeTo (this).getPosition();
+        for (int i = 0; i < getNumChildComponents(); ++i)
+            if (getChildComponent (i)->getBounds().contains (p))
+                return i;
+        return -1;
+    }
+
+    bool TrackEditorPanel::MenuBar::hasItems (int index)
+    {
+        auto* model = getModel();
+        if (model == nullptr)
+            return false;
+        const auto names = model->getMenuBarNames();
+        return model->getMenuForIndex (index, names[index]).getNumItems() > 0;
+    }
+
+    bool TrackEditorPanel::MenuBar::letThrough (const juce::MouseEvent& e)
+    {
+        const int title = titleAt (e);
+        if (title >= 0 && ! hasItems (title))
+            return false;
+        if (title >= 0)
+            openIndex = title;
+        return true;
+    }
+
+    void TrackEditorPanel::MenuBar::mouseDown (const juce::MouseEvent& e)
+    {
+        if (letThrough (e))
+            juce::MenuBarComponent::mouseDown (e);
+    }
+
+    void TrackEditorPanel::MenuBar::mouseDrag (const juce::MouseEvent& e)
+    {
+        if (letThrough (e))
+            juce::MenuBarComponent::mouseDrag (e);
+    }
+
+    void TrackEditorPanel::MenuBar::mouseMove (const juce::MouseEvent& e)
+    {
+        if (letThrough (e))
+            juce::MenuBarComponent::mouseMove (e);
+    }
+
+    bool TrackEditorPanel::MenuBar::keyPressed (const juce::KeyPress& key)
+    {
+        const bool left = key.isKeyCode (juce::KeyPress::leftKey);
+        if (! left && ! key.isKeyCode (juce::KeyPress::rightKey))
+            return juce::MenuBarComponent::keyPressed (key);
+
+        std::vector<bool> flags;
+        for (int i = 0; i < getNumChildComponents(); ++i)
+            flags.push_back (hasItems (i));
+        const int target = nextOpenableMenu (flags, juce::jmax (0, openIndex), left ? -1 : +1);
+        if (target >= 0)
+        {
+            openIndex = target;
+            showMenu (target);
+        }
+        return true;
+    }
+
     void TrackEditorPanel::paintOverChildren (juce::Graphics& g)
     {
         if (currentTrackId != -1)

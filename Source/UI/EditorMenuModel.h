@@ -16,4 +16,19 @@ inline std::vector<MenuDesc> editorMenus()
     return { { "File", {} }, { "Edit", {} }, { "Navigate", {} }, { "Options", {} }, { "View", {} } };
 }
 
+// Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)
+// that has items, skipping empty ones; -1 when no other menu has any. An empty
+// menu must never be opened (see TrackEditorPanel's menu bar).
+inline int nextOpenableMenu (const std::vector<bool>& hasItems, int current, int step)
+{
+    const int n = (int) hasItems.size();
+    for (int i = 1; i < n; ++i)
+    {
+        const int index = ((current + step * i) % n + n) % n;
+        if (hasItems[(std::size_t) index])
+            return index;
+    }
+    return -1;
+}
+
 } // namespace lotro

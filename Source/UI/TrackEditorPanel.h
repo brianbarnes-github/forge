@@ -103,13 +103,38 @@ namespace lotro
             juce::StringArray getMenuBarNames() override;
             juce::PopupMenu getMenuForIndex (int topLevelMenuIndex, const juce::String& menuName) override;
             void menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
+            void menuBarActivated (bool isActive) override;
+            int activationsForTesting() const noexcept { return activations; }
+
+        private:
+            int activations = 0;   // test observability: times the bar was armed
+        };
+
+        // JUCE opens no popup for an empty menu and never reports it closed, which
+        // leaves the bar armed (title lit, hover switching titles) and its open-menu
+        // count off for the session. So presses, drags and hovers over a title with
+        // no items, and Left/Right onto one, never reach the base class.
+        class MenuBar : public juce::MenuBarComponent
+        {
+        public:
+            using juce::MenuBarComponent::MenuBarComponent;
+            void mouseDown (const juce::MouseEvent&) override;
+            void mouseDrag (const juce::MouseEvent&) override;
+            void mouseMove (const juce::MouseEvent&) override;
+            bool keyPressed (const juce::KeyPress&) override;
+
+        private:
+            int titleAt (const juce::MouseEvent&);   // -1 off every title
+            bool hasItems (int index);
+            bool letThrough (const juce::MouseEvent&);    // false over an empty title
+            int openIndex = -1;                            // the last title let through
         };
 
         void titleChanged();
 
         SongDocument& doc;
         MenuModel menuModel;
-        juce::MenuBarComponent menuBar { &menuModel };
+        MenuBar menuBar { &menuModel };
         PianoRollComponent roll;
         // After `roll` (it holds a reference) and destroyed before it. Its strip and
         // the roll's playhead are destroyed before the controller, which the owner
