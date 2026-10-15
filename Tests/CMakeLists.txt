@@ -78,6 +78,7 @@ add_executable(forge_tests
     TrackEditorPanel_tests.cpp
     DockLayoutState_tests.cpp
     SavedLayouts_tests.cpp
+    StripButtons_tests.cpp
     ManageLayoutsDialog_tests.cpp
     DockStackLayout_tests.cpp
     DockStack_tests.cpp
@@ -179,6 +180,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/ThreePaneSplitter.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockLayoutState.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/SavedLayouts.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/StripButtons.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/ManageLayoutsDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStackLayout.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStack.cpp
