@@ -8,6 +8,8 @@ Date: 2026-10-14. Status: Implemented.
 - `resized()` calls `refresh()`, which recomputes the visible set (the pure `visibleButtonCount` decides the overflow split).
 - The strip is capped at 10 buttons (`maxStripButtons`); the picker greys out everything once it is full.
 - The pickable table has 32 entries (the spec said "about 27").
+- The spec's MainWindow-level tests (command dispatch, layout apply, Manage Layouts rename/delete updating the button and persisting) were dropped because `MainWindow` is not in `forge_tests`; they are covered piecewise instead (`StripButtons_tests`, `StripButtonsBar_tests`, `ManageLayoutsDialog_tests`, `AppSettings_tests`).
+- A right-click on a button is handled by `StripBarButton` (it bypasses `Button::mouseUp`, which would otherwise click for any mouse button); the picker and overflow menus map item ids in `pickerItemChosen` / `overflowItemChosen` so the mapping is testable.
 - The bar refreshes on a 5 Hz timer as well as on host changes, because enabled/pressed state has no change signal.
 
 
@@ -34,7 +36,7 @@ Everything is UI-side; nothing is added to `Source/Core/` (see the
 | Removal | Right-click a button ▸ "Remove from strip". |
 | Reordering | Not in v1 (remove and re-add). |
 | Labels | Short text, never icons. |
-| Overflow (left third too narrow) | Buttons that do not fit move into a `»` overflow menu at the right edge of the area. Rejected: plain clipping (hides buttons unreachably), a scroll bar (extra gesture, fights the resizable dividers). |
+| Overflow (left third too narrow) | Buttons that do not fit move into a `»` overflow menu placed directly after the last visible button. Rejected: plain clipping (hides buttons unreachably), a scroll bar (extra gesture, fights the resizable dividers). |
 | Command dispatch | Reuse `MainWindow::menuItemSelected` through a `runCommand(int)` callback. No second dispatcher. |
 | Enabled state | Same as the main menu: a button is disabled when its command is disabled in `MenuState`. |
 

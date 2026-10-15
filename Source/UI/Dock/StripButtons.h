@@ -51,6 +51,9 @@ struct ButtonView
 
 // nullopt = do not show the button (a command key this build does not know).
 std::optional<ButtonView> buttonView (const StripButton&, const lotro::MenuState&);
+// Same, with the menus already built from that state (buildMenus is the costly part when
+// computing many buttons from one state).
+std::optional<ButtonView> buttonView (const StripButton&, const lotro::MenuState&, const std::vector<lotro::MenuDesc>& menus);
 
 // The MenuCommandId clicking the button should dispatch; nullopt if the key is unknown or the
 // layout no longer exists.

@@ -327,3 +327,34 @@ TEST_CASE ("TrackEditorPanel: clicking a ruler bracket clears the loop range; a 
     ruler.mouseUp (rulerEvent (ruler, startDown, to));
     CHECK_FALSE (controller.getLoopRange().has_value());
 }
+
+TEST_CASE ("TrackEditorPanel: setStripButtonsHost works before and after setPlayback", "[track-editor][strip-buttons]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    StripButtonsHost host;
+    host.menuState = [] { return MenuState {}; };
+
+    SECTION ("host first, then playback")
+    {
+        SongDocument doc;
+        lotro::playbacktest::RecordingSink sink;
+        PlaybackController controller (doc, sink);
+        TrackEditorPanel panel (doc);
+        panel.setStripButtonsHost (&host);
+        CHECK (panel.stripButtonsBarForTesting() == nullptr);   // no strip yet
+        panel.setPlayback (&controller);
+        CHECK (panel.stripButtonsBarForTesting() != nullptr);
+    }
+
+    SECTION ("playback first, then host")
+    {
+        SongDocument doc;
+        lotro::playbacktest::RecordingSink sink;
+        PlaybackController controller (doc, sink);
+        TrackEditorPanel panel (doc);
+        panel.setPlayback (&controller);
+        CHECK (panel.stripButtonsBarForTesting() == nullptr);
+        panel.setStripButtonsHost (&host);
+        CHECK (panel.stripButtonsBarForTesting() != nullptr);
+    }
+}

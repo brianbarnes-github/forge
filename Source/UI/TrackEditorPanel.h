@@ -59,6 +59,7 @@ namespace lotro
         // The user's command buttons for the panel's transport strip; applied now and when
         // setPlayback creates the strip. Not owned.
         void setStripButtonsHost (StripButtonsHost* host);
+        StripButtonsBar* stripButtonsBarForTesting() { return content != nullptr ? content->strip.buttonsBarForTesting() : nullptr; }
         bool keyPressed (const juce::KeyPress& key) override;
         bool hasTransportStripForTesting() const noexcept
         {

@@ -30,6 +30,31 @@ public:
 // for the overflow ("»") button is reserved and the count is what fits beside it.
 int visibleButtonCount (const std::vector<int>& widths, int available, int gap, int overflowWidth);
 
+// A strip button. A right-click is the bar's remove gesture and must never click the button:
+// JUCE's Button::mouseUp clicks for any mouse button, so the right-click bypasses the base handlers.
+// Disabled buttons still receive mouse events, so they stay right-clickable.
+class StripBarButton : public juce::TextButton
+{
+public:
+    std::function<void()> onRightClick;
+
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (e.mods.isPopupMenu())
+        {
+            if (onRightClick) onRightClick();
+            return;
+        }
+        juce::TextButton::mouseDown (e);
+    }
+
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (! e.mods.isPopupMenu())
+            juce::TextButton::mouseUp (e);
+    }
+};
+
 // "+", then the user's buttons, then "»" when some do not fit. Right-click a button to remove it.
 class StripButtonsBar : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
@@ -48,14 +73,21 @@ public:
     juce::Button& plusButtonForTesting() { return plusButton; }
     juce::TextButton& buttonForTesting (int index) { return *buttons[(std::size_t) index].button; }
 
+    // What the picker / overflow menus do with the chosen item id (0 = dismissed). Public so the
+    // id mapping is testable without a modal menu.
+    void pickerItemChosen (int id);
+    void overflowItemChosen (int id);
+
+    // When set, a right-click calls this instead of opening the modal "Remove from strip" menu.
+    std::function<void (const dock::StripButton&)> removeMenuHookForTesting;
+
 private:
     struct Entry
     {
         dock::StripButton data;
-        std::unique_ptr<juce::TextButton> button;
+        std::unique_ptr<StripBarButton> button;
     };
 
-    void mouseDown (const juce::MouseEvent&) override;   // right-click on a button: remove menu
     void changeListenerCallback (juce::ChangeBroadcaster*) override { refresh(); }
     void timerCallback() override { refresh(); }
 
@@ -63,6 +95,7 @@ private:
     juce::PopupMenu buildPicker() const;
     void showPicker();
     void showOverflow();
+    void requestRemoveMenu (const dock::StripButton&);
     void showRemoveMenu (const dock::StripButton&);
     void activate (const dock::StripButton&);
     void remove (const dock::StripButton&);

@@ -52,6 +52,7 @@ namespace lotro
         }
         static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
         static int tempoGraphRepaints (SongsmithMainComponent& c) { return c.tempoMeterWindow->graphRepaintRequestsForTesting(); }
+        static StripButtonsBar* editorStripBar (SongsmithMainComponent& c) { return c.trackEditor->stripButtonsBarForTesting(); }
         static juce::int64 editorTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getTrackId();
@@ -1316,4 +1317,28 @@ TEST_CASE ("SongsmithMainComponent: Escape during a section drag cancels only th
 
     CHECK (view.escapePressed());
     CHECK_FALSE (controller.getLoopRange().has_value());
+}
+
+TEST_CASE ("SongsmithMainComponent: setStripButtonsHost gives both the main strip and the MIDI editor's strip a buttons bar", "[songsmith][transport][strip-buttons]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    SongsmithMainComponent view (doc, &controller);
+
+    using Access = SongsmithMainComponentTestAccess;
+    REQUIRE (Access::transportStrip (view) != nullptr);
+    CHECK (Access::transportStrip (view)->buttonsBarForTesting() == nullptr);
+    CHECK (Access::editorStripBar (view) == nullptr);
+
+    StripButtonsHost host;
+    host.menuState = [] { return MenuState {}; };
+    view.setStripButtonsHost (&host);
+    CHECK (Access::transportStrip (view)->buttonsBarForTesting() != nullptr);
+    CHECK (Access::editorStripBar (view) != nullptr);
+
+    view.setStripButtonsHost (nullptr);   // MainWindow's teardown order
+    CHECK (Access::transportStrip (view)->buttonsBarForTesting() == nullptr);
+    CHECK (Access::editorStripBar (view) == nullptr);
 }

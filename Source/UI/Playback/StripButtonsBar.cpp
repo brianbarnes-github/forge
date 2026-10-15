@@ -66,11 +66,12 @@ StripButtonsBar::~StripButtonsBar()
 void StripButtonsBar::refresh()
 {
     const MenuState state = host.menuState ? host.menuState() : MenuState {};
+    const auto menus = buildMenus (state);   // once per refresh, not once per button
 
     struct Shown { dock::StripButton data; dock::ButtonView view; int width; };
     std::vector<Shown> all;
     for (const auto& b : host.buttons)
-        if (const auto view = dock::buttonView (b, state))
+        if (const auto view = dock::buttonView (b, state, menus))
             all.push_back ({ b, *view, widthFor (juce::String (view->label)) });
 
     std::vector<int> widths;
@@ -87,12 +88,12 @@ void StripButtonsBar::refresh()
         buttons.clear();
         for (int i = 0; i < shown; ++i)
         {
-            Entry e { all[(std::size_t) i].data, std::make_unique<juce::TextButton>() };
+            Entry e { all[(std::size_t) i].data, std::make_unique<StripBarButton>() };
             e.button->setWantsKeyboardFocus (false);
             e.button->setClickingTogglesState (false);
             const auto data = e.data;
             e.button->onClick = [this, data] { activate (data); };
-            e.button->addMouseListener (this, false);   // right-click arrives in mouseDown below
+            e.button->onRightClick = [this, data] { requestRemoveMenu (data); };
             addAndMakeVisible (*e.button);
             buttons.push_back (std::move (e));
         }
@@ -176,46 +177,67 @@ void StripButtonsBar::showPicker()
     buildPicker().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&plusButton),
         [safe] (int id)
         {
-            if (safe == nullptr || id == 0)
-                return;
-            dock::StripButton b;
-            if (id >= layoutPickerBase)
-            {
-                const auto names = safe->host.menuState().layoutNames;
-                const auto index = (std::size_t) (id - layoutPickerBase);
-                if (index >= names.size())
-                    return;
-                b = { dock::StripButton::Kind::applyLayout, names[index] };
-            }
-            else
-            {
-                const auto index = (std::size_t) (id - pickerBase);
-                if (index >= stripCommands.size())
-                    return;
-                b = { dock::StripButton::Kind::command, stripCommands[index].key };
-            }
-            if (dock::addButton (safe->host.buttons, std::move (b)))
-            {
-                if (safe->host.persist) safe->host.persist();
-                safe->host.changed();
-            }
+            if (safe != nullptr)
+                safe->pickerItemChosen (id);
         });
+}
+
+void StripButtonsBar::pickerItemChosen (int id)
+{
+    if (id == 0)
+        return;
+    dock::StripButton b;
+    if (id >= layoutPickerBase)
+    {
+        const auto names = (host.menuState ? host.menuState() : MenuState {}).layoutNames;
+        const auto index = (std::size_t) (id - layoutPickerBase);
+        if (index >= names.size())
+            return;
+        b = { dock::StripButton::Kind::applyLayout, names[index] };
+    }
+    else
+    {
+        const auto index = (std::size_t) (id - pickerBase);
+        if (index >= stripCommands.size())
+            return;
+        b = { dock::StripButton::Kind::command, stripCommands[index].key };
+    }
+    if (dock::addButton (host.buttons, std::move (b)))
+    {
+        if (host.persist) host.persist();
+        host.changed();
+    }
 }
 
 void StripButtonsBar::showOverflow()
 {
     juce::PopupMenu menu;
     const auto state = host.menuState ? host.menuState() : MenuState {};
+    const auto menus = buildMenus (state);
     for (std::size_t i = 0; i < hiddenOverflow.size(); ++i)
-        if (const auto view = dock::buttonView (hiddenOverflow[i], state))
+        if (const auto view = dock::buttonView (hiddenOverflow[i], state, menus))
             menu.addItem ((int) i + 1, juce::String (view->label), view->enabled, view->pressed);
     juce::Component::SafePointer<StripButtonsBar> safe (this);
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&overflowButton),
         [safe] (int id)
         {
-            if (safe != nullptr && id > 0 && (std::size_t) id <= safe->hiddenOverflow.size())
-                safe->activate (safe->hiddenOverflow[(std::size_t) id - 1]);
+            if (safe != nullptr)
+                safe->overflowItemChosen (id);
         });
+}
+
+void StripButtonsBar::overflowItemChosen (int id)
+{
+    if (id > 0 && (std::size_t) id <= hiddenOverflow.size())
+        activate (hiddenOverflow[(std::size_t) id - 1]);
+}
+
+void StripButtonsBar::requestRemoveMenu (const dock::StripButton& b)
+{
+    if (removeMenuHookForTesting)
+        removeMenuHookForTesting (b);
+    else
+        showRemoveMenu (b);
 }
 
 void StripButtonsBar::showRemoveMenu (const dock::StripButton& b)
@@ -234,6 +256,8 @@ void StripButtonsBar::activate (const dock::StripButton& b)
 {
     if (! host.run || ! host.menuState)
         return;
+    // host.run may end in changed() -> refresh(), which can destroy the button whose onClick got
+    // us here (and this bar's entries); nothing below touches a capture or member afterwards.
     if (const auto id = dock::commandIdFor (b, host.menuState()))
         host.run (*id);
 }
@@ -258,18 +282,6 @@ void StripButtonsBar::clickButtonForTesting (int index)
 void StripButtonsBar::removeButtonForTesting (int index)
 {
     remove (buttons[(std::size_t) index].data);
-}
-
-void StripButtonsBar::mouseDown (const juce::MouseEvent& e)
-{
-    if (! e.mods.isPopupMenu())
-        return;
-    for (auto& entry : buttons)
-        if (e.eventComponent == entry.button.get())
-        {
-            showRemoveMenu (entry.data);
-            return;
-        }
 }
 
 } // namespace lotro

@@ -161,3 +161,26 @@ TEST_CASE ("StripButtons: a layout button whose layout is gone is shown disabled
     CHECK_FALSE (v->enabled);
     CHECK_FALSE (commandIdFor (layout ("Deleted"), s).has_value());
 }
+
+TEST_CASE ("buttonView with prebuilt menus matches the single-argument overload", "[strip-buttons]")
+{
+    lotro::MenuState state;
+    state.canUndo = true;
+    state.mixerVisible = true;
+    const auto menus = lotro::buildMenus (state);
+    for (const auto& b : { StripButton { StripButton::Kind::command, "edit.undo" },
+                           StripButton { StripButton::Kind::command, "edit.redo" },
+                           StripButton { StripButton::Kind::command, "view.mixer" },
+                           StripButton { StripButton::Kind::command, "nope" } })
+    {
+        const auto a = buttonView (b, state);
+        const auto c = buttonView (b, state, menus);
+        REQUIRE (a.has_value() == c.has_value());
+        if (a)
+        {
+            CHECK (a->label == c->label);
+            CHECK (a->enabled == c->enabled);
+            CHECK (a->pressed == c->pressed);
+        }
+    }
+}

@@ -70,13 +70,17 @@ void removeLayoutButton (StripButtons& list, const std::string& name)
 
 std::optional<ButtonView> buttonView (const StripButton& b, const lotro::MenuState& s)
 {
+    return buttonView (b, s, b.kind == StripButton::Kind::command ? lotro::buildMenus (s) : std::vector<lotro::MenuDesc> {});
+}
+
+std::optional<ButtonView> buttonView (const StripButton& b, const lotro::MenuState& s, const std::vector<lotro::MenuDesc>& menus)
+{
     if (b.kind == StripButton::Kind::applyLayout)
         return ButtonView { b.key, layoutIndex (b, s).has_value(), false };
     const auto* command = lotro::findStripCommand (b.key);
     if (command == nullptr)
         return std::nullopt;
     ButtonView view { command->label, true, false };
-    const auto menus = lotro::buildMenus (s);
     if (const auto* item = lotro::findMenuItem (menus, command->id))
     {
         view.enabled = item->enabled;
