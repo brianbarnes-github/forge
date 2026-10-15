@@ -87,6 +87,11 @@ void TrackListComponent::HeadDivider::mouseUp (const juce::MouseEvent& e)
         owner.onHeadWidthChanged (owner.headWidth);
 }
 
+void TrackListComponent::HeadDivider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    owner.handleWheel (WheelRegion::Heads, e.mods, wheel, e.getEventRelativeTo (&owner).y);
+}
+
 void TrackListComponent::setHeadWidth (int width)
 {
     const int clamped = headwidth::clamp (width);
@@ -1097,8 +1102,8 @@ void TrackListComponent::resized()
 
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
                                      .withWidth (previewWidth()));
-    headDivider.setBounds (notePreviewOriginX() - HeadDivider::grabHalfWidth, 0,
-                           2 * HeadDivider::grabHalfWidth, viewport.getBottom());
+    headDivider.setBounds (notePreviewOriginX() - HeadDivider::grabWidth, 0,
+                           HeadDivider::grabWidth, viewport.getBottom());
 
     applyRowHeight();
 

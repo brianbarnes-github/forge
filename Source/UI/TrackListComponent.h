@@ -200,9 +200,12 @@ private:
     void applyRowHeight();
 
     // The invisible grab strip over the line between the heads and the note strips
-    // (ruler and rows, full height), with a left-right resize cursor. A drag sets the
-    // head width from the press width plus the pointer's travel in list coordinates
-    // (the strip itself moves as the width changes); the release reports it.
+    // (ruler and rows, full height), with a left-right resize cursor. It lies wholly on
+    // the head side (the head takes no clicks of its own there), so the canvas's first
+    // pixels keep their section edges, band and ruler presses. A drag sets the head
+    // width from the press width plus the pointer's travel in list coordinates (the
+    // strip itself moves as the width changes); the release reports it. A wheel over it
+    // acts as over the heads.
     class HeadDivider : public juce::Component
     {
     public:
@@ -210,7 +213,8 @@ private:
         void mouseDown (const juce::MouseEvent& e) override;
         void mouseDrag (const juce::MouseEvent& e) override;
         void mouseUp (const juce::MouseEvent& e) override;
-        static constexpr int grabHalfWidth = 3;   // px either side of the line
+        void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
+        static constexpr int grabWidth = 6;   // px left of the note strips' edge; covers the 2 px line
     private:
         TrackListComponent& owner;
         int pressListX = 0;

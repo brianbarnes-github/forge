@@ -3593,7 +3593,7 @@ TEST_CASE ("TrackListComponent: dragging the head divider resizes the heads and 
     auto& divider = Access::headDivider (list);
     CHECK (divider.isVisible());
     CHECK (divider.getX() < headwidth::minimum);
-    CHECK (divider.getRight() > headwidth::minimum);
+    CHECK (divider.getRight() == headwidth::minimum);
     CHECK (divider.getMouseCursor() == juce::MouseCursor (juce::MouseCursor::LeftRightResizeCursor));
 
     const int down = headwidth::minimum;
@@ -3602,7 +3602,7 @@ TEST_CASE ("TrackListComponent: dragging the head divider resizes the heads and 
     CHECK (list.getHeadWidth() == 260);
     CHECK (committed.empty());   // no settings write per mouse move
     CHECK (divider.getX() < 260);
-    CHECK (divider.getRight() > 260);
+    CHECK (divider.getRight() == 260);
 
     divider.mouseDrag (dividerEventAt (list, down, down + 500));
     CHECK (list.getHeadWidth() == headwidth::maximum);
@@ -3622,4 +3622,53 @@ TEST_CASE ("TrackListComponent: dragging the head divider resizes the heads and 
     divider.mouseUp (dividerEventAt (list, 310, 10));
     CHECK (list.getHeadWidth() == headwidth::minimum);
     CHECK (committed.back() == headwidth::minimum);
+}
+
+TEST_CASE ("TrackListComponent: the head divider's grab strip lies on the head side and leaves the canvas edge to the rows", "[track-list][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.setVisible (true);   // getComponentAt only finds components inside a visible one
+    list.setHeadWidth (260);
+
+    const auto* divider = &Access::headDivider (list);
+    const int bandY  = TimelineRuler::height + 3;
+    const int notesY = TimelineRuler::height + TrackRowComponent::instrumentBandHeight + 10;
+    const int rulerY = 3;
+    for (const int y : { bandY, notesY, rulerY })
+    {
+        CHECK (list.getComponentAt (juce::Point<int> (259, y)) == divider);
+        CHECK (list.getComponentAt (juce::Point<int> (255, y)) == divider);
+        CHECK (list.getComponentAt (juce::Point<int> (260, y)) != divider);
+        CHECK (list.getComponentAt (juce::Point<int> (261, y)) != divider);
+    }
+}
+
+TEST_CASE ("TrackListComponent: a plain wheel over the head divider scrolls the heads instead of zooming", "[track-list][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTrackEndingAt (doc, 52000);
+    TrackListComponent list (doc);
+    list.setSize (800, 300);
+    const double before = Access::timelineView (list).getPixelsPerTick();
+
+    auto& divider = Access::headDivider (list);
+    juce::MouseWheelDetails wheel {};
+    wheel.deltaY = 1.0f;
+    const auto pos = juce::Point<float> (2.0f, 20.0f);
+    divider.mouseWheelMove (juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                              pos, juce::ModifierKeys(),
+                                              0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &divider, &divider,
+                                              juce::Time::getCurrentTime(), pos,
+                                              juce::Time::getCurrentTime(), 1, false),
+                            wheel);
+    CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (before));
 }
