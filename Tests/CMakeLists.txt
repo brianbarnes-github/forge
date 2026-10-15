@@ -51,6 +51,7 @@ add_executable(forge_tests
     Transport_tests.cpp
     LoopRange_tests.cpp
     RateMapping_tests.cpp
+    TransportText_tests.cpp
     PlaybackEngine_tests.cpp
     PlaybackController_tests.cpp
     SourceMidiTarget_tests.cpp
@@ -119,6 +120,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/Transport.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/LoopRange.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/RateMapping.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TransportText.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackEngine.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackController.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Mixer/SourceMidiTarget.cpp
