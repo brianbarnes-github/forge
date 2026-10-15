@@ -230,6 +230,13 @@ void SongsmithMainComponent::setMergeScope (MergeScope scope)
     trackList.setMergeScope (scope);
 }
 
+void SongsmithMainComponent::setStripButtonsHost (StripButtonsHost* host)
+{
+    if (transportStrip != nullptr)
+        transportStrip->setButtonsHost (host);
+    trackEditor->setStripButtonsHost (host);
+}
+
 void SongsmithMainComponent::setFollowPlayhead (bool follow)
 {
     followPlayheadSetting = follow;

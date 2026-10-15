@@ -193,6 +193,8 @@ public:
     // The dock layout (which panels are shown, docked or floating, where). Applying one does
     // not fire onDockLayoutChanged; any user-driven change does, so the owner can persist it.
     dock::LayoutState getDockLayout() const { return dockHost.state(); }
+    // The user's strip command buttons, on both transport strips (main and MIDI editor). Not owned.
+    void setStripButtonsHost (StripButtonsHost* host);
     void setDockLayout (const dock::LayoutState& layout) { dockHost.apply (layout); }
     // The layout saved by the last session, at launch: as setDockLayout, except a MIDI editor that
     // was left showing opens hidden, because it has no track yet and would only show an empty roll.

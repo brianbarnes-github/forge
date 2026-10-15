@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UI/Playback/PlaybackController.h"
+#include "UI/Playback/StripButtonsBar.h"
 #include "UI/Playback/TransportControls.h"
 #include "UI/SongDocument.h"
 #include "UI/ThreePaneSplitter.h"
@@ -8,6 +9,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace lotro
@@ -22,7 +24,7 @@ juce::Path transportIconPath (TransportIcon icon);
 // Three resizable areas (equal thirds to start). The middle one holds
 // Go to start | Rewind | Play/Pause | Stop | Go to end, bound to one
 // PlaybackController; the right one holds the transport controls; the left one
-// is still empty.
+// hosts the user's command buttons.
 class TransportStrip : public juce::Component, private PlaybackController::Listener
 {
 public:
@@ -30,6 +32,11 @@ public:
 
     TransportStrip (PlaybackController& controllerIn, SongDocument& documentIn);
     ~TransportStrip() override;
+
+    // The user's command buttons in the left area. Not owned: the host must outlive the strip.
+    // nullptr removes them.
+    void setButtonsHost (StripButtonsHost* host);
+    StripButtonsBar* buttonsBarForTesting() { return buttonsBar.get(); }
 
     void resized() override;
     void paint (juce::Graphics& g) override;
@@ -61,6 +68,7 @@ private:
     TransportIcon playIcon = TransportIcon::play;
     Area leftArea, centreArea, rightArea;   // before the buttons and the splitter, so both draw on top
     TransportControls controls;             // after rightArea, so it is destroyed first
+    std::unique_ptr<StripButtonsBar> buttonsBar;   // after the areas, so it is destroyed first
     ThreePaneSplitter splitter;
     juce::DrawableButton startButton  { "start",  juce::DrawableButton::ImageFitted },
                          rewindButton { "rewind", juce::DrawableButton::ImageFitted },

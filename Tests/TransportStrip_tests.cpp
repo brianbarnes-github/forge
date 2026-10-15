@@ -1,5 +1,6 @@
 #include "PlaybackTestSupport.h"
 #include "UI/Playback/PlaybackController.h"
+#include "UI/Playback/StripButtonsBar.h"
 #include "UI/Playback/TransportStrip.h"
 
 #include <catch2/catch_approx.hpp>
@@ -200,4 +201,29 @@ TEST_CASE ("TransportStrip: a narrow right area clips the controls without touch
 
     CHECK (strip.rightAreaForTesting().getX() >= strip.centreAreaForTesting().getRight());
     CHECK (strip.rightAreaForTesting().getRight() <= strip.getWidth());
+}
+
+TEST_CASE ("TransportStrip: a buttons host puts the + bar in the left area and removing it takes it away", "[playback][strip][strip-buttons]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller, doc);
+    strip.setSize (900, TransportStrip::height);
+    CHECK (strip.buttonsBarForTesting() == nullptr);
+
+    StripButtonsHost host;
+    host.menuState = [] { return MenuState {}; };
+    strip.setButtonsHost (&host);
+    REQUIRE (strip.buttonsBarForTesting() != nullptr);
+    CHECK (strip.buttonsBarForTesting()->getParentComponent() == &strip.leftAreaForTesting());
+    CHECK (strip.buttonsBarForTesting()->getWidth() == strip.leftAreaForTesting().getWidth());
+    CHECK (strip.buttonsBarForTesting()->plusButtonForTesting().isVisible());
+
+    strip.dragDividerForTesting (0, 200);   // the bar follows the left area's width
+    CHECK (strip.buttonsBarForTesting()->getWidth() == strip.leftAreaForTesting().getWidth());
+
+    strip.setButtonsHost (nullptr);
+    CHECK (strip.buttonsBarForTesting() == nullptr);
 }

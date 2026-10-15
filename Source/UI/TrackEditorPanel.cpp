@@ -88,6 +88,13 @@ namespace lotro
         roll.setBounds (area);
     }
 
+    void TrackEditorPanel::setStripButtonsHost (StripButtonsHost* host)
+    {
+        stripButtonsHost = host;
+        if (content != nullptr)
+            content->strip.setButtonsHost (host);
+    }
+
     void TrackEditorPanel::setPlayback (PlaybackController* controller)
     {
         if (controller == nullptr || content != nullptr)
@@ -96,6 +103,7 @@ namespace lotro
         playback = controller;
         roll.setPlayback (controller);
         content = std::make_unique<Content> (roll, *controller, doc);   // re-parents the roll
+        content->strip.setButtonsHost (stripButtonsHost);
         addAndMakeVisible (*content);
         content->setBounds (getLocalBounds());
     }

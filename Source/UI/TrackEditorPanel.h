@@ -56,6 +56,9 @@ namespace lotro
         // owned: the controller must outlive this panel. Call once, with a
         // non-null controller.
         void setPlayback (PlaybackController* controller);
+        // The user's command buttons for the panel's transport strip; applied now and when
+        // setPlayback creates the strip. Not owned.
+        void setStripButtonsHost (StripButtonsHost* host);
         bool keyPressed (const juce::KeyPress& key) override;
         bool hasTransportStripForTesting() const noexcept
         {
@@ -97,6 +100,7 @@ namespace lotro
         // keeps alive for longer than this panel.
         std::unique_ptr<Content> content;
         PlaybackController* playback = nullptr;
+        StripButtonsHost* stripButtonsHost = nullptr;
         std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
         juce::int64 currentTrackId = -1;
         int appearanceRepaintCount = 0;   // test observability

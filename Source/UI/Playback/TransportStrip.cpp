@@ -53,14 +53,24 @@ namespace
     constexpr int buttonRowWidth = buttonCount * buttonWidth + (buttonCount - 1) * buttonGap;
 }
 
+void TransportStrip::setButtonsHost (StripButtonsHost* host)
+{
+    buttonsBar.reset();
+    if (host == nullptr)
+        return;
+    buttonsBar = std::make_unique<StripButtonsBar> (*host);
+    leftArea.addAndMakeVisible (*buttonsBar);
+    buttonsBar->setBounds (leftArea.getLocalBounds());
+}
+
 TransportStrip::TransportStrip (PlaybackController& controllerIn, SongDocument& documentIn)
     : controller (controllerIn),
       controls (controllerIn, documentIn),
       splitter ({ sideAreaMinWidth, buttonRowWidth, sideAreaMinWidth })
 {
-    // The left area is an empty placeholder (TODO.md item 4: favourite commands).
     for (auto* a : { &leftArea, &centreArea, &rightArea })
         addAndMakeVisible (*a);
+    leftArea.onBoundsChanged = [this] { if (buttonsBar != nullptr) buttonsBar->setBounds (leftArea.getLocalBounds()); };
     centreArea.onBoundsChanged = [this] { layoutButtons(); };
     rightArea.addAndMakeVisible (controls);
     rightArea.onBoundsChanged = [this] { controls.setBounds (0, 0, std::max (TransportControls::preferredWidth, rightArea.getWidth()), rightArea.getHeight()); };
