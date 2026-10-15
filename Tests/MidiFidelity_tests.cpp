@@ -409,3 +409,36 @@ TEST_CASE ("MidiFidelity: a mixed-PPQ song exports a readable file that keeps ev
         CHECK ((int) reread.tracks[(size_t) t].events.size() == expected);
     }
 }
+
+TEST_CASE ("MidiFidelity: a one-track export is the conductor plus that track, each as the full export writes it", "[midifidelity][editor-menu]")
+{
+    SongDocument doc;
+    Diagnostics diags;
+    REQUIRE (importMidiFile (doc, midiFixture ("hold.mid"), 1, diags));
+    const auto full = buildRawMidiFile (doc);
+    REQUIRE (full.tracks.size() > 2);   // a conductor and at least two others, so "only this one" means something
+
+    std::size_t index = 1;   // the full export's track order: conductor, then the others in document order
+    for (auto track : doc.getSourceMidiNode())
+    {
+        if ((bool) track.getProperty (SongIDs::isConductor, false))
+            continue;
+        const auto single = buildRawMidiFile (doc, (juce::int64) track.getProperty (SongIDs::trackId));
+        CHECK (single.format == 1);
+        CHECK (single.ticksPerQuarter == full.ticksPerQuarter);
+        REQUIRE (single.tracks.size() == 2);
+        CHECK (single.tracks[0] == full.tracks[0]);
+        CHECK (single.tracks[1] == full.tracks[index]);
+        CHECK (readMidiBytes (writeMidiBytes (single), "s") == single);
+        ++index;
+    }
+}
+
+TEST_CASE ("MidiFidelity: a one-track export of the conductor or an unknown track is refused", "[midifidelity][editor-menu]")
+{
+    SongDocument doc;
+    doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto conductorId = (juce::int64) doc.getConductorTrack().getProperty (SongIDs::trackId);
+    CHECK_THROWS_AS (buildRawMidiFile (doc, conductorId), MidiExportError);
+    CHECK_THROWS_AS (buildRawMidiFile (doc, 987654), MidiExportError);
+}

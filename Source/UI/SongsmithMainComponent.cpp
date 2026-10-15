@@ -162,6 +162,12 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         trackEditor->setPlayback (playback);
     trackEditor->setFollowPlayhead (followPlayheadSetting);
     trackEditor->onTitleChanged = [this] (const juce::String& title) { dockHost.setTitle ("midiEditor", title); };
+    trackEditor->onCloseRequested = [this] { setMidiEditorVisible (false); };
+    trackEditor->onExportTrackMidi = [this] (juce::int64 trackId)
+    {
+        if (onExportTrackMidi)
+            onExportTrackMidi (trackId);
+    };
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 

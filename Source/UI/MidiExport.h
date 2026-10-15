@@ -15,4 +15,9 @@ namespace lotro
 
 RawMidiFile buildRawMidiFile (const SongDocument& doc);
 
+// One track on its own (the MIDI editor's File > Export to New MIDI File): format 1,
+// the conductor then that track, each exactly as the whole-song export writes it.
+// Throws MidiExportError for the conductor's id or an id with no track.
+RawMidiFile buildRawMidiFile (const SongDocument& doc, juce::int64 trackId);
+
 } // namespace lotro

@@ -11,6 +11,7 @@
 #include "Playback/PlaybackController.h"
 #include "Playback/StripButtonsBar.h"
 #include "Playback/SynthVoice.h"
+#include "RawMidi.h"
 #include "Preferences/PreferencesServices.h"
 #include "SongDocument.h"
 #include "SongSession.h"
@@ -129,6 +130,10 @@ private:
     void runConversion();
     void saveAbcAs();
     void exportMidiAs();
+    void exportTrackMidiAs (juce::int64 trackId);   // the MIDI editor's File > Export to New MIDI File
+    // Save dialog (with the replace check), then build and write; a MidiExportError or a
+    // failed write is reported and leaves any existing file intact.
+    void exportMidiWith (const juce::String& title, const juce::File& defaultFile, std::function<RawMidiFile()> build);
 
     void refreshTitle();
     void resetToEmptySong();

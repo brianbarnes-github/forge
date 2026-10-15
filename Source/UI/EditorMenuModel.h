@@ -6,14 +6,31 @@
 
 // The MIDI editor panel's own menu bar as plain data, in the same MenuDesc form
 // as the main menu so it is testable without JUCE. TrackEditorPanel converts it
-// to its juce::MenuBarComponent. The menus are still empty; items are added one
+// to its juce::MenuBarComponent and dispatches the ids. Items are added one
 // feature at a time.
 namespace lotro
 {
 
-inline std::vector<MenuDesc> editorMenus()
+// The editor bar's own ids; they never reach MainWindow::menuItemSelected.
+enum EditorMenuCommandId : int
 {
-    return { { "File", {} }, { "Edit", {} }, { "Navigate", {} }, { "Options", {} }, { "View", {} } };
+    EditorFileExportTrackMidi = 1,
+    EditorFileClose
+};
+
+struct EditorMenuState
+{
+    bool hasTrack = false;   // a track is loaded in the editor
+};
+
+inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
+{
+    using namespace menu_detail;
+    return { { "File", {
+                 item (EditorFileExportTrackMidi, "Export to New MIDI File...", {}, s.hasTrack),
+                 separator(),
+                 item (EditorFileClose, "Close Editor") } },
+             { "Edit", {} }, { "Navigate", {} }, { "Options", {} }, { "View", {} } };
 }
 
 // Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)

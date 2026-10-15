@@ -1,5 +1,6 @@
 #include "TrackEditorPanel.h"
 #include "EditorMenuModel.h"
+#include "MenuPopup.h"
 #include "SongsmithColours.h"
 
 namespace lotro
@@ -31,17 +32,43 @@ namespace lotro
     juce::StringArray TrackEditorPanel::MenuModel::getMenuBarNames()
     {
         juce::StringArray names;
-        for (const auto& m : editorMenus())
+        for (const auto& m : editorMenus ({}))
             names.add (m.name);
         return names;
     }
 
-    juce::PopupMenu TrackEditorPanel::MenuModel::getMenuForIndex (int, const juce::String&)
+    juce::PopupMenu TrackEditorPanel::MenuModel::getMenuForIndex (int topLevelMenuIndex, const juce::String&)
     {
-        return {};
+        EditorMenuState s;
+        s.hasTrack = owner.currentTrackId != -1;
+        const auto menus = editorMenus (s);
+        juce::PopupMenu m;
+        if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
+            addMenuItems (m, menus[(std::size_t) topLevelMenuIndex].items);
+        return m;
     }
 
-    void TrackEditorPanel::MenuModel::menuItemSelected (int, int) {}
+    void TrackEditorPanel::MenuModel::menuItemSelected (int menuItemID, int)
+    {
+        owner.invokeMenuCommand (menuItemID);
+    }
+
+    void TrackEditorPanel::invokeMenuCommand (int commandId)
+    {
+        switch (commandId)
+        {
+            case EditorFileExportTrackMidi:
+                if (currentTrackId != -1 && onExportTrackMidi)
+                    onExportTrackMidi (currentTrackId);
+                return;
+            case EditorFileClose:
+                if (onCloseRequested)
+                    onCloseRequested();
+                return;
+            default:
+                return;
+        }
+    }
 
     void TrackEditorPanel::MenuModel::menuBarActivated (bool isActive)
     {

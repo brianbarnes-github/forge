@@ -7,6 +7,7 @@
 #include "GridSize.h"
 #include "HistoryKeys.h"
 #include "ImportOptionsDialog.h"
+#include "MenuPopup.h"
 #include "MidiExport.h"
 #include "RawMidi.h"
 #include "SongFile.h"
@@ -198,6 +199,7 @@ MainWindow::MainWindow()
     // The track-head column width: restored here, saved when a divider drag is released.
     songsmith.setTrackHeadWidth (appSettings.trackHeadWidth());
     songsmith.onTrackHeadWidthChanged = [this] (int width) { appSettings.setTrackHeadWidth (width); };
+    songsmith.onExportTrackMidi = [this] (juce::int64 trackId) { exportTrackMidiAs (trackId); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
         const juce::String json (dock::toJson (layout));
@@ -312,35 +314,6 @@ MenuState MainWindow::currentMenuState()
     return s;
 }
 
-namespace
-{
-    void addItems (juce::PopupMenu& m, const std::vector<MenuItemDesc>& items)
-    {
-        for (const auto& d : items)
-        {
-            if (d.separator)
-            {
-                m.addSeparator();
-            }
-            else if (d.isSubmenu)
-            {
-                juce::PopupMenu sub;
-                addItems (sub, d.children);
-                m.addSubMenu (d.label, sub, d.enabled);
-            }
-            else
-            {
-                juce::PopupMenu::Item i (d.label);
-                i.itemID = d.id;
-                i.isEnabled = d.enabled;
-                i.isTicked = d.ticked;
-                i.shortcutKeyDescription = d.shortcut;
-                m.addItem (i);
-            }
-        }
-    }
-}
-
 // Rebuilt from the live state every time a menu opens, so enabled / ticked / the
 // Play-Pause label never need an explicit menuItemsChanged() poke.
 juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::String&)
@@ -348,7 +321,7 @@ juce::PopupMenu MainWindow::getMenuForIndex (int topLevelMenuIndex, const juce::
     juce::PopupMenu m;
     const auto menus = buildMenus (currentMenuState());
     if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
-        addItems (m, menus[(size_t) topLevelMenuIndex].items);
+        addMenuItems (m, menus[(size_t) topLevelMenuIndex].items);
     return m;
 }
 
@@ -878,17 +851,33 @@ void MainWindow::saveAbcAs()
 
 void MainWindow::exportMidiAs()
 {
-    const auto defaultFile = defaultExportFile (session.getFile(), ".mid",
-                                                juce::File::getSpecialLocation (juce::File::userDocumentsDirectory));
-    chooseAndConfirm (this, shouldConfirmReplace (appSettings), fileChooser, "Export MIDI", defaultFile, "*.mid;*.midi", { ".mid", ".midi" }, ".mid",
-        [this] (const juce::File& file)
+    exportMidiWith ("Export MIDI",
+                    defaultExportFile (session.getFile(), ".mid",
+                                       juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)),
+                    [this] { return buildRawMidiFile (songDocument); });
+}
+
+void MainWindow::exportTrackMidiAs (juce::int64 trackId)
+{
+    const auto trackName = songDocument.findTrackById (trackId).getProperty (SongIDs::name).toString();
+    exportMidiWith ("Export Track to MIDI",
+                    defaultTrackExportFile (session.getFile(), trackName,
+                                            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)),
+                    // Built after the dialog, so a track deleted meanwhile is a MidiExportError.
+                    [this, trackId] { return buildRawMidiFile (songDocument, trackId); });
+}
+
+void MainWindow::exportMidiWith (const juce::String& title, const juce::File& defaultFile, std::function<RawMidiFile()> build)
+{
+    chooseAndConfirm (this, shouldConfirmReplace (appSettings), fileChooser, title, defaultFile, "*.mid;*.midi", { ".mid", ".midi" }, ".mid",
+        [build = std::move (build)] (const juce::File& file)
         {
             // Build the whole byte buffer before touching the destination, so a
             // MidiExportError leaves any existing file intact.
             std::vector<std::uint8_t> bytes;
             try
             {
-                bytes = writeMidiBytes (buildRawMidiFile (songDocument));
+                bytes = writeMidiBytes (build());
             }
             catch (const MidiExportError& e)
             {

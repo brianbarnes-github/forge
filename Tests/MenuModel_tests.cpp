@@ -394,15 +394,29 @@ TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-mode
     CHECK (findMenuItem (menus, 99999) == nullptr);
 }
 
-TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View, each still empty", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; only File has items", "[menu-model][editor-menu]")
 {
-    const auto menus = editorMenus();
+    const auto menus = editorMenus ({});
     std::vector<std::string> names;
     for (const auto& m : menus)
         names.push_back (m.name);
     CHECK (names == std::vector<std::string> { "File", "Edit", "Navigate", "Options", "View" });
-    for (const auto& m : menus)
-        CHECK (m.items.empty());
+    for (std::size_t i = 1; i < menus.size(); ++i)
+        CHECK (menus[i].items.empty());
+}
+
+TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")
+{
+    EditorMenuState s;
+    const auto file = menuNamed (editorMenus (s), "File");
+    CHECK (labels (file) == std::vector<std::string> { "Export to New MIDI File...", "-", "Close Editor" });
+    CHECK (file.items[0].id == EditorFileExportTrackMidi);
+    CHECK (file.items[2].id == EditorFileClose);
+    CHECK_FALSE (file.items[0].enabled);   // no track loaded
+    CHECK (file.items[2].enabled);
+
+    s.hasTrack = true;
+    CHECK (menuNamed (editorMenus (s), "File").items[0].enabled);
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")

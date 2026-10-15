@@ -246,6 +246,9 @@ public:
     // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.
     void setTrackHeadWidth (int width) { trackList.setHeadWidth (width); }
     std::function<void (int)> onTrackHeadWidthChanged;
+    // The MIDI editor's File > Export to New MIDI File, for the track it has loaded;
+    // the owner runs the save dialog and writes the file.
+    std::function<void (juce::int64 trackId)> onExportTrackMidi;
     void setDefaultGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditor->getTrackId() != -1) trackEditor->quantizeSelection(); }
 

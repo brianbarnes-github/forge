@@ -126,4 +126,18 @@ RawMidiFile buildRawMidiFile (const SongDocument& doc)
     return file;
 }
 
+RawMidiFile buildRawMidiFile (const SongDocument& doc, juce::int64 trackId)
+{
+    const auto track = doc.findTrackById (trackId);
+    if (! track.isValid() || (bool) track.getProperty (SongIDs::isConductor, false))
+        throw MidiExportError ("There is no such track to export");
+
+    RawMidiFile file;
+    file.format          = 1;
+    file.ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
+    file.tracks.push_back (buildTrack (doc.getConductorTrack()));
+    file.tracks.push_back (buildTrack (track));
+    return file;
+}
+
 } // namespace lotro

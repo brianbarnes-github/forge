@@ -39,6 +39,13 @@ namespace lotro
         juce::String title() const;
         std::function<void (const juce::String&)> onTitleChanged;
 
+        // The editor menu bar's commands (EditorMenuCommandId). File > Export to New
+        // MIDI File fires onExportTrackMidi with the loaded track (nothing when none
+        // is loaded); File > Close Editor fires onCloseRequested.
+        void invokeMenuCommand (int commandId);
+        std::function<void (juce::int64 trackId)> onExportTrackMidi;
+        std::function<void()> onCloseRequested;
+
         void setGridTicks (int ticks);
         int getGridTicks() const;
         void setFollowPlayhead (bool on) { roll.setFollowPlayhead (on); }
@@ -96,10 +103,12 @@ namespace lotro
             std::optional<double> loopEdgeAnchor;   // the ruler bracket drag's fixed (other) edge
         };
 
-        // Feeds editorMenus() to the menu bar. No items yet, so nothing to dispatch.
+        // Feeds editorMenus() to the menu bar, built from the live state each time a
+        // menu opens, and hands chosen ids to the panel.
         class MenuModel : public juce::MenuBarModel
         {
         public:
+            explicit MenuModel (TrackEditorPanel& ownerIn) : owner (ownerIn) {}
             juce::StringArray getMenuBarNames() override;
             juce::PopupMenu getMenuForIndex (int topLevelMenuIndex, const juce::String& menuName) override;
             void menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
@@ -107,6 +116,7 @@ namespace lotro
             int activationsForTesting() const noexcept { return activations; }
 
         private:
+            TrackEditorPanel& owner;
             int activations = 0;   // test observability: times the bar was armed
         };
 
@@ -133,7 +143,7 @@ namespace lotro
         void titleChanged();
 
         SongDocument& doc;
-        MenuModel menuModel;
+        MenuModel menuModel { *this };
         MenuBar menuBar { &menuModel };
         PianoRollComponent roll;
         // After `roll` (it holds a reference) and destroyed before it. Its strip and

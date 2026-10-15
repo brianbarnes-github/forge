@@ -14,6 +14,7 @@
 #include "UI/SongModelBridge.h"
 #include "UI/Dock/DockFloatWindow.h"
 #include "UI/Dock/DockPanel.h"
+#include "UI/EditorMenuModel.h"
 #include "UI/SongsmithMainComponent.h"
 #include "UI/TempoEdit.h"
 #include "UI/TempoMeterEditorWindow.h"
@@ -53,6 +54,7 @@ namespace lotro
         static void closeTempoMeterWindow (SongsmithMainComponent& c) { c.tempoMeterWindow->closeButtonPressed(); }
         static int tempoGraphRepaints (SongsmithMainComponent& c) { return c.tempoMeterWindow->graphRepaintRequestsForTesting(); }
         static StripButtonsBar* editorStripBar (SongsmithMainComponent& c) { return c.trackEditor->stripButtonsBarForTesting(); }
+        static void invokeEditorMenuCommand (SongsmithMainComponent& c, int id) { c.trackEditor->invokeMenuCommand (id); }
         static juce::int64 editorTrackId (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getTrackId();
@@ -1358,4 +1360,26 @@ TEST_CASE ("SongsmithMainComponent: the track head width passes through to the t
     REQUIRE (Access::trackList (view).onHeadWidthChanged);
     Access::trackList (view).onHeadWidthChanged (340);
     CHECK (reported == 340);
+}
+
+TEST_CASE ("SongsmithMainComponent: the editor's Close Editor hides the panel and its export reaches onExportTrackMidi", "[track-editor][editor-menu]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+
+    SongsmithMainComponent main (doc);
+    std::vector<juce::int64> exports;
+    main.onExportTrackMidi = [&] (juce::int64 id) { exports.push_back (id); };
+    Access::trackDoubleClicked (main, trackId);
+    REQUIRE (main.isMidiEditorVisible());
+
+    Access::invokeEditorMenuCommand (main, EditorFileExportTrackMidi);
+    CHECK (exports == std::vector<juce::int64> { trackId });
+    CHECK (main.isMidiEditorVisible());
+
+    Access::invokeEditorMenuCommand (main, EditorFileClose);
+    CHECK_FALSE (main.isMidiEditorVisible());
+    CHECK (Access::editorTrackId (main) == trackId);   // hidden, not cleared: View > MIDI Editor brings it back as it was
 }

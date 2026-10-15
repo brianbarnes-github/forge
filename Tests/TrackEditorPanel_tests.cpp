@@ -2,6 +2,7 @@
 #include "PlaybackTestSupport.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/SongDocument.h"
+#include "UI/EditorMenuModel.h"
 #include "UI/TrackEditorPanel.h"
 
 #include <catch2/catch_approx.hpp>
@@ -382,10 +383,9 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     auto* model = bar.getModel();
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
-    // No items yet: every menu is empty and selecting an id does nothing.
-    for (int i = 0; i < 5; ++i)
+    CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
+    for (int i = 1; i < 5; ++i)
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
-    model->menuItemSelected (1, 0);
 
     // Still there, still on top, once the strip/ruler/roll content is built.
     lotro::playbacktest::RecordingSink sink;
@@ -422,7 +422,7 @@ TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu 
     using Access = TrackEditorPanelTestAccess;
     auto& bar = Access::menuBar (panel);
     REQUIRE (bar.getNumChildComponents() == 5);   // one item component per title
-    for (int i = 0; i < bar.getNumChildComponents(); ++i)
+    for (int i = 1; i < bar.getNumChildComponents(); ++i)   // File has items now; the rest are empty
     {
         const auto centre = bar.getChildComponent (i)->getBounds().getCentre().toFloat();
         // JUCE never opens a popup for an empty menu and never reports it closed, so a
@@ -434,4 +434,39 @@ TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu 
         CHECK (Access::menuActivations (panel) == 0);
     }
     panel.removeFromDesktop();
+}
+
+TEST_CASE ("TrackEditorPanel: File > Export to New MIDI File asks for this track; Close Editor asks to close", "[track-editor-window][editor-menu]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    TrackEditorPanel panel (doc);
+
+    std::vector<juce::int64> exports;
+    int closes = 0;
+    panel.onExportTrackMidi = [&] (juce::int64 id) { exports.push_back (id); };
+    panel.onCloseRequested = [&] { ++closes; };
+
+    // No track: the export item is greyed and does nothing; close still works.
+    auto* model = TrackEditorPanelTestAccess::menuBar (panel).getModel();
+    const auto emptyMenu = model->getMenuForIndex (0, "File");   // the iterator keeps a reference
+    juce::PopupMenu::MenuItemIterator empty (emptyMenu);
+    REQUIRE (empty.next());
+    CHECK_FALSE (empty.getItem().isEnabled);
+    panel.invokeMenuCommand (EditorFileExportTrackMidi);
+    CHECK (exports.empty());
+    panel.invokeMenuCommand (EditorFileClose);
+    CHECK (closes == 1);
+
+    panel.setTrack (track);
+    const auto loadedMenu = model->getMenuForIndex (0, "File");
+    juce::PopupMenu::MenuItemIterator loaded (loadedMenu);
+    REQUIRE (loaded.next());
+    CHECK (loaded.getItem().isEnabled);
+    model->menuItemSelected (EditorFileExportTrackMidi, 0);   // the bar's own dispatch path
+    CHECK (exports == std::vector<juce::int64> { trackId });
+    model->menuItemSelected (EditorFileClose, 0);
+    CHECK (closes == 2);
 }

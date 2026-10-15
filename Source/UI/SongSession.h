@@ -61,4 +61,10 @@ juce::File withExtensionIfMissing (const juce::File& file, const juce::StringArr
 juce::File defaultExportFile (const juce::File& songFile, const juce::String& extension,
                               const juce::File& fallbackDirectory);
 
+// One track's MIDI export: "<Song stem> - <track name>.mid" beside the Song, or
+// <fallbackDirectory>/"Untitled - <track name>.mid" for an unsaved Song. The track
+// name loses characters a file name cannot hold; a blank one reads "Track".
+juce::File defaultTrackExportFile (const juce::File& songFile, const juce::String& trackName,
+                                   const juce::File& fallbackDirectory);
+
 } // namespace lotro

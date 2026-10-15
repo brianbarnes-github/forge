@@ -128,3 +128,13 @@ TEST_CASE ("SongSession: defaultExportFile uses the Song stem, never the importe
     CHECK (defaultExportFile (juce::File ("/songs/My Song.songsmith"), ".abc", docs) == juce::File ("/songs/My Song.abc"));
     CHECK (defaultExportFile (juce::File(), ".mid", docs) == docs.getChildFile ("Untitled.mid"));
 }
+
+TEST_CASE ("SongSession: defaultTrackExportFile is '<Song> - <Track>.mid' beside the Song, or 'Untitled - <Track>.mid'", "[songsession][editor-menu]")
+{
+    const juce::File docs ("/home/u/Documents");
+    CHECK (defaultTrackExportFile (juce::File ("/songs/My Song.songsmith"), "Flute", docs) == juce::File ("/songs/My Song - Flute.mid"));
+    CHECK (defaultTrackExportFile (juce::File(), "Flute", docs) == docs.getChildFile ("Untitled - Flute.mid"));
+    // Characters a file name cannot hold are dropped; a blank name reads "Track".
+    CHECK (defaultTrackExportFile (juce::File(), "Lead/Solo: \"A\"", docs).getFileName() == "Untitled - LeadSolo A.mid");
+    CHECK (defaultTrackExportFile (juce::File(), "   ", docs) == docs.getChildFile ("Untitled - Track.mid"));
+}

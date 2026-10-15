@@ -59,4 +59,16 @@ juce::File defaultExportFile (const juce::File& songFile, const juce::String& ex
     return songFile.withFileExtension (extension);
 }
 
+juce::File defaultTrackExportFile (const juce::File& songFile, const juce::String& trackName,
+                                   const juce::File& fallbackDirectory)
+{
+    auto name = juce::File::createLegalFileName (trackName.trim()).trim();
+    if (name.isEmpty())
+        name = "Track";
+    const bool untitled = songFile == juce::File();
+    const auto dir  = untitled ? fallbackDirectory : songFile.getParentDirectory();
+    const auto song = untitled ? juce::String ("Untitled") : songFile.getFileNameWithoutExtension();
+    return dir.getChildFile (song + " - " + name + ".mid");
+}
+
 } // namespace lotro
