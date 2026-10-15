@@ -1,6 +1,9 @@
 #pragma once
 
+#include "UI/MenuModel.h"
+
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -37,5 +40,20 @@ std::string toJson (const StripButtons&);
 // Never throws. Empty/corrupt -> {}. Unknown kinds, empty keys and duplicates are dropped; an
 // unknown command key is kept (a newer build's setting must survive a round-trip); capped at maxStripButtons.
 StripButtons stripButtonsFromJson (const std::string&);
+
+// What a button should look like right now, derived from the same MenuState the menus use.
+struct ButtonView
+{
+    std::string label;
+    bool enabled = true;
+    bool pressed = false;   // a panel toggle whose panel is visible
+};
+
+// nullopt = do not show the button (a command key this build does not know).
+std::optional<ButtonView> buttonView (const StripButton&, const lotro::MenuState&);
+
+// The MenuCommandId clicking the button should dispatch; nullopt if the key is unknown or the
+// layout no longer exists.
+std::optional<int> commandIdFor (const StripButton&, const lotro::MenuState&);
 
 } // namespace lotro::dock

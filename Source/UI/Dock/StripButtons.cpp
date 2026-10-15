@@ -3,6 +3,7 @@
 #include <juce_core/juce_core.h>
 
 #include <algorithm>
+#include <optional>
 
 namespace lotro::dock
 {
@@ -16,6 +17,14 @@ bool sameName (const std::string& a, const std::string& b)
 const char* kindName (StripButton::Kind k)
 {
     return k == StripButton::Kind::command ? "command" : "applyLayout";
+}
+
+std::optional<int> layoutIndex (const StripButton& b, const lotro::MenuState& s)
+{
+    for (std::size_t i = 0; i < s.layoutNames.size() && (int) i < lotro::maxSavedLayouts; ++i)
+        if (sameName (s.layoutNames[i], b.key))
+            return (int) i;
+    return std::nullopt;
 }
 }
 
@@ -57,6 +66,34 @@ void removeLayoutButton (StripButtons& list, const std::string& name)
     list.erase (std::remove_if (list.begin(), list.end(), [&] (const StripButton& b)
                     { return b.kind == StripButton::Kind::applyLayout && sameName (b.key, name); }),
                 list.end());
+}
+
+std::optional<ButtonView> buttonView (const StripButton& b, const lotro::MenuState& s)
+{
+    if (b.kind == StripButton::Kind::applyLayout)
+        return ButtonView { b.key, layoutIndex (b, s).has_value(), false };
+    const auto* command = lotro::findStripCommand (b.key);
+    if (command == nullptr)
+        return std::nullopt;
+    ButtonView view { command->label, true, false };
+    const auto menus = lotro::buildMenus (s);
+    if (const auto* item = lotro::findMenuItem (menus, command->id))
+    {
+        view.enabled = item->enabled;
+        view.pressed = item->ticked;
+    }
+    return view;
+}
+
+std::optional<int> commandIdFor (const StripButton& b, const lotro::MenuState& s)
+{
+    if (b.kind == StripButton::Kind::applyLayout)
+    {
+        const auto index = layoutIndex (b, s);
+        return index ? std::optional<int> (lotro::ViewLayoutApplyBase + *index) : std::nullopt;
+    }
+    const auto* command = lotro::findStripCommand (b.key);
+    return command != nullptr ? std::optional<int> ((int) command->id) : std::nullopt;
 }
 
 std::string toJson (const StripButtons& list)
