@@ -111,7 +111,7 @@ void TransportControls::reject (Box& box, const juce::String& reason)
     });
 }
 
-void TransportControls::refreshSelection()
+void TransportControls::refreshSelection (bool force)
 {
     const auto snapshot = controller.currentSnapshot();
     const auto range = controller.getLoopRange();
@@ -121,14 +121,14 @@ void TransportControls::refreshSelection()
     if (! range.has_value() || ! enabled)
     {
         for (auto* box : { &startBox, &endBox, &lengthBox })
-            if (! box->isEditing())
+            if (force || ! box->isEditing())
                 box->show ({});
         return;
     }
     const auto segments = meterSegments (doc.getMeterChanges(), snapshot->tempo().getTicksPerQuarter());
-    if (! startBox.isEditing())  startBox.show (formatPosition (segments, range->startTick));
-    if (! endBox.isEditing())    endBox.show (formatPosition (segments, range->endTick));
-    if (! lengthBox.isEditing()) lengthBox.show (formatBeats (ticksToBeats (segments, range->startTick, range->endTick)));
+    if (force || ! startBox.isEditing())  startBox.show (formatPosition (segments, range->startTick));
+    if (force || ! endBox.isEditing())    endBox.show (formatPosition (segments, range->endTick));
+    if (force || ! lengthBox.isEditing()) lengthBox.show (formatBeats (ticksToBeats (segments, range->startTick, range->endTick)));
 }
 
 void TransportControls::commitSelection (Edited which)
@@ -143,7 +143,7 @@ void TransportControls::commitSelection (Edited which)
     if (startBox.editor.getText().isEmpty() && endBox.editor.getText().isEmpty() && lengthBox.editor.getText().isEmpty())
     {
         controller.clearLoopRange();
-        refreshSelection();
+        refreshSelection (true);
         return;
     }
 
@@ -156,19 +156,19 @@ void TransportControls::commitSelection (Edited which)
     if (startBox.editor.getText().isNotEmpty())
     {
         const auto p = parsePosition (text (startBox), segments);
-        if (p.error) { reject (startBox, describe (*p.error)); edited.shown = {}; refreshSelection(); return; }
+        if (p.error) { reject (startBox, describe (*p.error)); refreshSelection (true); return; }
         start = p.tick;
     }
     if (which == Edited::length)
     {
         const auto beats = parseBeats (text (lengthBox));
-        if (! beats || ! start) { reject (lengthBox, "Enter a length in beats, with a start"); lengthBox.shown = {}; refreshSelection(); return; }
+        if (! beats || ! start) { reject (lengthBox, "Enter a length in beats, with a start"); refreshSelection (true); return; }
         end = beatsToTicks (segments, *start, *beats);
     }
     else if (endBox.editor.getText().isNotEmpty())
     {
         const auto p = parsePosition (text (endBox), segments);
-        if (p.error) { reject (endBox, describe (*p.error)); edited.shown = {}; refreshSelection(); return; }
+        if (p.error) { reject (endBox, describe (*p.error)); refreshSelection (true); return; }
         end = p.tick;
     }
 
@@ -177,10 +177,7 @@ void TransportControls::commitSelection (Edited which)
 
     if (! controller.setLoopRange (*start, *end))
         reject (edited, "That range is too short or outside the song");
-    startBox.shown = startBox.editor.getText();   // idle again, so the refresh below rewrites all three
-    endBox.shown = endBox.editor.getText();
-    lengthBox.shown = lengthBox.editor.getText();
-    refreshSelection();
+    refreshSelection (true);
 }
 
 void TransportControls::refreshRate()

@@ -27,6 +27,8 @@ public:
     juce::TextEditor& lengthBoxForTesting() { return lengthBox.editor; }
     juce::TextEditor& meterBoxForTesting()  { return meterBox.editor; }
     juce::TextEditor& tempoBoxForTesting()  { return tempoBox.editor; }
+    // Real keyboard focus needs a window manager; this makes every Selection box count as focused.
+    void pretendFocusedForTesting (bool focused) { for (auto* b : { &startBox, &endBox, &lengthBox }) b->pretendFocused = focused; }
     juce::Slider& rateSliderForTesting()    { return rateSlider; }
     juce::Label& rateReadoutForTesting()    { return rateReadout; }
 
@@ -37,7 +39,8 @@ private:
     {
         juce::TextEditor editor;
         juce::String shown;
-        bool isEditing() const { return editor.hasKeyboardFocus (true) && editor.getText() != shown; }
+        bool pretendFocused = false;
+        bool isEditing() const { return (pretendFocused || editor.hasKeyboardFocus (true)) && editor.getText() != shown; }
         void show (const juce::String& text);   // writes text and records it
     };
 
@@ -48,7 +51,7 @@ private:
 
     void setupBox (Box& box, const juce::String& tooltip, std::function<void()> onCommit);
     void commitSelection (Edited which);
-    void refreshSelection();
+    void refreshSelection (bool force = false);   // force: overwrite a box even while it is being edited
     void reject (Box& box, const juce::String& reason);
     void refreshRate();
     void applyReadoutText();

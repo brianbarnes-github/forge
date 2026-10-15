@@ -154,3 +154,28 @@ TEST_CASE ("TransportControls: typing a rate moves the knob, and a controller ch
     rig.controls->rateReadoutForTesting().onTextChange();
     CHECK (rig.controls->rateReadoutForTesting().getText() == "4.000");   // reverted
 }
+
+TEST_CASE ("TransportControls: bad text in a focused box is replaced by the true value", "[playback][controls]")
+{
+    Rig rig;
+    rig.controller.setLoopRange (1920.0, 3840.0);
+    auto& start = rig.controls->startBoxForTesting();
+    rig.controls->pretendFocusedForTesting (true);   // real focus needs a window manager
+    rig.type (start, "nonsense");
+    CHECK (start.getText() == "2.1.0");
+
+    auto& length = rig.controls->lengthBoxForTesting();
+    rig.type (length, "-3");
+    CHECK (length.getText() == "4");
+}
+
+TEST_CASE ("TransportControls: a valid reversed entry in a focused box is shown ordered", "[playback][controls]")
+{
+    Rig rig;
+    rig.controller.setLoopRange (960.0, 1920.0);
+    auto& start = rig.controls->startBoxForTesting();
+    rig.controls->pretendFocusedForTesting (true);   // real focus needs a window manager
+    rig.type (start, "3.1.0");   // after the end (2.1.0)
+    CHECK (start.getText() == "2.1.0");
+    CHECK (rig.controls->endBoxForTesting().getText() == "3.1.0");
+}
