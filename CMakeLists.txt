@@ -133,6 +133,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/Mixer/MixerPanelComponent.cpp
     Source/UI/Playback/SynthVoice.cpp
     Source/UI/Playback/TransportStrip.cpp
+    Source/UI/Playback/TransportControls.cpp
     Source/UI/Playback/TimelineRuler.cpp
     Source/UI/Playback/TimelineRulerMarks.cpp
     Source/UI/GridLines.cpp
