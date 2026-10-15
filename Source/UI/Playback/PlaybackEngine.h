@@ -4,6 +4,7 @@
 #include "UI/Playback/HandOff.h"
 #include "UI/Playback/LoopRange.h"
 #include "UI/Playback/PlaybackSnapshot.h"
+#include "UI/Playback/RateMapping.h"
 #include "UI/Playback/Transport.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -34,6 +35,12 @@ public:
     void setMasterPercent (int percent) noexcept { master.store (juce::jlimit (0, 100, percent), std::memory_order_release); }
     int masterPercent() const noexcept { return master.load (std::memory_order_acquire); }
 
+    // Playback rate: song seconds per real second (1.0 = as written; pitch is
+    // never affected). Clamped to kMinPlaybackRate .. kMaxPlaybackRate. Any
+    // thread; the audio thread reads it once per block.
+    void setRate (double rateIn) noexcept { rate.store (clampRate (rateIn), std::memory_order_release); }
+    double playbackRate() const noexcept { return rate.load (std::memory_order_acquire); }
+
     // The loop span the playhead wraps within (nullopt = no loop). Message
     // thread (the single writer); the audio thread reads it once per block.
     void setLoopSpan (std::optional<LoopSpan> span) noexcept
@@ -56,7 +63,7 @@ private:
     void deliverControl (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept;
     void renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
     void renderSegment (const PlaybackSnapshot& snapshot, float* left, float* right, int samples,
-                        double segPos, double eventsBeforeSeconds) noexcept;
+                        double segPos, double eventsBeforeSeconds, double framesPerSongSecond) noexcept;
 
     static constexpr int kKeys = 128;
 
@@ -68,6 +75,7 @@ private:
     bool wasPlaying = false;
     unsigned seenSeekGeneration = 0;
     std::atomic<int> master { 100 };
+    std::atomic<double> rate { 1.0 };
     LoopSpanCell loopCell;
     std::optional<LoopSpan> lastPublishedSpan;   // message thread only: what setLoopSpan last published
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown

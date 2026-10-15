@@ -2,6 +2,7 @@
 #include "UI/Playback/LoopRange.h"
 #include "UI/Playback/PlaybackEngine.h"
 #include "UI/Playback/PlaybackSnapshot.h"
+#include "UI/Playback/RateMapping.h"
 #include "UI/Playback/Transport.h"
 
 #include <catch2/catch_approx.hpp>
@@ -10,6 +11,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <vector>
 
@@ -1231,4 +1233,99 @@ TEST_CASE ("PlaybackEngine loop: loopSpanForTesting reports the last published s
     CHECK (engine.loopSpanForTesting()->endSeconds == kLoopEnd);
     rig.engine.setLoopSpan (std::nullopt);
     CHECK_FALSE (engine.loopSpanForTesting().has_value());
+}
+
+TEST_CASE ("PlaybackEngine rate: defaults to 1.0 and clamps", "[playback][engine][rate]")
+{
+    SongDocument doc;
+    Rig rig (doc);
+    CHECK (rig.engine.playbackRate() == 1.0);
+    rig.engine.setRate (100.0);
+    CHECK (rig.engine.playbackRate() == kMaxPlaybackRate);
+    rig.engine.setRate (0.0);
+    CHECK (rig.engine.playbackRate() == kMinPlaybackRate);
+}
+
+TEST_CASE ("PlaybackEngine rate: at 2.0 a note starts and ends in half the frames", "[playback][engine][rate]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 480, 240);   // on at 0.5 s, off at 0.75 s
+    Rig rig (doc);
+    rig.engine.setRate (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (60);
+
+    CHECK (noteOnFrames (rig.sink, 60) == std::vector<long> { 12000 });
+    std::vector<long> offFrames;
+    for (const auto& r : rig.sink.records)
+        if (r.event.kind == PlaybackEventKind::NoteOff && r.event.data1 == 60)
+            offFrames.push_back (r.frame);
+    CHECK (offFrames == std::vector<long> { 18000 });
+}
+
+TEST_CASE ("PlaybackEngine rate: at 0.5 the same note takes twice the frames", "[playback][engine][rate]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 60, 480, 240);
+    Rig rig (doc);
+    rig.engine.setRate (0.5);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (120);   // 61440 frames
+
+    CHECK (noteOnFrames (rig.sink, 60) == std::vector<long> { 48000 });
+}
+
+TEST_CASE ("PlaybackEngine rate: the playhead advances rate x real time and the pitch is untouched", "[playback][engine][rate]")
+{
+    SongDocument doc;
+    addNote (addTrack (doc), 72, 0, 4800);
+    Rig rig (doc);
+    rig.engine.setRate (2.0);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (10);   // 5120 frames
+
+    CHECK (rig.transport.getPositionSeconds() == Catch::Approx (2.0 * 5120 / sr).margin (2.0 * kFrame));
+    for (const auto& r : rig.sink.records)
+        if (r.event.kind == PlaybackEventKind::NoteOn)
+            CHECK (r.event.data1 == 72);
+}
+
+TEST_CASE ("PlaybackEngine rate: changing the rate while playing neither skips nor repeats an event", "[playback][engine][rate]")
+{
+    SongDocument doc;
+    auto track = addTrack (doc);
+    for (int i = 0; i < 8; ++i)
+        addNote (track, 60 + i, 480 * i, 240);   // one note every 0.5 s
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (30);
+    rig.engine.setRate (2.0);
+    rig.render (100);
+    rig.engine.setRate (0.5);
+    rig.render (400);
+
+    for (int i = 0; i < 8; ++i)
+        CHECK (noteOnFrames (rig.sink, 60 + i).size() == 1);
+}
+
+TEST_CASE ("PlaybackEngine rate: the loop wraps on the exact frame at 0.5 and 4.0", "[playback][engine][rate][loop]")
+{
+    for (const double rate : { 0.5, 4.0 })
+    {
+        SongDocument doc;
+        addLoopSong (doc);
+        Rig rig (doc);
+        rig.engine.setRate (rate);
+        rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+        rig.transport.seek (kLoopStart);
+        rig.transport.play (rig.snapshot->endSeconds());
+        rig.render (1);
+        const int releases = rig.sink.releaseAllCount;
+        rig.render (99);   // 51200 frames in total
+
+        const double loopFrames = (kLoopEnd - kLoopStart) / rate * sr;
+        CHECK (rig.sink.releaseAllCount == releases + (int) std::floor (51200.0 / loopFrames));
+        CHECK (rig.transport.getPositionSeconds() >= kLoopStart);
+        CHECK (rig.transport.getPositionSeconds() < kLoopEnd);
+    }
 }

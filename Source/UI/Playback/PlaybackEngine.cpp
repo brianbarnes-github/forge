@@ -244,6 +244,10 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
     applyPanChanges (*snapshot, startPos, true);   // after a chase: nothing left to do
     wasPlaying = true;
 
+    // Frames per second of SONG time: sampleRate at rate 1.0 (sampleRate / 1.0 is
+    // exact), fewer when sped up. The loop step and the event offsets use it.
+    const double framesPerSongSecond = sampleRate / playbackRate();
+
     // The block as segments: a segment ends at the block end or, with a loop,
     // at the loop end, where the playhead wraps back to the loop start
     // (sample-accurately, at most kMaxWrapsPerBlock times per block).
@@ -252,7 +256,7 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
     int wraps = wrapOnEntry ? 1 : 0;
     while (done < numSamples)
     {
-        const auto step = nextLoopStep (segPos, numSamples - done, sampleRate, loop);
+        const auto step = nextLoopStep (segPos, numSamples - done, framesPerSongSecond, loop);
         if (step.wraps && wraps >= kMaxWrapsPerBlock)
         {
             // The cap binds: the rest of the block only lets the sink ring out,
@@ -261,12 +265,12 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
             sink.render (left + done, right + done, numSamples - done);
             break;
         }
-        const double segSeconds = (double) step.samples / sampleRate;
+        const double segSeconds = (double) step.samples / framesPerSongSecond;
         // A wrapping segment delivers only what lies before the loop end: an
         // event at the end belongs after the loop, not to the segment's last
         // frame (the ceil'd segment may reach just past the end).
         const double eventsBefore = step.wraps ? loop->endSeconds : segPos + segSeconds;
-        renderSegment (*snapshot, left + done, right + done, step.samples, segPos, eventsBefore);
+        renderSegment (*snapshot, left + done, right + done, step.samples, segPos, eventsBefore, framesPerSongSecond);
         done += step.samples;
         if (step.wraps)
         {
@@ -295,14 +299,14 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
 // Renders `samples` frames starting at segPos, delivering the events before
 // eventsBeforeSeconds at their frame (clamped into the segment).
 void PlaybackEngine::renderSegment (const PlaybackSnapshot& snapshot, float* left, float* right, int samples,
-                                    double segPos, double eventsBeforeSeconds) noexcept
+                                    double segPos, double eventsBeforeSeconds, double framesPerSongSecond) noexcept
 {
     const auto& events = snapshot.events();
     int rendered = 0;
     while (nextEvent < events.size() && events[nextEvent].seconds < eventsBeforeSeconds)
     {
         const auto& e = events[nextEvent];
-        const int offset = juce::jlimit (rendered, samples, (int) std::llround ((e.seconds - segPos) * sampleRate));
+        const int offset = juce::jlimit (rendered, samples, (int) std::llround ((e.seconds - segPos) * framesPerSongSecond));
         if (offset > rendered)
         {
             sink.render (left + rendered, right + rendered, offset - rendered);
