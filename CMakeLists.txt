@@ -165,6 +165,8 @@ target_sources(forge_ui PRIVATE
     Source/UI/SplitterComponent.cpp
     Source/UI/ThreePaneSplitter.cpp
     Source/UI/Dock/DockLayoutState.cpp
+    Source/UI/Dock/SavedLayouts.cpp
+    Source/UI/Dock/ManageLayoutsDialog.cpp
     Source/UI/Dock/DockStackLayout.cpp
     Source/UI/Dock/DockStack.cpp
     Source/UI/Dock/DockPanel.cpp

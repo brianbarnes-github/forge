@@ -49,29 +49,41 @@ enum MenuCommandId : int
     ViewTracksToggle,
     ViewPartsToggle,
     ViewMixerToggle,
+    ViewLayoutSave,
+    ViewLayoutManage,
     EditTempoMeter,
     HelpAbout,
 
     // Grid-size submenu items occupy EditGridSizeBase + each GridSize enum
     // value; MainWindow range-checks incoming ids against that span. Pinned well
     // clear of the ids above so appending an enumerator can't land inside it.
-    EditGridSizeBase = 1000
+    EditGridSizeBase = 1000,
+
+    // Layouts submenu: ViewLayoutApplyBase + the layout's index in the saved list.
+    ViewLayoutApplyBase = 2000
 };
+
+inline constexpr int maxSavedLayouts = 100;
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 36> allCommandIds {
+inline constexpr std::array<MenuCommandId, 38> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
     TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewSourceToggle, ViewMidiEditorToggle,
-    ViewLotroPreviewToggle, ViewTracksToggle, ViewPartsToggle, ViewMixerToggle, EditTempoMeter, HelpAbout };
+    ViewLotroPreviewToggle, ViewTracksToggle, ViewPartsToggle, ViewMixerToggle, ViewLayoutSave, ViewLayoutManage, EditTempoMeter, HelpAbout };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
     return id >= EditGridSizeBase && id <= EditGridSizeBase + (int) GridSize::Sixteenth;
+}
+
+constexpr bool isLayoutApplyCommand (int id) noexcept
+{
+    return id >= ViewLayoutApplyBase && id < ViewLayoutApplyBase + maxSavedLayouts;
 }
 
 struct MenuState
@@ -96,6 +108,7 @@ struct MenuState
     bool hasSelectedSections = false;    // canvas selection non-empty
     bool canSplitAtMarker = false;
     bool hasTimeBase = false;            // the Song has a tempo/meter time base to edit
+    std::vector<std::string> layoutNames;   // the saved dock layouts, in order
 };
 
 struct MenuItemDesc
@@ -143,6 +156,22 @@ namespace menu_detail
         d.isSubmenu = true;
         d.children = std::move (children);
         return d;
+    }
+}
+
+namespace menu_detail
+{
+    // Save, then each saved layout (click to apply), then Manage; the lists stay apart by separators.
+    inline std::vector<MenuItemDesc> layoutItems (const std::vector<std::string>& names)
+    {
+        std::vector<MenuItemDesc> items { item (ViewLayoutSave, "Save Layout") };
+        if (! names.empty())
+            items.push_back (separator());
+        for (std::size_t i = 0; i < names.size() && (int) i < maxSavedLayouts; ++i)
+            items.push_back (item (ViewLayoutApplyBase + (int) i, names[i]));
+        items.push_back (separator());
+        items.push_back (item (ViewLayoutManage, "Manage Layouts...", {}, ! names.empty()));
+        return items;
     }
 }
 
@@ -211,7 +240,9 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         item (ViewLotroPreviewToggle, "LOTRO Preview",    {}, true, s.lotroPreviewVisible),
         item (ViewTracksToggle,       "Tracks",           {}, true, s.tracksVisible),
         item (ViewPartsToggle,        "Parts",            {}, true, s.partsVisible),
-        item (ViewMixerToggle,        "Mixer",            {}, true, s.mixerVisible) } });
+        item (ViewMixerToggle,        "Mixer",            {}, true, s.mixerVisible),
+        separator(),
+        submenu ("Layouts", layoutItems (s.layoutNames)) } });
 
     menus.push_back ({ "Help", { item (HelpAbout, "About...") } });
     return menus;

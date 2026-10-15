@@ -4,6 +4,7 @@
 
 #include "AppSettings.h"
 #include "DiscardGuard.h"
+#include "Dock/SavedLayouts.h"
 #include "MenuModel.h"
 #include "MidiImportPlan.h"
 #include "Playback/AudioOutput.h"
@@ -96,6 +97,15 @@ private:
     // The open Preferences window, if any. Closed in ~MainWindow: the dialog holds
     // `preferencesServices`, whose lambdas capture `this` and which refers to `appSettings`.
     juce::Component::SafePointer<juce::DialogWindow> preferencesWindow;
+
+    // View > Layouts: the named dock layouts (mirrored in appSettings) and the open Manage window,
+    // which edits `savedLayouts` in place and is closed in ~MainWindow.
+    dock::SavedLayouts                       savedLayouts;
+    juce::Component::SafePointer<juce::DialogWindow> manageLayoutsWindow;
+    void saveCurrentLayout();
+    void applySavedLayout (std::size_t index);
+    void manageLayouts();
+    void persistSavedLayouts();
 
     // Declared after everything it renders from so it is destroyed first.
     // Created lazily on the message thread by ensurePlaybackReady().

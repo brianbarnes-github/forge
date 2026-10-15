@@ -228,7 +228,7 @@ TEST_CASE ("MenuModel: View items are ticked from their visibility flags indepen
         MenuState s; s.exportPanelVisible = exportPanel; s.diagnosticsVisible = diag;
         return menuNamed (buildMenus (s), "View");
     };
-    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Source", "MIDI Editor", "LOTRO Preview", "Tracks", "Parts", "Mixer" });
+    CHECK (labels (view (false, false)) == V { "Export ABC panel", "Diagnostics list", "MIDI Source", "MIDI Editor", "LOTRO Preview", "Tracks", "Parts", "Mixer", "-", "Layouts>" });
     CHECK_FALSE (itemWith (view (false, true), ViewExportPanelToggle).ticked);
     CHECK (itemWith (view (false, true), ViewDiagnosticsToggle).ticked);
     CHECK (itemWith (view (true, false), ViewExportPanelToggle).ticked);
@@ -263,7 +263,7 @@ TEST_CASE ("MenuModel: the Mixer item follows Parts and is ticked from its own f
 {
     MenuState s;
     CHECK (labels (menuNamed (buildMenus (s), "View"))
-           == V { "Export ABC panel", "Diagnostics list", "MIDI Source", "MIDI Editor", "LOTRO Preview", "Tracks", "Parts", "Mixer" });
+           == V { "Export ABC panel", "Diagnostics list", "MIDI Source", "MIDI Editor", "LOTRO Preview", "Tracks", "Parts", "Mixer", "-", "Layouts>" });
     CHECK (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).enabled);
     CHECK_FALSE (itemWith (menuNamed (buildMenus (s), "View"), ViewMixerToggle).ticked);
     s.mixerVisible = true;
@@ -311,7 +311,7 @@ TEST_CASE ("MenuModel: every command id is unique and listed in allCommandIds", 
             if (i.separator) { CHECK (i.id == 0); continue; }
             if (i.isSubmenu) { CHECK (i.id == 0); self (self, i.children); continue; }
             seen.insert (i.id);
-            CHECK ((known.count (i.id) == 1 || isGridSizeCommand (i.id)));
+            CHECK ((known.count (i.id) == 1 || isGridSizeCommand (i.id) || isLayoutApplyCommand (i.id)));
             CHECK_FALSE (i.label.empty());
         }
     };
@@ -330,5 +330,29 @@ TEST_CASE ("MenuModel: Tempo and Meter... needs a time base", "[menu-model]")
     CHECK_FALSE (itemWith (menuNamed (buildMenus ({}), "Edit"), EditTempoMeter).enabled);
     MenuState s; s.hasTimeBase = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "Edit"), EditTempoMeter).enabled);
-    CHECK (allCommandIds.size() == 36);
+    CHECK (allCommandIds.size() == 38);
+}
+
+TEST_CASE ("MenuModel: View ends with a Layouts submenu holding Save, each saved layout and Manage", "[menu-model]")
+{
+    const auto layouts = [] (std::vector<std::string> names)
+    {
+        MenuState s; s.layoutNames = std::move (names);
+        const auto view = menuNamed (buildMenus (s), "View");
+        REQUIRE (view.items.back().isSubmenu);
+        CHECK (view.items.back().label == "Layouts");
+        return MenuDesc { "Layouts", view.items.back().children };
+    };
+    const auto none = layouts ({});
+    CHECK (labels (none) == V { "Save Layout", "-", "Manage Layouts..." });
+    CHECK (itemWith (none, ViewLayoutSave).enabled);
+    CHECK_FALSE (itemWith (none, ViewLayoutManage).enabled);
+
+    const auto two = layouts ({ "Wide", "Layout 2" });
+    CHECK (labels (two) == V { "Save Layout", "-", "Wide", "Layout 2", "-", "Manage Layouts..." });
+    CHECK (itemWith (two, ViewLayoutApplyBase).label == "Wide");
+    CHECK (itemWith (two, ViewLayoutApplyBase + 1).label == "Layout 2");
+    CHECK (itemWith (two, ViewLayoutManage).enabled);
+    CHECK (isLayoutApplyCommand (ViewLayoutApplyBase + 1));
+    CHECK_FALSE (isLayoutApplyCommand (ViewLayoutApplyBase + maxSavedLayouts));
 }

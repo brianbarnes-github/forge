@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "Dock/ManageLayoutsDialog.h"
 #include "AboutBox.h"
 #include "AppSettings.h"
 #include "DiagnosticsPane.h"
@@ -187,6 +188,7 @@ MainWindow::MainWindow()
     // A failed save is not announced: the layout still applies this session and is retried at quit.
     auto& songsmith = body->getSongsmith();
     songsmith.restoreDockLayout (dock::fromJson (appSettings.dockLayout().toStdString()));
+    savedLayouts = dock::savedLayoutsFromJson (appSettings.savedLayouts().toStdString());
     songsmith.onFloatingShortcut = [this] (const juce::KeyPress& key) { return keyPressed (key); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
@@ -196,11 +198,44 @@ MainWindow::MainWindow()
     };
 }
 
+void MainWindow::persistSavedLayouts()
+{
+    appSettings.setSavedLayouts (juce::String (dock::toJson (savedLayouts)));
+}
+
+void MainWindow::saveCurrentLayout()
+{
+    if ((int) savedLayouts.size() >= maxSavedLayouts)
+        return;
+    dock::addLayout (savedLayouts, body->getSongsmith().getDockLayout());
+    persistSavedLayouts();
+}
+
+void MainWindow::applySavedLayout (std::size_t index)
+{
+    if (index >= savedLayouts.size())
+        return;
+    auto& songsmith = body->getSongsmith();
+    songsmith.setDockLayout (savedLayouts[index].layout);
+    // Applying does not report a layout change, so make it the one restored next launch.
+    appSettings.setDockLayout (juce::String (dock::toJson (songsmith.getDockLayout())));
+    menuItemsChanged();
+}
+
+void MainWindow::manageLayouts()
+{
+    if (manageLayoutsWindow != nullptr)
+        return;
+    manageLayoutsWindow = dock::showManageLayoutsDialog (savedLayouts, [this] { persistSavedLayouts(); }, this);
+}
+
 MainWindow::~MainWindow()
 {
     // A modal Preferences window holds preferencesServices (lambdas capturing this, plus appSettings); close it while those are still alive.
     if (auto* prefs = preferencesWindow.getComponent())
         prefs->exitModalState (0);
+    if (auto* manage = manageLayoutsWindow.getComponent())
+        manage->exitModalState (0);   // it edits `savedLayouts` and calls back into this window
 
     // The audio thread must stop before the engine and synth are destroyed.
     // (Members are destroyed in reverse order, so this is also guaranteed by
@@ -253,6 +288,8 @@ MenuState MainWindow::currentMenuState()
     s.hasSelectedSections = songsmith.hasSelectedSections();
     s.canSplitAtMarker   = songsmith.canSplitAtMarker();
     s.hasTimeBase        = songDocument.hasTimeBase();
+    for (const auto& layout : savedLayouts)
+        s.layoutNames.push_back (layout.name);
     return s;
 }
 
@@ -303,6 +340,11 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         body->getSongsmith().setActiveEditorGridSize ((GridSize) (menuItemID - EditGridSizeBase));
         return;
     }
+    if (isLayoutApplyCommand (menuItemID))
+    {
+        applySavedLayout ((std::size_t) (menuItemID - ViewLayoutApplyBase));
+        return;
+    }
 
     switch (menuItemID)
     {
@@ -339,6 +381,8 @@ void MainWindow::menuItemSelected (int menuItemID, int)
             runConversion();
             body->setExportPanelVisible (true);
             return;
+        case ViewLayoutSave:   saveCurrentLayout();   return;
+        case ViewLayoutManage: manageLayouts();       return;
         case ViewExportPanelToggle:
             body->setExportPanelVisible (! body->isExportPanelVisible());
             menuItemsChanged();

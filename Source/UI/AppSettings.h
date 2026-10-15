@@ -127,6 +127,14 @@ public:
         return save();
     }
 
+    // The user's named layouts as JSON (see Dock/SavedLayouts.h). Empty when none were saved.
+    juce::String savedLayouts() const { return file.getValue (keySavedLayouts); }
+    bool setSavedLayouts (const juce::String& json)
+    {
+        file.setValue (keySavedLayouts, json);
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -142,6 +150,7 @@ private:
     static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";
     static constexpr const char* keyMergeScope         = "editing.mergeScope";
     static constexpr const char* keyDockLayout         = "dock.layout";
+    static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.

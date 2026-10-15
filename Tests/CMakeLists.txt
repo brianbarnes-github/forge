@@ -77,6 +77,8 @@ add_executable(forge_tests
     PianoRollComponent_tests.cpp
     TrackEditorPanel_tests.cpp
     DockLayoutState_tests.cpp
+    SavedLayouts_tests.cpp
+    ManageLayoutsDialog_tests.cpp
     DockStackLayout_tests.cpp
     DockStack_tests.cpp
     DockPanel_tests.cpp
@@ -176,6 +178,8 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/SplitterComponent.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ThreePaneSplitter.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockLayoutState.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/SavedLayouts.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Dock/ManageLayoutsDialog.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStackLayout.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockStack.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Dock/DockPanel.cpp

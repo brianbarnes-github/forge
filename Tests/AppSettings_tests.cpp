@@ -304,3 +304,19 @@ TEST_CASE ("AppSettings: dock.layout round-trips and is empty by default", "[app
     juce::PropertiesFile reader (file, {});
     CHECK (reader.getValue ("dock.layout") == "{\"upperWeight\":0.4}");
 }
+
+TEST_CASE ("AppSettings: saved layouts default to empty and persist across a re-opened file", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.savedLayouts().isEmpty());
+        CHECK (settings.setSavedLayouts ("[1,2]"));
+        CHECK (settings.savedLayouts() == "[1,2]");
+        CHECK (settings.dockLayout().isEmpty());   // independent of the live layout
+    }
+    juce::PropertiesFile reloaded (file, {});
+    CHECK (AppSettings (reloaded).savedLayouts() == "[1,2]");
+}
