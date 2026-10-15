@@ -565,7 +565,7 @@ TEST_CASE ("TransportControls: the rate menu resets the rate to 1.000", "[playba
     CHECK (rig.controls->rateReadoutForTesting().getText() == "1.000");
 }
 
-TEST_CASE ("TransportControls: baking the rate into the first tempo scales it and resets the rate, as one undo step", "[playback][controls][rate]")
+TEST_CASE ("TransportControls: setting the first tempo to the current tempo scales it and resets the rate, as one undo step", "[playback][controls][rate]")
 {
     Rig rig;
     rig.controller.setRate (1.5);
@@ -581,23 +581,41 @@ TEST_CASE ("TransportControls: baking the rate into the first tempo scales it an
     CHECK (bpmAt (listTempoMeterEvents (rig.doc), 0) == Approx (120.0).margin (0.01));
 }
 
-TEST_CASE ("TransportControls: baking the rate with the playhead's tempo sets the first tempo to it times the rate", "[playback][controls][rate]")
+TEST_CASE ("TransportControls: setting the playhead tempo to the current tempo writes tempo x rate there and resets the rate", "[playback][controls][rate]")
 {
     Rig rig;
     REQUIRE_FALSE (setTempo (rig.doc, 1920, 90.0));
     rig.controller.flushRebuild();
     rig.controller.seekToTick (2000.0);
     rig.controller.setRate (2.0);
+    rig.doc.getUndoManager().clearUndoHistory();
     rig.controls->bakeRate (RateBake::playheadTempo);
     rig.controller.flushRebuild();
 
     const auto events = listTempoMeterEvents (rig.doc);
-    CHECK (bpmAt (events, 0) == Approx (180.0).margin (0.01));
-    CHECK (bpmAt (events, 1920) == Approx (90.0).margin (0.01));   // later tempos are left alone
+    CHECK (bpmAt (events, 0) == Approx (120.0).margin (0.01));      // the first tempo is left alone
+    CHECK (bpmAt (events, 1920) == Approx (90.0).margin (0.01));
+    CHECK (bpmAt (events, 2000) == Approx (180.0).margin (0.01));
     CHECK (rig.controller.rate() == Approx (1.0));
+
+    rig.doc.getUndoManager().undo();
+    rig.controller.flushRebuild();
+    CHECK (bpmAt (listTempoMeterEvents (rig.doc), 2000) == Approx (90.0).margin (0.01));
 }
 
-TEST_CASE ("TransportControls: baking a rate that pushes the tempo out of range is rejected and changes nothing", "[playback][controls][rate]")
+TEST_CASE ("TransportControls: the tempo menu items at rate 1.000 add no marker and no undo step", "[playback][controls][rate]")
+{
+    Rig rig;
+    rig.controller.seekToTick (2000.0);
+    rig.doc.getUndoManager().clearUndoHistory();
+    const auto before = listTempoMeterEvents (rig.doc).size();
+    rig.controls->bakeRate (RateBake::playheadTempo);
+    rig.controls->bakeRate (RateBake::firstTempo);
+    CHECK (listTempoMeterEvents (rig.doc).size() == before);
+    CHECK_FALSE (rig.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("TransportControls: setting a tempo that the rate pushes the tempo out of range is rejected and changes nothing", "[playback][controls][rate]")
 {
     Rig rig;
     REQUIRE_FALSE (setTempo (rig.doc, 0, 600.0));

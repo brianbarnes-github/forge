@@ -291,18 +291,20 @@ void TransportControls::commitMeter()
 
 void TransportControls::resetRate() { controller.setRate (1.0); }
 
-void TransportControls::bakeRate (RateBake source)
+void TransportControls::bakeRate (RateBake target)
 {
     if (! hasSong())
         return;
     const auto events = listTempoMeterEvents (doc);
-    const int tick = source == RateBake::firstTempo ? 0 : (int) std::llround (controller.getPositionTicks());
+    const int tick = target == RateBake::firstTempo ? 0 : (int) std::llround (controller.getPositionTicks());
     const double bpm = bpmAt (events, tick) * controller.rate();
-    if (const auto error = setTempo (doc, 0, bpm))
-    {
-        reject (tempoBox, describe (*error));
-        return;
-    }
+    // As in commitTempo: a tempo already in force (rate 1.000) adds no marker and no undo step.
+    if (roundedBpm (bpm) != roundedBpm (bpmAt (events, tick)))
+        if (const auto error = setTempo (doc, tick, bpm))
+        {
+            reject (tempoBox, describe (*error));
+            return;
+        }
     controller.setRate (1.0);
 }
 
@@ -316,8 +318,8 @@ void TransportControls::showRateMenu()
 {
     juce::PopupMenu menu;
     menu.addItem (1, "Set rate back to 1.000");
-    menu.addItem (2, "Set first tempo to current tempo (bake rate)", hasSong());
-    menu.addItem (3, "Set first tempo to tempo at playhead (bake rate)", hasSong());
+    menu.addItem (2, "Set first tempo to current tempo", hasSong());
+    menu.addItem (3, "Set playhead tempo to current tempo", hasSong());
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&rateSlider),
                         [safe = juce::Component::SafePointer<TransportControls> (this)] (int result)
                         {

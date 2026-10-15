@@ -11,7 +11,7 @@
 namespace lotro
 {
 
-// Which tempo the rate knob's menu bakes (times the rate) into the song's first tempo.
+// Where the rate knob's menu writes the current (rate-scaled) tempo: the first tempo marker or one at the playhead.
 enum class RateBake { firstTempo, playheadTempo };
 
 // The right area of the transport strip: the Selection group (loop start / end
@@ -30,7 +30,7 @@ public:
 
     // The rate knob's right-click menu actions.
     void resetRate();
-    // Sets the first tempo to (chosen tempo x rate) as one undo step, then resets the rate to 1.000.
+    // Writes (tempo there x rate) at tick 0 or at the playhead as one undo step, then resets the rate to 1.000.
     // A tempo the document cannot store is rejected with a bubble and nothing changes.
     void bakeRate (RateBake source);
 
