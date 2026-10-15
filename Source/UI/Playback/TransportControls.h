@@ -27,8 +27,8 @@ public:
     juce::TextEditor& lengthBoxForTesting() { return lengthBox.editor; }
     juce::TextEditor& meterBoxForTesting()  { return meterBox.editor; }
     juce::TextEditor& tempoBoxForTesting()  { return tempoBox.editor; }
-    // Real keyboard focus needs a window manager; this makes every Selection box count as focused.
-    void pretendFocusedForTesting (bool focused) { for (auto* b : { &startBox, &endBox, &lengthBox }) b->pretendFocused = focused; }
+    // Real keyboard focus needs a window manager; this makes every box count as focused.
+    void pretendFocusedForTesting (bool focused) { for (auto* b : { &startBox, &endBox, &lengthBox, &meterBox, &tempoBox }) b->pretendFocused = focused; }
     juce::Slider& rateSliderForTesting()    { return rateSlider; }
     juce::Label& rateReadoutForTesting()    { return rateReadout; }
 
@@ -48,11 +48,17 @@ private:
 
     void playbackLoopChanged() override { refreshSelection(); }
     void playbackRateChanged() override { refreshRate(); }
+    void playbackPositionChanged() override { refreshTiming(); }
+    void playbackSnapshotChanged() override { refreshSelection(); refreshTiming(); }
 
     void setupBox (Box& box, const juce::String& tooltip, std::function<void()> onCommit);
     void commitSelection (Edited which);
     void refreshSelection (bool force = false);   // force: overwrite a box even while it is being edited
     void reject (Box& box, const juce::String& reason);
+    bool hasSong() const;   // a snapshot with something to play
+    void refreshTiming (bool force = false);   // meter and tempo at the playhead; force as for refreshSelection
+    void commitMeter();
+    void commitTempo();
     void refreshRate();
     void applyReadoutText();
 

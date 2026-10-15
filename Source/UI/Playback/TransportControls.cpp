@@ -4,6 +4,7 @@
 #include "UI/Playback/RateMapping.h"
 #include "UI/Playback/TransportText.h"
 #include "UI/SongsmithColours.h"
+#include "UI/TempoEdit.h"
 
 #include <cmath>
 
@@ -14,6 +15,21 @@ namespace
 {
     constexpr int labelWidth = 62, positionWidth = 64, lengthWidth = 56, meterWidth = 46, tempoWidth = 78,
                   knobSize = 24, readoutWidth = 52, gap = 6, boxHeight = 20;
+
+    juce::String describe (TempoEditError e)
+    {
+        switch (e)
+        {
+            case TempoEditError::NoTimeBase:        return "Open a MIDI file first";
+            case TempoEditError::NegativeTick:      return "That position is before the start";
+            case TempoEditError::BpmOutOfRange:     return "Tempo must be between " + juce::String (minBpm(), 2) + " and " + juce::String (maxBpm);
+            case TempoEditError::MeterOutOfRange:   return "Numerator 1-32; denominator 1, 2, 4, 8, 16 or 32";
+            case TempoEditError::TickOccupied:      return "There is already an event at that position";
+            case TempoEditError::NoSuchEvent:       return "No such event";
+            case TempoEditError::CannotRemoveFirst: return "The first event cannot be removed";
+        }
+        return {};
+    }
 }
 
 void TransportControls::Box::show (const juce::String& text)
@@ -32,10 +48,8 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
     setupBox (startBox,  "Loop start (bar.beat.tick)", [this] { commitSelection (Edited::start); });
     setupBox (endBox,    "Loop end (bar.beat.tick)",   [this] { commitSelection (Edited::end); });
     setupBox (lengthBox, "Loop length in beats",       [this] { commitSelection (Edited::length); });
-    setupBox (meterBox,  "Time signature at the playhead", [] {});
-    setupBox (tempoBox,  "Tempo at the playhead",          [] {});
-    meterBox.editor.setEnabled (false);
-    tempoBox.editor.setEnabled (false);
+    setupBox (meterBox,  "Time signature at the playhead", [this] { commitMeter(); });
+    setupBox (tempoBox,  "Tempo at the playhead",          [this] { commitTempo(); });
 
     rateSlider.setRange (-2.0, 2.0, 0.001);
     rateSlider.setValue (rateToSlider (controller.rate()), juce::dontSendNotification);
@@ -53,6 +67,7 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
 
     controller.addListener (this);
     refreshSelection();
+    refreshTiming();
     refreshRate();
 }
 
@@ -115,7 +130,7 @@ void TransportControls::refreshSelection (bool force)
 {
     const auto snapshot = controller.currentSnapshot();
     const auto range = controller.getLoopRange();
-    const bool enabled = snapshot != nullptr;
+    const bool enabled = hasSong();
     for (auto* box : { &startBox, &endBox, &lengthBox })
         box->editor.setEnabled (enabled);
     if (! range.has_value() || ! enabled)
@@ -129,6 +144,68 @@ void TransportControls::refreshSelection (bool force)
     if (force || ! startBox.isEditing())  startBox.show (formatPosition (segments, range->startTick));
     if (force || ! endBox.isEditing())    endBox.show (formatPosition (segments, range->endTick));
     if (force || ! lengthBox.isEditing()) lengthBox.show (formatBeats (ticksToBeats (segments, range->startTick, range->endTick)));
+}
+
+bool TransportControls::hasSong() const
+{
+    const auto snapshot = controller.currentSnapshot();
+    return snapshot != nullptr && snapshot->endSeconds() > 0.0;
+}
+
+void TransportControls::refreshTiming (bool force)
+{
+    const bool enabled = hasSong();
+    meterBox.editor.setEnabled (enabled);
+    tempoBox.editor.setEnabled (enabled);
+    if (! enabled)
+    {
+        for (auto* box : { &meterBox, &tempoBox })
+            if (force || ! box->isEditing())
+                box->show ({});
+        return;
+    }
+    const double tick = controller.getPositionTicks();
+    if (force || ! meterBox.isEditing())
+    {
+        const auto segments = meterSegments (doc.getMeterChanges(), controller.currentSnapshot()->tempo().getTicksPerQuarter());
+        const auto numerator = segments.empty() ? 4 : segmentAt (segments, tick).numerator;
+        const auto denominator = segments.empty() ? 4 : segmentAt (segments, tick).denominator;
+        meterBox.show (juce::String (formatMeterText (numerator, denominator)));
+    }
+    if (force || ! tempoBox.isEditing())
+        tempoBox.show (juce::String::fromUTF8 (formatExactTempoText (bpmAt (listTempoMeterEvents (doc), (int) std::llround (tick))).c_str()));
+}
+
+void TransportControls::commitMeter()
+{
+    if (! hasSong() || meterBox.editor.getText() == meterBox.shown)
+        return;
+    const auto parsed = parseMeterText (meterBox.editor.getText().toStdString());
+    if (! parsed)
+    {
+        reject (meterBox, "Use n/d, such as 6/8");
+    }
+    else
+    {
+        // A meter change belongs on a bar line: put it on the one nearest the playhead.
+        const auto segments = meterSegments (doc.getMeterChanges(), controller.currentSnapshot()->tempo().getTicksPerQuarter());
+        const double tick = controller.getPositionTicks();
+        if (const auto error = setMeter (doc, (int) std::llround (nearestBarStart (segments, tick)), parsed->first, parsed->second))
+            reject (meterBox, describe (*error));
+    }
+    refreshTiming (true);
+}
+
+void TransportControls::commitTempo()
+{
+    if (! hasSong() || tempoBox.editor.getText() == tempoBox.shown)
+        return;
+    const auto bpm = parseTempoText (tempoBox.editor.getText().toStdString());
+    if (! bpm)
+        reject (tempoBox, "Enter a tempo, such as 120");
+    else if (const auto error = setTempo (doc, (int) std::llround (controller.getPositionTicks()), *bpm))
+        reject (tempoBox, describe (*error));
+    refreshTiming (true);
 }
 
 void TransportControls::commitSelection (Edited which)

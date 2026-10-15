@@ -3,9 +3,12 @@
 #include "UI/Playback/RateMapping.h"
 #include "UI/Playback/TransportControls.h"
 #include "UI/Playback/TransportText.h"
+#include "UI/TempoEdit.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+
+#include <memory>
 
 using namespace lotro;
 using namespace lotro::playbacktest;
@@ -33,7 +36,7 @@ namespace
 
         void type (juce::TextEditor& box, const char* text)
         {
-            box.setText (text, juce::dontSendNotification);
+            box.setText (juce::String::fromUTF8 (text), juce::dontSendNotification);
             box.onReturnKey();
         }
     };
@@ -178,4 +181,133 @@ TEST_CASE ("TransportControls: a valid reversed entry in a focused box is shown 
     rig.type (start, "3.1.0");   // after the end (2.1.0)
     CHECK (start.getText() == "2.1.0");
     CHECK (rig.controls->endBoxForTesting().getText() == "3.1.0");
+}
+
+TEST_CASE ("TransportControls: the meter and tempo boxes show the values at the playhead", "[playback][controls][timing]")
+{
+    Rig rig;
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+    CHECK (rig.controls->meterBoxForTesting().isEnabled());
+}
+
+TEST_CASE ("TransportControls: typing a meter sets it at the nearest bar to the playhead, as one undo step", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controller.seekToTick (2000.0);   // 80 ticks past the bar-2 line
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.type (rig.controls->meterBoxForTesting(), "6/8");
+    rig.controller.flushRebuild();
+
+    bool found = false;
+    for (const auto& e : listTempoMeterEvents (rig.doc))
+        if (e.kind == TempoMeterKind::meter && e.tick == 1920 && e.numerator == 6 && e.denominator == 8)
+            found = true;
+    CHECK (found);
+    CHECK (rig.controls->meterBoxForTesting().getText() == "6/8");
+
+    rig.doc.getUndoManager().undo();
+    rig.controller.flushRebuild();
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+}
+
+TEST_CASE ("TransportControls: typing a tempo sets it at the playhead and undo restores the box", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controller.seekToTick (1920.0);
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.type (rig.controls->tempoBoxForTesting(), "\xe2\x99\xa9=90");
+    rig.controller.flushRebuild();
+
+    CHECK (bpmAt (listTempoMeterEvents (rig.doc), 1920) == Approx (90.0).margin (0.01));
+    CHECK (bpmAt (listTempoMeterEvents (rig.doc), 0) == Approx (120.0).margin (0.01));
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("90"));
+
+    rig.doc.getUndoManager().undo();
+    rig.controller.flushRebuild();
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+}
+
+TEST_CASE ("TransportControls: the boxes follow the playhead across a tempo change", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controller.seekToTick (1920.0);
+    rig.type (rig.controls->tempoBoxForTesting(), "60");
+    rig.controller.flushRebuild();
+    rig.controller.seekToTick (0.0);
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+    rig.controller.seekToTick (3000.0);
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("60"));
+}
+
+TEST_CASE ("TransportControls: a rejected meter or tempo reverts and leaves the document alone", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.type (rig.controls->meterBoxForTesting(), "40/4");   // numerator above 32
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+    rig.type (rig.controls->meterBoxForTesting(), "banana");
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+    rig.type (rig.controls->tempoBoxForTesting(), "5000");   // above maxBpm
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+    CHECK (! rig.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("TransportControls: a rejected entry reverts even in a focused box", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controls->pretendFocusedForTesting (true);
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.type (rig.controls->meterBoxForTesting(), "banana");
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+    rig.type (rig.controls->meterBoxForTesting(), "40/4");
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+    rig.type (rig.controls->tempoBoxForTesting(), "banana");
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+    rig.type (rig.controls->tempoBoxForTesting(), "5000");
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+    CHECK (! rig.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("TransportControls: a committed entry is replaced by the true value even in a focused box", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controls->pretendFocusedForTesting (true);
+    rig.controller.seekToTick (1920.0);
+    rig.type (rig.controls->tempoBoxForTesting(), "90.0");   // true value is shown in the exact-tempo format
+    rig.controller.flushRebuild();
+    CHECK (rig.controls->tempoBoxForTesting().getText() == juce::String::fromUTF8 (formatExactTempoText (90.0).c_str()));
+}
+
+TEST_CASE ("TransportControls: typing is not overwritten while the playhead moves", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controls->pretendFocusedForTesting (true);
+    rig.controls->meterBoxForTesting().setText ("6", juce::dontSendNotification);   // typed, not committed
+    rig.controls->tempoBoxForTesting().setText ("77", juce::dontSendNotification);
+    rig.controller.seekToTick (480.0);                                              // refreshTiming runs
+    CHECK (rig.controls->meterBoxForTesting().getText() == "6");
+    CHECK (rig.controls->tempoBoxForTesting().getText() == "77");
+
+    rig.controls->pretendFocusedForTesting (false);
+    rig.controller.seekToTick (960.0);
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+}
+
+TEST_CASE ("TransportControls: with no song the boxes are disabled and typing does nothing", "[playback][controls][timing]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportControls controls (controller, doc);
+    controls.setSize (TransportControls::preferredWidth, 28);
+
+    CHECK (! controls.meterBoxForTesting().isEnabled());
+    CHECK (! controls.tempoBoxForTesting().isEnabled());
+    CHECK (! controls.startBoxForTesting().isEnabled());
+    controls.meterBoxForTesting().setText ("6/8", juce::dontSendNotification);
+    controls.meterBoxForTesting().onReturnKey();   // must not throw
+    CHECK (controller.getLoopRange() == std::nullopt);
+    CHECK (! doc.getUndoManager().canUndo());
 }
