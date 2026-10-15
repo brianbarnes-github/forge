@@ -1,6 +1,15 @@
 # Songsmith transport strip: user-chosen command buttons (left area) — design
 
-Date: 2026-10-14. Status: Draft, awaiting review.
+Date: 2026-10-14. Status: Implemented.
+
+**Implementation notes (deviations from the design below).**
+- `StripButtonsBar` talks to a shared `StripButtonsHost` (the buttons, `menuState` / `persist` / `run` callbacks and a `ChangeBroadcaster`) instead of the four callbacks listed under "StripButtonsBar", because the MIDI editor panel has a second `TransportStrip` that must stay in sync with the main one.
+- Resolving a button to a command id and its view lives in `StripButtons` (`commandIdFor`, `buttonView`), so both are testable without a window.
+- `resized()` calls `refresh()`, which recomputes the visible set (the pure `visibleButtonCount` decides the overflow split).
+- The strip is capped at 10 buttons (`maxStripButtons`); the picker greys out everything once it is full.
+- The pickable table has 32 entries (the spec said "about 27").
+- The bar refreshes on a 5 Hz timer as well as on host changes, because enabled/pressed state has no change signal.
+
 
 ## Goal
 
