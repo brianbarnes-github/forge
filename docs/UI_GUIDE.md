@@ -266,7 +266,7 @@ When you say…       …I'll know you mean
   it. Double-clicking a different row re-points the same panel (`setTrack`)
   rather than opening a second one. Across its top is its own menu bar —
   File, Edit, Navigate, Options, View — shown docked or floating; the menus
-  are empty for now and gain items feature by feature. It hosts the source piano roll (#13)
+  are empty for now (clicking one does nothing) and gain items feature by feature. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
   below for the editing gestures — plus translucent overlays of any tracks
   currently ghost-toggled on in the track list (#10). The loop range (#35), when
