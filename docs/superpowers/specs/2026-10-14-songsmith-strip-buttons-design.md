@@ -81,7 +81,7 @@ StripButtons stripButtonsFromJson (const std::string&);           // never throw
   `stripButtonsFromJson` keeps unknown command keys (a newer build's setting
   must survive a downgrade round-trip); the UI skips buttons whose key it does
   not know.
-- Cap: `maxStripButtons = 40`; `addButton` refuses beyond it.
+- Cap: `maxStripButtons = 10`; `addButton` refuses beyond it (the picker greys everything out once the strip is full). Only about 4–6 fit in the default left area; the rest sit behind `»`.
 - `AppSettings` gains `stripButtons()` / `setStripButtons()` (key
   `strip.buttons`), like `savedLayouts()`.
 
@@ -139,7 +139,7 @@ itself stays thin).
 
 ## Testing (TDD, integration-leaning)
 
-- `StripButtons_tests`: add/duplicate refusal/cap, remove, rename and remove
+- `StripButtons_tests`: add/duplicate refusal/cap of 10, remove, rename and remove
   layout button (case-insensitive), JSON round-trip, corrupt input, unknown
   kind dropped, unknown command key kept.
 - `MenuModel_tests`: pickable table ids ⊂ `allCommandIds`, keys unique, no
