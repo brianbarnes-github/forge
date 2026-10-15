@@ -31,8 +31,8 @@ namespace lotro
                     getLocalArea (&roll, roll.getLocalBounds()), juce::Justification::centred);
     }
 
-    TrackEditorPanel::Content::Content (PianoRollComponent& rollIn, PlaybackController& controller)
-        : strip (controller),
+    TrackEditorPanel::Content::Content (PianoRollComponent& rollIn, PlaybackController& controller, SongDocument& document)
+        : strip (controller, document),
           ruler ([&rollIn] (int x) { return rollIn.tickForXInComponent (x); }),
           roll (rollIn)
     {
@@ -95,7 +95,7 @@ namespace lotro
 
         playback = controller;
         roll.setPlayback (controller);
-        content = std::make_unique<Content> (roll, *controller);   // re-parents the roll
+        content = std::make_unique<Content> (roll, *controller, doc);   // re-parents the roll
         addAndMakeVisible (*content);
         content->setBounds (getLocalBounds());
     }

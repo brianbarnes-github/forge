@@ -78,7 +78,7 @@ namespace lotro
         class Content : public juce::Component
         {
         public:
-            Content (PianoRollComponent& rollIn, PlaybackController& controller);
+            Content (PianoRollComponent& rollIn, PlaybackController& controller, SongDocument& document);
             ~Content() override;
             void resized() override;
 

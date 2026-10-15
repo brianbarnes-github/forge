@@ -39,7 +39,7 @@ TEST_CASE ("TransportStrip: buttons never take keyboard focus, so Space cannot r
     SongDocument doc;
     RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TransportStrip strip (controller);
+    TransportStrip strip (controller, doc);
     strip.setSize (300, TransportStrip::height);
     for (auto* b : strip.buttonsForTesting())
         CHECK (! b->getWantsKeyboardFocus());
@@ -53,7 +53,7 @@ TEST_CASE ("TransportStrip: the play button toggles playback and its icon follow
     PlaybackController controller (doc, sink);
     addNote (addTrack (doc), 60, 0, 4800);
     controller.flushRebuild();
-    TransportStrip strip (controller);
+    TransportStrip strip (controller, doc);
 
     CHECK (strip.playIconForTesting() == TransportIcon::play);
     click (strip.playButtonForTesting());
@@ -72,7 +72,7 @@ TEST_CASE ("TransportStrip: stop and go-to buttons drive the controller", "[play
     PlaybackController controller (doc, sink);
     addNote (addTrack (doc), 60, 0, 4800);
     controller.flushRebuild();
-    TransportStrip strip (controller);
+    TransportStrip strip (controller, doc);
 
     click (*strip.buttonsForTesting()[4]);           // go to end
     CHECK (controller.getPositionSeconds() > 0.0);
@@ -86,7 +86,7 @@ TEST_CASE ("TransportStrip: the bar starts as three equal areas with the buttons
     SongDocument doc;
     RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TransportStrip strip (controller);
+    TransportStrip strip (controller, doc);
 
     for (const int width : { 600, 900, 1200 })
     {
@@ -114,7 +114,7 @@ TEST_CASE ("TransportStrip: the buttons stay inside the middle area on a narrow 
     SongDocument doc;
     RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TransportStrip strip (controller);
+    TransportStrip strip (controller, doc);
 
     strip.setSize (300, TransportStrip::height);
     const auto mid = strip.centreAreaForTesting().getBounds();
@@ -128,7 +128,7 @@ TEST_CASE ("TransportStrip: dragging a divider resizes the areas and the buttons
     SongDocument doc;
     RecordingSink sink;
     PlaybackController controller (doc, sink);
-    TransportStrip strip (controller);
+    TransportStrip strip (controller, doc);
     strip.setSize (900, TransportStrip::height);
 
     const int rightBefore = strip.rightAreaForTesting().getX();
@@ -140,4 +140,33 @@ TEST_CASE ("TransportStrip: dragging a divider resizes the areas and the buttons
     const auto mid = strip.centreAreaForTesting().getBounds();
     const auto buttons = strip.buttonsForTesting();
     CHECK (std::abs ((buttons.front()->getX() + buttons.back()->getRight()) / 2 - (mid.getX() + mid.getWidth() / 2)) <= 1);
+}
+
+TEST_CASE ("TransportStrip: the right area holds the transport controls and they follow its bounds", "[playback][strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller, doc);
+    strip.setSize (1400, TransportStrip::height);
+
+    auto& controls = strip.controlsForTesting();
+    CHECK (controls.getParentComponent() == &strip.rightAreaForTesting());
+    CHECK (controls.getBounds() == strip.rightAreaForTesting().getLocalBounds());
+    strip.dragDividerForTesting (1, 1000);
+    CHECK (controls.getBounds() == strip.rightAreaForTesting().getLocalBounds());
+}
+
+TEST_CASE ("TransportStrip: a narrow right area clips the controls without touching the buttons", "[playback][strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller, doc);
+    strip.setSize (500, TransportStrip::height);
+
+    CHECK (strip.rightAreaForTesting().getX() >= strip.centreAreaForTesting().getRight());
+    CHECK (strip.rightAreaForTesting().getRight() <= strip.getWidth());
 }

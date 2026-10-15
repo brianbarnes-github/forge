@@ -1,6 +1,8 @@
 #pragma once
 
 #include "UI/Playback/PlaybackController.h"
+#include "UI/Playback/TransportControls.h"
+#include "UI/SongDocument.h"
 #include "UI/ThreePaneSplitter.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -19,13 +21,14 @@ juce::Path transportIconPath (TransportIcon icon);
 
 // Three resizable areas (equal thirds to start). The middle one holds
 // Go to start | Rewind | Play/Pause | Stop | Go to end, bound to one
-// PlaybackController; the left and right ones are empty for now.
+// PlaybackController; the right one holds the transport controls; the left one
+// is still empty.
 class TransportStrip : public juce::Component, private PlaybackController::Listener
 {
 public:
     static constexpr int height = 28;
 
-    explicit TransportStrip (PlaybackController& controllerIn);
+    TransportStrip (PlaybackController& controllerIn, SongDocument& documentIn);
     ~TransportStrip() override;
 
     void resized() override;
@@ -36,6 +39,7 @@ public:
     juce::Component& leftAreaForTesting() { return leftArea; }
     juce::Component& centreAreaForTesting() { return centreArea; }
     juce::Component& rightAreaForTesting() { return rightArea; }
+    TransportControls& controlsForTesting() { return controls; }
     void dragDividerForTesting (int index, int x) { splitter.dragDivider (index, x); }
     std::vector<juce::Button*> buttonsForTesting() { return { &startButton, &rewindButton, &playButton, &stopButton, &endButton }; }
 
@@ -56,6 +60,7 @@ private:
     PlaybackController& controller;
     TransportIcon playIcon = TransportIcon::play;
     Area leftArea, centreArea, rightArea;   // before the buttons and the splitter, so both draw on top
+    TransportControls controls;             // after rightArea, so it is destroyed first
     ThreePaneSplitter splitter;
     juce::DrawableButton startButton  { "start",  juce::DrawableButton::ImageFitted },
                          rewindButton { "rewind", juce::DrawableButton::ImageFitted },

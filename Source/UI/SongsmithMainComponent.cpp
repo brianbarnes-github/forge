@@ -98,7 +98,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
       trackList (document),
       partStrip (document),
       trackChipBar (document),
-      transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn) : nullptr),
+      transportStrip (playbackIn != nullptr ? std::make_unique<TransportStrip> (*playbackIn, document) : nullptr),
       upperRegion (sourceHeader, trackList),
       previewRegion (previewAssignedPanel, previewRoll),
       lowerRegion (transportStrip.get(), bottomStack, diagnostics, topStack),

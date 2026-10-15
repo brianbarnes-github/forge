@@ -51,14 +51,17 @@ namespace
     constexpr int buttonRowWidth = buttonCount * buttonWidth + (buttonCount - 1) * buttonGap;
 }
 
-TransportStrip::TransportStrip (PlaybackController& controllerIn)
+TransportStrip::TransportStrip (PlaybackController& controllerIn, SongDocument& documentIn)
     : controller (controllerIn),
+      controls (controllerIn, documentIn),
       splitter ({ sideAreaMinWidth, buttonRowWidth, sideAreaMinWidth })
 {
-    // TODO: the left and right areas are empty placeholders, to be filled later.
+    // The left area is an empty placeholder (TODO.md item 4: favourite commands).
     for (auto* a : { &leftArea, &centreArea, &rightArea })
         addAndMakeVisible (*a);
     centreArea.onBoundsChanged = [this] { layoutButtons(); };
+    rightArea.addAndMakeVisible (controls);
+    rightArea.onBoundsChanged = [this] { controls.setBounds (rightArea.getLocalBounds()); };
 
     for (auto* b : buttonsForTesting())
     {
