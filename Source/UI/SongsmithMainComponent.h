@@ -194,6 +194,9 @@ public:
     // not fire onDockLayoutChanged; any user-driven change does, so the owner can persist it.
     dock::LayoutState getDockLayout() const { return dockHost.state(); }
     void setDockLayout (const dock::LayoutState& layout) { dockHost.apply (layout); }
+    // The layout saved by the last session, at launch: as setDockLayout, except a MIDI editor that
+    // was left showing opens hidden, because it has no track yet and would only show an empty roll.
+    void restoreDockLayout (dock::LayoutState layout);
     bool isMidiEditorVisible() const { return dockHost.isVisible ("midiEditor"); }
     void setMidiEditorVisible (bool show)
     {

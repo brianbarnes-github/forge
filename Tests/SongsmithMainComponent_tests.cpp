@@ -859,6 +859,26 @@ TEST_CASE ("SongsmithMainComponent: a floating panel forwards Delete, Ctrl+S and
     CHECK (forwarded.size() == 4);
 }
 
+TEST_CASE ("SongsmithMainComponent: a floating MIDI editor saved as showing opens hidden at launch, keeping its bounds", "[songsmith][layout][track-editor]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    view.setSize (1000, 700);
+
+    auto layout = lotro::dock::defaultLayout();
+    lotro::dock::show (layout, "midiEditor");
+    REQUIRE (lotro::dock::find (layout, "midiEditor")->visible);
+    lotro::dock::find (layout, "midiEditor")->floatBounds = lotro::dock::FloatBounds { 40, 50, 600, 400 };
+
+    view.restoreDockLayout (layout);
+    CHECK_FALSE (view.isMidiEditorVisible());
+    const auto* saved = lotro::dock::find (view.getDockLayout(), "midiEditor");
+    REQUIRE (saved != nullptr);
+    REQUIRE (saved->floatBounds.has_value());
+    CHECK (saved->floatBounds->width == 600);
+}
+
 TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter layout", "[songsmith][layout]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

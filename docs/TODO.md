@@ -9,7 +9,7 @@ Next up, in the order the user listed them. Each item gets its own design (brain
 
 ## Older open items (from the dock-panels handoff)
 
-- [ ] A floating editor left visible reopens empty at every launch and centres on the primary display, not over the main window.
+- [x] A floating editor left visible no longer reopens empty at launch: `SongsmithMainComponent::restoreDockLayout` opens it hidden (bounds kept), so the next double-click centres it over the main window or uses its saved bounds.
 - [x] Floated panels forward Esc, Ctrl+S, Delete and undo/redo to the main window (`DockHost::onFloatingKey`, `SongsmithMainComponent::onFloatingShortcut`).
 - [ ] The Dock and x buttons inside a floating window destroy that window during their own click (no crash known; check on Windows).
 - [ ] View menu items are not generated from the `panelDefs()` registry.

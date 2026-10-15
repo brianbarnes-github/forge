@@ -218,6 +218,13 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     refreshGhostTracksOnEditor();
 }
 
+void SongsmithMainComponent::restoreDockLayout (dock::LayoutState layout)
+{
+    if (trackEditor->getTrackId() == -1)
+        dock::hide (layout, "midiEditor");
+    dockHost.apply (layout);
+}
+
 void SongsmithMainComponent::setMergeScope (MergeScope scope)
 {
     trackList.setMergeScope (scope);
