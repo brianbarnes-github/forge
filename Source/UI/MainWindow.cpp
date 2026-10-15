@@ -226,7 +226,7 @@ void MainWindow::manageLayouts()
 {
     if (manageLayoutsWindow != nullptr)
         return;
-    manageLayoutsWindow = dock::showManageLayoutsDialog (savedLayouts, [this] { persistSavedLayouts(); }, this);
+    manageLayoutsWindow = dock::showManageLayoutsDialog (savedLayouts, [this] { persistSavedLayouts(); }, {}, {}, this);
 }
 
 MainWindow::~MainWindow()

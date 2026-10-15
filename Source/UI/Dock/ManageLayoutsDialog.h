@@ -18,6 +18,9 @@ public:
     explicit ManageLayoutsPanel (SavedLayouts& listIn);
 
     std::function<void()> onChanged;
+    // Fired (before onChanged) with what the edit was, so the owner can keep things that refer to a layout by name in step.
+    std::function<void (const std::string& oldName, const std::string& newName)> onRenamed;
+    std::function<void (const std::string& name)> onRemoved;
     std::function<void()> onCloseRequested;
 
     int  selectedRow() const { return listBox.getSelectedRow(); }
@@ -52,6 +55,8 @@ private:
 
 juce::Component::SafePointer<juce::DialogWindow> showManageLayoutsDialog (SavedLayouts& list,
                                                                           std::function<void()> onChanged,
+                                                                          std::function<void (const std::string&, const std::string&)> onRenamed,
+                                                                          std::function<void (const std::string&)> onRemoved,
                                                                           juce::Component* centreAround);
 
 } // namespace lotro::dock

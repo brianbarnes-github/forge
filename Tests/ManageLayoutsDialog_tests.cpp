@@ -93,3 +93,35 @@ TEST_CASE ("ManageLayoutsPanel: the rename prompt is destroyed once it is dismis
     CHECK (prompt == nullptr);
     CHECK (list[0].name == "Layout 1");
 }
+
+TEST_CASE ("ManageLayoutsPanel: a rename reports the old and new names before onChanged", "[dock][layouts]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto list = three();
+    ManageLayoutsPanel panel (list);
+    std::vector<std::string> events;
+    panel.onRenamed = [&] (const std::string& from, const std::string& to) { events.push_back ("rename " + from + ">" + to); };
+    panel.onChanged = [&] { events.push_back ("changed"); };
+
+    panel.selectRow (1);
+    REQUIRE_FALSE (panel.renameSelected ("Mixing"));
+    CHECK (events == std::vector<std::string> { "rename Layout 2>Mixing", "changed" });
+
+    events.clear();
+    CHECK (panel.renameSelected ("Layout 3") == LayoutNameError::duplicate);   // refused: nothing reported
+    CHECK (events.empty());
+}
+
+TEST_CASE ("ManageLayoutsPanel: a delete reports the removed name before onChanged", "[dock][layouts]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto list = three();
+    ManageLayoutsPanel panel (list);
+    std::vector<std::string> events;
+    panel.onRemoved = [&] (const std::string& name) { events.push_back ("removed " + name); };
+    panel.onChanged = [&] { events.push_back ("changed"); };
+
+    panel.selectRow (0);
+    panel.deleteSelected();
+    CHECK (events == std::vector<std::string> { "removed Layout 1", "changed" });
+}

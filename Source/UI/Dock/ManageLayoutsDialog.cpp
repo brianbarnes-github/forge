@@ -71,9 +71,11 @@ std::optional<LayoutNameError> ManageLayoutsPanel::renameSelected (const std::st
     const int row = selectedRow();
     if (row < 0 || row >= rowCount())
         return LayoutNameError::empty;
+    const auto oldName = list[(size_t) row].name;
     if (const auto error = renameLayout (list, (std::size_t) row, newName))
         return error;
     listBox.repaint();
+    if (onRenamed) onRenamed (oldName, list[(size_t) row].name);
     if (onChanged) onChanged();
     return std::nullopt;
 }
@@ -83,11 +85,13 @@ void ManageLayoutsPanel::deleteSelected()
     const int row = selectedRow();
     if (row < 0 || row >= rowCount())
         return;
+    const auto name = list[(size_t) row].name;
     removeLayout (list, (std::size_t) row);
     listBox.updateContent();
     listBox.selectRow (juce::jmin (row, rowCount() - 1));   // -1 when the list is now empty
     refreshButtons();
     listBox.repaint();
+    if (onRemoved) onRemoved (name);
     if (onChanged) onChanged();
 }
 
@@ -117,10 +121,14 @@ void ManageLayoutsPanel::askName (const juce::String& reason)
 
 juce::Component::SafePointer<juce::DialogWindow> showManageLayoutsDialog (SavedLayouts& list,
                                                                           std::function<void()> onChanged,
+                                                                          std::function<void (const std::string&, const std::string&)> onRenamed,
+                                                                          std::function<void (const std::string&)> onRemoved,
                                                                           juce::Component* centreAround)
 {
     auto content = std::make_unique<ManageLayoutsPanel> (list);
     content->onChanged = std::move (onChanged);
+    content->onRenamed = std::move (onRenamed);
+    content->onRemoved = std::move (onRemoved);
     auto* panel = content.get();
     juce::DialogWindow::LaunchOptions options;
     options.content.setOwned (content.release());
