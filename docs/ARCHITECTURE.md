@@ -822,7 +822,7 @@ Data flow: a `SOURCE_MIDI`/`TEMPO_MAP` edit → `AsyncUpdater` (coalesced) → `
 - Loop range:
   - Esc does not reach `MainWindow` from a floating MIDI-editor panel (`DockFloatWindow` has no `keyPressed`), so it does not clear the range while focus is there.
   - A block longer than 4 × the loop length (> ~9600 frames at the 0.05 s minimum and 48 kHz) hits `kMaxWrapsPerBlock`. The rest of that block is silent apart from tails, with the playhead held at the loop start. This is unreachable at normal buffer sizes.
-  - Notes already sounding at the loop start are not retriggered on a wrap, the same as after a seek. A note held across the loop start is silent after the first pass.
+  - After a wrap (and a wrap-on-entry), `retriggerHeldNotes` sounds again every note that began before the loop start and is still held there, so a note spanning the loop start is heard on every pass. A seek or Play does not retrigger (a note already sounding is not restarted). Mute and track gain apply as for any NoteOn.
   - After an edit shortens the Song so much that the span is dropped, the overlay and ruler still draw the stored range.
   - Mute/solo/pan/master across a wrap, live Alt on ruler bracket drags and the `MainWindow` Esc re-route have no tests of their own.
 - Playback tests that need the SoundFont return early with a warning (reported as passed) when the local file is absent (always on CI).

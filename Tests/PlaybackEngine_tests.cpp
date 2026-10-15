@@ -1028,6 +1028,18 @@ TEST_CASE ("PlaybackEngine loop: a block crossing the loop end wraps sample-accu
     CHECK (rig.sink.count (PlaybackEventKind::NoteOff) == 0);   // the 0.75 s NoteOff lies past the loop
 }
 
+TEST_CASE ("PlaybackEngine loop: a note held across the loop start sounds again at each wrap, but not at the first Play", "[playback][engine][loop]")
+{
+    SongDocument doc;
+    addLoopSong (doc);   // pitch 60 is held over the whole loop
+    Rig rig (doc);
+    rig.engine.setLoopSpan (LoopSpan { kLoopStart, kLoopEnd });
+    rig.transport.seek (kLoopStart);
+    rig.transport.play (rig.snapshot->endSeconds());
+    rig.render (60);   // three wraps, at frames 9600, 19200 and 28800
+    CHECK (noteOnFrames (rig.sink, 60) == std::vector<long> { 9600, 19200, 28800 });
+}
+
 TEST_CASE ("PlaybackEngine loop: each wrap re-chases the program before the loop start", "[playback][engine][loop]")
 {
     SongDocument doc;

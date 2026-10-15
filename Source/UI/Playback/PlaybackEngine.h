@@ -11,6 +11,7 @@
 #include <atomic>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace lotro
 {
@@ -20,7 +21,8 @@ namespace lotro
 class PlaybackEngine
 {
 public:
-    PlaybackEngine (Transport& transportIn, EventSink& sinkIn) : transport (transportIn), sink (sinkIn) {}
+    PlaybackEngine (Transport& transportIn, EventSink& sinkIn)
+        : transport (transportIn), sink (sinkIn), heldNoteOn (kMaxVirtualChannels * kKeys) {}
 
     void publishSnapshot (std::shared_ptr<PlaybackSnapshot> snapshot) { snapshots.publish (std::move (snapshot)); }
     void collectGarbage() { snapshots.collectRetired(); }
@@ -49,10 +51,14 @@ private:
     void chase (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
     void releaseNewlyMutedTracks (const PlaybackSnapshot& snapshot) noexcept;
     void applyPanChanges (const PlaybackSnapshot& snapshot, double positionSeconds, bool playing) noexcept;
+    void deliverNoteOn (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept;
+    void retriggerHeldNotes (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
     void deliverControl (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept;
     void renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
     void renderSegment (const PlaybackSnapshot& snapshot, float* left, float* right, int samples,
                         double segPos, double eventsBeforeSeconds) noexcept;
+
+    static constexpr int kKeys = 128;
 
     Transport& transport;
     EventSink& sink;
@@ -65,6 +71,7 @@ private:
     LoopSpanCell loopCell;
     std::optional<LoopSpan> lastPublishedSpan;   // message thread only: what setLoopSpan last published
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
+    std::vector<int> heldNoteOn;      // audio thread only: scratch for retriggerHeldNotes, [channel * kKeys + key] = event index or -1
     bool insideLoopLastBlock = false; // audio thread only: the last block left the playhead inside the loop
 };
 

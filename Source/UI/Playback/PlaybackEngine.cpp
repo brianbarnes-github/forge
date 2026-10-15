@@ -129,6 +129,42 @@ void PlaybackEngine::applyPanChanges (const PlaybackSnapshot& snapshot, double p
     }
 }
 
+// A NoteOn as the track's mute and gain allow.
+void PlaybackEngine::deliverNoteOn (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept
+{
+    if (! snapshot.isAudible (e.trackIndex))
+        return;
+    const int scaled = scaleVelocity (e.data2, snapshot.gainPercent (e.trackIndex));
+    if (scaled > 0)
+    {
+        PlaybackEvent heard = e;
+        heard.data2 = scaled;
+        sink.handle (heard);
+    }
+}
+
+// After a loop wrap: sounds again every note that began before the loop start and
+// is still held there (its NoteOff is at or after it), so a note spanning the loop
+// start is not silent on every pass but the first. Plain seeks and Play do not.
+void PlaybackEngine::retriggerHeldNotes (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept
+{
+    std::fill (heldNoteOn.begin(), heldNoteOn.end(), -1);
+    const auto& events = snapshot.events();
+    for (size_t i = 0; i < events.size(); ++i)
+    {
+        const auto& e = events[i];
+        if (e.seconds >= positionSeconds)
+            break;
+        if ((e.kind != PlaybackEventKind::NoteOn && e.kind != PlaybackEventKind::NoteOff)
+            || e.virtualChannel < 0 || e.virtualChannel >= kMaxVirtualChannels || e.data1 < 0 || e.data1 >= kKeys)
+            continue;
+        heldNoteOn[(size_t) (e.virtualChannel * kKeys + e.data1)] = e.kind == PlaybackEventKind::NoteOn ? (int) i : -1;
+    }
+    for (const int index : heldNoteOn)
+        if (index >= 0)
+            deliverNoteOn (snapshot, events[(size_t) index]);
+}
+
 void PlaybackEngine::releaseNewlyMutedTracks (const PlaybackSnapshot& snapshot) noexcept
 {
     for (int t = 0; t < snapshot.numTracks(); ++t)
@@ -202,6 +238,8 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
     {
         chase (*snapshot, startPos);
         nextEvent = snapshot->firstEventAtOrAfter (startPos);
+        if (wrapOnEntry)
+            retriggerHeldNotes (*snapshot, startPos);
     }
     applyPanChanges (*snapshot, startPos, true);   // after a chase: nothing left to do
     wasPlaying = true;
@@ -235,6 +273,7 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
             sink.releaseAll();
             chase (*snapshot, loop->startSeconds);
             nextEvent = snapshot->firstEventAtOrAfter (loop->startSeconds);
+            retriggerHeldNotes (*snapshot, loop->startSeconds);
             segPos = loop->startSeconds;
             ++wraps;
         }
@@ -273,16 +312,8 @@ void PlaybackEngine::renderSegment (const PlaybackSnapshot& snapshot, float* lef
             deliverControl (snapshot, e);
         else if (e.kind != PlaybackEventKind::NoteOn)
             sink.handle (e);
-        else if (snapshot.isAudible (e.trackIndex))
-        {
-            const int scaled = scaleVelocity (e.data2, snapshot.gainPercent (e.trackIndex));
-            if (scaled > 0)
-            {
-                PlaybackEvent heard = e;
-                heard.data2 = scaled;
-                sink.handle (heard);
-            }
-        }
+        else
+            deliverNoteOn (snapshot, e);
         ++nextEvent;
     }
     if (rendered < samples)
