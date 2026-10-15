@@ -90,6 +90,13 @@ void PlaybackController::setMasterPercent (int percent)
     listeners.call ([] (Listener& l) { l.masterChanged(); });
 }
 
+void PlaybackController::setRate (double rateIn)
+{
+    rateValue = clampRate (rateIn);
+    playbackEngine.setRate (rateValue);
+    listeners.call ([] (Listener& l) { l.playbackRateChanged(); });
+}
+
 void PlaybackController::handleAsyncUpdate() { rebuild(); }
 
 void PlaybackController::flushRebuild()
@@ -105,6 +112,7 @@ void PlaybackController::rebuild()
     muteSolo.apply (*snapshot);
     playbackEngine.publishSnapshot (snapshot);
     publishLoopSpan();   // re-derive the seconds: a tempo edit moves them; a shorter Song clamps them
+    listeners.call ([] (Listener& l) { l.playbackSnapshotChanged(); });
 }
 
 void PlaybackController::applyMuteSolo()

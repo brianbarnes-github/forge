@@ -4,6 +4,7 @@
 #include "UI/Playback/MuteSoloState.h"
 #include "UI/Playback/PlaybackEngine.h"
 #include "UI/Playback/PlaybackSnapshot.h"
+#include "UI/Playback/RateMapping.h"
 #include "UI/Playback/Transport.h"
 #include "UI/SongDocument.h"
 
@@ -34,6 +35,8 @@ public:
         virtual void playbackMarkerChanged() {}
         virtual void masterChanged() {}
         virtual void playbackLoopChanged() {}
+        virtual void playbackRateChanged() {}
+        virtual void playbackSnapshotChanged() {}
     };
 
     PlaybackController (SongDocument& document, EventSink& sink);
@@ -89,6 +92,10 @@ public:
     void setMasterPercent (int percent);
     int masterPercent() const noexcept { return masterLevel; }
 
+    // Session playback rate (1.0 = as written), clamped to 0.25 .. 4.0. Not saved anywhere.
+    void setRate (double rate);
+    double rate() const noexcept { return rateValue; }
+
     const SongDocument& document() const noexcept { return doc; }
 
     void documentReplaced();
@@ -130,6 +137,7 @@ private:
     double lastReportedPosition = -1.0;
     bool lastReportedPlaying = false;
     int masterLevel = 100;
+    double rateValue = 1.0;
 };
 
 } // namespace lotro

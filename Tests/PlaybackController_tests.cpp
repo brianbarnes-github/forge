@@ -726,3 +726,51 @@ TEST_CASE ("PlaybackController: a block much longer than the loop does not carry
     CHECK (r.controller.getPositionSeconds() >= 1.0);
     CHECK (r.controller.getPositionSeconds() < 1.05);
 }
+
+namespace
+{
+    struct CountingListener : PlaybackController::Listener
+    {
+        int rateChanges = 0, snapshotChanges = 0;
+        void playbackRateChanged() override { ++rateChanges; }
+        void playbackSnapshotChanged() override { ++snapshotChanges; }
+    };
+}
+
+TEST_CASE ("PlaybackController: setRate clamps, reaches the engine and notifies once", "[playback][controller][rate]")
+{
+    Rig r;
+    CountingListener listener;
+    r.controller.addListener (&listener);
+
+    CHECK (r.controller.rate() == 1.0);
+    r.controller.setRate (2.0);
+    CHECK (r.controller.rate() == 2.0);
+    CHECK (r.controller.engine().playbackRate() == 2.0);
+    CHECK (listener.rateChanges == 1);
+    r.controller.setRate (99.0);
+    CHECK (r.controller.rate() == kMaxPlaybackRate);
+    CHECK (r.controller.engine().playbackRate() == kMaxPlaybackRate);
+    r.controller.removeListener (&listener);
+}
+
+TEST_CASE ("PlaybackController: the rate survives documentReplaced (session setting)", "[playback][controller][rate]")
+{
+    Rig r;
+    r.controller.setRate (0.5);
+    r.controller.documentReplaced();
+    CHECK (r.controller.rate() == 0.5);
+    CHECK (r.controller.engine().playbackRate() == 0.5);
+}
+
+TEST_CASE ("PlaybackController: a rebuilt snapshot is announced", "[playback][controller]")
+{
+    Rig r;
+    CountingListener listener;
+    r.controller.addListener (&listener);
+    const int before = listener.snapshotChanges;
+    addNote (addTrack (r.doc), 60, 0, 480);
+    r.controller.flushRebuild();
+    CHECK (listener.snapshotChanges == before + 1);
+    r.controller.removeListener (&listener);
+}
