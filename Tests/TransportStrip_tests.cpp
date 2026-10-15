@@ -142,7 +142,7 @@ TEST_CASE ("TransportStrip: dragging a divider resizes the areas and the buttons
     CHECK (std::abs ((buttons.front()->getX() + buttons.back()->getRight()) / 2 - (mid.getX() + mid.getWidth() / 2)) <= 1);
 }
 
-TEST_CASE ("TransportStrip: the right area holds the transport controls and they follow its bounds", "[playback][strip]")
+TEST_CASE ("TransportStrip: the right area holds the transport controls at least preferredWidth wide", "[playback][strip]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -153,9 +153,35 @@ TEST_CASE ("TransportStrip: the right area holds the transport controls and they
 
     auto& controls = strip.controlsForTesting();
     CHECK (controls.getParentComponent() == &strip.rightAreaForTesting());
-    CHECK (controls.getBounds() == strip.rightAreaForTesting().getLocalBounds());
+    CHECK (controls.getX() == 0);
+    CHECK (controls.getHeight() == strip.rightAreaForTesting().getHeight());
+    CHECK (controls.getWidth() >= TransportControls::preferredWidth);
     strip.dragDividerForTesting (1, 1000);
-    CHECK (controls.getBounds() == strip.rightAreaForTesting().getLocalBounds());
+    CHECK (controls.getWidth() >= TransportControls::preferredWidth);
+    CHECK (controls.getHeight() == strip.rightAreaForTesting().getHeight());
+}
+
+TEST_CASE ("TransportStrip: a narrow right area clips the controls instead of squeezing them", "[playback][strip]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller, doc);
+    strip.setSize (1400, TransportStrip::height);
+    strip.dragDividerForTesting (1, strip.getWidth() - 300);   // right area ~300 px, below preferredWidth
+    REQUIRE (strip.rightAreaForTesting().getWidth() < TransportControls::preferredWidth);
+
+    TransportControls reference (controller, doc);
+    reference.setBounds (0, 0, TransportControls::preferredWidth, strip.rightAreaForTesting().getHeight());
+
+    auto& controls = strip.controlsForTesting();
+    CHECK (controls.getWidth() >= TransportControls::preferredWidth);
+    CHECK (controls.tempoBoxForTesting().getBounds() == reference.tempoBoxForTesting().getBounds());
+    CHECK (controls.meterBoxForTesting().getBounds() == reference.meterBoxForTesting().getBounds());
+    CHECK (controls.rateSliderForTesting().getBounds() == reference.rateSliderForTesting().getBounds());
+    CHECK (controls.rateReadoutForTesting().getBounds() == reference.rateReadoutForTesting().getBounds());
+    CHECK (controls.lengthBoxForTesting().getBounds() == reference.lengthBoxForTesting().getBounds());
 }
 
 TEST_CASE ("TransportStrip: a narrow right area clips the controls without touching the buttons", "[playback][strip]")

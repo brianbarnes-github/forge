@@ -6,6 +6,7 @@
 #include "UI/SongsmithColours.h"
 #include "UI/TempoEdit.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace lotro
@@ -15,6 +16,15 @@ namespace
 {
     constexpr int labelWidth = 62, positionWidth = 64, lengthWidth = 56, meterWidth = 46, tempoWidth = 78,
                   knobSize = 24, readoutWidth = 52, gap = 6, boxHeight = 20;
+
+    // Start of the bar containing `tick` (not the nearest bar line); 0 with no segments.
+    double barStartContaining (const std::vector<MeterSegment>& segments, double tick)
+    {
+        if (segments.empty())
+            return 0.0;
+        const auto& s = segmentAt (segments, tick);
+        return s.startTick + std::floor (std::max (0.0, tick - s.startTick) / s.ticksPerBar) * s.ticksPerBar;
+    }
 
     juce::String describe (TempoEditError e)
     {
@@ -80,8 +90,21 @@ void TransportControls::setupBox (Box& box, const juce::String& tooltip, std::fu
     box.editor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
     box.editor.setColour (juce::TextEditor::textColourId, juce::Colour (SongsmithColours::text));
     box.editor.setColour (juce::TextEditor::outlineColourId, juce::Colour (SongsmithColours::border));
-    box.editor.onReturnKey = onCommit;
+    // Enter commits and, once the box holds the true value, hands focus back so the
+    // window's shortcuts (Space, Esc, S, Delete, undo) work again. A held half-entry stays focused.
+    box.editor.onReturnKey = [&box, onCommit]
+    {
+        onCommit();
+        if (box.editor.getText() == box.shown)
+            juce::Component::unfocusAllComponents();
+    };
     box.editor.onFocusLost = onCommit;
+    box.editor.onEscapeKey = [this]
+    {
+        refreshSelection (true);
+        refreshTiming (true);
+        juce::Component::unfocusAllComponents();
+    };
     addAndMakeVisible (box.editor);
 }
 
@@ -112,9 +135,9 @@ void TransportControls::resized()
 
 void TransportControls::reject (Box& box, const juce::String& reason)
 {
-    box.editor.setTooltip (reason);
     box.editor.setColour (juce::TextEditor::outlineColourId, juce::Colour (SongsmithColours::outOfRangeBorder));
     box.editor.repaint();
+    showReason (box, reason);
     juce::Component::SafePointer<juce::TextEditor> safe (&box.editor);
     juce::Timer::callAfterDelay (1500, [safe]
     {
@@ -124,6 +147,20 @@ void TransportControls::reject (Box& box, const juce::String& reason)
             safe->repaint();
         }
     });
+}
+
+void TransportControls::showReason (Box& box, const juce::String& reason)
+{
+    // The app has no TooltipWindow, so the reason goes in a bubble on the window.
+    lastReason = reason;
+    bubble = std::make_unique<juce::BubbleMessageComponent> (150);
+    bubble->setColour (juce::BubbleComponent::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
+    bubble->setColour (juce::BubbleComponent::outlineColourId, juce::Colour (SongsmithColours::outOfRangeBorder));
+    if (auto* top = box.editor.getTopLevelComponent())
+        top->addChildComponent (*bubble);
+    juce::AttributedString text;
+    text.append (reason, juce::Font (juce::FontOptions (13.0f)), juce::Colour (SongsmithColours::text));
+    bubble->showAt (&box.editor, text, 1800, true, false);
 }
 
 void TransportControls::refreshSelection (bool force)
@@ -187,11 +224,14 @@ void TransportControls::commitMeter()
     }
     else
     {
-        // A meter change belongs on a bar line: put it on the one nearest the playhead.
+        // The edit goes on the bar containing the playhead, which is the bar the box shows.
         const auto segments = meterSegments (doc.getMeterChanges(), controller.currentSnapshot()->tempo().getTicksPerQuarter());
-        const double tick = controller.getPositionTicks();
-        if (const auto error = setMeter (doc, (int) std::llround (nearestBarStart (segments, tick)), parsed->first, parsed->second))
-            reject (meterBox, describe (*error));
+        const double barTick = barStartContaining (segments, controller.getPositionTicks());
+        const bool alreadyInForce = ! segments.empty() && segmentAt (segments, barTick).numerator == parsed->first
+                                    && segmentAt (segments, barTick).denominator == parsed->second;
+        if (! alreadyInForce)
+            if (const auto error = setMeter (doc, (int) std::llround (barTick), parsed->first, parsed->second))
+                reject (meterBox, describe (*error));
     }
     refreshTiming (true);
 }
@@ -202,9 +242,19 @@ void TransportControls::commitTempo()
         return;
     const auto bpm = parseTempoText (tempoBox.editor.getText().toStdString());
     if (! bpm)
+    {
         reject (tempoBox, "Enter a tempo, such as 120");
-    else if (const auto error = setTempo (doc, (int) std::llround (controller.getPositionTicks()), *bpm))
-        reject (tempoBox, describe (*error));
+    }
+    else
+    {
+        const int tick = (int) std::llround (controller.getPositionTicks());
+        // The same rounding the document stores: 120.00001 is the tempo already in force.
+        const auto typed = roundedBpm (*bpm);
+        const bool alreadyInForce = typed.has_value() && typed == roundedBpm (bpmAt (listTempoMeterEvents (doc), tick));
+        if (! alreadyInForce)
+            if (const auto error = setTempo (doc, tick, *bpm))
+                reject (tempoBox, describe (*error));
+    }
     refreshTiming (true);
 }
 
@@ -228,6 +278,14 @@ void TransportControls::commitSelection (Edited which)
     Box& edited = which == Edited::start ? startBox : which == Edited::end ? endBox : lengthBox;
     if (edited.editor.getText() == edited.shown)
         return;
+
+    // Some but not all boxes emptied while a loop exists: show the true range again.
+    if (controller.getLoopRange().has_value()
+        && (startBox.editor.getText().isEmpty() || endBox.editor.getText().isEmpty() || lengthBox.editor.getText().isEmpty()))
+    {
+        refreshSelection (true);
+        return;
+    }
 
     std::optional<double> start, end;
     if (startBox.editor.getText().isNotEmpty())

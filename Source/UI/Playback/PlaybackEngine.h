@@ -76,6 +76,7 @@ private:
     unsigned seenSeekGeneration = 0;
     std::atomic<int> master { 100 };
     std::atomic<double> rate { 1.0 };
+    static_assert (std::atomic<double>::is_always_lock_free, "the audio thread reads the rate without locking");
     LoopSpanCell loopCell;
     std::optional<LoopSpan> lastPublishedSpan;   // message thread only: what setLoopSpan last published
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown

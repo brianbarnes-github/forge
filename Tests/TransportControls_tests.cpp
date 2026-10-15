@@ -311,3 +311,113 @@ TEST_CASE ("TransportControls: with no song the boxes are disabled and typing do
     CHECK (controller.getLoopRange() == std::nullopt);
     CHECK (! doc.getUndoManager().canUndo());
 }
+
+TEST_CASE ("TransportControls: a meter typed late in a bar lands at the start of the bar containing the playhead", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controller.seekToTick (3000.0);   // bar 2 runs 1920..3840; 3000 is nearer the 3840 line
+    rig.type (rig.controls->meterBoxForTesting(), "6/8");
+    rig.controller.flushRebuild();
+
+    std::vector<int> meterTicks;
+    for (const auto& e : listTempoMeterEvents (rig.doc))
+        if (e.kind == TempoMeterKind::meter && e.numerator == 6 && e.denominator == 8)
+            meterTicks.push_back (e.tick);
+    CHECK (meterTicks == std::vector<int> { 1920 });
+}
+
+TEST_CASE ("TransportControls: re-entering the value already in force edits nothing", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controller.seekToTick (1920.0);
+    rig.doc.getUndoManager().clearUndoHistory();
+
+    rig.type (rig.controls->meterBoxForTesting(), "04/04");
+    CHECK (! rig.doc.getUndoManager().canUndo());
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+
+    rig.type (rig.controls->tempoBoxForTesting(), "120.00001");   // rounds to the same microseconds per beat
+    CHECK (! rig.doc.getUndoManager().canUndo());
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+
+    rig.type (rig.controls->tempoBoxForTesting(), "121");   // a real change still edits
+    CHECK (rig.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("TransportControls: a focus loss after Enter does not edit twice", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controller.seekToTick (1920.0);
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.type (rig.controls->meterBoxForTesting(), "6/8");
+    rig.controls->meterBoxForTesting().onFocusLost();
+    rig.doc.getUndoManager().undo();
+    CHECK (! rig.doc.getUndoManager().canUndo());   // exactly one step was recorded
+}
+
+TEST_CASE ("TransportControls: Escape reverts a box to the true value", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controls->pretendFocusedForTesting (true);
+    rig.controls->meterBoxForTesting().setText ("9/9", juce::dontSendNotification);
+    rig.controls->meterBoxForTesting().onEscapeKey();
+    CHECK (rig.controls->meterBoxForTesting().getText() == "4/4");
+    rig.controls->tempoBoxForTesting().setText ("77", juce::dontSendNotification);
+    rig.controls->tempoBoxForTesting().onEscapeKey();
+    CHECK (rig.controls->tempoBoxForTesting().getText().contains ("120"));
+
+    rig.controller.setLoopRange (960.0, 2880.0);
+    rig.controls->startBoxForTesting().setText ("3.1.0", juce::dontSendNotification);
+    rig.controls->startBoxForTesting().onEscapeKey();
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.3.0");
+    CHECK (rig.controller.getLoopRange()->startTick == Approx (960.0));
+}
+
+TEST_CASE ("TransportControls: emptying only some Selection boxes restores the true range", "[playback][controls]")
+{
+    Rig rig;
+    rig.controller.setLoopRange (960.0, 2880.0);
+    rig.controls->pretendFocusedForTesting (true);
+    rig.controls->startBoxForTesting().setText ({}, juce::dontSendNotification);
+    rig.controls->startBoxForTesting().onReturnKey();
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.3.0");
+    CHECK (rig.controls->endBoxForTesting().getText() == "2.3.0");
+    CHECK (rig.controls->lengthBoxForTesting().getText() == "4");
+    REQUIRE (rig.controller.getLoopRange().has_value());
+
+    rig.controls->endBoxForTesting().setText ({}, juce::dontSendNotification);
+    rig.controls->lengthBoxForTesting().setText ({}, juce::dontSendNotification);
+    rig.controls->lengthBoxForTesting().onReturnKey();
+    CHECK (rig.controls->endBoxForTesting().getText() == "2.3.0");
+    CHECK (rig.controls->lengthBoxForTesting().getText() == "4");
+}
+
+TEST_CASE ("TransportControls: Enter gives keyboard focus away", "[playback][controls][timing]")
+{
+    Rig rig;
+    rig.controls->addToDesktop (0);
+    rig.controls->setVisible (true);
+    rig.controls->meterBoxForTesting().grabKeyboardFocus();
+    if (! rig.controls->meterBoxForTesting().hasKeyboardFocus (true))
+    {
+        rig.controls->removeFromDesktop();
+        SKIP ("no window manager: keyboard focus cannot be obtained here");
+    }
+    rig.controls->meterBoxForTesting().setText ("6/8", juce::dontSendNotification);
+    rig.controls->meterBoxForTesting().onReturnKey();
+    CHECK (! rig.controls->meterBoxForTesting().hasKeyboardFocus (true));
+    rig.controls->removeFromDesktop();
+}
+
+TEST_CASE ("TransportControls: a rejected entry shows its reason in a bubble and keeps the hint tooltip", "[playback][controls][timing]")
+{
+    Rig rig;
+    CHECK (rig.controls->reasonShownForTesting().isEmpty());
+    const auto hint = rig.controls->meterBoxForTesting().getTooltip();
+    CHECK (hint.isNotEmpty());
+    rig.type (rig.controls->meterBoxForTesting(), "40/4");
+    CHECK (rig.controls->reasonShownForTesting().containsIgnoreCase ("numerator"));
+    CHECK (rig.controls->meterBoxForTesting().getTooltip() == hint);
+    rig.type (rig.controls->tempoBoxForTesting(), "banana");
+    CHECK (rig.controls->reasonShownForTesting().containsIgnoreCase ("tempo"));
+}

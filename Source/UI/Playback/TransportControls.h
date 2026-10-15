@@ -4,6 +4,9 @@
 #include "UI/SongDocument.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+
+#include <memory>
 
 namespace lotro
 {
@@ -29,6 +32,8 @@ public:
     juce::TextEditor& tempoBoxForTesting()  { return tempoBox.editor; }
     // Real keyboard focus needs a window manager; this makes every box count as focused.
     void pretendFocusedForTesting (bool focused) { for (auto* b : { &startBox, &endBox, &lengthBox, &meterBox, &tempoBox }) b->pretendFocused = focused; }
+    // The rejection reason while its bubble is showing, else empty.
+    juce::String reasonShownForTesting() const { return bubble != nullptr && bubble->isVisible() ? lastReason : juce::String(); }
     juce::Slider& rateSliderForTesting()    { return rateSlider; }
     juce::Label& rateReadoutForTesting()    { return rateReadout; }
 
@@ -54,7 +59,8 @@ private:
     void setupBox (Box& box, const juce::String& tooltip, std::function<void()> onCommit);
     void commitSelection (Edited which);
     void refreshSelection (bool force = false);   // force: overwrite a box even while it is being edited
-    void reject (Box& box, const juce::String& reason);
+    void reject (Box& box, const juce::String& reason);   // red outline plus a bubble with the reason
+    void showReason (Box& box, const juce::String& reason);
     bool hasSong() const;   // a snapshot with something to play
     void refreshTiming (bool force = false);   // meter and tempo at the playhead; force as for refreshSelection
     void commitMeter();
@@ -69,6 +75,8 @@ private:
     Box startBox, endBox, lengthBox, meterBox, tempoBox;
     juce::Slider rateSlider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox };
     juce::Label rateReadout;
+    juce::String lastReason;
+    std::unique_ptr<juce::BubbleMessageComponent> bubble;   // the rejection reason, pointing at the box
 };
 
 } // namespace lotro

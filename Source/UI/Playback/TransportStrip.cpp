@@ -2,6 +2,8 @@
 
 #include "UI/SongsmithColours.h"
 
+#include <algorithm>
+
 namespace lotro
 {
 
@@ -61,7 +63,7 @@ TransportStrip::TransportStrip (PlaybackController& controllerIn, SongDocument& 
         addAndMakeVisible (*a);
     centreArea.onBoundsChanged = [this] { layoutButtons(); };
     rightArea.addAndMakeVisible (controls);
-    rightArea.onBoundsChanged = [this] { controls.setBounds (rightArea.getLocalBounds()); };
+    rightArea.onBoundsChanged = [this] { controls.setBounds (0, 0, std::max (TransportControls::preferredWidth, rightArea.getWidth()), rightArea.getHeight()); };
 
     for (auto* b : buttonsForTesting())
     {
