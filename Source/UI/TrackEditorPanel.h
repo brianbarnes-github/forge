@@ -23,6 +23,10 @@ namespace lotro
     class TrackEditorPanel : public juce::Component
     {
     public:
+        // The panel's own menu bar (File, Edit, Navigate, Options, View) across the
+        // top, docked or floating; the same height as the main window's.
+        static constexpr int menuBarHeight = 24;
+
         explicit TrackEditorPanel (SongDocument& document);
         ~TrackEditorPanel() override;
 
@@ -92,9 +96,20 @@ namespace lotro
             std::optional<double> loopEdgeAnchor;   // the ruler bracket drag's fixed (other) edge
         };
 
+        // Feeds editorMenus() to the menu bar. No items yet, so nothing to dispatch.
+        class MenuModel : public juce::MenuBarModel
+        {
+        public:
+            juce::StringArray getMenuBarNames() override;
+            juce::PopupMenu getMenuForIndex (int topLevelMenuIndex, const juce::String& menuName) override;
+            void menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
+        };
+
         void titleChanged();
 
         SongDocument& doc;
+        MenuModel menuModel;
+        juce::MenuBarComponent menuBar { &menuModel };
         PianoRollComponent roll;
         // After `roll` (it holds a reference) and destroyed before it. Its strip and
         // the roll's playhead are destroyed before the controller, which the owner

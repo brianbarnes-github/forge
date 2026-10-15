@@ -1,6 +1,7 @@
 // Pins the Songsmith menu bar's structure: labels, shortcut hints, order, and
 // enabled/ticked state as a function of MenuState.
 
+#include "UI/EditorMenuModel.h"
 #include "UI/MenuModel.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -391,4 +392,15 @@ TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-mode
     REQUIRE (abc != nullptr);
     CHECK (abc->enabled);
     CHECK (findMenuItem (menus, 99999) == nullptr);
+}
+
+TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View, each still empty", "[menu-model][editor-menu]")
+{
+    const auto menus = editorMenus();
+    std::vector<std::string> names;
+    for (const auto& m : menus)
+        names.push_back (m.name);
+    CHECK (names == std::vector<std::string> { "File", "Edit", "Navigate", "Options", "View" });
+    for (const auto& m : menus)
+        CHECK (m.items.empty());
 }

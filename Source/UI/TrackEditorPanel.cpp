@@ -1,4 +1,5 @@
 #include "TrackEditorPanel.h"
+#include "EditorMenuModel.h"
 #include "SongsmithColours.h"
 
 namespace lotro
@@ -8,18 +9,39 @@ namespace lotro
           roll (PianoRollComponent::Role::Source, &doc)
     {
         setWantsKeyboardFocus (true);
+        addAndMakeVisible (menuBar);
         addAndMakeVisible (roll);
     }
 
-    TrackEditorPanel::~TrackEditorPanel() = default;
+    TrackEditorPanel::~TrackEditorPanel()
+    {
+        menuBar.setModel (nullptr);
+    }
 
     void TrackEditorPanel::resized()
     {
+        auto area = getLocalBounds();
+        menuBar.setBounds (area.removeFromTop (menuBarHeight));
         if (content != nullptr)
-            content->setBounds (getLocalBounds());
+            content->setBounds (area);
         else
-            roll.setBounds (getLocalBounds());
+            roll.setBounds (area);
     }
+
+    juce::StringArray TrackEditorPanel::MenuModel::getMenuBarNames()
+    {
+        juce::StringArray names;
+        for (const auto& m : editorMenus())
+            names.add (m.name);
+        return names;
+    }
+
+    juce::PopupMenu TrackEditorPanel::MenuModel::getMenuForIndex (int, const juce::String&)
+    {
+        return {};
+    }
+
+    void TrackEditorPanel::MenuModel::menuItemSelected (int, int) {}
 
     void TrackEditorPanel::paintOverChildren (juce::Graphics& g)
     {
@@ -105,7 +127,7 @@ namespace lotro
         content = std::make_unique<Content> (roll, *controller, doc);   // re-parents the roll
         content->strip.setButtonsHost (stripButtonsHost);
         addAndMakeVisible (*content);
-        content->setBounds (getLocalBounds());
+        resized();
     }
 
     bool TrackEditorPanel::keyPressed (const juce::KeyPress& key)

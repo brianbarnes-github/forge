@@ -19,6 +19,7 @@ namespace lotro
         static TimelineRuler& ruler (TrackEditorPanel& w) { return w.content->ruler; }
         static PianoRollComponent& roll (TrackEditorPanel& w) { return w.roll; }
         static juce::Component& content (TrackEditorPanel& w) { return *w.content; }
+        static juce::MenuBarComponent& menuBar (TrackEditorPanel& w) { return w.menuBar; }
     };
 }
 
@@ -92,7 +93,7 @@ TEST_CASE ("TrackEditorPanel: with playback set, the window hosts the transport 
     CHECK (ruler.getY() == strip.getBottom());
     CHECK (ruler.getHeight() == TimelineRuler::height);
     CHECK (roll.getY() == ruler.getBottom());
-    CHECK (roll.getBottom() == 400);
+    CHECK (roll.getBottom() == Access::content (window).getHeight());
     // The ruler spans the roll's width, so a ruler x is a roll x.
     CHECK (ruler.getX() == roll.getX());
     CHECK (ruler.getWidth() == roll.getWidth());
@@ -131,9 +132,10 @@ TEST_CASE ("TrackEditorPanel: setPlayback fills the panel with strip, ruler and 
     panel.setPlayback (&controller);
 
     using Access = TrackEditorPanelTestAccess;
-    CHECK (Access::content (panel).getBounds() == juce::Rectangle<int> (0, 0, 700, 400));
+    // Everything under the 24 px menu bar.
+    CHECK (Access::content (panel).getBounds() == juce::Rectangle<int> (0, TrackEditorPanel::menuBarHeight, 700, 400 - TrackEditorPanel::menuBarHeight));
     CHECK (Access::stripBounds (panel).getBottom() == Access::rulerBounds (panel).getY());
-    CHECK (Access::rollBounds (panel).getBottom() == 400);
+    CHECK (Access::rollBounds (panel).getBottom() == Access::content (panel).getHeight());
 }
 
 TEST_CASE ("TrackEditorPanel: Space toggles playback and other keys are left alone", "[track-editor][playhead]")
@@ -357,4 +359,38 @@ TEST_CASE ("TrackEditorPanel: setStripButtonsHost works before and after setPlay
         panel.setStripButtonsHost (&host);
         CHECK (panel.stripButtonsBarForTesting() != nullptr);
     }
+}
+
+TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Options, View sits across the top", "[track-editor-window][editor-menu]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);
+    panel.setSize (700, 400);
+
+    using Access = TrackEditorPanelTestAccess;
+    auto& bar = Access::menuBar (panel);
+    CHECK (bar.getParentComponent() == &panel);
+    CHECK (bar.isVisible());
+    CHECK (TrackEditorPanel::menuBarHeight == 24);
+    CHECK (bar.getBounds() == juce::Rectangle<int> (0, 0, 700, TrackEditorPanel::menuBarHeight));
+
+    // Before playback (the empty state) the roll fills the rest.
+    CHECK (Access::rollBounds (panel) == juce::Rectangle<int> (0, TrackEditorPanel::menuBarHeight, 700, 400 - TrackEditorPanel::menuBarHeight));
+
+    auto* model = bar.getModel();
+    REQUIRE (model != nullptr);
+    CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
+    // No items yet: every menu is empty and selecting an id does nothing.
+    for (int i = 0; i < 5; ++i)
+        CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
+    model->menuItemSelected (1, 0);
+
+    // Still there, still on top, once the strip/ruler/roll content is built.
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    panel.setPlayback (&controller);
+    CHECK (bar.getParentComponent() == &panel);
+    CHECK (bar.getBounds() == juce::Rectangle<int> (0, 0, 700, TrackEditorPanel::menuBarHeight));
+    CHECK (Access::content (panel).getY() == bar.getBottom());
 }
