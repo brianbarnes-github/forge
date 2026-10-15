@@ -56,8 +56,8 @@ private:
     void playbackPositionChanged() override { refreshTiming(); }
     void playbackSnapshotChanged() override { refreshSelection(); refreshTiming(); }
 
-    void setupBox (Box& box, const juce::String& tooltip, std::function<void()> onCommit);
-    void commitSelection (Edited which);
+    void setupBox (Box& box, const juce::String& tooltip, std::function<void (bool enter)> onCommit);
+    void commitSelection (Edited which, bool enter);   // enter: an explicit commit, not a focus loss
     void refreshSelection (bool force = false);   // force: overwrite a box even while it is being edited
     void reject (Box& box, const juce::String& reason);   // red outline plus a bubble with the reason
     void showReason (Box& box, const juce::String& reason);

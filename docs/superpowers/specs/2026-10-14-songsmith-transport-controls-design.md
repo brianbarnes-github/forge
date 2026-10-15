@@ -67,7 +67,7 @@ Everything is UI-side: nothing is added to `Source/Core/` (see the
 - Edit `length` (beats from the start): sets `end = start + length`
   (converted through the meter segments); needs a start. With no start the
   length edit is rejected.
-- Clearing all three boxes (select all, delete, Enter) clears the range.
+- Clearing the range: empty each box and leave it; an emptied box is held (the loop is untouched) until all three are empty, then the loop clears. Enter in an emptied box while others still hold values restores the true range instead.
 - The boxes show the **ordered, clamped** range after every edit, never the
   raw typing.
 

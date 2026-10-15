@@ -118,7 +118,34 @@ TEST_CASE ("TransportControls: bad Selection text reverts to the current range",
     CHECK (rig.controls->lengthBoxForTesting().getText() == "4");
 }
 
-TEST_CASE ("TransportControls: clearing all three boxes clears the loop", "[playback][controls]")
+TEST_CASE ("TransportControls: clearing the three boxes one by one clears the loop", "[playback][controls]")
+{
+    Rig rig;
+    rig.controller.setLoopRange (1920.0, 3840.0);
+    rig.controls->pretendFocusedForTesting (true);
+    auto& start = rig.controls->startBoxForTesting();
+    auto& end = rig.controls->endBoxForTesting();
+    auto& length = rig.controls->lengthBoxForTesting();
+
+    start.setText ("", juce::dontSendNotification);
+    start.onFocusLost();   // tabbing away: the empty box is held, the loop untouched
+    CHECK (start.getText().isEmpty());
+    CHECK (rig.controller.getLoopRange().has_value());
+
+    end.setText ("", juce::dontSendNotification);
+    end.onFocusLost();
+    CHECK (end.getText().isEmpty());
+    CHECK (rig.controller.getLoopRange().has_value());
+
+    length.setText ("", juce::dontSendNotification);
+    length.onFocusLost();
+    CHECK (! rig.controller.getLoopRange().has_value());
+    CHECK (start.getText().isEmpty());
+    CHECK (end.getText().isEmpty());
+    CHECK (length.getText().isEmpty());
+}
+
+TEST_CASE ("TransportControls: clearing all three boxes and pressing Enter clears the loop", "[playback][controls]")
 {
     Rig rig;
     rig.controller.setLoopRange (1920.0, 3840.0);

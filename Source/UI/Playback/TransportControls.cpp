@@ -55,11 +55,11 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
     selectionLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
     addAndMakeVisible (selectionLabel);
 
-    setupBox (startBox,  "Loop start (bar.beat.tick)", [this] { commitSelection (Edited::start); });
-    setupBox (endBox,    "Loop end (bar.beat.tick)",   [this] { commitSelection (Edited::end); });
-    setupBox (lengthBox, "Loop length in beats",       [this] { commitSelection (Edited::length); });
-    setupBox (meterBox,  "Time signature at the playhead", [this] { commitMeter(); });
-    setupBox (tempoBox,  "Tempo at the playhead",          [this] { commitTempo(); });
+    setupBox (startBox,  "Loop start (bar.beat.tick)", [this] (bool enter) { commitSelection (Edited::start, enter); });
+    setupBox (endBox,    "Loop end (bar.beat.tick)",   [this] (bool enter) { commitSelection (Edited::end, enter); });
+    setupBox (lengthBox, "Loop length in beats",       [this] (bool enter) { commitSelection (Edited::length, enter); });
+    setupBox (meterBox,  "Time signature at the playhead", [this] (bool) { commitMeter(); });
+    setupBox (tempoBox,  "Tempo at the playhead",          [this] (bool) { commitTempo(); });
 
     rateSlider.setRange (-2.0, 2.0, 0.001);
     rateSlider.setValue (rateToSlider (controller.rate()), juce::dontSendNotification);
@@ -83,7 +83,7 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
 
 TransportControls::~TransportControls() { controller.removeListener (this); }
 
-void TransportControls::setupBox (Box& box, const juce::String& tooltip, std::function<void()> onCommit)
+void TransportControls::setupBox (Box& box, const juce::String& tooltip, std::function<void (bool enter)> onCommit)
 {
     box.editor.setMultiLine (false);
     box.editor.setTooltip (tooltip);
@@ -94,11 +94,11 @@ void TransportControls::setupBox (Box& box, const juce::String& tooltip, std::fu
     // window's shortcuts (Space, Esc, S, Delete, undo) work again. A held half-entry stays focused.
     box.editor.onReturnKey = [&box, onCommit]
     {
-        onCommit();
+        onCommit (true);
         if (box.editor.getText() == box.shown)
             juce::Component::unfocusAllComponents();
     };
-    box.editor.onFocusLost = onCommit;
+    box.editor.onFocusLost = [onCommit] { onCommit (false); };
     box.editor.onEscapeKey = [this]
     {
         refreshSelection (true);
@@ -258,7 +258,7 @@ void TransportControls::commitTempo()
     refreshTiming (true);
 }
 
-void TransportControls::commitSelection (Edited which)
+void TransportControls::commitSelection (Edited which, bool enter)
 {
     const auto snapshot = controller.currentSnapshot();
     if (snapshot == nullptr)
@@ -279,11 +279,13 @@ void TransportControls::commitSelection (Edited which)
     if (edited.editor.getText() == edited.shown)
         return;
 
-    // Some but not all boxes emptied while a loop exists: show the true range again.
+    // Some but not all boxes emptied while a loop exists. Enter shows the true range again;
+    // a focus loss holds the empty box so the user can go on emptying the others.
     if (controller.getLoopRange().has_value()
         && (startBox.editor.getText().isEmpty() || endBox.editor.getText().isEmpty() || lengthBox.editor.getText().isEmpty()))
     {
-        refreshSelection (true);
+        if (enter)
+            refreshSelection (true);
         return;
     }
 
