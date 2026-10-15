@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // The Songsmith main menu bar as plain data, so its structure (labels, shortcut
@@ -246,6 +247,81 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
 
     menus.push_back ({ "Help", { item (HelpAbout, "About...") } });
     return menus;
+}
+
+// The commands the transport strip's "+" menu offers, in picker order. `key` is the stable
+// string saved in AppSettings (never reuse or change one); `label` is the button text.
+struct StripCommand
+{
+    const char*   group;
+    const char*   label;
+    const char*   key;
+    MenuCommandId id;
+};
+
+inline constexpr std::array<StripCommand, 32> stripCommands {{
+    { "File", "New",            "file.new",            FileNew },
+    { "File", "Open",           "file.open",           FileOpenSong },
+    { "File", "Save",           "file.save",           FileSave },
+    { "File", "Save As",        "file.saveAs",         FileSaveAs },
+    { "File", "Import MIDI",    "file.importMidi",     FileImportMidi },
+    { "File", "Export MIDI",    "file.exportMidi",     FileExportMidi },
+    { "File", "Export ABC",     "file.exportAbc",      FileExportAbc },
+    { "File", "Preferences",    "file.preferences",    FilePreferences },
+    { "Edit", "Undo",           "edit.undo",           EditUndo },
+    { "Edit", "Redo",           "edit.redo",           EditRedo },
+    { "Edit", "Split",          "edit.split",          EditSplit },
+    { "Edit", "Delete",         "edit.delete",         EditDelete },
+    { "Edit", "Quantize",       "edit.quantize",       EditQuantize },
+    { "Edit", "Tempo/Meter",    "edit.tempoMeter",     EditTempoMeter },
+    { "Edit", "Select All",     "edit.selectAll",      EditSelectAll },
+    { "Edit", "Select Tracks",  "edit.selectAllTracks", EditSelectAllTracks },
+    { "Edit", "Select Sections", "edit.selectAllSections", EditSelectAllSections },
+    { "Song", "Default Parts",  "song.defaultParts",   SongDefaultParts },
+    { "Song", "Run Converter",  "song.runConverter",   SongRunConverter },
+    { "Song", "SoundFont",      "song.soundFont",      SongSoundFont },
+    { "Transport", "Rewind Bar",   "transport.rewindOneBar", TransportRewindOneBar },
+    { "Transport", "Clear Marker", "transport.clearMarker",  TransportClearMarker },
+    { "View", "Export Panel",   "view.exportPanel",    ViewExportPanelToggle },
+    { "View", "Diagnostics",    "view.diagnostics",    ViewDiagnosticsToggle },
+    { "View", "Source",         "view.source",         ViewSourceToggle },
+    { "View", "MIDI Editor",    "view.midiEditor",     ViewMidiEditorToggle },
+    { "View", "LOTRO Preview",  "view.lotroPreview",   ViewLotroPreviewToggle },
+    { "View", "Tracks",         "view.tracks",         ViewTracksToggle },
+    { "View", "Parts",          "view.parts",          ViewPartsToggle },
+    { "View", "Mixer",          "view.mixer",          ViewMixerToggle },
+    { "View", "Save Layout",    "view.layoutSave",     ViewLayoutSave },
+    { "View", "Manage Layouts", "view.layoutManage",   ViewLayoutManage },
+}};
+
+inline const StripCommand* findStripCommand (std::string_view key)
+{
+    for (const auto& c : stripCommands)
+        if (key == c.key)
+            return &c;
+    return nullptr;
+}
+
+// The menu item with this id, searching submenus; nullptr if there is none.
+inline const MenuItemDesc* findMenuItem (const std::vector<MenuItemDesc>& items, int id)
+{
+    for (const auto& i : items)
+    {
+        if (! i.isSubmenu && ! i.separator && i.id == id)
+            return &i;
+        if (i.isSubmenu)
+            if (const auto* inner = findMenuItem (i.children, id))
+                return inner;
+    }
+    return nullptr;
+}
+
+inline const MenuItemDesc* findMenuItem (const std::vector<MenuDesc>& menus, int id)
+{
+    for (const auto& m : menus)
+        if (const auto* i = findMenuItem (m.items, id))
+            return i;
+    return nullptr;
 }
 
 } // namespace lotro

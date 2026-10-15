@@ -5,6 +5,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <set>
 
 using namespace lotro;
@@ -355,4 +356,39 @@ TEST_CASE ("MenuModel: View ends with a Layouts submenu holding Save, each saved
     CHECK (itemWith (two, ViewLayoutManage).enabled);
     CHECK (isLayoutApplyCommand (ViewLayoutApplyBase + 1));
     CHECK_FALSE (isLayoutApplyCommand (ViewLayoutApplyBase + maxSavedLayouts));
+}
+
+TEST_CASE ("MenuModel: every pickable strip command is a real command with a unique key", "[menu-model][strip-buttons]")
+{
+    std::set<std::string> keys;
+    for (const auto& c : stripCommands)
+    {
+        CHECK (std::find (allCommandIds.begin(), allCommandIds.end(), c.id) != allCommandIds.end());
+        CHECK (keys.insert (c.key).second);
+        CHECK (std::string (c.label).size() > 0);
+    }
+}
+
+TEST_CASE ("MenuModel: Quit, About and the centre transport buttons are not pickable", "[menu-model][strip-buttons]")
+{
+    for (const auto id : { FileQuit, HelpAbout, TransportPlayPause, TransportStop, TransportGoToStart, TransportGoToEnd })
+        for (const auto& c : stripCommands)
+            CHECK (c.id != id);
+}
+
+TEST_CASE ("MenuModel: findStripCommand looks a key up and rejects an unknown one", "[menu-model][strip-buttons]")
+{
+    REQUIRE (findStripCommand ("file.exportMidi") != nullptr);
+    CHECK (findStripCommand ("file.exportMidi")->id == FileExportMidi);
+    CHECK (findStripCommand ("future.thing") == nullptr);
+}
+
+TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-model][strip-buttons]")
+{
+    MenuState s; s.hasAbc = true;
+    const auto menus = buildMenus (s);
+    const auto* abc = findMenuItem (menus, FileExportAbc);
+    REQUIRE (abc != nullptr);
+    CHECK (abc->enabled);
+    CHECK (findMenuItem (menus, 99999) == nullptr);
 }
