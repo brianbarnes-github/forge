@@ -320,3 +320,19 @@ TEST_CASE ("AppSettings: saved layouts default to empty and persist across a re-
     juce::PropertiesFile reloaded (file, {});
     CHECK (AppSettings (reloaded).savedLayouts() == "[1,2]");
 }
+
+TEST_CASE ("AppSettings: strip buttons default to empty and persist across a re-opened file", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.stripButtons().isEmpty());
+        CHECK (settings.setStripButtons ("[1]"));
+        CHECK (settings.stripButtons() == "[1]");
+        CHECK (settings.savedLayouts().isEmpty());   // independent of the layouts
+    }
+    juce::PropertiesFile reloaded (file, {});
+    CHECK (AppSettings (reloaded).stripButtons() == "[1]");
+}

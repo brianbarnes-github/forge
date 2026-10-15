@@ -135,6 +135,14 @@ public:
         return save();
     }
 
+    // The transport strip's chosen buttons as JSON (see Dock/StripButtons.h). Empty when none were saved.
+    juce::String stripButtons() const { return file.getValue (keyStripButtons); }
+    bool setStripButtons (const juce::String& json)
+    {
+        file.setValue (keyStripButtons, json);
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -151,6 +159,7 @@ private:
     static constexpr const char* keyMergeScope         = "editing.mergeScope";
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
+    static constexpr const char* keyStripButtons       = "strip.buttons";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.
