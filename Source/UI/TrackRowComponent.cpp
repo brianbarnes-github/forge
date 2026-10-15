@@ -112,11 +112,21 @@ bool TrackRowComponent::canOpenEditor() const
 void TrackRowComponent::resized()
 {
     auto area = getLocalBounds().withTrimmedBottom (dividerThickness);
-    auto info = area.removeFromLeft (juce::jmin (trackInfoWidth, area.getWidth()));
+    auto info = area.removeFromLeft (juce::jmin (headWidth, area.getWidth()));
     info.removeFromRight (columnDividerThickness);
     head.setBounds (info);
     area.removeFromTop (juce::jmin (instrumentBandHeight, area.getHeight()));
     notePreview.setBounds (area);
+}
+
+void TrackRowComponent::setHeadWidth (int width)
+{
+    const int clamped = headwidth::clamp (width);
+    if (clamped == headWidth)
+        return;
+    headWidth = clamped;
+    resized();
+    repaint();
 }
 
 void TrackRowComponent::setMuteSolo (bool muted, bool soloed, bool silenced)
@@ -189,13 +199,13 @@ void TrackRowComponent::paint (juce::Graphics& g)
 
     // Vertical line between the label column and the note preview.
     g.setColour (juce::Colour (columnDivider));
-    g.fillRect (bounds.withWidth (juce::jmin (trackInfoWidth, bounds.getWidth()))
+    g.fillRect (bounds.withWidth (juce::jmin (headWidth, bounds.getWidth()))
                       .removeFromRight (columnDividerThickness));
 
     // Instrument band: canvas side only, over the top of the notes. One coloured,
     // labelled segment per instrument; drum and conductor rows keep a single label.
     {
-        const auto band = bounds.withTrimmedLeft (juce::jmin (trackInfoWidth, bounds.getWidth()))
+        const auto band = bounds.withTrimmedLeft (juce::jmin (headWidth, bounds.getWidth()))
                                 .removeFromTop (instrumentBandHeight);
         g.setColour (juce::Colour (instrumentBand));
         g.fillRect (band);
@@ -232,12 +242,12 @@ void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
 {
     bandDragActive = false;
     bandDragStarted = false;
-    if (e.mods.isPopupMenu() && inHeadArea (e.getPosition()))
+    if (e.mods.isPopupMenu() && inHeadArea (e.getPosition(), headWidth))
     {
         head.showContextMenu();
         return;
     }
-    if (e.mods.isPopupMenu() && inInstrumentBand (e.getPosition()) && ! isConductorTrack())
+    if (e.mods.isPopupMenu() && inInstrumentBand (e.getPosition(), headWidth) && ! isConductorTrack())
     {
         juce::Component::SafePointer<TrackRowComponent> safe (this);
         buildInstrumentMenu().showMenuAsync (juce::PopupMenu::Options(), [safe] (int id)
@@ -253,7 +263,7 @@ void TrackRowComponent::mouseDown (const juce::MouseEvent& e)
         return;
     }
     // A left press in the band may become a loop-range drag (see mouseDrag); it still selects.
-    if (! e.mods.isPopupMenu() && inInstrumentBand (e.getPosition()) && ! isConductorTrack() && tickForLocalX)
+    if (! e.mods.isPopupMenu() && inInstrumentBand (e.getPosition(), headWidth) && ! isConductorTrack() && tickForLocalX)
     {
         bandDragActive = true;
         bandPressTick = tickForLocalX (e.x);

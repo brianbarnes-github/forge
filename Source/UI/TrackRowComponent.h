@@ -3,6 +3,7 @@
 #include "SongDocument.h"
 #include "TimelineViewState.h"
 #include "TrackHeadComponent.h"
+#include "TrackHeadWidth.h"
 #include "TrackNotePreview.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -67,10 +68,11 @@ public:
     // channel 10, empty for the conductor.
     juce::String instrumentLabel() const;
 
-    // True for a point in the instrument band (the top strip of the canvas side).
-    static bool inInstrumentBand (juce::Point<int> p) noexcept
+    // True for a point in the instrument band (the top strip of the canvas side)
+    // of a row whose head column is headWidth px wide.
+    static bool inInstrumentBand (juce::Point<int> p, int headWidth = trackInfoWidth) noexcept
     {
-        return p.x >= trackInfoWidth && p.y >= 0 && p.y < instrumentBandHeight;
+        return p.x >= headWidth && p.y >= 0 && p.y < instrumentBandHeight;
     }
 
     // The band's right-click menu: item 1 "Auto split on instrument change" (enabled
@@ -92,11 +94,17 @@ public:
     std::function<void (juce::int64)> onAutoSplitRequested;
     std::function<void (juce::int64, int)> onSetInstrumentRequested;
 
-    // Fixed width of the left-hand head column (index, name, swatch, mute, solo, volume). The
-    // embedded TrackNotePreview fills everything to its right, so it grows
-    // with the row instead of being pinned to a small fixed width — the
-    // note data is the primary content, the text is a label for it.
-    static constexpr int trackInfoWidth = 200;
+    // Default (and minimum) width of the left-hand head column (index, name, swatch, mute,
+    // solo, volume). The embedded TrackNotePreview fills everything to its right, so it
+    // grows with the row instead of being pinned to a small fixed width — the note data
+    // is the primary content, the text is a label for it.
+    static constexpr int trackInfoWidth = headwidth::minimum;
+
+    // The head column's width, clamped to [headwidth::minimum, headwidth::maximum]. The
+    // list sets it on every row when the user drags the divider; the row lays itself out
+    // again at once (its own bounds do not change, so JUCE would not call resized()).
+    void setHeadWidth (int width);
+    int getHeadWidth() const noexcept { return headWidth; }
 
     // Height of the divider line painted along the row's bottom edge, across
     // both the text column and the note preview, so adjacent tracks read as
@@ -104,7 +112,7 @@ public:
     static constexpr int dividerThickness = 1;
 
     // Width of the vertical line painted at the info column's right edge
-    // (inside it, so the note preview still starts at trackInfoWidth),
+    // (inside it, so the note preview still starts at the head width),
     // separating the label from the notes.
     static constexpr int columnDividerThickness = 2;
 
@@ -163,10 +171,11 @@ public:
     void setTempoText (const juce::String& text) { head.setTempoText (text); }
     bool isConductor() const { return isConductorTrack(); }
 
-    // True for a point in the head column, where a right-click opens the head's menu.
-    static bool inHeadArea (juce::Point<int> p) noexcept
+    // True for a point in the head column (headWidth px wide), where a right-click opens
+    // the head's menu.
+    static bool inHeadArea (juce::Point<int> p, int headWidth = trackInfoWidth) noexcept
     {
-        return p.x >= 0 && p.x < trackInfoWidth;
+        return p.x >= 0 && p.x < headWidth;
     }
 
     juce::Button& muteButtonForTesting() { return head.muteButtonForTesting(); }
@@ -195,6 +204,7 @@ private:
     TrackHeadComponent head;
     TrackNotePreview notePreview;
     bool             silencedBySolo = false;
+    int              headWidth = trackInfoWidth;
     bool             bandDragActive = false;    // a left press in the band: its drag draws a loop range
     bool             bandDragStarted = false;   // that drag has gone 4 px and reported a step
     double           bandPressTick = 0.0;

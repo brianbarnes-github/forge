@@ -890,3 +890,54 @@ TEST_CASE ("TrackRowComponent: presses outside the band, right presses in it and
         CHECK (rig.calls.empty());
     }
 }
+
+TEST_CASE ("TrackRowComponent: a wider head moves the note preview and is clamped to [minimum, maximum]", "[track-row][head][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 1, 1);
+    TimelineViewState view;
+    TrackRowComponent row (track, 1, view);
+    row.setBounds (0, 0, 800, TrackRowComponent::defaultRowHeight + TrackRowComponent::instrumentBandHeight);
+    CHECK (row.getHeadWidth() == headwidth::minimum);
+
+    row.setHeadWidth (300);   // no setBounds afterwards: the row lays itself out again
+    CHECK (row.getHeadWidth() == 300);
+    CHECK (row.headForTesting().getRight() <= 300);
+    CHECK (row.headForTesting().getRight() > TrackRowComponent::trackInfoWidth);
+    CHECK (row.notePreviewForTesting().getX() == 300);
+
+    row.setHeadWidth (150);
+    CHECK (row.getHeadWidth() == headwidth::minimum);
+    row.setHeadWidth (500);
+    CHECK (row.getHeadWidth() == headwidth::maximum);
+    CHECK (row.notePreviewForTesting().getX() == headwidth::maximum);
+}
+
+TEST_CASE ("TrackRowComponent: the head and band hit-tests follow a given head width", "[track-row][head][head-width]")
+{
+    CHECK (TrackRowComponent::inHeadArea ({ 250, 10 }, 300));
+    CHECK_FALSE (TrackRowComponent::inHeadArea ({ 300, 10 }, 300));
+    CHECK_FALSE (TrackRowComponent::inInstrumentBand ({ 250, 3 }, 300));
+    CHECK (TrackRowComponent::inInstrumentBand ({ 305, 3 }, 300));
+}
+
+TEST_CASE ("TrackRowComponent: with a wider head a press under the old band edge is a head press, not a loop drag", "[track-row][loop][head-width]")
+{
+    BandDragRig rig;
+    auto& row = *rig.row;
+    row.setHeadWidth (300);
+
+    const juce::Point<int> inHead { 250, 5 };
+    row.mouseDown (eventAt (row, inHead, 1));
+    row.mouseDrag (dragEventAt (row, inHead, inHead + juce::Point<int> (30, 0)));
+    row.mouseUp (dragEventAt (row, inHead, inHead + juce::Point<int> (30, 0)));
+    CHECK (rig.calls.empty());
+
+    const juce::Point<int> inBand { 340, 5 };
+    row.mouseDown (eventAt (row, inBand, 1));
+    row.mouseDrag (dragEventAt (row, inBand, inBand + juce::Point<int> (30, 0)));
+    REQUIRE (rig.calls.size() == 1);
+    CHECK (rig.calls[0].pressTick == Catch::Approx (10.0 * inBand.x + 7.0));
+    row.mouseUp (dragEventAt (row, inBand, inBand + juce::Point<int> (30, 0)));
+}
