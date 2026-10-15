@@ -415,7 +415,7 @@ When you say…       …I'll know you mean
     at the Song end; if that leaves less than 0.05 s, playback stops looping until the Song
     grows again, but the shaded range stays on screen.
   - **Overlap.** Where the start marker's triangle overlaps a range bracket, the bracket wins;
-    press the part of the triangle outside the bracket to clear the marker.
+    press the part of the triangle outside the bracket to clear the marker. The part of the triangle hidden under the track-info column cannot be pressed.
 - **Diagnostics** (#23, `DiagnosticListView`, hosted directly) — the bare list
   only, not the full `DiagnosticsPane`: import diagnostics land here; the
   ABC-preview half only exists in the export panel. Hidden by default;

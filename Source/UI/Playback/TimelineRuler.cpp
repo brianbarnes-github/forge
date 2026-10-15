@@ -83,7 +83,8 @@ void TimelineRuler::mouseDown (const juce::MouseEvent& e)
         }
         // A loop bracket wins where it overlaps the marker's triangle (checked above); the rest of the triangle clears the marker.
         const auto handle = markerHandleBounds();
-        if (handle.has_value() && handle->contains (e.getPosition()))
+        // Not where the info column hides it: the triangle is only drawn right of contentLeft.
+        if (handle.has_value() && handle->contains (e.getPosition()) && e.x >= contentLeft)
         {
             handleWasPressed = true;
             if (onClearMarker)

@@ -434,6 +434,29 @@ TEST_CASE ("TimelineRuler: a loop bracket's part under the info column cannot be
     CHECK (clears == 1);
 }
 
+TEST_CASE ("TimelineRuler: the marker triangle's part under the info column cannot be pressed", "[playback][ruler][marker]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    std::optional<double> marker = 1000.0;   // x 100; triangle x 92 .. 108
+    std::optional<LoopRange> loop;
+    setUpLoopRuler (ruler, marker, loop);
+    ruler.setContentLeft (104);   // hides the triangle's left part (it is not drawn there)
+    int clears = 0;
+    ruler.onClearMarker = [&] { ++clears; };
+    std::vector<double> markerSets;
+    ruler.onSetMarker = [&] (double tick) { markerSets.push_back (tick); };
+
+    ruler.mouseDown (mouseAt (ruler, 96, 5));   // the hidden part: an ordinary press
+    ruler.mouseUp (mouseAt (ruler, 96, 5));
+    CHECK (clears == 0);
+    CHECK (markerSets == std::vector<double> { 960.0 });
+
+    ruler.mouseDown (mouseAt (ruler, 106, 5));   // the visible part still clears it
+    ruler.mouseUp (mouseAt (ruler, 106, 5));
+    CHECK (clears == 1);
+}
+
 TEST_CASE ("TimelineRuler: clicking a loop bracket without moving clears the range; a drag that comes back does not", "[playback][ruler][loop]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
