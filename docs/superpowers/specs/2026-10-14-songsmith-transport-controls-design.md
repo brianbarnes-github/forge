@@ -78,10 +78,10 @@ Everything is UI-side: nothing is added to `Source/Core/` (see the
   `playbackPositionChanged` and when the tempo or meter events change. The
   tempo box uses `formatExactTempoText`. A box being edited is never
   overwritten by a refresh.
-- Edit: `setMeter(doc, playheadTick, n, d)` (applied at the nearest bar start,
-  as `TempoEdit` defines) and `setTempo(doc, playheadTick, bpm)`. Each is one
+- Edit: `setMeter(doc, barStart, n, d)` where `barStart` is the start of the bar
+  containing the playhead (the bar the box shows; not the nearest bar line) and `setTempo(doc, playheadTick, bpm)`. Each is one
   undo step through `SongDocument`. A `TempoEditError` reverts the box and
-  shows the reason as a tooltip-style notice on the box (`MeterOutOfRange`,
+  shows the reason in a bubble over the box (`MeterOutOfRange`,
   `BpmOutOfRange`, `NoTimeBase`, …).
 - `setTempo` at a tick that already holds a tempo edits it. Editing never
   moves the playhead.
@@ -171,9 +171,10 @@ Custom error types, no string errors:
 - Favourite commands in the left area (TODO item 4).
 - Pitch-preserving or pitch-shifting rate modes.
 
-## Open points for review
+## Decisions
 
-- Beat unit for the `length` box is the meter's denominator beat; if you would
-  rather have quarter notes always, say so.
-- Whether Enter or leaving the box commits a held start/end pair is as written
-  above; change it if you want an explicit Apply.
+Approved by the owner as written:
+
+- The `length` box counts beats of the meter's denominator (not always quarter
+  notes).
+- Edits commit on Enter or on focus loss; there is no explicit Apply.
