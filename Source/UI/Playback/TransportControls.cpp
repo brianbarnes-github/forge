@@ -64,6 +64,11 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
     rateSlider.setRange (-2.0, 2.0, 0.001);
     rateSlider.setValue (rateToSlider (controller.rate()), juce::dontSendNotification);
     rateSlider.setDoubleClickReturnValue (true, 0.0);
+    // Slider value 0 (rate 1.000) is the midpoint of the sweep, which is 2*pi: straight up.
+    rateSlider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
+    rateSlider.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (SongsmithColours::accentAmber));
+    rateSlider.setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (SongsmithColours::columnDivider));
+    rateSlider.setColour (juce::Slider::thumbColourId, juce::Colour (SongsmithColours::text));
     rateSlider.setWantsKeyboardFocus (false);
     rateSlider.setTooltip ("Playback rate (double-click to reset to 1.000)");
     rateSlider.onValueChange = [this] { controller.setRate (sliderToRate (rateSlider.getValue())); };
@@ -110,6 +115,11 @@ void TransportControls::setupBox (Box& box, const juce::String& tooltip, std::fu
 
 void TransportControls::paint (juce::Graphics& g)
 {
+    // A fixed mark over the top of the knob's rim: the neutral 1.000 position at 12 o'clock.
+    const auto knob = rateSlider.getBounds();
+    g.setColour (juce::Colour (SongsmithColours::accentAmber));
+    g.fillRect (juce::Rectangle<float> ((float) knob.getCentreX() - 1.0f, (float) knob.getY() - 1.0f, 2.0f, 5.0f));
+
     // The Selection group's frame: label + three boxes.
     g.setColour (juce::Colour (SongsmithColours::trackDivider));
     g.drawRoundedRectangle (selectionLabel.getBounds().getX() - 3.0f, 1.0f,
@@ -121,6 +131,10 @@ void TransportControls::resized()
     auto area = getLocalBounds().reduced (0, (getHeight() - boxHeight) / 2);
     auto place = [&] (juce::Component& c, int width) { c.setBounds (area.removeFromLeft (width)); area.removeFromLeft (gap); };
     area.removeFromLeft (4);
+    rateSlider.setBounds (area.removeFromLeft (knobSize).withSizeKeepingCentre (knobSize, knobSize));
+    area.removeFromLeft (gap);
+    rateReadout.setBounds (area.removeFromLeft (readoutWidth));
+    area.removeFromLeft (gap);
     place (selectionLabel, labelWidth);
     place (startBox.editor, positionWidth);
     place (endBox.editor, positionWidth);
@@ -128,9 +142,6 @@ void TransportControls::resized()
     area.removeFromLeft (gap);
     place (meterBox.editor, meterWidth);
     place (tempoBox.editor, tempoWidth);
-    rateSlider.setBounds (area.removeFromLeft (knobSize).withSizeKeepingCentre (knobSize, getHeight() - 4));
-    area.removeFromLeft (gap);
-    rateReadout.setBounds (area.removeFromLeft (readoutWidth));
 }
 
 void TransportControls::reject (Box& box, const juce::String& reason)
@@ -170,7 +181,7 @@ void TransportControls::refreshSelection (bool force)
     const bool enabled = hasSong();
     for (auto* box : { &startBox, &endBox, &lengthBox })
         box->editor.setEnabled (enabled);
-    if (! range.has_value() || ! enabled)
+    if (! enabled)
     {
         for (auto* box : { &startBox, &endBox, &lengthBox })
             if (force || ! box->isEditing())
@@ -178,6 +189,14 @@ void TransportControls::refreshSelection (bool force)
         return;
     }
     const auto segments = meterSegments (doc.getMeterChanges(), snapshot->tempo().getTicksPerQuarter());
+    if (! range.has_value())
+    {
+        // No loop: position zero, so a typed end or length has a start to work from.
+        if (force || ! startBox.isEditing())  startBox.show (formatPosition (segments, 0.0));
+        if (force || ! endBox.isEditing())    endBox.show (formatPosition (segments, 0.0));
+        if (force || ! lengthBox.isEditing()) lengthBox.show (formatBeats (0.0));
+        return;
+    }
     if (force || ! startBox.isEditing())  startBox.show (formatPosition (segments, range->startTick));
     if (force || ! endBox.isEditing())    endBox.show (formatPosition (segments, range->endTick));
     if (force || ! lengthBox.isEditing()) lengthBox.show (formatBeats (ticksToBeats (segments, range->startTick, range->endTick)));
@@ -288,6 +307,11 @@ void TransportControls::commitSelection (Edited which, bool enter)
             refreshSelection (true);
         return;
     }
+
+    // No loop yet and the end still shows its untouched default: a typed start would only be
+    // reordered against position zero, so hold it until an end is typed (no bubble, no revert).
+    if (which == Edited::start && ! controller.getLoopRange().has_value() && endBox.editor.getText() == endBox.shown)
+        return;
 
     std::optional<double> start, end;
     if (startBox.editor.getText().isNotEmpty())

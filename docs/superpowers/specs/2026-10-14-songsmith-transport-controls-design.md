@@ -178,3 +178,14 @@ Approved by the owner as written:
 - The `length` box counts beats of the meter's denominator (not always quarter
   notes).
 - Edits commit on Enter or on focus loss; there is no explicit Apply.
+
+## Revised after manual testing
+
+- With a Song and no loop the Selection boxes show `1.1.0`, `1.1.0` and `0`
+  instead of blank, so a typed end or length builds a loop from zero. A start
+  typed beside the untouched default end is held until an end is typed.
+  Clearing the loop returns the defaults. Without a Song they stay blank.
+- The rate knob moved to the left of the right area so it is the last thing to
+  be clipped; order is knob, readout, Selection, meter, tempo.
+- The knob is a round rotary whose neutral 1.000 points straight up, with
+  visible colours and a fixed mark at 12 o'clock.

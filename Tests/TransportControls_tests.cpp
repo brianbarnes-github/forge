@@ -42,19 +42,126 @@ namespace
     };
 }
 
-TEST_CASE ("TransportControls: with no loop the Selection boxes are empty", "[playback][controls]")
+TEST_CASE ("TransportControls: with no loop the Selection boxes show the zero defaults", "[playback][controls]")
 {
     Rig rig;
-    CHECK (rig.controls->startBoxForTesting().getText().isEmpty());
-    CHECK (rig.controls->endBoxForTesting().getText().isEmpty());
-    CHECK (rig.controls->lengthBoxForTesting().getText().isEmpty());
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->endBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->lengthBoxForTesting().getText() == "0");
+    CHECK (rig.controls->startBoxForTesting().isEnabled());
+}
+
+TEST_CASE ("TransportControls: typing an end beside the default start creates the loop from zero", "[playback][controls]")
+{
+    Rig rig;
+    rig.type (rig.controls->endBoxForTesting(), "3.1.0");
+    REQUIRE (rig.controller.getLoopRange().has_value());
+    CHECK (rig.controller.getLoopRange()->startTick == Approx (0.0));
+    CHECK (rig.controller.getLoopRange()->endTick == Approx (3840.0));
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->lengthBoxForTesting().getText() == "8");
+}
+
+TEST_CASE ("TransportControls: typing a length beside the default start creates the loop from zero", "[playback][controls]")
+{
+    Rig rig;
+    rig.type (rig.controls->lengthBoxForTesting(), "6");
+    REQUIRE (rig.controller.getLoopRange().has_value());
+    CHECK (rig.controller.getLoopRange()->startTick == Approx (0.0));
+    CHECK (rig.controller.getLoopRange()->endTick == Approx (6 * 480.0));
+    CHECK (rig.controls->endBoxForTesting().getText() == "2.3.0");
+}
+
+TEST_CASE ("TransportControls: a start typed beside the default end is held until an end is typed", "[playback][controls]")
+{
+    Rig rig;
+    rig.controls->pretendFocusedForTesting (true);
+    rig.type (rig.controls->startBoxForTesting(), "2.1.0");
+    CHECK (! rig.controller.getLoopRange().has_value());              // no zero-length or silently reordered loop
+    CHECK (rig.controls->startBoxForTesting().getText() == "2.1.0");  // held, not reverted
+    CHECK (rig.controls->reasonShownForTesting().isEmpty());
+    rig.type (rig.controls->endBoxForTesting(), "3.1.0");
+    REQUIRE (rig.controller.getLoopRange().has_value());
+    CHECK (rig.controller.getLoopRange()->startTick == Approx (1920.0));
+    CHECK (rig.controller.getLoopRange()->endTick == Approx (3840.0));
+}
+
+TEST_CASE ("TransportControls: a tiny end beside the default start is rejected with a reason and the defaults return", "[playback][controls]")
+{
+    Rig rig;
+    rig.type (rig.controls->endBoxForTesting(), "1.1.1");
+    CHECK (! rig.controller.getLoopRange().has_value());
+    CHECK (rig.controls->reasonShownForTesting().isNotEmpty());
+    CHECK (rig.controls->endBoxForTesting().getText() == "1.1.0");
+}
+
+TEST_CASE ("TransportControls: emptying all three boxes with no loop shows the defaults again", "[playback][controls]")
+{
+    Rig rig;
+    for (auto* box : { &rig.controls->startBoxForTesting(), &rig.controls->endBoxForTesting(), &rig.controls->lengthBoxForTesting() })
+        box->setText ("", juce::dontSendNotification);
+    rig.controls->startBoxForTesting().onReturnKey();
+    CHECK (! rig.controller.getLoopRange().has_value());
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->endBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->lengthBoxForTesting().getText() == "0");
+}
+
+TEST_CASE ("TransportControls: clearing the loop externally returns the defaults", "[playback][controls]")
+{
+    Rig rig;
+    rig.controller.setLoopRange (960.0, 2880.0);
+    rig.controller.clearLoopRange();
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->endBoxForTesting().getText() == "1.1.0");
+    CHECK (rig.controls->lengthBoxForTesting().getText() == "0");
+}
+
+TEST_CASE ("TransportControls: with no song the Selection boxes stay blank", "[playback][controls]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportControls controls (controller, doc);
+    CHECK (controls.startBoxForTesting().getText().isEmpty());
+    CHECK (controls.endBoxForTesting().getText().isEmpty());
+    CHECK (controls.lengthBoxForTesting().getText().isEmpty());
+}
+
+TEST_CASE ("TransportControls: the rate knob leads the row and is a top-centred rotary", "[playback][controls][rate]")
+{
+    Rig rig;
+    auto& slider = rig.controls->rateSliderForTesting();
+    const auto bounds = rig.controls->getLocalBounds();
+    CHECK (slider.getBounds().getWidth() == slider.getBounds().getHeight());
+    CHECK (slider.getBounds().getWidth() == 24);
+    CHECK (bounds.contains (slider.getBounds()));
+    CHECK (slider.getBounds().getCentreY() == bounds.getCentreY());
+    CHECK (slider.getBounds().getRight() <= rig.controls->rateReadoutForTesting().getX());
+    CHECK (rig.controls->rateReadoutForTesting().getRight() <= rig.controls->startBoxForTesting().getX());
+    CHECK (rig.controls->startBoxForTesting().getX() < rig.controls->meterBoxForTesting().getX());
+    CHECK (rig.controls->meterBoxForTesting().getX() < rig.controls->tempoBoxForTesting().getX());
+
+    CHECK (slider.isRotary());
+    const auto params = slider.getRotaryParameters();
+    CHECK ((params.startAngleRadians + params.endAngleRadians) / 2.0f == Approx (2.0f * juce::MathConstants<float>::pi));
+    CHECK (params.stopAtEnd);
+    CHECK (slider.getValue() == Approx (0.0));   // neutral, so it points straight up
+}
+
+TEST_CASE ("TransportControls: the knob and readout fit in 300 px", "[playback][controls][rate]")
+{
+    Rig rig;
+    CHECK (rig.controls->rateSliderForTesting().getRight() <= 300);
+    CHECK (rig.controls->rateReadoutForTesting().getRight() <= 300);
 }
 
 TEST_CASE ("TransportControls: typing a start and an end creates the loop range", "[playback][controls]")
 {
     Rig rig;
     rig.type (rig.controls->startBoxForTesting(), "2.1.0");
-    CHECK (! rig.controller.getLoopRange().has_value());   // held until both edges are valid
+    CHECK (! rig.controller.getLoopRange().has_value());   // held until an end is typed
     rig.type (rig.controls->endBoxForTesting(), "3.1.0");
 
     REQUIRE (rig.controller.getLoopRange().has_value());
@@ -71,7 +178,7 @@ TEST_CASE ("TransportControls: dragging the loop updates the boxes", "[playback]
     CHECK (rig.controls->endBoxForTesting().getText() == "2.3.0");
     CHECK (rig.controls->lengthBoxForTesting().getText() == "4");
     rig.controller.clearLoopRange();
-    CHECK (rig.controls->startBoxForTesting().getText().isEmpty());
+    CHECK (rig.controls->startBoxForTesting().getText() == "1.1.0");
 }
 
 TEST_CASE ("TransportControls: typing a length moves the end", "[playback][controls]")
@@ -140,9 +247,9 @@ TEST_CASE ("TransportControls: clearing the three boxes one by one clears the lo
     length.setText ("", juce::dontSendNotification);
     length.onFocusLost();
     CHECK (! rig.controller.getLoopRange().has_value());
-    CHECK (start.getText().isEmpty());
-    CHECK (end.getText().isEmpty());
-    CHECK (length.getText().isEmpty());
+    CHECK (start.getText() == "1.1.0");   // the defaults return
+    CHECK (end.getText() == "1.1.0");
+    CHECK (length.getText() == "0");
 }
 
 TEST_CASE ("TransportControls: clearing all three boxes and pressing Enter clears the loop", "[playback][controls]")

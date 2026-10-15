@@ -182,6 +182,11 @@ TEST_CASE ("TransportStrip: a narrow right area clips the controls instead of sq
     CHECK (controls.rateSliderForTesting().getBounds() == reference.rateSliderForTesting().getBounds());
     CHECK (controls.rateReadoutForTesting().getBounds() == reference.rateReadoutForTesting().getBounds());
     CHECK (controls.lengthBoxForTesting().getBounds() == reference.lengthBoxForTesting().getBounds());
+    // The knob and readout lead the row, so they stay in view; the tempo box is what is clipped.
+    const int visibleWidth = strip.rightAreaForTesting().getWidth();
+    CHECK (controls.rateSliderForTesting().getRight() <= visibleWidth);
+    CHECK (controls.rateReadoutForTesting().getRight() <= visibleWidth);
+    CHECK (controls.tempoBoxForTesting().getRight() > visibleWidth);
 }
 
 TEST_CASE ("TransportStrip: a narrow right area clips the controls without touching the buttons", "[playback][strip]")
