@@ -60,8 +60,44 @@ TrackListComponent::TrackListComponent (SongDocument& document)
     eventMarkerOverlay = std::make_unique<EventMarkerOverlay> ([this] (int tick) { return timelineView.xForTick (tick); });
     addAndMakeVisible (*eventMarkerOverlay);
 
+    headDivider.setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
+    addAndMakeVisible (headDivider);
+
     sourceMidiNode.addListener (this);
     rebuild();
+}
+
+TrackListComponent::HeadDivider::HeadDivider (TrackListComponent& o) : owner (o) {}
+
+void TrackListComponent::HeadDivider::mouseDown (const juce::MouseEvent& e)
+{
+    pressListX = e.getEventRelativeTo (&owner).x;
+    pressWidth = owner.headWidth;
+}
+
+void TrackListComponent::HeadDivider::mouseDrag (const juce::MouseEvent& e)
+{
+    owner.setHeadWidth (pressWidth + e.getEventRelativeTo (&owner).x - pressListX);
+}
+
+void TrackListComponent::HeadDivider::mouseUp (const juce::MouseEvent& e)
+{
+    mouseDrag (e);
+    if (owner.headWidth != pressWidth && owner.onHeadWidthChanged)
+        owner.onHeadWidthChanged (owner.headWidth);
+}
+
+void TrackListComponent::setHeadWidth (int width)
+{
+    const int clamped = headwidth::clamp (width);
+    if (clamped == headWidth)
+        return;
+    headWidth = clamped;
+    for (auto* row : content.rows)
+        row->setHeadWidth (headWidth);
+    resized();   // the list's bounds did not change, so JUCE would not call it
+    if (ruler != nullptr)
+        ruler->repaint();
 }
 
 TrackListComponent::~TrackListComponent()
@@ -125,6 +161,7 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
         addAndMakeVisible (*overlay);   // added after the viewport, so it draws on top
         markerOverlay = std::make_unique<MarkerOverlay> (*playback, [this] (double tick) { return timelineView.xForTick ((int) tick); });
         addAndMakeVisible (*markerOverlay);
+        headDivider.toFront (false);
     }
     rebuild();
     resized();
@@ -271,13 +308,14 @@ void TrackListComponent::rebuild()
     for (int i = 0; i < doc.getNumTracks(); ++i)
     {
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
+        row->setHeadWidth (headWidth);
         if ((bool) doc.getTrack (i).getProperty (SongIDs::isConductor, false))
             row->setTempoText (conductorTempoText());
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
-        // Row-local x -> tick: the row's notes start at trackInfoWidth, the frame of timelineView.
-        row->tickForLocalX = [this] (int x) { return (double) timelineView.tickForX (x - TrackRowComponent::trackInfoWidth); };
+        // Row-local x -> tick: the row's notes start at the head width, the frame of timelineView.
+        row->tickForLocalX = [this] (int x) { return (double) timelineView.tickForX (x - headWidth); };
         row->onLoopRangeDragged = [this] (double pressTick, double tick, bool finished, bool unsnapped)
         {
             loopBandDragged (pressTick, tick, finished, unsnapped);
@@ -940,8 +978,8 @@ int TrackListComponent::contentWidth() const
 int TrackListComponent::notePreviewOriginX() const
 {
     // Mirrors TrackRowComponent::resized()'s own jmin, so the two agree when
-    // the list is narrower than the fixed info column.
-    return juce::jmin (TrackRowComponent::trackInfoWidth, contentWidth());
+    // the list is narrower than the head column.
+    return juce::jmin (headWidth, contentWidth());
 }
 
 void TrackListComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
@@ -1059,6 +1097,8 @@ void TrackListComponent::resized()
 
     horizontalBar.setBounds (barStrip.withLeft (notePreviewOriginX())
                                      .withWidth (previewWidth()));
+    headDivider.setBounds (notePreviewOriginX() - HeadDivider::grabHalfWidth, 0,
+                           2 * HeadDivider::grabHalfWidth, viewport.getBottom());
 
     applyRowHeight();
 

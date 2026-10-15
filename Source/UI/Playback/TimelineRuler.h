@@ -46,6 +46,7 @@ public:
 
     // Marks left of this x are not drawn (the main view's track-info column /
     // the editor's keyboard gutter sit under part of the ruler).
+    int getContentLeft() const noexcept { return contentLeft; }
     void setContentLeft (int x)
     {
         contentLeft = x;

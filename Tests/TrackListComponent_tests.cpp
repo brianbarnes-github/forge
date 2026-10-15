@@ -86,6 +86,7 @@ namespace lotro
         static void press (TrackListComponent& c, juce::int64 trackId, SectionHit hit, int tick, juce::ModifierKeys mods = {}) { c.sectionPressed (trackId, hit, tick, mods); }
         static void drag (TrackListComponent& c, int tick) { c.sectionDragged (tick); }
         static void release (TrackListComponent& c, int tick) { c.sectionReleased (tick); }
+        static juce::Component& headDivider (TrackListComponent& c) { return c.headDivider; }
     };
 }
 
@@ -3506,4 +3507,119 @@ TEST_CASE ("TrackListComponent: an out-and-back band drag leaves no range, or th
     CHECK (rig.range() == std::optional<TickPair> (TickPair { 4800.0, 6000.0 }));
     CHECK (counter.changes == 0);
     rig.controller->removeListener (&counter);
+}
+
+namespace
+{
+    // A mouse event on the head divider at list-local x `listX` (y = 20), pressed at `downListX`.
+    juce::MouseEvent dividerEventAt (TrackListComponent& list, int downListX, int listX)
+    {
+        auto& divider = Access::headDivider (list);
+        const auto pos = juce::Point<float> ((float) (listX - divider.getX()), 20.0f);
+        const auto down = juce::Point<float> ((float) (downListX - divider.getX()), 20.0f);
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(),
+                                 pos, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
+                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &divider, &divider,
+                                 juce::Time::getCurrentTime(), down,
+                                 juce::Time::getCurrentTime(), 1, false);
+    }
+}
+
+TEST_CASE ("TrackListComponent: setHeadWidth clamps and moves the rows, ruler, overlays and scrollbar", "[track-list][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    CHECK (list.getHeadWidth() == headwidth::minimum);
+
+    list.setHeadWidth (300);
+    CHECK (list.getHeadWidth() == 300);
+    CHECK (Access::notePreviewOriginX (list) == 300);
+    for (auto* row : Access::rows (list))
+    {
+        CHECK (row->getHeadWidth() == 300);
+        CHECK (row->notePreviewForTesting().getX() == 300);
+    }
+    CHECK (list.rulerForTesting()->getContentLeft() == 300);
+    CHECK (Access::overlay (list)->getX() == 300);
+    CHECK (Access::eventMarkerOverlay (list)->getX() == 300);
+    CHECK (Access::horizontalBar (list).getX() == 300);
+    CHECK (Access::overlay (list)->getWidth() == previewWidth (list));
+
+    list.setHeadWidth (50);
+    CHECK (list.getHeadWidth() == headwidth::minimum);
+    list.setHeadWidth (1000);
+    CHECK (list.getHeadWidth() == headwidth::maximum);
+}
+
+TEST_CASE ("TrackListComponent: the head width survives a rebuild and drives the rows' tick mapping", "[track-list][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTrackEndingAt (doc, 9600);
+    TrackListComponent list (doc);
+    list.setSize (800, 300);
+    list.setHeadWidth (320);
+    Access::rebuild (list);
+
+    const auto rows = Access::rows (list);
+    REQUIRE (rows.size() == 2);   // conductor + the track
+    for (auto* row : rows)
+    {
+        CHECK (row->getHeadWidth() == 320);
+        CHECK (row->notePreviewForTesting().getX() == 320);
+    }
+    const auto& view = Access::timelineView (list);
+    REQUIRE (rows[1]->tickForLocalX);
+    CHECK (rows[1]->tickForLocalX (320 + 40) == Catch::Approx ((double) view.tickForX (40)));
+}
+
+TEST_CASE ("TrackListComponent: dragging the head divider resizes the heads and reports the width once, on release", "[track-list][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    addTrackEndingAt (doc, 9600);
+    TrackListComponent list (doc);
+    list.setSize (800, 300);
+    std::vector<int> committed;
+    list.onHeadWidthChanged = [&] (int width) { committed.push_back (width); };
+
+    auto& divider = Access::headDivider (list);
+    CHECK (divider.isVisible());
+    CHECK (divider.getX() < headwidth::minimum);
+    CHECK (divider.getRight() > headwidth::minimum);
+    CHECK (divider.getMouseCursor() == juce::MouseCursor (juce::MouseCursor::LeftRightResizeCursor));
+
+    const int down = headwidth::minimum;
+    divider.mouseDown (dividerEventAt (list, down, down));
+    divider.mouseDrag (dividerEventAt (list, down, down + 60));
+    CHECK (list.getHeadWidth() == 260);
+    CHECK (committed.empty());   // no settings write per mouse move
+    CHECK (divider.getX() < 260);
+    CHECK (divider.getRight() > 260);
+
+    divider.mouseDrag (dividerEventAt (list, down, down + 500));
+    CHECK (list.getHeadWidth() == headwidth::maximum);
+    divider.mouseDrag (dividerEventAt (list, down, down + 110));
+    divider.mouseUp (dividerEventAt (list, down, down + 110));
+    CHECK (list.getHeadWidth() == 310);
+    CHECK (committed == std::vector<int> { 310 });
+
+    // A press and release without movement reports nothing.
+    divider.mouseDown (dividerEventAt (list, 310, 310));
+    divider.mouseUp (dividerEventAt (list, 310, 310));
+    CHECK (committed.size() == 1);
+
+    // Dragging left stops at the minimum.
+    divider.mouseDown (dividerEventAt (list, 310, 310));
+    divider.mouseDrag (dividerEventAt (list, 310, 10));
+    divider.mouseUp (dividerEventAt (list, 310, 10));
+    CHECK (list.getHeadWidth() == headwidth::minimum);
+    CHECK (committed.back() == headwidth::minimum);
 }

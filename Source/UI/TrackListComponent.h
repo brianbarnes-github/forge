@@ -72,6 +72,16 @@ public:
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
 
+    // Width of the track-head column, clamped to [headwidth::minimum, headwidth::maximum].
+    // Every row, the ruler, the overlays and the timeline scrollbar follow at once. The
+    // user changes it by dragging the divider between the heads and the note strips.
+    void setHeadWidth (int width);
+    int getHeadWidth() const noexcept { return headWidth; }
+
+    // Fired once when a divider drag that changed the width is released, with the new
+    // width (not on every drag step: the owner saves it to the settings file).
+    std::function<void (int)> onHeadWidthChanged;
+
     // What an Alt-drag Move/Copy to another track carries.
     void setMergeScope (MergeScope scope) noexcept { mergeScope = scope; }
     MergeScope getMergeScope() const noexcept { return mergeScope; }
@@ -188,6 +198,24 @@ private:
     void resizeRowsBy (double pixels, int pointerY);
     void scrollRowsBy (int pixels);
     void applyRowHeight();
+
+    // The invisible grab strip over the line between the heads and the note strips
+    // (ruler and rows, full height), with a left-right resize cursor. A drag sets the
+    // head width from the press width plus the pointer's travel in list coordinates
+    // (the strip itself moves as the width changes); the release reports it.
+    class HeadDivider : public juce::Component
+    {
+    public:
+        explicit HeadDivider (TrackListComponent& o);
+        void mouseDown (const juce::MouseEvent& e) override;
+        void mouseDrag (const juce::MouseEvent& e) override;
+        void mouseUp (const juce::MouseEvent& e) override;
+        static constexpr int grabHalfWidth = 3;   // px either side of the line
+    private:
+        TrackListComponent& owner;
+        int pressListX = 0;
+        int pressWidth = 0;
+    };
 
     void rebuild();
     void muteSoloChanged() override;
@@ -369,6 +397,7 @@ private:
     std::set<juce::int64> selectedTrackIds;
     PlaybackController* playback = nullptr;
     bool                followEnabled = true;
+    int                 headWidth = TrackRowComponent::trackInfoWidth;
     MergeScope          mergeScope = MergeScope::notesOnly;
 
     struct SectionGesture
@@ -417,6 +446,7 @@ private:
     std::unique_ptr<LoopRangeOverlay> loopOverlay;
     std::unique_ptr<EventMarkerOverlay> eventMarkerOverlay;   // independent of playback
     int                               overlayRepaintCount = 0;   // test observability
+    HeadDivider                       headDivider { *this };   // added last: above the rows and overlays
 
     // True from fitTimelineToDocument() until the user zooms by hand: while
     // set, resized() refits so the whole song stays visible across window
