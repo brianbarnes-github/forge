@@ -72,3 +72,24 @@ TEST_CASE ("ManageLayoutsPanel: delete removes the selected layout and selects t
     CHECK (panel.selectedRow() == -1);
     CHECK_FALSE (panel.deleteButtonForTesting().isEnabled());
 }
+
+TEST_CASE ("ManageLayoutsPanel: the rename prompt is destroyed once it is dismissed", "[dock][layouts]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto list = three();
+    ManageLayoutsPanel panel (list);
+    panel.selectRow (0);
+    panel.promptRename();
+
+    auto* manager = juce::ModalComponentManager::getInstance();
+    REQUIRE (manager->getNumModalComponents() == 1);
+    juce::Component::SafePointer<juce::Component> prompt (manager->getModalComponent (0));
+    REQUIRE (prompt != nullptr);
+
+    prompt->exitModalState (0);   // Cancel
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (100);
+
+    CHECK (manager->getNumModalComponents() == 0);
+    CHECK (prompt == nullptr);
+    CHECK (list[0].name == "Layout 1");
+}

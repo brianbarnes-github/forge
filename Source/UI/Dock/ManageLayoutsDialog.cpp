@@ -112,7 +112,7 @@ void ManageLayoutsPanel::askName (const juce::String& reason)
         const auto text = alert->getTextEditorContents ("name").toStdString();
         if (const auto error = safe->renameSelected (text))
             safe->askName (*error == LayoutNameError::empty ? "The name can't be empty." : "Another layout already has that name.");
-    }), false);
+    }), true);
 }
 
 juce::Component::SafePointer<juce::DialogWindow> showManageLayoutsDialog (SavedLayouts& list,
