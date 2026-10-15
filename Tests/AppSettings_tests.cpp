@@ -336,3 +336,33 @@ TEST_CASE ("AppSettings: strip buttons default to empty and persist across a re-
     juce::PropertiesFile reloaded (file, {});
     CHECK (AppSettings (reloaded).stripButtons() == "[1]");
 }
+
+TEST_CASE ("AppSettings: the track head width defaults to the minimum and persists across a re-opened file", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.trackHeadWidth() == headwidth::minimum);
+        CHECK (settings.setTrackHeadWidth (310));
+        CHECK (settings.trackHeadWidth() == 310);
+    }
+    juce::PropertiesFile reloaded (file, {});
+    CHECK (AppSettings (reloaded).trackHeadWidth() == 310);
+}
+
+TEST_CASE ("AppSettings: a corrupt or out-of-range track head width reads as the minimum", "[app-settings]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    const AppSettings settings (props);
+    for (const char* stored : { "banana", "", "150", "401", "250px" })
+    {
+        props.setValue ("trackList.headWidth", stored);
+        CHECK (settings.trackHeadWidth() == headwidth::minimum);
+    }
+    props.setValue ("trackList.headWidth", "400");
+    CHECK (settings.trackHeadWidth() == headwidth::maximum);
+}

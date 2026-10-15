@@ -4,6 +4,7 @@
 
 #include "GridSize.h"
 #include "MergeScope.h"
+#include "TrackHeadWidth.h"
 
 #include <algorithm>
 #include <cmath>
@@ -143,6 +144,22 @@ public:
         return save();
     }
 
+    // The main screen's track-head column width in px. Absent, non-numeric or outside
+    // [headwidth::minimum, headwidth::maximum] reads as the minimum (the original width).
+    int trackHeadWidth() const
+    {
+        const auto stored = file.getValue (keyTrackHeadWidth).trim();
+        if (stored.isEmpty() || ! stored.containsOnly ("0123456789"))
+            return headwidth::minimum;
+        const int width = stored.getIntValue();
+        return (width >= headwidth::minimum && width <= headwidth::maximum) ? width : headwidth::minimum;
+    }
+    bool setTrackHeadWidth (int width)
+    {
+        file.setValue (keyTrackHeadWidth, headwidth::clamp (width));
+        return save();
+    }
+
     // True when the most recent setter could not write the settings file. The new
     // value still applies for this session (PropertiesFile holds it in memory).
     bool lastSaveFailed() const noexcept { return saveFailed; }
@@ -160,6 +177,7 @@ private:
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
     static constexpr const char* keyStripButtons       = "strip.buttons";
+    static constexpr const char* keyTrackHeadWidth     = "trackList.headWidth";
 
     // Anything that is not an explicit "0" (corrupt or hand-edited file) reads
     // as the default, which is on.
