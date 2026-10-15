@@ -124,6 +124,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/Playback/MuteSoloState.cpp
     Source/UI/Playback/Transport.cpp
     Source/UI/Playback/LoopRange.cpp
+    Source/UI/Playback/RateMapping.cpp
     Source/UI/Playback/PlaybackEngine.cpp
     Source/UI/Playback/PlaybackController.cpp
     Source/UI/Mixer/SourceMidiTarget.cpp
