@@ -1,6 +1,8 @@
 # Songsmith transport controls (right area) — design
 
-Date: 2026-10-14. Status: draft for review.
+Date: 2026-10-14. Status: Implemented.
+
+Implementation notes: the spec's `BarPosition` text helpers live in `Source/UI/Playback/TransportText.{h,cpp}` (they also hold the length, meter and tempo parsers). The engine object persists across `documentReplaced`, so `PlaybackController` does not re-apply the rate there; the engine keeps it.
 
 ## Goal
 
