@@ -195,6 +195,9 @@ MainWindow::MainWindow()
     stripButtonsHost.run = [this] (int id) { menuItemSelected (id, 0); };
     songsmith.setStripButtonsHost (&stripButtonsHost);
     songsmith.onFloatingShortcut = [this] (const juce::KeyPress& key) { return keyPressed (key); };
+    // The track-head column width: restored here, saved when a divider drag is released.
+    songsmith.setTrackHeadWidth (appSettings.trackHeadWidth());
+    songsmith.onTrackHeadWidthChanged = [this] (int width) { appSettings.setTrackHeadWidth (width); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
         const juce::String json (dock::toJson (layout));

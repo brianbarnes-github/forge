@@ -242,6 +242,10 @@ public:
     void setActiveEditorGridSize (GridSize size);
     void setFollowPlayhead (bool follow);
     void setMergeScope (MergeScope scope);
+    // The track list's head-column width (see TrackListComponent::setHeadWidth). A divider
+    // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.
+    void setTrackHeadWidth (int width) { trackList.setHeadWidth (width); }
+    std::function<void (int)> onTrackHeadWidthChanged;
     void setDefaultGridSize (GridSize size);
     void quantizeActiveEditor() { if (trackEditor->getTrackId() != -1) trackEditor->quantizeSelection(); }
 

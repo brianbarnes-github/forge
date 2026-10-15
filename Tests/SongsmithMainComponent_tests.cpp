@@ -1342,3 +1342,20 @@ TEST_CASE ("SongsmithMainComponent: setStripButtonsHost gives both the main stri
     CHECK (Access::transportStrip (view)->buttonsBarForTesting() == nullptr);
     CHECK (Access::editorStripBar (view) == nullptr);
 }
+
+TEST_CASE ("SongsmithMainComponent: the track head width passes through to the track list and its drags are reported", "[songsmith][head-width]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent view (doc);
+    using Access = SongsmithMainComponentTestAccess;
+
+    view.setTrackHeadWidth (300);
+    CHECK (Access::trackList (view).getHeadWidth() == 300);
+
+    std::optional<int> reported;
+    view.onTrackHeadWidthChanged = [&] (int width) { reported = width; };
+    REQUIRE (Access::trackList (view).onHeadWidthChanged);
+    Access::trackList (view).onHeadWidthChanged (340);
+    CHECK (reported == 340);
+}

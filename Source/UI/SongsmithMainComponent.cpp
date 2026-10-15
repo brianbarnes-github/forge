@@ -112,6 +112,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
 
     trackList.setPlayback (playback);
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
+    trackList.onHeadWidthChanged = [this] (int width) { if (onTrackHeadWidthChanged) onTrackHeadWidthChanged (width); };
     trackList.onConductorMarkerClicked = [this] (TempoMeterKind kind, int tick) { return selectTempoMeterEvent (kind, tick); };
     trackList.onConductorMarkerOpened = [this] (TempoMeterKind kind, int tick) { openTempoMeterEditorOnEvent (kind, tick); };
     trackList.onTempoMeterRequested = [this] { openTempoMeterEditor(); };
