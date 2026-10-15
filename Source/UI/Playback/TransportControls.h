@@ -11,6 +11,9 @@
 namespace lotro
 {
 
+// Which tempo the rate knob's menu bakes (times the rate) into the song's first tempo.
+enum class RateBake { firstTempo, playheadTempo };
+
 // The right area of the transport strip: the Selection group (loop start / end
 // / length), the time signature and tempo at the playhead, and the playback-rate
 // knob. Spec: docs/superpowers/specs/2026-10-14-songsmith-transport-controls-design.md.
@@ -24,6 +27,12 @@ public:
 
     void resized() override;
     void paint (juce::Graphics& g) override;
+
+    // The rate knob's right-click menu actions.
+    void resetRate();
+    // Sets the first tempo to (chosen tempo x rate) as one undo step, then resets the rate to 1.000.
+    // A tempo the document cannot store is rejected with a bubble and nothing changes.
+    void bakeRate (RateBake source);
 
     juce::TextEditor& startBoxForTesting()  { return startBox.editor; }
     juce::TextEditor& endBoxForTesting()    { return endBox.editor; }
@@ -50,6 +59,9 @@ private:
     };
 
     enum class Edited { start, end, length };
+
+    void mouseDown (const juce::MouseEvent&) override;   // right-click on the knob: the rate menu
+    void showRateMenu();
 
     void playbackLoopChanged() override { refreshSelection(); }
     void playbackRateChanged() override { refreshRate(); }

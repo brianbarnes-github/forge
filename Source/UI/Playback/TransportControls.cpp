@@ -71,8 +71,9 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
     rateSlider.setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (SongsmithColours::columnDivider));
     rateSlider.setColour (juce::Slider::thumbColourId, juce::Colour (SongsmithColours::text));
     rateSlider.setWantsKeyboardFocus (false);
-    rateSlider.setTooltip ("Playback rate (double-click to reset to 1.000)");
+    rateSlider.setTooltip ("Playback rate (double-click to reset to 1.000; right-click for more)");
     rateSlider.onValueChange = [this] { controller.setRate (sliderToRate (rateSlider.getValue())); };
+    rateSlider.addMouseListener (this, false);
     addAndMakeVisible (rateSlider);
 
     rateReadout.setEditable (false, true);   // double-click to type
@@ -89,6 +90,7 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
 
 TransportControls::~TransportControls()
 {
+    rateSlider.removeMouseListener (this);
     rateSlider.setLookAndFeel (nullptr);
     controller.removeListener (this);
 }
@@ -285,6 +287,46 @@ void TransportControls::commitMeter()
                 reject (meterBox, describe (*error));
     }
     refreshTiming (true);
+}
+
+void TransportControls::resetRate() { controller.setRate (1.0); }
+
+void TransportControls::bakeRate (RateBake source)
+{
+    if (! hasSong())
+        return;
+    const auto events = listTempoMeterEvents (doc);
+    const int tick = source == RateBake::firstTempo ? 0 : (int) std::llround (controller.getPositionTicks());
+    const double bpm = bpmAt (events, tick) * controller.rate();
+    if (const auto error = setTempo (doc, 0, bpm))
+    {
+        reject (tempoBox, describe (*error));
+        return;
+    }
+    controller.setRate (1.0);
+}
+
+void TransportControls::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && e.eventComponent == &rateSlider)
+        showRateMenu();
+}
+
+void TransportControls::showRateMenu()
+{
+    juce::PopupMenu menu;
+    menu.addItem (1, "Set rate back to 1.000");
+    menu.addItem (2, "Set first tempo to current tempo (bake rate)", hasSong());
+    menu.addItem (3, "Set first tempo to tempo at playhead (bake rate)", hasSong());
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&rateSlider),
+                        [safe = juce::Component::SafePointer<TransportControls> (this)] (int result)
+                        {
+                            if (safe == nullptr)
+                                return;
+                            if (result == 1)      safe->resetRate();
+                            else if (result == 2) safe->bakeRate (RateBake::firstTempo);
+                            else if (result == 3) safe->bakeRate (RateBake::playheadTempo);
+                        });
 }
 
 void TransportControls::commitTempo()

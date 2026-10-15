@@ -555,3 +555,59 @@ TEST_CASE ("TransportControls: a rejected entry shows its reason in a bubble and
     rig.type (rig.controls->tempoBoxForTesting(), "banana");
     CHECK (rig.controls->reasonShownForTesting().containsIgnoreCase ("tempo"));
 }
+
+TEST_CASE ("TransportControls: the rate menu resets the rate to 1.000", "[playback][controls][rate]")
+{
+    Rig rig;
+    rig.controller.setRate (2.0);
+    rig.controls->resetRate();
+    CHECK (rig.controller.rate() == Approx (1.0));
+    CHECK (rig.controls->rateReadoutForTesting().getText() == "1.000");
+}
+
+TEST_CASE ("TransportControls: baking the rate into the first tempo scales it and resets the rate, as one undo step", "[playback][controls][rate]")
+{
+    Rig rig;
+    rig.controller.setRate (1.5);
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.controls->bakeRate (RateBake::firstTempo);
+    rig.controller.flushRebuild();
+
+    CHECK (bpmAt (listTempoMeterEvents (rig.doc), 0) == Approx (180.0).margin (0.01));
+    CHECK (rig.controller.rate() == Approx (1.0));
+
+    rig.doc.getUndoManager().undo();
+    rig.controller.flushRebuild();
+    CHECK (bpmAt (listTempoMeterEvents (rig.doc), 0) == Approx (120.0).margin (0.01));
+}
+
+TEST_CASE ("TransportControls: baking the rate with the playhead's tempo sets the first tempo to it times the rate", "[playback][controls][rate]")
+{
+    Rig rig;
+    REQUIRE_FALSE (setTempo (rig.doc, 1920, 90.0));
+    rig.controller.flushRebuild();
+    rig.controller.seekToTick (2000.0);
+    rig.controller.setRate (2.0);
+    rig.controls->bakeRate (RateBake::playheadTempo);
+    rig.controller.flushRebuild();
+
+    const auto events = listTempoMeterEvents (rig.doc);
+    CHECK (bpmAt (events, 0) == Approx (180.0).margin (0.01));
+    CHECK (bpmAt (events, 1920) == Approx (90.0).margin (0.01));   // later tempos are left alone
+    CHECK (rig.controller.rate() == Approx (1.0));
+}
+
+TEST_CASE ("TransportControls: baking a rate that pushes the tempo out of range is rejected and changes nothing", "[playback][controls][rate]")
+{
+    Rig rig;
+    REQUIRE_FALSE (setTempo (rig.doc, 0, 600.0));
+    rig.controller.flushRebuild();
+    rig.controller.setRate (2.0);   // 600 x 2 = 1200 > 1000
+    rig.doc.getUndoManager().clearUndoHistory();
+    rig.controls->bakeRate (RateBake::firstTempo);
+    rig.controller.flushRebuild();
+
+    CHECK (bpmAt (listTempoMeterEvents (rig.doc), 0) == Approx (600.0).margin (0.01));
+    CHECK (rig.controller.rate() == Approx (2.0));
+    CHECK (rig.controls->reasonShownForTesting().isNotEmpty());
+}
