@@ -120,10 +120,15 @@ When you say…       …I'll know you mean
 
 ## Songsmith view
 
-- **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — a fixed
-  200px-wide left column (`TrackRowComponent::trackInfoWidth`; 198px usable
-  after the 2px column divider) holds the **track head**
-  (`TrackHeadComponent`, `Source/UI/TrackHeadComponent.{h,cpp}`), in two rows:
+- **Track row** (#10, `TrackListComponent`/`TrackRowComponent`) — a left
+  column 200px wide by default (`TrackRowComponent::trackInfoWidth`; 2px of it
+  is the column divider) holds the **track head**; a wider column gives the
+  name and volume slider the extra room. Drag the divider line
+  between the heads and the note strips (the pointer turns into a left-right
+  arrow over it) to widen the column up to 400px or narrow it back to 200px;
+  the width is remembered across sessions (`trackList.headWidth` in the
+  settings file, not the Song). The head
+  (`TrackHeadComponent`, `Source/UI/TrackHeadComponent.{h,cpp}`) has two rows:
   index, colour swatch and name on top; drawn mute (speaker) and solo
   (headphones) icon toggles and a playback volume slider below. There is no
   note-count / pitch-range line. The head takes no clicks itself, so
