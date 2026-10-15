@@ -9,6 +9,7 @@
 #include "MidiImportPlan.h"
 #include "Playback/AudioOutput.h"
 #include "Playback/PlaybackController.h"
+#include "Playback/StripButtonsBar.h"
 #include "Playback/SynthVoice.h"
 #include "Preferences/PreferencesServices.h"
 #include "SongDocument.h"
@@ -74,6 +75,7 @@ private:
     };
     SynthGc                                  synthGc { synth };
     PlaybackController                       playback { songDocument, synth };
+    StripButtonsHost                         stripButtonsHost;   // before `body`: the strips' bars refer to it
     std::unique_ptr<Body>                   body;
     std::unique_ptr<juce::MenuBarComponent> menuBar;
     std::unique_ptr<juce::FileChooser>      fileChooser;
@@ -106,6 +108,7 @@ private:
     void applySavedLayout (std::size_t index);
     void manageLayouts();
     void persistSavedLayouts();
+    void persistStripButtons();
 
     // Declared after everything it renders from so it is destroyed first.
     // Created lazily on the message thread by ensurePlaybackReady().

@@ -189,6 +189,11 @@ MainWindow::MainWindow()
     auto& songsmith = body->getSongsmith();
     songsmith.restoreDockLayout (dock::fromJson (appSettings.dockLayout().toStdString()));
     savedLayouts = dock::savedLayoutsFromJson (appSettings.savedLayouts().toStdString());
+    stripButtonsHost.buttons = dock::stripButtonsFromJson (appSettings.stripButtons().toStdString());
+    stripButtonsHost.menuState = [this] { return currentMenuState(); };
+    stripButtonsHost.persist = [this] { persistStripButtons(); };
+    stripButtonsHost.run = [this] (int id) { menuItemSelected (id, 0); };
+    songsmith.setStripButtonsHost (&stripButtonsHost);
     songsmith.onFloatingShortcut = [this] (const juce::KeyPress& key) { return keyPressed (key); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
@@ -201,6 +206,11 @@ MainWindow::MainWindow()
 void MainWindow::persistSavedLayouts()
 {
     appSettings.setSavedLayouts (juce::String (dock::toJson (savedLayouts)));
+}
+
+void MainWindow::persistStripButtons()
+{
+    appSettings.setStripButtons (juce::String (dock::toJson (stripButtonsHost.buttons)));
 }
 
 void MainWindow::saveCurrentLayout()
@@ -226,7 +236,12 @@ void MainWindow::manageLayouts()
 {
     if (manageLayoutsWindow != nullptr)
         return;
-    manageLayoutsWindow = dock::showManageLayoutsDialog (savedLayouts, [this] { persistSavedLayouts(); }, {}, {}, this);
+    manageLayoutsWindow = dock::showManageLayoutsDialog (
+        savedLayouts,
+        [this] { persistSavedLayouts(); persistStripButtons(); stripButtonsHost.changed(); },
+        [this] (const std::string& from, const std::string& to) { dock::renameLayoutButton (stripButtonsHost.buttons, from, to); },
+        [this] (const std::string& name) { dock::removeLayoutButton (stripButtonsHost.buttons, name); },
+        this);
 }
 
 MainWindow::~MainWindow()
@@ -236,6 +251,7 @@ MainWindow::~MainWindow()
         prefs->exitModalState (0);
     if (auto* manage = manageLayoutsWindow.getComponent())
         manage->exitModalState (0);   // it edits `savedLayouts` and calls back into this window
+    body->getSongsmith().setStripButtonsHost (nullptr);   // the bars refer to stripButtonsHost
 
     // The audio thread must stop before the engine and synth are destroyed.
     // (Members are destroyed in reverse order, so this is also guaranteed by
