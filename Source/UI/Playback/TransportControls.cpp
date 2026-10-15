@@ -295,6 +295,8 @@ void TransportControls::bakeRate (RateBake target)
 {
     if (! hasSong())
         return;
+    // Editing the tempo map under a running engine would change the speed mid-play; the playhead stays put.
+    controller.pause();
     const auto events = listTempoMeterEvents (doc);
     const int tick = target == RateBake::firstTempo ? 0 : (int) std::llround (controller.getPositionTicks());
     const double bpm = bpmAt (events, tick) * controller.rate();

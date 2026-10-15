@@ -603,6 +603,22 @@ TEST_CASE ("TransportControls: setting the playhead tempo to the current tempo w
     CHECK (bpmAt (listTempoMeterEvents (rig.doc), 2000) == Approx (90.0).margin (0.01));
 }
 
+TEST_CASE ("TransportControls: both tempo menu items pause playback and keep the playhead", "[playback][controls][rate]")
+{
+    for (const auto target : { RateBake::firstTempo, RateBake::playheadTempo })
+    {
+        Rig rig;
+        rig.controller.seekToTick (2000.0);
+        rig.controller.setRate (2.0);
+        rig.controller.play();
+        REQUIRE (rig.controller.isPlaying());
+        const auto before = rig.controller.getPositionTicks();
+        rig.controls->bakeRate (target);
+        CHECK_FALSE (rig.controller.isPlaying());
+        CHECK (rig.controller.getPositionTicks() == Approx (before).margin (1.0));
+    }
+}
+
 TEST_CASE ("TransportControls: the tempo menu items at rate 1.000 add no marker and no undo step", "[playback][controls][rate]")
 {
     Rig rig;
