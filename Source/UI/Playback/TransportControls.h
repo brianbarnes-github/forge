@@ -30,7 +30,7 @@ public:
 
     // The rate knob's right-click menu actions.
     void resetRate();
-    // Writes (tempo there x rate) at tick 0 or at the playhead as one undo step, then resets the rate to 1.000.
+    // Writes (tempo there x rate) at tick 0 or at the playhead as one undo step; the first-tempo target then resets the rate to 1.000, the playhead target leaves it.
     // A tempo the document cannot store is rejected with a bubble and nothing changes.
     void bakeRate (RateBake source);
 

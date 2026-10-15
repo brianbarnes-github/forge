@@ -305,7 +305,9 @@ void TransportControls::bakeRate (RateBake target)
             reject (tempoBox, describe (*error));
             return;
         }
-    controller.setRate (1.0);
+    // The first-tempo item hands the speed to the map; the playhead item leaves the knob where it is.
+    if (target == RateBake::firstTempo)
+        controller.setRate (1.0);
 }
 
 void TransportControls::mouseDown (const juce::MouseEvent& e)
