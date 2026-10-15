@@ -835,7 +835,7 @@ TEST_CASE ("SongsmithMainComponent: zooming the track list repaints the open Tem
     main.fitTrackTimelineToDocument();
 }
 
-TEST_CASE ("SongsmithMainComponent: a floating panel forwards Delete and Ctrl+S, but not other keys, to the window shortcuts", "[songsmith][layout][dock]")
+TEST_CASE ("SongsmithMainComponent: a floating panel forwards Delete, Ctrl+S and undo/redo, but not other keys, to the window shortcuts", "[songsmith][layout][dock]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     SongDocument doc;
@@ -853,8 +853,10 @@ TEST_CASE ("SongsmithMainComponent: a floating panel forwards Delete and Ctrl+S,
     const juce::KeyPress del (juce::KeyPress::deleteKey);
     CHECK (window->keyPressed (save));
     CHECK (window->keyPressed (del));
+    CHECK (window->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier, 0)));
+    CHECK (window->keyPressed (juce::KeyPress ('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 0)));
     CHECK_FALSE (window->keyPressed (juce::KeyPress ('q')));
-    CHECK (forwarded.size() == 2);
+    CHECK (forwarded.size() == 4);
 }
 
 TEST_CASE ("SongsmithMainComponent: the first-run layout is the old splitter layout", "[songsmith][layout]")

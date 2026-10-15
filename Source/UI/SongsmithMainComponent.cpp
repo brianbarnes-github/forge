@@ -1,6 +1,7 @@
 #include "SongsmithMainComponent.h"
 #include "PreviewPipeline.h"
 #include "PreviewNoteDiff.h"
+#include "HistoryKeys.h"
 #include "SongsmithColours.h"
 
 #include "Core/LotroInstrument.h"
@@ -174,7 +175,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
             return escapePressed();
         const bool save = key == juce::KeyPress ('s', juce::ModifierKeys::commandModifier, 0);
         const bool del = key == juce::KeyPress (juce::KeyPress::deleteKey);
-        return (save || del) && onFloatingShortcut && onFloatingShortcut (key);
+        return (save || del || historyActionFor (key).has_value()) && onFloatingShortcut && onFloatingShortcut (key);
     };
     dockHost.apply (dock::defaultLayout());
 }
