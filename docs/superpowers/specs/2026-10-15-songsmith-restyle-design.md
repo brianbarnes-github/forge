@@ -50,6 +50,7 @@ with one rename. Values sampled from the mock-up:
 | `textMuted` | `#888888` | `#8B8F96` | |
 | `accentAmber` → **`accentCopper`** | `#E0B080` | `#E8955A` | accent, Play outline, playhead, logo |
 | `conductorTempo` | `#E0B080` | `= accentCopper` | keeps "tempo = accent" |
+| `markerIvory` *(new)* | — | `#E6DFD2` | start marker + loop range (§4.2) |
 | `previewNoteNormal`, `conductorMeter` | `#7FA8D0` | `#5CC3DE` | the mock-up's cyan |
 | `previewNoteBorder` | `#A0C0E0` | `#8FD8EC` | cyan border, lighter |
 | `rangeBandFill` / `rangeBandBorder` | cyan-blue | re-derived from the new cyan (same alphas) | |
@@ -203,11 +204,13 @@ rects cover the glow (no trails).
 
 The start marker (`MarkerOverlay`, the ruler flag) and the loop range are
 amber today, distinct from the white playhead (see the `eventMarker` comment
-in `SongsmithColours.h`). With a copper playhead they would merge. **Open
-question for the user** (resolved before planning; the chosen option is
-written back here): (a) copper playhead, start marker and loop range move to
-a neutral light grey/ivory; (b) playhead stays white with a white glow and
-copper is used for chrome only; (c) accept the overlap.
+in `SongsmithColours.h`). With a copper playhead they would merge.
+
+**Decision (option a):** the playhead goes copper; the start marker
+(`MarkerOverlay` line, ruler flag) and the loop range (overlay fill, ruler
+brackets) move to a new `markerIvory` token (`#E6DFD2`), keeping their
+current alphas. `conductorTempo` stays copper (it lives on the Conductor
+row, not the timeline overlay, so it doesn't sit on the playhead).
 
 ### 4.3 Ruler cap (`TimelineRuler`)
 
