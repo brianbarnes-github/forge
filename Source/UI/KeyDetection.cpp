@@ -20,9 +20,12 @@ std::vector<KeyNote> collectKeyNotes (const juce::ValueTree& songRoot)
     return notes;
 }
 
-juce::String detectedKeyText (const SongDocument& doc, KeyProfileSet set)
+std::optional<int> detectedKeyIndex (const SongDocument& doc, KeyProfileSet set)
 {
-    return juce::String::fromUTF8 (formatKeyText (detectKey (collectKeyNotes (doc.getTree()), set)).c_str());
+    const auto estimate = detectKey (collectKeyNotes (doc.getTree()), set);
+    if (estimate.confidence <= 0.0)
+        return std::nullopt;
+    return keyIndex (estimate.best);
 }
 
 } // namespace lotro

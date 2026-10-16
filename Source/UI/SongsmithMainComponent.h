@@ -81,9 +81,11 @@ public:
     // TimelineViewState's very-zoomed-in initial pixelsPerTick.
     void fitTrackTimelineToDocument() { trackList.fitTimelineToDocument(); }
 
-    // Called by MainWindow after a MIDI import: the Conductor head's detected-key
-    // text. documentReplaced() clears it.
-    void setSongKeyText (const juce::String& text) { trackList.setKeyText (text); }
+    // The song's key (keyIndex, 0..23) shown on the Conductor head as "key: G major";
+    // nullopt shows none. Session state: MainWindow sets it after a MIDI import and
+    // from Song ▸ Set Key; documentReplaced() clears it.
+    void setSongKey (std::optional<int> keyIndex);
+    std::optional<int> getSongKey() const noexcept { return songKey; }
 
     // Called by MainWindow after the document's contents were replaced
     // (New / Open). Resets everything that lives outside the tree:
@@ -308,6 +310,7 @@ private:
     // so the window has to be destroyed first.
     std::unique_ptr<TempoMeterEditorWindow> tempoMeterWindow;
     std::set<juce::int64>    ghostedTrackIds;
+    std::optional<int> songKey;   // see setSongKey
     bool                     followPlayheadSetting = true;
     GridSize                 defaultGridSize = GridSize::Off;
 

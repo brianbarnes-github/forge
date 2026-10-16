@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GridSize.h"
+#include "KeyDetector.h"
 
 #include <algorithm>
 #include <array>
@@ -54,6 +55,7 @@ enum MenuCommandId : int
     ViewLayoutManage,
     EditTempoMeter,
     HelpAbout,
+    SongDetectKey,
 
     // Grid-size submenu items occupy EditGridSizeBase + each GridSize enum
     // value; MainWindow range-checks incoming ids against that span. Pinned well
@@ -61,21 +63,25 @@ enum MenuCommandId : int
     EditGridSizeBase = 1000,
 
     // Layouts submenu: ViewLayoutApplyBase + the layout's index in the saved list.
-    ViewLayoutApplyBase = 2000
+    ViewLayoutApplyBase = 2000,
+
+    // Song ▸ Set Key: SongKeyBase + the key's keyIndex (0..23).
+    SongKeyBase = 3000
 };
 
 inline constexpr int maxSavedLayouts = 100;
 
 // Every plain (non grid-size) command; the menu model's ids must all be in here,
 // and MainWindow::menuItemSelected must handle each of them.
-inline constexpr std::array<MenuCommandId, 38> allCommandIds {
+inline constexpr std::array<MenuCommandId, 39> allCommandIds {
     FileNew, FileOpenSong, FileSave, FileSaveAs, FileImportMidi, FileExportAbc,
     FileExportMidi, FilePreferences, FileQuit, EditUndo, EditRedo, EditSplit, EditDelete,
     EditSelectAll, EditSelectAllTracks, EditSelectAllSections, EditQuantize,
     SongDefaultParts, SongRunConverter, SongSoundFont, TransportPlayPause,
     TransportStop, TransportGoToStart, TransportGoToEnd, TransportRewindOneBar,
     TransportClearMarker, ViewExportPanelToggle, ViewDiagnosticsToggle, ViewSourceToggle, ViewMidiEditorToggle,
-    ViewLotroPreviewToggle, ViewTracksToggle, ViewPartsToggle, ViewMixerToggle, ViewLayoutSave, ViewLayoutManage, EditTempoMeter, HelpAbout };
+    ViewLotroPreviewToggle, ViewTracksToggle, ViewPartsToggle, ViewMixerToggle, ViewLayoutSave, ViewLayoutManage, EditTempoMeter, HelpAbout,
+    SongDetectKey };
 
 constexpr bool isGridSizeCommand (int id) noexcept
 {
@@ -85,6 +91,11 @@ constexpr bool isGridSizeCommand (int id) noexcept
 constexpr bool isLayoutApplyCommand (int id) noexcept
 {
     return id >= ViewLayoutApplyBase && id < ViewLayoutApplyBase + maxSavedLayouts;
+}
+
+constexpr bool isSongKeyCommand (int id) noexcept
+{
+    return id >= SongKeyBase && id < SongKeyBase + keyCount;
 }
 
 struct MenuState
@@ -110,6 +121,7 @@ struct MenuState
     bool canSplitAtMarker = false;
     bool hasTimeBase = false;            // the Song has a tempo/meter time base to edit
     std::vector<std::string> layoutNames;   // the saved dock layouts, in order
+    int  songKeyIndex = -1;              // the Conductor head's key (keyIndex); -1 for none
 };
 
 struct MenuItemDesc
@@ -174,6 +186,16 @@ namespace menu_detail
         items.push_back (item (ViewLayoutManage, "Manage Layouts...", {}, ! names.empty()));
         return items;
     }
+
+    // Detect Key, then every key (ticked: the song's), enabled once there is a track to judge.
+    inline MenuItemDesc setKeySubmenu (const MenuState& s)
+    {
+        const bool hasTracks = s.trackCount > 1;
+        std::vector<MenuItemDesc> items { item (SongDetectKey, "Detect Key", {}, hasTracks), separator() };
+        for (int i = 0; i < keyCount; ++i)
+            items.push_back (item (SongKeyBase + i, keyAt (i).name(), {}, hasTracks, i == s.songKeyIndex));
+        return submenu ("Set Key", std::move (items), hasTracks);
+    }
 }
 
 inline std::vector<MenuDesc> buildMenus (const MenuState& s)
@@ -218,6 +240,7 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         item (EditTempoMeter, "Tempo and Meter...", {}, s.hasTimeBase) } });
 
     menus.push_back ({ "Song", {
+        setKeySubmenu (s),
         item (SongDefaultParts, "Default parts from tracks"),
         item (SongRunConverter, "Run Converter"),
         separator(),
@@ -259,7 +282,7 @@ struct StripCommand
     MenuCommandId id;
 };
 
-inline constexpr std::array<StripCommand, 32> stripCommands {{
+inline constexpr std::array<StripCommand, 33> stripCommands {{
     { "File", "New",            "file.new",            FileNew },
     { "File", "Open",           "file.open",           FileOpenSong },
     { "File", "Save",           "file.save",           FileSave },
@@ -279,6 +302,7 @@ inline constexpr std::array<StripCommand, 32> stripCommands {{
     { "Edit", "Select Sections", "edit.selectAllSections", EditSelectAllSections },
     { "Song", "Default Parts",  "song.defaultParts",   SongDefaultParts },
     { "Song", "Run Converter",  "song.runConverter",   SongRunConverter },
+    { "Song", "Detect Key",     "song.detectKey",      SongDetectKey },
     { "Song", "SoundFont",      "song.soundFont",      SongSoundFont },
     { "Transport", "Rewind Bar",   "transport.rewindOneBar", TransportRewindOneBar },
     { "Transport", "Clear Marker", "transport.clearMarker",  TransportClearMarker },

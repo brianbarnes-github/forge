@@ -60,6 +60,17 @@ std::string KeyCandidate::name() const
                                   : std::string (minorNames[pc]) + " minor";
 }
 
+int keyIndex (const KeyCandidate& key)
+{
+    return (key.mode == KeyMode::minor ? 12 : 0) + ((key.tonic % 12) + 12) % 12;
+}
+
+KeyCandidate keyAt (int index)
+{
+    const int i = std::clamp (index, 0, keyCount - 1);
+    return { i % 12, i < 12 ? KeyMode::major : KeyMode::minor, 0.0 };
+}
+
 const KeyProfiles& keyProfiles (KeyProfileSet set)
 {
     switch (set)
@@ -111,11 +122,16 @@ KeyEstimate detectKey (const std::vector<KeyNote>& notes, KeyProfileSet set)
     return detectKey (pitchClassHistogram (notes), set);
 }
 
+std::string formatKeyText (const KeyCandidate& key)
+{
+    return "key: " + key.name();
+}
+
 std::string formatKeyText (const KeyEstimate& estimate)
 {
     if (estimate.confidence <= 0.0)
         return {};
-    return "key: " + estimate.best.name();
+    return formatKeyText (estimate.best);
 }
 
 } // namespace lotro

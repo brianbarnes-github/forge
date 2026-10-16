@@ -46,6 +46,12 @@ struct KeyEstimate
     std::vector<KeyCandidate> ranked;             // all 24, best first
 };
 
+// The 24 keys as one index: C..B major are 0..11, C..B minor 12..23 (the
+// Song ▸ Set Key list order).
+inline constexpr int keyCount = 24;
+int          keyIndex (const KeyCandidate& key);
+KeyCandidate keyAt (int index);   // correlation 0; index clamped to 0..23
+
 const KeyProfiles& keyProfiles (KeyProfileSet set);
 
 // Indexed by pitch % 12, each note weighted by its duration (1 when the duration
@@ -57,7 +63,8 @@ std::array<double, 12> pitchClassHistogram (const std::vector<KeyNote>& notes);
 KeyEstimate detectKey (const std::array<double, 12>& histogram, KeyProfileSet set = KeyProfileSet::krumhanslKessler);
 KeyEstimate detectKey (const std::vector<KeyNote>& notes, KeyProfileSet set = KeyProfileSet::krumhanslKessler);
 
-// The Conductor head's "key: G major"; empty when the estimate has no confidence.
+// The Conductor head's "key: G major"; for an estimate, empty when it has no confidence.
+std::string formatKeyText (const KeyCandidate& key);
 std::string formatKeyText (const KeyEstimate& estimate);
 
 } // namespace lotro

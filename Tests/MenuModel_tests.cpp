@@ -195,12 +195,55 @@ TEST_CASE ("MenuModel: Quantize and the Grid Size submenu need an open track edi
     CHECK_FALSE (isGridSizeCommand (EditGridSizeBase + 4));
 }
 
-TEST_CASE ("MenuModel: Song menu is unchanged and has no shortcuts", "[menu-model]")
+TEST_CASE ("MenuModel: Song menu opens with Set Key and has no shortcuts", "[menu-model]")
 {
     const auto song = menuNamed (buildMenus ({}), "Song");
-    CHECK (labels (song) == V { "Default parts from tracks", "Run Converter", "-", "SoundFont..." });
+    CHECK (labels (song) == V { "Set Key>", "Default parts from tracks", "Run Converter", "-", "SoundFont..." });
     for (const auto& i : song.items)
         CHECK (i.shortcut.empty());
+}
+
+TEST_CASE ("MenuModel: Set Key holds Detect Key, a divider, then all 24 keys with the song's ticked", "[menu-model][key]")
+{
+    const auto setKey = [] (int trackCount, int songKeyIndex)
+    {
+        MenuState s; s.trackCount = trackCount; s.songKeyIndex = songKeyIndex;
+        const auto song = menuNamed (buildMenus (s), "Song");
+        REQUIRE (song.items.front().isSubmenu);
+        CHECK (song.items.front().label == "Set Key");
+        return song.items.front();
+    };
+
+    const auto sub = setKey (3, 7);
+    CHECK (sub.enabled);
+    REQUIRE (sub.children.size() == 26);
+    CHECK (sub.children[0].id == SongDetectKey);
+    CHECK (sub.children[0].label == "Detect Key");
+    CHECK (sub.children[0].enabled);
+    CHECK (sub.children[1].separator);
+    for (int i = 0; i < keyCount; ++i)
+    {
+        const auto& k = sub.children[(std::size_t) i + 2];
+        CAPTURE (i);
+        CHECK (k.id == SongKeyBase + i);
+        CHECK (isSongKeyCommand (k.id));
+        CHECK (k.label == keyAt (i).name());
+        CHECK (k.ticked == (i == 7));
+        CHECK (k.enabled);
+    }
+    CHECK (sub.children[2].label == "C major");
+    CHECK (sub.children[13].label == "B major");
+    CHECK (sub.children[14].label == "C minor");
+    CHECK (sub.children[25].label == "B minor");
+    CHECK_FALSE (isSongKeyCommand (SongKeyBase - 1));
+    CHECK_FALSE (isSongKeyCommand (SongKeyBase + keyCount));
+
+    for (const auto& k : setKey (3, -1).children)
+        CHECK_FALSE (k.ticked);
+
+    // Only the conductor (or nothing): nothing to judge or label.
+    CHECK_FALSE (setKey (1, -1).enabled);
+    CHECK_FALSE (setKey (1, -1).children[0].enabled);
 }
 
 TEST_CASE ("MenuModel: Transport menu layout, Play/Pause label and Clear Marker state", "[menu-model]")
@@ -313,7 +356,7 @@ TEST_CASE ("MenuModel: every command id is unique and listed in allCommandIds", 
             if (i.separator) { CHECK (i.id == 0); continue; }
             if (i.isSubmenu) { CHECK (i.id == 0); self (self, i.children); continue; }
             seen.insert (i.id);
-            CHECK ((known.count (i.id) == 1 || isGridSizeCommand (i.id) || isLayoutApplyCommand (i.id)));
+            CHECK ((known.count (i.id) == 1 || isGridSizeCommand (i.id) || isLayoutApplyCommand (i.id) || isSongKeyCommand (i.id)));
             CHECK_FALSE (i.label.empty());
         }
     };
@@ -332,7 +375,7 @@ TEST_CASE ("MenuModel: Tempo and Meter... needs a time base", "[menu-model]")
     CHECK_FALSE (itemWith (menuNamed (buildMenus ({}), "Edit"), EditTempoMeter).enabled);
     MenuState s; s.hasTimeBase = true;
     CHECK (itemWith (menuNamed (buildMenus (s), "Edit"), EditTempoMeter).enabled);
-    CHECK (allCommandIds.size() == 38);
+    CHECK (allCommandIds.size() == 39);
 }
 
 TEST_CASE ("MenuModel: View ends with a Layouts submenu holding Save, each saved layout and Manage", "[menu-model]")

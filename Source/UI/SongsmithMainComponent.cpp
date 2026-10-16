@@ -366,8 +366,15 @@ void SongsmithMainComponent::documentReplaced()
     trackList.clearSelection();
     partStrip.clearSelection();
     selectPartForPreview (-1);
-    trackList.setKeyText ({});
+    setSongKey (std::nullopt);
     trackList.fitTimelineToDocument();
+}
+
+void SongsmithMainComponent::setSongKey (std::optional<int> keyIndex)
+{
+    songKey = keyIndex;
+    trackList.setKeyText (keyIndex.has_value() ? juce::String::fromUTF8 (formatKeyText (keyAt (*keyIndex)).c_str())
+                                               : juce::String());
 }
 
 void SongsmithMainComponent::selectPartForPreview (juce::int64 partId)

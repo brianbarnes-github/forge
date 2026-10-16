@@ -211,12 +211,25 @@ TEST_CASE ("KeyDetector: the head text is 'key: ' and the name", "[key-detector]
     CHECK (formatKeyText (k) == "key: " + k.best.name());
 }
 
-TEST_CASE ("KeyDetection: the document's key text after an import", "[key-detector]")
+TEST_CASE ("KeyDetection: the document's detected key after an import", "[key-detector]")
 {
     TempMidi midi (smf (1, 480, { conductor(), noteTrack (scale (62, majorSteps)) }));
     SongDocument doc;
-    CHECK (detectedKeyText (doc).isEmpty());
+    CHECK_FALSE (detectedKeyIndex (doc).has_value());
     Diagnostics d;
     REQUIRE (importMidiFile (doc, midi.file, 1, d));
-    CHECK (detectedKeyText (doc) == "key: D major");
+    REQUIRE (detectedKeyIndex (doc).has_value());
+    CHECK (keyAt (*detectedKeyIndex (doc)).name() == "D major");
+}
+
+TEST_CASE ("KeyDetector: key indices run C..B major then C..B minor and round trip", "[key-detector]")
+{
+    CHECK (keyCount == 24);
+    CHECK (keyIndex ({ 0, KeyMode::major, 0.0 }) == 0);
+    CHECK (keyIndex ({ 11, KeyMode::major, 0.0 }) == 11);
+    CHECK (keyIndex ({ 0, KeyMode::minor, 0.0 }) == 12);
+    CHECK (keyIndex ({ 9, KeyMode::minor, 0.0 }) == 21);
+    for (int i = 0; i < keyCount; ++i)
+        CHECK (keyIndex (keyAt (i)) == i);
+    CHECK (formatKeyText (keyAt (21)) == "key: A minor");
 }

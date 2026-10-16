@@ -127,6 +127,9 @@ private:
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
     void importMidiWithOptions (const juce::File& file, const ImportOptions& options);
+    // Detects the song's key from its notes and shows it on the Conductor head (none when
+    // there is nothing to judge). Runs after each import and on Song > Set Key > Detect Key.
+    void detectSongKey();
     void runConversion();
     void saveAbcAs();
     void exportMidiAs();

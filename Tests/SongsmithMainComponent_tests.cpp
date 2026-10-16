@@ -474,7 +474,7 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced clears the editor's track a
     REQUIRE (Access::ghostedCount (main) == 1);
     REQUIRE (Access::selectedPreviewPartId (main) == partId);
     REQUIRE (Access::partStrip (main).getSelectedPartId() == partId);
-    main.setSongKeyText ("key: D major");
+    main.setSongKey (2);
     REQUIRE (Access::trackList (main).getKeyText() == "key: D major");
 
     main.documentReplaced();
@@ -488,6 +488,7 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced clears the editor's track a
     CHECK (Access::partStrip (main).getSelectedPartId() == -1);
     CHECK (Access::trackList (main).getSelectedTrackId() == -1);
     CHECK (Access::trackList (main).getKeyText().isEmpty());   // New / Open show no key until a MIDI import
+    CHECK_FALSE (main.getSongKey().has_value());
 }
 
 TEST_CASE ("SongsmithMainComponent: after a document swap an old id never re-selects the new Song's part", "[session-reset]")
@@ -509,6 +510,22 @@ TEST_CASE ("SongsmithMainComponent: after a document swap an old id never re-sel
 
     CHECK (Access::selectedPreviewPartId (main) == -1);
     CHECK_FALSE (Access::hasPreviewNoteSource (main));
+}
+
+TEST_CASE ("SongsmithMainComponent: the song key sets the Conductor head's text; none clears it", "[key]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    CHECK_FALSE (main.getSongKey().has_value());
+
+    main.setSongKey (12 + 4);
+    CHECK (main.getSongKey() == std::optional<int> (16));
+    CHECK (Access::trackList (main).getKeyText() == "key: E minor");
+
+    main.setSongKey (std::nullopt);
+    CHECK_FALSE (main.getSongKey().has_value());
+    CHECK (Access::trackList (main).getKeyText().isEmpty());
 }
 
 TEST_CASE ("SongsmithMainComponent: documentReplaced writes nothing to the tree", "[session-reset]")

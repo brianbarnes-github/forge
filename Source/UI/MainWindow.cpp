@@ -317,6 +317,7 @@ MenuState MainWindow::currentMenuState()
     s.hasSelectedSections = songsmith.hasSelectedSections();
     s.canSplitAtMarker   = songsmith.canSplitAtMarker();
     s.hasTimeBase        = songDocument.hasTimeBase();
+    s.songKeyIndex       = songsmith.getSongKey().value_or (-1);
     for (const auto& layout : savedLayouts)
         s.layoutNames.push_back (layout.name);
     return s;
@@ -343,6 +344,11 @@ void MainWindow::menuItemSelected (int menuItemID, int)
     if (isLayoutApplyCommand (menuItemID))
     {
         applySavedLayout ((std::size_t) (menuItemID - ViewLayoutApplyBase));
+        return;
+    }
+    if (isSongKeyCommand (menuItemID))
+    {
+        body->getSongsmith().setSongKey (menuItemID - SongKeyBase);
         return;
     }
 
@@ -377,6 +383,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FilePreferences: preferencesWindow = showPreferencesDialog (preferencesServices, this); return;
         case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
+        case SongDetectKey:    detectSongKey();                                               return;
         case SongRunConverter:
             runConversion();
             body->setExportPanelVisible (true);
@@ -482,9 +489,14 @@ void MainWindow::importMidiWithOptions (const juce::File& file, const ImportOpti
     auto placed = options;
     placed.startOffsetTicks = importStartOffsetTicks (appSettings, playback.getMarkerTick());
     if (importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, placed))
-        body->getSongsmith().setSongKeyText (detectedKeyText (songDocument));
+        detectSongKey();
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
     body->getSongsmith().fitTrackTimelineToDocument();
+}
+
+void MainWindow::detectSongKey()
+{
+    body->getSongsmith().setSongKey (detectedKeyIndex (songDocument));
 }
 
 void MainWindow::refreshTitle()
