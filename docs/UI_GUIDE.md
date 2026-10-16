@@ -348,10 +348,13 @@ When you say…       …I'll know you mean
   import), re-fits the view (and re-arms refit-on-resize) for the
   newly-current track. Note editing (Phase
   7, via `SourceRollEditor`): click to select a note, shift/ctrl/cmd-click to
-  add or remove one from the selection, drag on empty canvas to
-  rubber-band-select; right-click a key, or anywhere in its row, to select
-  every note of that MIDI pitch (replacing the selection; shift/ctrl/cmd+
-  right-click adds to it instead); drag a selected note's body to move it (and every
+  add or remove one from the selection (a plain click on empty canvas clears
+  it); right-drag, from empty canvas or a note, to lasso (rubber-band) select
+  every note the box touches (replacing the selection; shift/ctrl/cmd+
+  right-drag adds to it instead); right-click a key, or anywhere in its row,
+  without dragging (under 4 px) to select every note of that MIDI pitch on the
+  release (replacing the selection; shift/ctrl/cmd+right-click adds to it
+  instead); a left-drag on empty canvas selects nothing; drag a selected note's body to move it (and every
   other selected note, together) or its left/right edge to resize it;
   double-click empty canvas to create a note there (duration from the Edit
   menu's Grid Size, or a quarter note if the grid is off); Delete/Backspace
