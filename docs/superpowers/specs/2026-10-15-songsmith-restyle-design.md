@@ -116,13 +116,13 @@ A `juce::LookAndFeel_V4` subclass.
     the `rateSlider.setLookAndFeel` calls.
   - `drawScrollbar` — thin rounded thumb (`textMuted` at low alpha, brighter
     on hover), no track fill.
-  - `drawPopupMenuBackground`, `drawPopupMenuItem` — charcoal menu, copper
-    highlight bar on hover, muted shortcut text.
-  - `drawMenuBarBackground`, `drawMenuBarItem` — gradient bar; copper text
-    on the open/hovered item.
-  - `drawComboBox` — matches the button.
-  - `drawDocumentWindowTitleBar` — gradient title bar, muted title text
-    (dock float windows, dialogs).
+  - `drawPopupMenuBackground` — charcoal with a 1 px `border` outline.
+  - `drawMenuBarBackground` — `paintPanelGradient`.
+  - Popup-menu items, menu-bar items, combo boxes and document-window title
+    bars are **not** overridden: `LookAndFeel_V4` already draws them from
+    the colour IDs set above (copper highlight bar, muted shortcut text,
+    rounded combo), and the app's dialogs use native title bars, so an
+    override would never be seen.
 - **Fonts.** No new font file. Weight/size tweaks only, where the mock-up
   reads lighter.
 
@@ -214,9 +214,12 @@ row, not the timeline overlay, so it doesn't sit on the playhead).
 
 ### 4.3 Ruler cap (`TimelineRuler`)
 
-A small copper downward triangle at the playhead x in the ruler. The ruler
-listens to the same `PlaybackController` position notifications as the
-overlay and repaints only the old/new cap rects. When the playhead is
+A small copper downward triangle at the playhead x in the ruler. Like the
+marker and loop range, the ruler is not a controller listener: it gets a
+`setPlayhead (std::function<std::optional<double>()>)` provider, and its
+owners (`TrackListComponent`, `TrackEditorPanel`'s roll) call
+`ruler.playheadMoved()` from their existing `playbackPositionChanged`,
+which repaints only the old and new cap rects. When the playhead is
 off-screen the cap isn't drawn.
 
 ## 5. Transport strip and logo placement
