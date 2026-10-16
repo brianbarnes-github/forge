@@ -286,7 +286,12 @@ When you say…       …I'll know you mean
   *Snap to grid* and is saved at once: while on, a click in this editor's roll or
   timing bar that drops the start marker lands on the nearest grid line (Edit ▸
   Grid size, counted from the song start); off, or with the grid Off, it lands
-  exactly where clicked. **Options → Snap to Key ▸** holds **Enabled** (a
+  exactly where clicked. Notes snap too: a dragged note's start lands on the
+  nearest line (the rest of a selection moves with it, keeping its spacing), a
+  dragged edge lands on the nearest line but never closer than one line to the
+  other edge, and a double-click inserts its note at the start of the grid cell
+  under the pointer. Hold Alt on the double-click or while dragging to place
+  freely. **Options → Snap to Key ▸** holds **Enabled** (a
   checkbox, off at launch), **Root ▸** (C♭ B B♭ A♯ A A♭ G♯ G G♭ F♯ F E E♭ D♯ D
   D♭ C♯ C, the current one ticked) and **Type ▸** (Major, Natural minor, Melodic
   minor (rising form), Harmonic minor, Major / Minor pentatonic, Major / Minor
@@ -845,7 +850,7 @@ That avoids any ambiguity about which of the half-dozen panels / rolls / lists w
   - *Restore the window position and size on launch* (default on) — off: the next launch opens centred at the default size. Takes effect the next time Songsmith starts; quitting still saves the position, so switching it back on restores the last-closed one.
 - **Editing page:**
   - *Default grid size* (Off by default; 1/4, 1/8, 1/16) — the grid a Track editor starts with. Applies to editors opened afterwards; an open editor keeps its grid, and Edit ▸ Grid size still changes the open editor (it never changes this setting).
-  - *Snap to grid* (default on) — the same setting as the Track editor's Options ▸ Snap to Grid; either one changes both. While on, a start-marker click in the Track editor lands on the nearest grid line.
+  - *Snap to grid* (default on) — the same setting as the Track editor's Options ▸ Snap to Grid; either one changes both. While on, a start-marker click in the Track editor lands on the nearest grid line, and note moves, edge resizes and double-click inserts snap to the grid (Alt for free).
   - *Follow the playhead during playback* (default on) — off: the track list and Track editor no longer scroll to keep the playhead in view. Applies at once.
   - *Note preview (in the MIDI editor)*: *Preview notes when inserting*, *Preview notes when editing* and *Preview notes when velocity changes* (all default off) — the same settings as the Track editor's Options ▸ Note Preview checkboxes; either one changes both.
   - *When moving or copying sections to another track (Alt-drag), carry* **Notes only** (default) / **All events** — All events also carries the controllers, program changes and pitch bend that lie inside the section (End-of-Track and track-name events never travel), re-addressed to the target track's channel; Move removes them from the source. Applies to the next Alt-drag.

@@ -959,3 +959,211 @@ TEST_CASE ("SourceRollEditor: a drag that moves in time and comes back to its st
     REQUIRE ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
     CHECK (rec.calls.empty());
 }
+
+namespace
+{
+    constexpr int eighth = ticksPerQuarter / 2;   // the grid for the snap tests
+
+    int pixelsFor (const PianoRollGeometry& g, int ticks) { return g.xForTick (ticks) - g.xForTick (0); }
+
+    const juce::ModifierKeys altKey (juce::ModifierKeys::altModifier);
+}
+
+TEST_CASE ("SourceRollEditor: snap is off by default and has no effect with the grid off", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    CHECK_FALSE (f.editor.getSnapToGrid());
+
+    f.editor.setSnapToGrid (true);   // grid ticks still 0
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (pixelsFor (f.geometry, 200), 0);
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == f.geometry.tickForX (end.x) - f.geometry.tickForX (start.x));
+}
+
+TEST_CASE ("SourceRollEditor: with snap on a moved note's start lands on the nearest grid line", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+
+    const auto start = f.centreOf (f.noteA);
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (start.translated (pixelsFor (f.geometry, 200), 0));   // ~200 -> 240
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == eighth);
+    f.editor.mouseDrag (start.translated (pixelsFor (f.geometry, 70), 0));    // ~70 -> 0
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    f.editor.mouseUp (start);
+}
+
+TEST_CASE ("SourceRollEditor: a snapped group move puts the grabbed note on the grid and keeps the spacing", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.noteA.setProperty (SongIDs::startTick, 100, nullptr);   // off the grid
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseDown (f.centreOf (f.noteB), juce::ModifierKeys (juce::ModifierKeys::shiftModifier), false);
+    REQUIRE (f.editor.getNumSelected() == 2);
+
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (pixelsFor (f.geometry, 150), 0);   // ~250 -> 240
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == eighth);
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter + (eighth - 100));
+}
+
+TEST_CASE ("SourceRollEditor: holding Alt moves a note freely while snap is on", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (pixelsFor (f.geometry, 200), 0);
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (end, altKey);
+    const int free = f.geometry.tickForX (end.x) - f.geometry.tickForX (start.x);
+    REQUIRE (free % eighth != 0);
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == free);
+
+    f.editor.mouseDrag (end);   // Alt released mid-drag: snaps again
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == eighth);
+    f.editor.mouseUp (end);
+}
+
+TEST_CASE ("SourceRollEditor: with snap on a right-edge resize puts the end on the nearest grid line, at least one line after the start", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;   // noteA: 0..480
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    auto bounds = f.geometry.noteBounds (Fixture::toNote (f.noteA));
+    const juce::Point<int> edge (bounds.x + bounds.width - 1, bounds.y + bounds.height / 2);
+
+    f.editor.mouseDown (edge, {}, false);
+    f.editor.mouseDrag (edge.translated (pixelsFor (f.geometry, 200), 0));    // end ~680 -> 720
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == 720);
+    f.editor.mouseDrag (edge.translated (pixelsFor (f.geometry, 70), 0));     // end ~550 -> 480
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+    f.editor.mouseDrag (edge.translated (-pixelsFor (f.geometry, 470), 0));  // end ~10 -> first line after 0
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == eighth);
+    f.editor.mouseUp (edge);
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+}
+
+TEST_CASE ("SourceRollEditor: with snap on a left-edge resize puts the start on the nearest grid line, at least one line before the end", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;   // noteB: 480..960
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    auto bounds = f.geometry.noteBounds (Fixture::toNote (f.noteB));
+    const juce::Point<int> edge (bounds.x + 1, bounds.y + bounds.height / 2);
+
+    f.editor.mouseDown (edge, {}, false);
+    f.editor.mouseDrag (edge.translated (pixelsFor (f.geometry, 200), 0));    // start ~680 -> 720
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == 720);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == eighth);
+    f.editor.mouseDrag (edge.translated (pixelsFor (f.geometry, 470), 0));    // start ~950 -> last line before 960
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == 720);
+    f.editor.mouseDrag (edge.translated (-pixelsFor (f.geometry, 200), 0));   // start ~280 -> 240
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == eighth);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == 2 * ticksPerQuarter - eighth);
+    f.editor.mouseUp (edge);
+}
+
+TEST_CASE ("SourceRollEditor: holding Alt resizes freely while snap is on", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    auto bounds = f.geometry.noteBounds (Fixture::toNote (f.noteA));
+    const juce::Point<int> edge (bounds.x + bounds.width - 1, bounds.y + bounds.height / 2);
+    const auto end = edge.translated (pixelsFor (f.geometry, 200), 0);
+
+    f.editor.mouseDown (edge, {}, false);
+    f.editor.mouseDrag (end, altKey);
+    f.editor.mouseUp (end);
+
+    const int free = ticksPerQuarter + f.geometry.tickForX (end.x) - f.geometry.tickForX (edge.x);
+    REQUIRE (free % eighth != 0);
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == free);
+}
+
+TEST_CASE ("SourceRollEditor: with snap on a double-click creates the note at the start of the grid cell; Alt places it exactly", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    const juce::Point<int> cell (f.geometry.xForTick (3 * ticksPerQuarter + 200), f.geometry.yForPitch (72));   // inside 1440..1680
+
+    f.editor.mouseDown (cell, {}, true);
+    auto snapped = SongDocument::getNotesNode (f.track).getChild (2);
+    CHECK ((int) snapped.getProperty (SongIDs::startTick) == 3 * ticksPerQuarter);
+
+    const juce::Point<int> other (f.geometry.xForTick (5 * ticksPerQuarter + 200), f.geometry.yForPitch (72));
+    f.editor.mouseDown (other, altKey, true);
+    auto exact = SongDocument::getNotesNode (f.track).getChild (3);
+    CHECK ((int) exact.getProperty (SongIDs::startTick) == f.geometry.tickForX (other.x));
+}
+
+TEST_CASE ("SourceRollEditor: with snap on a pitch drag with a little sideways wobble leaves an off-grid note's timing and import orders alone", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.noteA.setProperty (SongIDs::startTick, 100, nullptr);   // off the grid
+    markImported (f.noteA);
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (2, f.geometry.yForPitch (58) - f.geometry.yForPitch (60));
+
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::pitch) == 58);
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 100);
+    CHECK ((int) f.noteA.getProperty (SongIDs::onOrder) == 4);
+    CHECK ((int) f.noteA.getProperty (SongIDs::offOrder) == 9);
+}
+
+TEST_CASE ("SourceRollEditor: with snap on a drag out and back puts an off-grid note back where it was and previews nothing", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.noteA.setProperty (SongIDs::startTick, 100, nullptr);
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const auto start = f.centreOf (f.noteA);
+
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (start.translated (pixelsFor (f.geometry, 300), 0));
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::startTick) != 100);
+    f.editor.mouseDrag (start);
+    f.editor.mouseUp (start);
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 100);
+    CHECK (rec.calls.empty());
+}
+
+TEST_CASE ("SourceRollEditor: with snap on pressing an off-grid note's edge without moving leaves it alone", "[source-roll-editor][grid-snap]")
+{
+    Fixture f;
+    f.noteA.setProperty (SongIDs::durationTicks, 430, nullptr);   // ends off the grid
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    auto bounds = f.geometry.noteBounds (Fixture::toNote (f.noteA));
+    const juce::Point<int> edge (bounds.x + bounds.width - 1, bounds.y + bounds.height / 2);
+
+    f.editor.mouseDown (edge, {}, false);
+    f.editor.mouseDrag (edge.translated (1, 0));
+    f.editor.mouseUp (edge.translated (1, 0));
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == 430);
+}

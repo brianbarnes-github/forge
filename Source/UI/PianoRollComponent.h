@@ -93,8 +93,10 @@ public:
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
     // Whether a click that drops the start marker lands on the nearest grid line
-    // (the grid from setGridTicks; none when it is 0). Off by default.
-    void setSnapToGrid (bool on) noexcept { snapEnabled = on; }
+    // (the grid from setGridTicks; none when it is 0), and whether note moves,
+    // resizes and double-click inserts snap too (SourceRollEditor::setSnapToGrid).
+    // Off by default.
+    void setSnapToGrid (bool on) noexcept;
     bool getSnapToGrid() const noexcept { return snapEnabled; }
     // A key the canvas's editor left alone, offered before the Viewport (which
     // scrolls on the arrow keys) sees it; return true to claim it.
@@ -265,7 +267,7 @@ private:
     void drawNotes (juce::Graphics& g, juce::Rectangle<int> clip) const;
 
     bool handleEditorMouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
-    bool handleEditorMouseDrag (juce::Point<int> pos);
+    bool handleEditorMouseDrag (juce::Point<int> pos, juce::ModifierKeys mods = {});
     bool handleEditorMouseUp (juce::Point<int> pos);
     bool handleEditorKeyPressed (const juce::KeyPress& key);
     void afterEditorGesture (bool changed);

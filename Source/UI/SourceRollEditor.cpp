@@ -1,4 +1,5 @@
 #include "SourceRollEditor.h"
+#include "GridSnap.h"
 #include "SectionEdit.h"
 
 #include <algorithm>
@@ -150,7 +151,7 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
         if (pitchAllowed && ! pitchAllowed (geometry.pitchForY (pos.y)))
             return false;
 
-        createNoteAt (pos);
+        createNoteAt (pos, snapsWith (mods));
         return true;
     }
 
@@ -200,7 +201,12 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
     return true;
 }
 
-bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
+bool SourceRollEditor::snapsWith (juce::ModifierKeys mods) const noexcept
+{
+    return snapToGrid && currentGridTicks > 0 && ! mods.isAltDown();
+}
+
+bool SourceRollEditor::mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
 {
     if (dragMode == DragMode::RightPress)
     {
@@ -220,11 +226,25 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
     if (dragMode == DragMode::None || dragOriginals.empty())
         return false;
 
-    const int deltaTick = geometry.tickForX (pos.x) - geometry.tickForX (dragStartPos.x);
+    int deltaTick = geometry.tickForX (pos.x) - geometry.tickForX (dragStartPos.x);
+    // Snapping, a pointer within a few pixels of the press keeps the original
+    // timing, so a pitch drag's wobble never pulls an off-grid note onto the grid.
+    const bool nearPress = std::abs (pos.x - dragStartPos.x) < lassoThresholdPixels;
+    const bool snap = snapsWith (mods) && ! nearPress;
+    if (snapsWith (mods) && nearPress)
+        deltaTick = 0;
 
     if (dragMode == DragMode::Move)
     {
         const int deltaPitch = geometry.pitchForY (pos.y) - geometry.pitchForY (dragStartPos.y);
+        if (snap)
+        {
+            // The grabbed note lands on the grid; the rest follow by the same delta.
+            const auto grabbed = std::find_if (dragOriginals.begin(), dragOriginals.end(),
+                                               [this] (const DragOriginal& o) { return o.note == grabbedNote; });
+            const int anchor = grabbed != dragOriginals.end() ? grabbed->startTick : dragOriginals.front().startTick;
+            deltaTick = (int) snapTickToGrid (anchor + deltaTick, currentGridTicks) - anchor;
+        }
         bool pitchChanged = false;
         for (auto& orig : dragOriginals)
         {
@@ -254,7 +274,13 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
     auto& orig = dragOriginals.front();
     if (dragMode == DragMode::ResizeRight)
     {
-        const int newDuration = std::max (1, orig.durationTicks + deltaTick);
+        int newDuration = std::max (1, orig.durationTicks + deltaTick);
+        if (snap)
+        {
+            const int end = std::max ((int) snapTickToGrid (orig.startTick + newDuration, currentGridTicks),
+                                      (int) stepTickByGrid (orig.startTick, currentGridTicks, 1));
+            newDuration = end - orig.startTick;
+        }
         if ((int) orig.note.getProperty (SongIDs::durationTicks) != newDuration)
         {
             doc.setProperty (orig.note, SongIDs::durationTicks, newDuration, false);
@@ -264,7 +290,10 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
     else // ResizeLeft: end tick (startTick + durationTicks) stays fixed.
     {
         const int endTick = orig.startTick + orig.durationTicks;
-        const int newStart = juce::jlimit (0, endTick - 1, orig.startTick + deltaTick);
+        int newStart = juce::jlimit (0, endTick - 1, orig.startTick + deltaTick);
+        if (snap)
+            newStart = std::min ((int) snapTickToGrid (newStart, currentGridTicks),
+                                 (int) stepTickByGrid (endTick, currentGridTicks, -1));
         const int newDuration = endTick - newStart;
         if ((int) orig.note.getProperty (SongIDs::startTick) != newStart)
         {
@@ -388,14 +417,18 @@ void SourceRollEditor::markTimingEdited (juce::ValueTree note)
     markNoteTimingEdited (doc, note);
 }
 
-void SourceRollEditor::createNoteAt (juce::Point<int> pos)
+void SourceRollEditor::createNoteAt (juce::Point<int> pos, bool snap)
 {
     if (! track.isValid())
         return;
 
+    // Snapped, the note starts at the grid line at or before the click: the cell it is in.
+    const int tick = std::max (0, geometry.tickForX (pos.x));
+    const int startTick = snap ? tick / currentGridTicks * currentGridTicks : tick;
+
     juce::ValueTree note (SongIDs::NOTE);
     note.setProperty (SongIDs::pitch, geometry.pitchForY (pos.y), nullptr);
-    note.setProperty (SongIDs::startTick, std::max (0, geometry.tickForX (pos.x)), nullptr);
+    note.setProperty (SongIDs::startTick, startTick, nullptr);
     note.setProperty (SongIDs::durationTicks,
                        currentGridTicks > 0 ? currentGridTicks : geometry.getTicksPerQuarter(), nullptr);
     note.setProperty (SongIDs::velocity, 100, nullptr);

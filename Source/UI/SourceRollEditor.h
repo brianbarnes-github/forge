@@ -53,6 +53,15 @@ public:
     void setGridTicks (int ticks) noexcept { currentGridTicks = ticks; }
     int getGridTicks() const noexcept { return currentGridTicks; }
 
+    // Options ▸ Snap to Grid: while on (and the grid is not Off), a moved note's
+    // start (the one under the press; the rest of the selection keeps its
+    // spacing) and a resized edge land on the nearest grid line, never closer
+    // than one line to the other edge, and a double-click creates its note at
+    // the start of the grid cell under it. Alt held on that press or drag step
+    // places freely. Off by default.
+    void setSnapToGrid (bool on) noexcept { snapToGrid = on; }
+    bool getSnapToGrid() const noexcept { return snapToGrid; }
+
     // Options ▸ Snap to Key: which pitches a double-click may create a note on.
     // Empty (the default) allows every pitch. A refused pitch changes nothing --
     // no note, no selection change, no undo step. Moves, resizes and every other
@@ -93,7 +102,7 @@ public:
     // press on empty canvas only clears the selection (with a modifier it
     // keeps it); a left-drag there does nothing.
     bool mouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
-    bool mouseDrag (juce::Point<int> pos);
+    bool mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods = {});
     bool mouseUp (juce::Point<int> pos);
 
     // Delete/Backspace deletes the current selection; Ctrl+Z/Ctrl+Y (or
@@ -141,7 +150,8 @@ private:
     void toggleSelection (const juce::ValueTree& note);
     void pruneSelection();
     void updateRubberBandSelection();
-    void createNoteAt (juce::Point<int> pos);
+    void createNoteAt (juce::Point<int> pos, bool snap);
+    bool snapsWith (juce::ModifierKeys mods) const noexcept;
     void markTimingEdited (juce::ValueTree note);
     void reportChange (NoteChange change, const std::vector<juce::ValueTree>& notes) const;
     std::vector<juce::ValueTree> draggedNotes() const;
@@ -150,6 +160,7 @@ private:
     juce::ValueTree track;
     PianoRollGeometry geometry;
     int currentGridTicks = 0;
+    bool snapToGrid = false;
     std::function<bool (int pitch)> pitchAllowed;
     NoteChangeListener noteChanged;
 

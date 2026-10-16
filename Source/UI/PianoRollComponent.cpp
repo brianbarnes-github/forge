@@ -413,6 +413,13 @@ void PianoRollComponent::setGridTicks (int ticks)
         sourceEditor->setGridTicks (ticks);
 }
 
+void PianoRollComponent::setSnapToGrid (bool on) noexcept
+{
+    snapEnabled = on;
+    if (sourceEditor != nullptr)
+        sourceEditor->setSnapToGrid (on);
+}
+
 void PianoRollComponent::setPitchFilter (std::function<bool (int pitch)> allowed)
 {
     if (sourceEditor != nullptr)
@@ -471,11 +478,11 @@ bool PianoRollComponent::handleEditorMouseDown (juce::Point<int> pos, juce::Modi
     return changed;
 }
 
-bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos)
+bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
 {
     if (sourceEditor == nullptr)
         return false;
-    const bool changed = sourceEditor->mouseDrag (pos);
+    const bool changed = sourceEditor->mouseDrag (pos, mods);
     // A moved note carries the active row with it.
     if (const int pitch = sourceEditor->movingNotePitch(); pitch >= 0)
         setActivePitch (pitch);
@@ -529,7 +536,7 @@ void PianoRollComponent::Canvas::mouseDoubleClick (const juce::MouseEvent& e)
 void PianoRollComponent::Canvas::mouseDrag (const juce::MouseEvent& e)
 {
     owner.setHoveredPitch (owner.geometry.pitchForY (e.getPosition().y));
-    owner.handleEditorMouseDrag (e.getPosition());
+    owner.handleEditorMouseDrag (e.getPosition(), e.mods);
 }
 
 void PianoRollComponent::Canvas::mouseMove (const juce::MouseEvent& e)

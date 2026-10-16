@@ -36,7 +36,10 @@ namespace lotro
         {
             return c.handleEditorMouseDown (pos, mods, dbl);
         }
-        static bool mouseDrag (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseDrag (pos); }
+        static bool mouseDrag (PianoRollComponent& c, juce::Point<int> pos, juce::ModifierKeys mods = {})
+        {
+            return c.handleEditorMouseDrag (pos, mods);
+        }
         static bool mouseUp (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseUp (pos); }
 
         // Exposes the private Canvas member itself so tests can drive its
@@ -1060,6 +1063,28 @@ TEST_CASE ("PianoRollComponent: with snap on a click on empty canvas sets the ma
     Access::mouseDown (f.roll, empty, {}, false);
     Access::mouseUp (f.roll, empty);
     CHECK (*f.controller.getMarkerTick() == exact);
+}
+
+TEST_CASE ("PianoRollComponent: Snap to Grid reaches the note editor, and Alt on a drag moves freely", "[piano-roll][grid-snap]")
+{
+    PlayheadRollFixture f;   // pitch 64 at 1920..2400
+    f.roll.setEditableTrack (f.track);
+    f.roll.setGridTicks (480);
+    f.roll.setSnapToGrid (true);
+    const auto& geometry = Access::geometry (f.roll);
+    auto note = SongDocument::getNotesNode (f.track).getChild (1);
+    const juce::Point<int> press { geometry.xForTick (2160), geometry.yForPitch (64) + geometry.getRowHeight() / 2 };
+    const auto end = press.translated (geometry.xForTick (300) - geometry.xForTick (0), 0);
+
+    Access::mouseDown (f.roll, press, {}, false);
+    Access::mouseDrag (f.roll, end);
+    CHECK ((int) note.getProperty (SongIDs::startTick) == 2400);
+
+    Access::mouseDrag (f.roll, end, juce::ModifierKeys (juce::ModifierKeys::altModifier));
+    const int free = 1920 + geometry.tickForX (end.x) - geometry.tickForX (press.x);
+    REQUIRE (free != 2400);
+    CHECK ((int) note.getProperty (SongIDs::startTick) == free);
+    Access::mouseUp (f.roll, end);
 }
 
 TEST_CASE ("PianoRollComponent: the start marker is drawn by an overlay between the canvas and the gutter", "[piano-roll][marker]")
