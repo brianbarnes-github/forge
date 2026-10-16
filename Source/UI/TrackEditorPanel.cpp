@@ -1,5 +1,6 @@
 #include "TrackEditorPanel.h"
 #include "EditorMenuModel.h"
+#include "GridSnap.h"
 #include "MenuPopup.h"
 #include "SongsmithColours.h"
 
@@ -10,6 +11,8 @@ namespace lotro
           roll (PianoRollComponent::Role::Source, &doc)
     {
         setWantsKeyboardFocus (true);
+        roll.setSnapToGrid (snapToGrid);
+        roll.onUnhandledKey = [this] (const juce::KeyPress& key) { return navigateKeyPressed (key); };
         addAndMakeVisible (menuBar);
         addAndMakeVisible (roll);
     }
@@ -42,6 +45,7 @@ namespace lotro
         EditorMenuState s;
         s.hasTrack = owner.currentTrackId != -1;
         s.snapToGrid = owner.snapToGrid;
+        s.canStepMarker = owner.canStepMarker();
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -66,8 +70,14 @@ namespace lotro
                 if (onCloseRequested)
                     onCloseRequested();
                 return;
+            case EditorNavigateMarkerLeft:
+                stepMarker (-1);
+                return;
+            case EditorNavigateMarkerRight:
+                stepMarker (+1);
+                return;
             case EditorOptionsSnapToGrid:
-                snapToGrid = ! snapToGrid;
+                setSnapToGrid (! snapToGrid);
                 if (onSnapToGridChanged)
                     onSnapToGridChanged (snapToGrid);
                 return;
@@ -170,7 +180,11 @@ namespace lotro
                         [&controller] { return rulerGridFromDocument (controller.document()); });
         ruler.setContentLeft (rollIn.getGutterWidth());
         ruler.setMarker ([&controller] { return controller.getMarkerTick(); });
-        ruler.onSetMarker = [&controller] (double tick) { controller.setMarkerTick (tick); };
+        // The roll holds the panel's Snap to Grid state, so a ruler click snaps as a roll click does.
+        ruler.onSetMarker = [&controller, &rollIn] (double tick)
+        {
+            controller.setMarkerTick (rollIn.getSnapToGrid() ? snapTickToGrid (tick, rollIn.getGridTicks()) : tick);
+        };
         ruler.onClearMarker = [&controller] { controller.clearMarker(); };
         ruler.setLoopRange ([&controller] { return controller.getLoopRange(); });
         // The press records the OTHER edge; every drag step is anchored on it, so an edge
@@ -234,8 +248,33 @@ namespace lotro
         resized();
     }
 
+    bool TrackEditorPanel::canStepMarker() const
+    {
+        return currentTrackId != -1 && playback != nullptr && roll.getGridTicks() > 0;
+    }
+
+    bool TrackEditorPanel::stepMarker (int direction)
+    {
+        if (! canStepMarker())
+            return false;
+        const double from = playback->getMarkerTick().value_or (playback->getPositionTicks());
+        playback->setMarkerTick (stepTickByGrid (from, roll.getGridTicks(), direction));
+        return true;
+    }
+
+    bool TrackEditorPanel::navigateKeyPressed (const juce::KeyPress& key)
+    {
+        if (key == juce::KeyPress (juce::KeyPress::leftKey))
+            return stepMarker (-1);
+        if (key == juce::KeyPress (juce::KeyPress::rightKey))
+            return stepMarker (+1);
+        return false;
+    }
+
     bool TrackEditorPanel::keyPressed (const juce::KeyPress& key)
     {
+        if (navigateKeyPressed (key))
+            return true;
         // The roll's SourceRollEditor only claims Delete/Backspace, so Space
         // reaches the panel.
         if (key == juce::KeyPress::spaceKey && playback != nullptr)

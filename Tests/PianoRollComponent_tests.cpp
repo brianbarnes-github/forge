@@ -1029,6 +1029,33 @@ TEST_CASE ("PianoRollComponent: a plain click on empty canvas sets the shared st
     CHECK (! f.controller.getMarkerTick().has_value());
 }
 
+TEST_CASE ("PianoRollComponent: with snap on a click on empty canvas sets the marker on the nearest grid line; off or with no grid, exactly", "[piano-roll][marker]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    f.roll.setPlayback (&f.controller);
+    f.roll.setGridTicks (480);
+    const auto& geometry = Access::geometry (f.roll);
+    const juce::Point<int> empty { geometry.xForTick (1100), geometry.yForPitch (40) + geometry.getRowHeight() / 2 };
+    const double exact = (double) geometry.tickForX (empty.x);
+    REQUIRE (exact != 960.0);
+
+    CHECK_FALSE (f.roll.getSnapToGrid());   // off unless the host turns it on
+    Access::mouseDown (f.roll, empty, {}, false);
+    Access::mouseUp (f.roll, empty);
+    CHECK (*f.controller.getMarkerTick() == exact);
+
+    f.roll.setSnapToGrid (true);
+    Access::mouseDown (f.roll, empty, {}, false);
+    Access::mouseUp (f.roll, empty);
+    CHECK (*f.controller.getMarkerTick() == 960.0);
+
+    f.roll.setGridTicks (0);
+    Access::mouseDown (f.roll, empty, {}, false);
+    Access::mouseUp (f.roll, empty);
+    CHECK (*f.controller.getMarkerTick() == exact);
+}
+
 TEST_CASE ("PianoRollComponent: the start marker is drawn by an overlay between the canvas and the gutter", "[piano-roll][marker]")
 {
     PlayheadRollFixture f;

@@ -42,14 +42,17 @@ namespace lotro
         // The editor menu bar's commands (EditorMenuCommandId). File > Export to New
         // MIDI File fires onExportTrackMidi with the loaded track (nothing when none
         // is loaded); File > Close Editor fires onCloseRequested; Options > Snap to
-        // Grid flips the snap state and fires onSnapToGridChanged with the new value.
+        // Grid flips the snap state and fires onSnapToGridChanged with the new value;
+        // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker).
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
         std::function<void (bool on)> onSnapToGridChanged;
 
-        // Options > Snap to Grid's tick. Setting it does not fire onSnapToGridChanged.
-        void setSnapToGrid (bool on) noexcept { snapToGrid = on; }
+        // Options > Snap to Grid's tick: a click in the roll or the ruler that drops the
+        // start marker lands on the nearest grid line. Setting it does not fire
+        // onSnapToGridChanged.
+        void setSnapToGrid (bool on) noexcept { snapToGrid = on; roll.setSnapToGrid (on); }
         bool getSnapToGrid() const noexcept { return snapToGrid; }
 
         void setGridTicks (int ticks);
@@ -147,6 +150,13 @@ namespace lotro
         };
 
         void titleChanged();
+        // A track, playback and a grid that is not Off.
+        bool canStepMarker() const;
+        // Moves the start marker (or, with none, the playhead's tick) to the previous
+        // (-1) or next (+1) grid line. Returns whether it could.
+        bool stepMarker (int direction);
+        // Plain Left/Right, from the panel or ahead of the roll's Viewport scrolling.
+        bool navigateKeyPressed (const juce::KeyPress& key);
 
         SongDocument& doc;
         MenuModel menuModel { *this };

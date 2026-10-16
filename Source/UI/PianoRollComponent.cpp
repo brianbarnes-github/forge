@@ -1,4 +1,5 @@
 #include "PianoRollComponent.h"
+#include "GridSnap.h"
 #include "GridLinePaint.h"
 #include "SongDocument.h"
 #include "SongsmithColours.h"
@@ -464,7 +465,10 @@ bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos)
 bool PianoRollComponent::handleEditorMouseUp (juce::Point<int> pos)
 {
     if (markerClickCandidate && playback != nullptr && pos.getDistanceFrom (markerPressPos) < 4)
-        playback->setMarkerTick ((double) geometry.tickForX (pos.x));
+    {
+        const double tick = geometry.tickForX (pos.x);
+        playback->setMarkerTick (snapEnabled ? snapTickToGrid (tick, getGridTicks()) : tick);
+    }
     markerClickCandidate = false;
     if (sourceEditor == nullptr)
         return false;
@@ -534,7 +538,9 @@ void PianoRollComponent::Canvas::mouseUp (const juce::MouseEvent& e)
 
 bool PianoRollComponent::Canvas::keyPressed (const juce::KeyPress& key)
 {
-    return owner.handleEditorKeyPressed (key);
+    if (owner.handleEditorKeyPressed (key))
+        return true;
+    return owner.onUnhandledKey && owner.onUnhandledKey (key);
 }
 
 void PianoRollComponent::Canvas::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)

@@ -88,6 +88,7 @@ add_executable(forge_tests
     SourceRollEditor_tests.cpp
     HistoryKeys_tests.cpp
     MenuModel_tests.cpp
+    GridSnap_tests.cpp
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
     SplitterComponent_tests.cpp

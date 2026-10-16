@@ -16,13 +16,16 @@ enum EditorMenuCommandId : int
 {
     EditorFileExportTrackMidi = 1,
     EditorFileClose,
-    EditorOptionsSnapToGrid
+    EditorOptionsSnapToGrid,
+    EditorNavigateMarkerLeft,
+    EditorNavigateMarkerRight
 };
 
 struct EditorMenuState
 {
     bool hasTrack = false;     // a track is loaded in the editor
     bool snapToGrid = true;    // Options > Snap to Grid is ticked
+    bool canStepMarker = false; // a track, playback and a grid (not Off)
 };
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
@@ -32,7 +35,10 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorFileExportTrackMidi, "Export to New MIDI File...", {}, s.hasTrack),
                  separator(),
                  item (EditorFileClose, "Close Editor") } },
-             { "Edit", {} }, { "Navigate", {} },
+             { "Edit", {} },
+             { "Navigate", {
+                 item (EditorNavigateMarkerLeft,  "Move Marker Left by Grid",  "Left",  s.canStepMarker),
+                 item (EditorNavigateMarkerRight, "Move Marker Right by Grid", "Right", s.canStepMarker) } },
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
              { "View", {} } };

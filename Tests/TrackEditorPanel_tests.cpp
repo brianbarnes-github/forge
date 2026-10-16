@@ -22,6 +22,7 @@ namespace lotro
         static juce::Component& content (TrackEditorPanel& w) { return *w.content; }
         static juce::MenuBarComponent& menuBar (TrackEditorPanel& w) { return w.menuBar; }
         static int menuActivations (TrackEditorPanel& w) { return w.menuModel.activationsForTesting(); }
+        static juce::Component& rollCanvas (TrackEditorPanel& w) { return w.roll.canvasForTesting(); }
     };
 }
 
@@ -384,8 +385,9 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);   // snap to grid
-    for (int i : { 1, 2, 4 })
+    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 2);   // marker left, right
+    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
+    for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
 
     // Still there, still on top, once the strip/ruler/roll content is built.
@@ -423,7 +425,7 @@ TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu 
     using Access = TrackEditorPanelTestAccess;
     auto& bar = Access::menuBar (panel);
     REQUIRE (bar.getNumChildComponents() == 5);   // one item component per title
-    for (int i : { 1, 2, 4 })   // Edit, Navigate, View: File and Options have items now
+    for (int i : { 1, 4 })   // Edit, View: File, Navigate and Options have items now
     {
         const auto centre = bar.getChildComponent (i)->getBounds().getCentre().toFloat();
         // JUCE never opens a popup for an empty menu and never reports it closed, so a
@@ -506,4 +508,137 @@ TEST_CASE ("TrackEditorPanel: Options > Snap to Grid is ticked by the snap state
     panel.invokeMenuCommand (EditorOptionsSnapToGrid);
     CHECK_FALSE (panel.getSnapToGrid());
     CHECK (reported == std::vector<bool> { true, false });
+}
+
+namespace
+{
+    // A track editor on a 480-PPQ song with playback, a loaded track and a 1/4 grid.
+    struct MarkerPanelFixture
+    {
+        juce::ScopedJuceInitialiser_GUI juceInit;
+        SongDocument doc;
+        juce::ValueTree track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+        lotro::playbacktest::RecordingSink sink;
+        std::unique_ptr<PlaybackController> controller;
+        std::unique_ptr<TrackEditorPanel> panel;
+
+        MarkerPanelFixture()
+        {
+            lotro::playbacktest::addNote (track, 60, 0, 9600);
+            controller = std::make_unique<PlaybackController> (doc, sink);
+            controller->flushRebuild();
+            panel = std::make_unique<TrackEditorPanel> (doc);
+            panel->setPlayback (controller.get());
+            panel->setTrack (track);
+            panel->setSize (800, 400);
+            panel->setGridTicks (480);
+        }
+        ~MarkerPanelFixture() { panel.reset(); }
+
+        bool navigateEnabled (int item)
+        {
+            const auto menu = TrackEditorPanelTestAccess::menuBar (*panel).getModel()->getMenuForIndex (2, "Navigate");
+            juce::PopupMenu::MenuItemIterator it (menu);
+            for (int i = 0; i <= item; ++i)
+                REQUIRE (it.next());
+            return it.getItem().isEnabled;
+        }
+    };
+
+    void rulerClick (TrackEditorPanel& panel, double tick)
+    {
+        auto& ruler = TrackEditorPanelTestAccess::ruler (panel);
+        auto* source = juce::Desktop::getInstance().getMouseSource (0);
+        const auto now = juce::Time::getCurrentTime();
+        const juce::Point<float> pos ((float) TrackEditorPanelTestAccess::roll (panel).xForTickInComponent (tick), 20.0f);
+        ruler.mouseDown (juce::MouseEvent (*source, pos, juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                           &ruler, &ruler, now, pos, now, 1, false));
+    }
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Move Marker Left / Right by Grid step the start marker along the grid", "[track-editor-window][editor-menu][marker]")
+{
+    MarkerPanelFixture f;
+    f.controller->setMarkerTick (1000.0);   // between lines
+    CHECK (f.navigateEnabled (0));
+    CHECK (f.navigateEnabled (1));
+
+    auto* model = TrackEditorPanelTestAccess::menuBar (*f.panel).getModel();
+    model->menuItemSelected (EditorNavigateMarkerRight, 2);
+    CHECK (*f.controller->getMarkerTick() == 1440.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 1920.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    CHECK (*f.controller->getMarkerTick() == 0.0);   // stops at the start
+}
+
+TEST_CASE ("TrackEditorPanel: with no marker the first step starts from the playhead", "[track-editor-window][editor-menu][marker]")
+{
+    MarkerPanelFixture f;
+    f.controller->seekToTick (2000.0);
+    REQUIRE_FALSE (f.controller->getMarkerTick().has_value());
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    REQUIRE (f.controller->getMarkerTick().has_value());
+    CHECK (*f.controller->getMarkerTick() == 1920.0);
+    CHECK (f.controller->getPositionTicks() == Catch::Approx (2000.0).margin (1.0));   // the playhead stays
+}
+
+TEST_CASE ("TrackEditorPanel: the marker steps are greyed and do nothing with the grid Off or no track", "[track-editor-window][editor-menu][marker]")
+{
+    MarkerPanelFixture f;
+    f.controller->setMarkerTick (1000.0);
+    f.panel->setGridTicks (0);
+    CHECK_FALSE (f.navigateEnabled (0));
+    CHECK_FALSE (f.navigateEnabled (1));
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 1000.0);
+    CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::rightKey)));   // left to the roll's scrolling
+
+    f.panel->setGridTicks (480);
+    f.panel->clearTrack();
+    CHECK_FALSE (f.navigateEnabled (1));
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 1000.0);
+}
+
+TEST_CASE ("TrackEditorPanel: Left and Right step the marker, from the panel and from the roll before the roll's scrolling", "[track-editor-window][marker]")
+{
+    MarkerPanelFixture f;
+    f.controller->setMarkerTick (960.0);
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::rightKey)));
+    CHECK (*f.controller->getMarkerTick() == 1440.0);
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::leftKey)));
+    CHECK (*f.controller->getMarkerTick() == 960.0);
+
+    // The roll's canvas has keyboard focus while editing; its Viewport would scroll on arrows.
+    auto& canvas = TrackEditorPanelTestAccess::rollCanvas (*f.panel);
+    REQUIRE (canvas.getWantsKeyboardFocus());
+    CHECK (canvas.keyPressed (juce::KeyPress (juce::KeyPress::rightKey)));
+    CHECK (*f.controller->getMarkerTick() == 1440.0);
+
+    // Modified arrows are not the marker commands.
+    CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::rightKey, juce::ModifierKeys::shiftModifier, 0)));
+    CHECK (*f.controller->getMarkerTick() == 1440.0);
+}
+
+TEST_CASE ("TrackEditorPanel: with Snap to Grid on a ruler click sets the marker on the nearest grid line; off, exactly where clicked", "[track-editor-window][marker]")
+{
+    MarkerPanelFixture f;
+    rulerClick (*f.panel, 1100.0);
+    REQUIRE (f.controller->getMarkerTick().has_value());
+    CHECK (*f.controller->getMarkerTick() == 960.0);
+
+    f.panel->setSnapToGrid (false);
+    rulerClick (*f.panel, 1100.0);
+    CHECK (*f.controller->getMarkerTick() == Catch::Approx (1100.0).margin (30.0));
+    CHECK (*f.controller->getMarkerTick() != 960.0);
+
+    f.panel->setSnapToGrid (true);
+    f.panel->setGridTicks (0);   // grid Off: nothing to snap to
+    rulerClick (*f.panel, 1100.0);
+    CHECK (*f.controller->getMarkerTick() != 960.0);
 }

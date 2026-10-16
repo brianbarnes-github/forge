@@ -394,7 +394,7 @@ TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-mode
     CHECK (findMenuItem (menus, 99999) == nullptr);
 }
 
-TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; only File and Options have items", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; Edit and View have no items yet", "[menu-model][editor-menu]")
 {
     const auto menus = editorMenus ({});
     std::vector<std::string> names;
@@ -402,7 +402,7 @@ TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate,
         names.push_back (m.name);
     CHECK (names == std::vector<std::string> { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (menus[1].items.empty());
-    CHECK (menus[2].items.empty());
+    CHECK_FALSE (menus[2].items.empty());
     CHECK_FALSE (menus[3].items.empty());
     CHECK (menus[4].items.empty());
 }
@@ -433,6 +433,24 @@ TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap s
 
     s.snapToGrid = true;
     CHECK (menuNamed (editorMenus (s), "Options").items[0].ticked);
+}
+
+TEST_CASE ("EditorMenuModel: Navigate is Move Marker Left / Right by Grid on the arrow keys, enabled when the marker can step", "[menu-model][editor-menu]")
+{
+    EditorMenuState s;
+    const auto nav = menuNamed (editorMenus (s), "Navigate");
+    CHECK (labels (nav) == std::vector<std::string> { "Move Marker Left by Grid", "Move Marker Right by Grid" });
+    CHECK (nav.items[0].id == EditorNavigateMarkerLeft);
+    CHECK (nav.items[1].id == EditorNavigateMarkerRight);
+    CHECK (nav.items[0].shortcut == "Left");
+    CHECK (nav.items[1].shortcut == "Right");
+    CHECK_FALSE (nav.items[0].enabled);
+    CHECK_FALSE (nav.items[1].enabled);
+
+    s.canStepMarker = true;
+    const auto on = menuNamed (editorMenus (s), "Navigate");
+    CHECK (on.items[0].enabled);
+    CHECK (on.items[1].enabled);
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")

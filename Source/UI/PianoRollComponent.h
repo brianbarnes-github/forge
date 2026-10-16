@@ -88,6 +88,14 @@ public:
     // Whether a playing playhead scrolls the view to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
+    // Whether a click that drops the start marker lands on the nearest grid line
+    // (the grid from setGridTicks; none when it is 0). Off by default.
+    void setSnapToGrid (bool on) noexcept { snapEnabled = on; }
+    bool getSnapToGrid() const noexcept { return snapEnabled; }
+    // A key the canvas's editor left alone, offered before the Viewport (which
+    // scrolls on the arrow keys) sees it; return true to claim it.
+    std::function<bool (const juce::KeyPress&)> onUnhandledKey;
+    juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
     // document): repoints the roll's SourceRollEditor at a different
@@ -251,6 +259,7 @@ private:
     juce::ValueTree meterMap;
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
     bool followEnabled = true;
+    bool snapEnabled = false;
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded
