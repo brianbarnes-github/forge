@@ -121,6 +121,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/SongSession.cpp
     Source/UI/Playback/TempoMap.cpp
     Source/UI/Playback/PlaybackSnapshot.cpp
+    Source/UI/Playback/PreviewRequest.cpp
     Source/UI/Playback/MuteSoloState.cpp
     Source/UI/Playback/Transport.cpp
     Source/UI/Playback/LoopRange.cpp

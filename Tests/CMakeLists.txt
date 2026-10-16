@@ -49,6 +49,7 @@ add_executable(forge_tests
     ProgramChanges_tests.cpp
     InstrumentEdit_tests.cpp
     PlaybackSnapshot_tests.cpp
+    PreviewRequest_tests.cpp
     MuteSoloState_tests.cpp
     Transport_tests.cpp
     LoopRange_tests.cpp
@@ -127,6 +128,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/SongSession.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TempoMap.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlaybackSnapshot.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PreviewRequest.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/MuteSoloState.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/Transport.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/LoopRange.cpp
