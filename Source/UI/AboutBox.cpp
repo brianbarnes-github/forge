@@ -7,7 +7,7 @@ namespace lotro
     namespace
     {
         constexpr int dialogWidth  = 320;
-        constexpr int dialogHeight = 234;
+        constexpr int dialogHeight = 194;
 
         void setUpLabel (juce::Component& parent, juce::Label& label, const juce::String& text,
                          float fontHeight, juce::uint32 colour)
@@ -41,7 +41,7 @@ namespace lotro
         auto area = getLocalBounds().reduced (16);
         logoArea = area.removeFromTop (56);
         area.removeFromTop (8);
-        appName.setBounds (area.removeFromTop (40));
+        appName.setBounds (area.removeFromTop (0));   // hidden: the logo's wordmark shows the name
         creator.setBounds (area.removeFromTop (28));
         area.removeFromTop (12);
         version.setBounds (area.removeFromTop (22));

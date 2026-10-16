@@ -80,3 +80,25 @@ TEST_CASE ("AboutComponent: paints the copper anvil logo", "[about][theme]")
         }
     CHECK (found);
 }
+
+TEST_CASE ("AboutComponent: the creator line sits right under the logo, with no empty band", "[about][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    const BuildInfo info { "0.1.0", 1, "abc1234", false };
+    AboutComponent about (info);
+    const juce::Label* creator = nullptr;
+    const juce::Label* build = nullptr;
+    for (auto* child : about.getChildren())
+        if (auto* label = dynamic_cast<juce::Label*> (child))
+        {
+            if (label->getText().startsWith ("Created by"))
+                creator = label;
+            if (label->isVisible())
+                build = label;   // the last visible label is the build line
+        }
+    REQUIRE (creator != nullptr);
+    REQUIRE (build != nullptr);
+    constexpr int logoBottom = 16 + 56;
+    CHECK (creator->getY() - logoBottom <= 12);
+    CHECK (about.getHeight() - build->getBottom() <= 30);   // and no bigger bottom margin than before the logo
+}
