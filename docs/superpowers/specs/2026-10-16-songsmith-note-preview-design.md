@@ -134,8 +134,11 @@ whole moved selection.
   timer. The exact mechanism is the builder's choice within the audio-thread
   contract.
 - The preview channel must take the note's program/bank and chased
-  controller state, resolved on the message thread and handed over in the
-  preview request. The preview channel(s) must survive the engine's
+  controller state. *(Revised after review, owner's call: the request carries
+  only the note; the audio thread resolves that state from the current
+  snapshot, replaying the note's playback channel up to its start tick, so a
+  preview matches playback exactly. Accepted cost: up to six such replays in
+  one block; collapse them if a dense song ever glitches.)* The preview channel(s) must survive the engine's
   `releaseAll()` / re-chase, which runs on every snapshot swap and so on
   every drag step (each drag step edits the document).
 - Core/UI boundary: everything lives in `Source/UI/` (see the
