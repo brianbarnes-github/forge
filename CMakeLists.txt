@@ -140,6 +140,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/Playback/TimelineRulerMarks.cpp
     Source/UI/GridLines.cpp
     Source/UI/EditorGrid.cpp
+    Source/UI/EditorBottomBar.cpp
     Source/UI/MeterSegments.cpp
     Source/UI/KeyDetector.cpp
     Source/UI/KeyDetection.cpp

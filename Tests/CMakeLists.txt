@@ -149,6 +149,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TimelineRulerMarks.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/GridLines.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/EditorGrid.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/EditorBottomBar.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/MeterSegments.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/KeyDetector.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/KeyDetection.cpp

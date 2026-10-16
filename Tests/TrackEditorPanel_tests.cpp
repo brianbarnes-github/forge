@@ -4,6 +4,7 @@
 #include "UI/SongDocument.h"
 #include "UI/EditorMenuModel.h"
 #include "UI/Playback/PreviewRequest.h"
+#include "UI/EditorGrid.h"
 #include "UI/TrackEditorPanel.h"
 #include "UI/Theme/ThemePaint.h"
 
@@ -740,6 +741,81 @@ TEST_CASE ("TrackEditorPanel: swing strength is kept but inert off the Swing div
     f.controller->setMarkerTick (0.0);
     f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
     CHECK (*f.controller->getMarkerTick() == 360.0);
+}
+
+TEST_CASE ("TrackEditorPanel: the swing slider sits at the bar's left, 160 px wide, -100..100 step 1, starting at 0", "[track-editor-window][bottom-bar][swing]")
+{
+    MarkerPanelFixture f;
+    auto& bar = TrackEditorPanelTestAccess::bottomBar (*f.panel);
+    auto& slider = bar.swingSliderForTesting();
+    CHECK (slider.getParentComponent() == &bar);
+    CHECK (slider.getX() == 52);
+    CHECK (slider.getWidth() == 160);
+    CHECK (slider.getHeight() == bar.getHeight());
+    CHECK (slider.getMinimum() == -100.0);
+    CHECK (slider.getMaximum() == 100.0);
+    CHECK (slider.getInterval() == 1.0);
+    CHECK (slider.getValue() == 0.0);
+    CHECK (bar.swingReadoutText() == "0%");
+}
+
+TEST_CASE ("TrackEditorPanel: moving the slider sets the editor's swing and its readout", "[track-editor-window][bottom-bar][swing]")
+{
+    MarkerPanelFixture f;
+    f.panel->setGridLength (GridLength::Eighth);
+    f.panel->setGridDivision (GridDivision::Swing);
+    auto& bar = TrackEditorPanelTestAccess::bottomBar (*f.panel);
+    bar.swingSliderForTesting().setValue (67, juce::sendNotificationSync);
+    CHECK (f.panel->getSwing() == 67);
+    CHECK (bar.swingReadoutText() == "+67%");
+    CHECK (editorGridLineAfter (f.panel->getEditorGrid(), 0) == 320);
+}
+
+TEST_CASE ("TrackEditorPanel: the swing slider resets on double-click and never takes keyboard focus", "[track-editor-window][bottom-bar][swing]")
+{
+    MarkerPanelFixture f;
+    auto& slider = TrackEditorPanelTestAccess::bottomBar (*f.panel).swingSliderForTesting();
+    CHECK (slider.isDoubleClickReturnEnabled());
+    CHECK (slider.getDoubleClickReturnValue() == 0.0);
+    CHECK_FALSE (slider.getWantsKeyboardFocus());
+}
+
+TEST_CASE ("TrackEditorPanel: the swing slider is enabled only with a track, Swing and a grid length", "[track-editor-window][bottom-bar][swing]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    TrackEditorPanel panel (doc);
+    panel.setSize (800, 400);
+    auto& slider = TrackEditorPanelTestAccess::bottomBar (panel).swingSliderForTesting();
+
+    panel.setGridLength (GridLength::Quarter);
+    panel.setGridDivision (GridDivision::Swing);
+    CHECK_FALSE (slider.isEnabled());          // no track
+    panel.setTrack (track);
+    CHECK (slider.isEnabled());
+    panel.setGridDivision (GridDivision::Straight);
+    CHECK_FALSE (slider.isEnabled());
+    panel.setGridDivision (GridDivision::Swing);
+    CHECK (slider.isEnabled());
+    panel.setGridLength (GridLength::Off);
+    CHECK_FALSE (slider.isEnabled());
+    panel.setGridLength (GridLength::Quarter);
+    CHECK (slider.isEnabled());
+    panel.clearTrack();
+    CHECK_FALSE (slider.isEnabled());
+}
+
+TEST_CASE ("TrackEditorPanel: panel setSwing moves the slider without reporting", "[track-editor-window][bottom-bar][swing]")
+{
+    MarkerPanelFixture f;
+    auto& bar = TrackEditorPanelTestAccess::bottomBar (*f.panel);
+    int reports = 0;
+    bar.onSwingChanged = [&reports] (int) { ++reports; };
+    f.panel->setSwing (-25);
+    CHECK (bar.swingSliderForTesting().getValue() == -25.0);
+    CHECK (bar.swingReadoutText() == "-25%");
+    CHECK (reports == 0);
 }
 
 TEST_CASE ("TrackEditorPanel: with no marker the first step starts from the playhead", "[track-editor-window][editor-menu][marker]")

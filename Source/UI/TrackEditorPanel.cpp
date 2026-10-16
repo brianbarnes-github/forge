@@ -29,6 +29,8 @@ namespace lotro
         addAndMakeVisible (menuBar);
         addAndMakeVisible (roll);
         addAndMakeVisible (bottomBar);
+        bottomBar.onSwingChanged = [this] (int percent) { roll.setSwing (percent); };
+        refreshSwingControl();
     }
 
     TrackEditorPanel::~TrackEditorPanel()
@@ -476,6 +478,7 @@ namespace lotro
         roll.setNoteSource (currentNoteSource.get(), ticksPerQuarter, doc.getMeterMapNode());
         roll.setEditableTrack (trackNode);
 
+        refreshSwingControl();
         titleChanged();
         if (isShowing())
             grabKeyboardFocus();
@@ -489,6 +492,7 @@ namespace lotro
         currentNoteSource.reset();
         currentTrackId = -1;
         pickedSnapKey.reset();
+        refreshSwingControl();
         titleChanged();
         repaint();
     }
@@ -510,11 +514,13 @@ namespace lotro
     void TrackEditorPanel::setGridLength (GridLength length)
     {
         roll.setGrid (length, roll.getGridDivision());
+        refreshSwingControl();
     }
 
     void TrackEditorPanel::setGridDivision (GridDivision division)
     {
         roll.setGrid (roll.getGridLength(), division);
+        refreshSwingControl();
     }
 
     int TrackEditorPanel::getGridTicks() const
@@ -530,6 +536,13 @@ namespace lotro
     void TrackEditorPanel::setSwing (int percent)
     {
         roll.setSwing (percent);
+        bottomBar.setSwing (percent);
+    }
+
+    void TrackEditorPanel::refreshSwingControl()
+    {
+        bottomBar.setSwingEnabled (currentTrackId != -1 && roll.getGridDivision() == GridDivision::Swing
+                                   && roll.getGridLength() != GridLength::Off);
     }
 
     int TrackEditorPanel::getSwing() const noexcept

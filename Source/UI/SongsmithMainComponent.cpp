@@ -231,6 +231,7 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     if (! keepsGrid)
     {
         trackEditor->setGridDivision (GridDivision::Straight);
+        trackEditor->setSwing (0);
         setActiveEditorGridSize (defaultGridSize);
     }
     if (trackEditor->isShowing())

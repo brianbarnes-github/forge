@@ -226,6 +226,9 @@ namespace lotro
         // of the roll's Viewport scrolling; unclaimed when the step can't happen.
         bool navigateKeyPressed (const juce::KeyPress& key);
 
+        // The bar's Swing slider is live only with a track, the Swing division and a length.
+        void refreshSwingControl();
+
         SongDocument& doc;
         MenuModel menuModel { *this };
         MenuBar menuBar { &menuModel };

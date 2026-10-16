@@ -1495,3 +1495,31 @@ TEST_CASE ("SongsmithMainComponent: a newly opened editor starts on the default 
     CHECK (editor.getGridDivision() == GridDivision::Straight);
     CHECK (Access::activeEditorGridTicks (main) == 480);
 }
+
+TEST_CASE ("SongsmithMainComponent: the editor's swing is kept across tracks and reset when the editor opens afresh", "[songsmith][swing]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto other = doc.addTrack ("Track B", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    const auto otherId = (juce::int64) other.getProperty (SongIDs::trackId);
+
+    SongsmithMainComponent main (doc);
+    main.setSize (1000, 700);
+    Access::trackDoubleClicked (main, trackId);
+    auto& editor = Access::trackEditor (main);
+    editor.setSwing (50);
+
+    Access::trackDoubleClicked (main, otherId);   // the editor shows a track: swing kept
+    CHECK (editor.getSwing() == 50);
+
+    main.documentReplaced();                      // emptied by New / Open: afresh
+    Access::trackDoubleClicked (main, trackId);
+    CHECK (editor.getSwing() == 0);
+
+    editor.setSwing (-30);
+    main.setMidiEditorVisible (false);            // hidden: afresh
+    Access::trackDoubleClicked (main, otherId);
+    CHECK (editor.getSwing() == 0);
+}
