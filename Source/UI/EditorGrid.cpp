@@ -49,6 +49,38 @@ namespace
         return bar;
     }
 
+    // The last swung line at or below `tick` (below it when !inclusive), looking
+    // back across bars: a fractional bar start can round its first line past a
+    // tick that is still inside the bar. -1 when there is none.
+    double lastLineUpTo (const EditorGrid& grid, double tick, bool inclusive)
+    {
+        Bar bar = barContaining (grid, tick);
+        for (;;)
+        {
+            double best = -1.0;
+            for (const long long line : bar.lines)
+                if (inclusive ? (double) line <= tick : (double) line < tick)
+                    best = (double) line;
+            if (best >= 0.0 || bar.begin <= 0.0)
+                return best;
+            bar = barContaining (grid, bar.begin - 0.5);
+        }
+    }
+
+    // The first swung line above `tick`, looking forward across bars (the same
+    // rounding can leave a bar with no line past a tick near its end).
+    double firstLineAbove (const EditorGrid& grid, double tick)
+    {
+        Bar bar = barContaining (grid, tick);
+        for (;;)
+        {
+            for (const long long line : bar.lines)
+                if ((double) line > tick)
+                    return (double) line;
+            bar = barContaining (grid, bar.end);
+        }
+    }
+
     bool isSwung (const EditorGrid& grid) noexcept
     {
         return grid.swung && ! grid.bars.empty();
@@ -84,12 +116,7 @@ double editorGridLineAtOrBefore (const EditorGrid& grid, double tick)
     if (! isSwung (grid))
         return std::max (0.0, std::floor (tick / grid.spacingTicks) * grid.spacingTicks);
 
-    const Bar bar = barContaining (grid, tick);
-    double best = (double) bar.lines.front();
-    for (const long long line : bar.lines)
-        if ((double) line <= tick)
-            best = (double) line;
-    return best;
+    return std::max (0.0, lastLineUpTo (grid, tick, true));
 }
 
 double editorGridLineAfter (const EditorGrid& grid, double tick)
@@ -99,11 +126,7 @@ double editorGridLineAfter (const EditorGrid& grid, double tick)
     if (! isSwung (grid))
         return stepTickByGrid (tick, grid.spacingTicks, 1);
 
-    const Bar bar = barContaining (grid, tick);
-    for (const long long line : bar.lines)
-        if ((double) line > tick)
-            return (double) line;
-    return (double) std::llround (bar.end);
+    return firstLineAbove (grid, tick);
 }
 
 double snapToEditorGrid (const EditorGrid& grid, double tick)
@@ -129,20 +152,7 @@ double stepEditorGrid (const EditorGrid& grid, double tick, int direction)
     if (tick <= 0.0)
         return 0.0;
 
-    Bar bar = barContaining (grid, tick);
-    double best = -1.0;
-    for (const long long line : bar.lines)
-        if ((double) line < tick)
-            best = (double) line;
-    if (best < 0.0 && bar.begin > 0.0)
-    {
-        // On the bar line (or before its rounded first line): the previous bar's last line.
-        bar = barContaining (grid, bar.begin - 0.5);
-        for (const long long line : bar.lines)
-            if ((double) line < tick)
-                best = (double) line;
-    }
-    return std::max (0.0, best);
+    return std::max (0.0, lastLineUpTo (grid, tick, false));
 }
 
 std::vector<int> editorGridLinesIn (const EditorGrid& grid, int firstTick, int lastTick)

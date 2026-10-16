@@ -165,3 +165,25 @@ TEST_CASE ("EditorGrid: swing readout text", "[editor-grid][swing]")
     CHECK (swingPercentText (-25) == "-25%");
     CHECK (swingPercentText (100) == "+100%");
 }
+
+TEST_CASE ("EditorGrid: fractional bar lengths keep line-after and line-at-or-before honest", "[editor-grid][swing]")
+{
+    // PPQ 97 in 5/16: ticksPerBar 121.25, so bar starts and ends are fractional.
+    for (const GridLength length : { GridLength::Sixteenth, GridLength::ThirtySecond })
+        for (const int percent : { 100, 50, -100 })
+        {
+            const auto g = make (length, GridDivision::Swing, percent, 97, { { 0, 5, 16 } });
+            for (double t = 0.0; t < 800.0; t += 0.4)
+            {
+                INFO ("length=" << (int) length << " percent=" << percent << " t=" << t);
+                CHECK (editorGridLineAfter (g, t) > t);
+                CHECK (editorGridLineAtOrBefore (g, t) <= t);
+                CHECK (stepEditorGrid (g, t, 1) > t);
+                if (t > 0.0)
+                    CHECK (stepEditorGrid (g, t, -1) < t);
+                const double snapped = snapToEditorGrid (g, t);
+                CHECK (snapped >= editorGridLineAtOrBefore (g, t));
+                CHECK (snapped <= editorGridLineAfter (g, t));
+            }
+        }
+}
