@@ -90,6 +90,26 @@ namespace
     float luma (juce::Colour c) { return 0.2126f * c.getRed() + 0.7152f * c.getGreen() + 0.0722f * c.getBlue(); }
 }
 
+TEST_CASE ("SongsmithLookAndFeel: a disabled linear slider is drawn dimmed, not copper, but stays visible", "[theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ScopedSongsmithLookAndFeel installed;
+    juce::Slider slider (juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+    slider.setRange (-100.0, 100.0, 1.0);
+    slider.setValue (60.0);
+    slider.setSize (200, 24);
+    const auto live = paintComponent (slider);
+    REQUIRE (hasCopperPixel (live));
+
+    slider.setEnabled (false);
+    const auto dimmed = paintComponent (slider);
+    CHECK (! hasCopperPixel (dimmed));
+    bool anyVisible = false;
+    for (int x = 0; x < dimmed.getWidth(); ++x)
+        anyVisible = anyVisible || dimmed.getPixelAt (x, 12).getAlpha() > 0;
+    CHECK (anyVisible);
+}
+
 TEST_CASE ("SongsmithLookAndFeel: a toggled-on button's text stands out from its background", "[theme]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

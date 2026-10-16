@@ -123,21 +123,26 @@ void SongsmithLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, in
         const auto track = horizontal
             ? juce::Rectangle<float> (bounds.getX(), bounds.getCentreY() - trackThickness / 2, bounds.getWidth(), trackThickness)
             : juce::Rectangle<float> (bounds.getCentreX() - trackThickness / 2, bounds.getY(), trackThickness, bounds.getHeight());
-        g.setColour (c (border));
+        // A disabled slider is washed toward the panel colour, like the disabled tick.
+        const auto shade = [&slider] (juce::Colour colour)
+        {
+            return slider.isEnabled() ? colour : colour.interpolatedWith (c (surfaceBottom), 0.65f);
+        };
+        g.setColour (shade (c (border)));
         g.fillRoundedRectangle (track, trackThickness / 2);
 
         const auto filled = horizontal ? track.withRight (sliderPos) : track.withTop (sliderPos);
-        g.setColour (slider.findColour (juce::Slider::trackColourId));
+        g.setColour (shade (slider.findColour (juce::Slider::trackColourId)));
         g.fillRoundedRectangle (filled, trackThickness / 2);
 
         const float thumb = juce::jmin (14.0f, (horizontal ? bounds.getHeight() : bounds.getWidth()) - 2.0f);
         const auto centre = horizontal ? juce::Point<float> (sliderPos, bounds.getCentreY())
                                        : juce::Point<float> (bounds.getCentreX(), sliderPos);
         const auto knob = juce::Rectangle<float> (thumb, thumb).withCentre (centre);
-        g.setGradientFill (juce::ColourGradient (c (text), knob.getX(), knob.getY(),
-                                                 c (textMuted).darker (0.3f), knob.getRight(), knob.getBottom(), false));
+        g.setGradientFill (juce::ColourGradient (shade (c (text)), knob.getX(), knob.getY(),
+                                                 shade (c (textMuted).darker (0.3f)), knob.getRight(), knob.getBottom(), false));
         g.fillEllipse (knob);
-        g.setColour (c (accentCopper));
+        g.setColour (shade (c (accentCopper)));
         g.drawEllipse (knob.reduced (0.75f), 1.5f);
         juce::ignoreUnused (minSliderPos, maxSliderPos);
         return;

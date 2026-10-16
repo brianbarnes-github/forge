@@ -26,9 +26,6 @@ EditorBottomBar::EditorBottomBar()
     swingSlider.setValue (0.0, juce::dontSendNotification);
     swingSlider.setDoubleClickReturnValue (true, 0.0);
     swingSlider.setWantsKeyboardFocus (false);   // like the transport's rate knob: keys stay with the roll
-    swingSlider.setColour (juce::Slider::trackColourId, juce::Colour (SongsmithColours::accentCopper));
-    swingSlider.setColour (juce::Slider::backgroundColourId, juce::Colour (SongsmithColours::columnDivider));
-    swingSlider.setColour (juce::Slider::thumbColourId, juce::Colour (SongsmithColours::text));
     swingSlider.setTooltip ("Swing strength (double-click to reset to 0%)");
     swingSlider.onValueChange = [this]
     {
