@@ -1624,6 +1624,77 @@ TEST_CASE ("PianoRollComponent: a Preview roll has no active row", "[piano-roll]
     CHECK_FALSE (roll.stepActivePitch (+1));
 }
 
+TEST_CASE ("PianoRollComponent: dragging a note moves the active row with it, row by row", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const int onFirstNote = Access::geometry (fixture.roll).xForTick (ticksPerQuarter / 2);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 60), {}, false);
+    Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 61));
+    CHECK (fixture.roll.getActivePitch() == 61);
+    Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 63));
+    CHECK (fixture.roll.getActivePitch() == 63);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 63));
+    CHECK ((int) SongDocument::getNotesNode (fixture.track).getChild (0).getProperty (SongIDs::pitch) == 63);
+    CHECK (fixture.roll.getActivePitch() == 63);
+
+    // Undoing the move leaves the display-only active row where it is.
+    fixture.doc.getUndoManager().undo();
+    CHECK (fixture.roll.getActivePitch() == 63);
+}
+
+TEST_CASE ("PianoRollComponent: dragging a selection moves the active row with the grabbed note", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });   // starts 0 and 480
+    const auto& geometry = Access::geometry (fixture.roll);
+    const int onFirstNote = geometry.xForTick (ticksPerQuarter / 2);
+    const int onSecondNote = geometry.xForTick (ticksPerQuarter + ticksPerQuarter / 2);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 60), {}, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 60));
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, onSecondNote, 64), juce::ModifierKeys::ctrlModifier, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, onSecondNote, 64));
+    REQUIRE (Access::editor (fixture.roll).getNumSelected() == 2);
+
+    // Grab the lower note: the row follows it, not the upper one.
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 60), {}, false);
+    Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 62));
+    CHECK (fixture.roll.getActivePitch() == 62);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 62));
+    CHECK ((int) SongDocument::getNotesNode (fixture.track).getChild (1).getProperty (SongIDs::pitch) == 66);
+}
+
+TEST_CASE ("PianoRollComponent: resizing a note leaves the active row on the pressed row", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const auto& geometry = Access::geometry (fixture.roll);
+    const int rightEdge = geometry.xForTick (ticksPerQuarter) - 2;
+    const auto originalDuration = (int) SongDocument::getNotesNode (fixture.track).getChild (0).getProperty (SongIDs::durationTicks);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, rightEdge, 60), {}, false);
+    Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, rightEdge + 40, 63));
+    CHECK (fixture.roll.getActivePitch() == 60);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, rightEdge + 40, 63));
+    CHECK ((int) SongDocument::getNotesNode (fixture.track).getChild (0).getProperty (SongIDs::durationTicks) > originalDuration);
+    CHECK (fixture.roll.getActivePitch() == 60);
+}
+
+TEST_CASE ("PianoRollComponent: a rubber-band drag leaves the active row on the pressed row", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 66), {}, false);
+    Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, emptyX + 40, 62));
+    CHECK (fixture.roll.getActivePitch() == 66);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, emptyX + 40, 62));
+    CHECK (fixture.roll.getActivePitch() == 66);
+}
+
 namespace
 {
     juce::ValueTree noteAt (SourceRollFixture& f, int index) { return SongDocument::getNotesNode (f.track).getChild (index); }

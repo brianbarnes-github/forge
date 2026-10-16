@@ -468,6 +468,9 @@ bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos)
     if (sourceEditor == nullptr)
         return false;
     const bool changed = sourceEditor->mouseDrag (pos);
+    // A moved note carries the active row with it.
+    if (const int pitch = sourceEditor->movingNotePitch(); pitch >= 0)
+        setActivePitch (pitch);
     afterEditorGesture (changed);
     return changed;
 }

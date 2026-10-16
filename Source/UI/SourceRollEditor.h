@@ -99,6 +99,10 @@ public:
     // A move, resize or rubber-band drag is in progress (between mouseDown and mouseUp).
     bool isGestureActive() const noexcept { return dragMode != DragMode::None; }
 
+    // The current pitch of the note grabbed for a move drag (the one under the
+    // press, not the rest of the selection), or -1 when no move is in progress.
+    int movingNotePitch() const;
+
 private:
     enum class DragMode { None, Move, ResizeLeft, ResizeRight, RubberBand };
 
@@ -131,6 +135,7 @@ private:
     juce::Point<int> dragStartPos;
     juce::Rectangle<int> rubberBandRect;
     std::vector<DragOriginal> dragOriginals; // Move: every selected note. Resize: just the primary note.
+    juce::ValueTree grabbedNote;              // Move: the note under the press.
 
     static constexpr int edgeThresholdPixels = 6;
 };

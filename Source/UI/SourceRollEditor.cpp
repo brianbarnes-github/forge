@@ -180,6 +180,7 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
     dragStartPos = pos;
 
     dragOriginals.clear();
+    grabbedNote = dragMode == DragMode::Move ? note : juce::ValueTree();
     if (dragMode == DragMode::Move)
     {
         for (auto& n : selection)
@@ -266,8 +267,16 @@ bool SourceRollEditor::mouseUp (juce::Point<int>)
     const bool wasActive = dragMode != DragMode::None;
     dragMode = DragMode::None;
     dragOriginals.clear();
+    grabbedNote = {};
     rubberBandRect = {};
     return wasActive;
+}
+
+int SourceRollEditor::movingNotePitch() const
+{
+    if (dragMode != DragMode::Move || ! grabbedNote.isValid())
+        return -1;
+    return (int) grabbedNote.getProperty (SongIDs::pitch);
 }
 
 bool SourceRollEditor::keyPressed (const juce::KeyPress& key)
