@@ -1,7 +1,7 @@
 #include "UI/Playback/SynthVoice.h"
 
 #include "UI/Playback/PlaybackError.h"
-#include "UI/Playback/PlaybackSnapshot.h"
+#include "UI/Playback/PreviewRequest.h"
 
 #define TSF_IMPLEMENTATION   // the one translation unit that compiles TinySoundFont
 #include <tsf.h>
@@ -35,7 +35,7 @@ std::shared_ptr<SynthVoice::Instance> SynthVoice::build() const
         throw PlaybackError (PlaybackErrorKind::SoundFontInvalid, "Out of memory preparing the SoundFont.");
     // Touching the last channel allocates every channel up front, so the audio
     // thread never grows the channel array.
-    if (tsf_channel_set_volume (instance->synth, kMaxVirtualChannels - 1, 1.0f) == 0)
+    if (tsf_channel_set_volume (instance->synth, kSynthChannels - 1, 1.0f) == 0)
         throw PlaybackError (PlaybackErrorKind::SoundFontInvalid, "Out of memory preparing the SoundFont.");
     return instance;
 }
@@ -89,7 +89,7 @@ bool SynthVoice::beginBlock() noexcept
 void SynthVoice::handle (const PlaybackEvent& e) noexcept
 {
     if (current == nullptr || current->synth == nullptr
-        || e.virtualChannel < 0 || e.virtualChannel >= kMaxVirtualChannels)
+        || e.virtualChannel < 0 || e.virtualChannel >= kSynthChannels)
         return;
 
     tsf* f = current->synth;
@@ -109,14 +109,22 @@ void SynthVoice::handle (const PlaybackEvent& e) noexcept
 
 void SynthVoice::releaseChannel (int virtualChannel) noexcept
 {
-    if (current != nullptr && current->synth != nullptr && virtualChannel >= 0 && virtualChannel < kMaxVirtualChannels)
+    if (current != nullptr && current->synth != nullptr && virtualChannel >= 0 && virtualChannel < kSynthChannels)
         tsf_channel_note_off_all (current->synth, virtualChannel);
 }
 
+// Playback channels only: the note-preview channels past them keep sounding
+// through the snapshot swaps and seeks that call this.
 void SynthVoice::releaseAll() noexcept
 {
-    if (current != nullptr && current->synth != nullptr)
-        tsf_note_off_all (current->synth);
+    if (current == nullptr || current->synth == nullptr)
+        return;
+    // One pass over the voice pool (tsf_note_off_all's loop, scoped by channel)
+    // rather than a tsf_channel_note_off_all pass per playback channel.
+    tsf* f = current->synth;
+    for (tsf_voice *v = f->voices, *end = v + f->voiceNum; v != end; ++v)
+        if (v->playingPreset != -1 && v->playingChannel < kMaxVirtualChannels && v->ampenv.segment < TSF_SEGMENT_RELEASE)
+            tsf_voice_end (f, v);
 }
 
 // Returns the channel to tsf's own initial state (see tsf_channel_init): volume
@@ -128,7 +136,7 @@ void SynthVoice::releaseAll() noexcept
 // channel is allocated when the instance is built.
 void SynthVoice::resetChannel (int virtualChannel) noexcept
 {
-    if (current == nullptr || current->synth == nullptr || virtualChannel < 0 || virtualChannel >= kMaxVirtualChannels)
+    if (current == nullptr || current->synth == nullptr || virtualChannel < 0 || virtualChannel >= kSynthChannels)
         return;
 
     tsf* f = current->synth;
@@ -139,7 +147,7 @@ void SynthVoice::resetChannel (int virtualChannel) noexcept
 
 void SynthVoice::setChannelPan (int virtualChannel, int pan) noexcept
 {
-    if (current == nullptr || current->synth == nullptr || virtualChannel < 0 || virtualChannel >= kMaxVirtualChannels)
+    if (current == nullptr || current->synth == nullptr || virtualChannel < 0 || virtualChannel >= kSynthChannels)
         return;
     // Allocation-free: every channel exists from build().
     tsf_channel_set_pan (current->synth, virtualChannel, (float) (juce::jlimit (-100, 100, pan) + 100) / 200.0f);

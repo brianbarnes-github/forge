@@ -1,4 +1,5 @@
 #include "UI/Playback/PlaybackError.h"
+#include "UI/Playback/PreviewRequest.h"
 #include "UI/Playback/SynthVoice.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -160,7 +161,7 @@ TEST_CASE ("SynthVoice: resetChannel with no SoundFont, or an out-of-range chann
     none.beginBlock();
     none.resetChannel (0);
     none.resetChannel (-1);
-    none.resetChannel (kMaxVirtualChannels);
+    none.resetChannel (kSynthChannels);
 
     const auto font = localSoundFont();
     if (! font.existsAsFile()) { WARN ("skipped the loaded-font half: local SoundFont not present"); return; }
@@ -169,7 +170,7 @@ TEST_CASE ("SynthVoice: resetChannel with no SoundFont, or an out-of-range chann
     synth.loadSoundFont (font);
     synth.beginBlock();
     synth.resetChannel (-1);
-    synth.resetChannel (kMaxVirtualChannels);
+    synth.resetChannel (kSynthChannels);
     synth.resetChannel (0);
     SUCCEED();
 }
@@ -206,4 +207,41 @@ TEST_CASE ("SynthVoice: resetChannel restores a channel left silent by CC7 = 0",
 
     synth.resetChannel (5);
     CHECK (peakOfNote (5) > 0.001f);                           // reset restored tsf's full-volume default
+}
+
+TEST_CASE ("SynthVoice: a preview channel sounds and is left alone by releaseAll", "[playback][synth][note-preview]")
+{
+    const auto font = localSoundFont();
+    if (! font.existsAsFile()) { WARN ("skipped: local SoundFont not present"); return; }
+
+    const int ch = kPreviewChannelBase + kMaxPreviewNotes - 1;
+    SynthVoice synth;
+    synth.prepare (48000.0, 512);
+    synth.loadSoundFont (font);
+    synth.beginBlock();
+    synth.handle (ev (PlaybackEventKind::Program, ch, 19, 0));   // Church Organ: sustains without decaying
+    synth.handle (ev (PlaybackEventKind::NoteOn, ch, 64, 120));
+    std::vector<float> l (512), r (512);
+    float peak = 0.0f;
+    for (int i = 0; i < 4; ++i)
+    {
+        synth.render (l.data(), r.data(), 512);
+        for (float s : l) peak = std::max (peak, std::fabs (s));
+    }
+    CHECK (peak > 0.001f);
+
+    const auto lastBlockPeak = [&]
+    {
+        for (int i = 0; i < 400; ++i)
+            synth.render (l.data(), r.data(), 512);
+        float p = 0.0f;
+        for (float s : l) p = std::max (p, std::fabs (s));
+        return p;
+    };
+
+    synth.releaseAll();
+    CHECK (lastBlockPeak() > 0.001f);   // the preview channel kept sounding
+
+    synth.releaseChannel (ch);
+    CHECK (lastBlockPeak() < 0.001f);
 }

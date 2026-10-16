@@ -15,7 +15,7 @@ namespace lotro
 
 // EventSink backed by TinySoundFont. SoundFont instances are built and fully
 // initialised on the message thread (voice limit set, all virtual channels
-// allocated) and handed to the audio thread through a HandOff, so the audio
+// allocated, the note-preview channels past them included) and handed to the audio thread through a HandOff, so the audio
 // thread never allocates or frees.
 class SynthVoice : public EventSink
 {
