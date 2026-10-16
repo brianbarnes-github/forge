@@ -51,6 +51,8 @@ struct EditorGridLines
 {
     int spacingTicks = 0;
     GridLevel level = GridLevel::Quarter;
+    bool swung = false;     // Swing division: the lines are the swung pairs, restarting at each bar line
+    double swing = 0.0;     // -1..1, read only when swung
 };
 
 // The level a Grid Length's lines are drawn at (Off has none; it reads as Bar).
@@ -73,7 +75,9 @@ constexpr GridLevel gridLevelForLength (GridLength length) noexcept
 // As above with an editor grid: bar lines, the note values that land on the
 // editor grid's lines (a whole multiple of its spacing), and the editor grid's
 // own lines at its level; note values it does not land on are left out. Each
-// still needs minGridLinePixels. With 0 spacing it is the plain grid.
+// still needs minGridLinePixels. With 0 spacing it is the plain grid. A swung
+// editor grid keeps only the bar lines and its own swung lines (EditorGrid.h),
+// which need their smallest gap to be minGridLinePixels.
 std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
                                         int ticksPerQuarter, const std::vector<MeterChange>& meters,
                                         EditorGridLines editorGrid);

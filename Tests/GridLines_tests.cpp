@@ -251,3 +251,27 @@ TEST_CASE ("grid lines: each Grid Length draws at its own note value's level", "
     CHECK (gridLevelForLength (GridLength::ThirtySecond) == GridLevel::ThirtySecond);
     CHECK (gridLevelForLength (GridLength::SixtyFourth) == GridLevel::SixtyFourth);
 }
+
+TEST_CASE ("GridLines: a swung editor grid draws bar lines and the swung lines only", "[grid-lines][swing]")
+{
+    const auto lines = computeGridLines (0, 1920, 0.2, ppq, fourFour, EditorGridLines { 240, GridLevel::Eighth, true, 1.0 });
+    CHECK (ticksOf (lines) == std::vector<int> { 0, 360, 480, 840, 960, 1320, 1440, 1800, 1920 });
+    CHECK (levelAt (lines, 0) == GridLevel::Bar);
+    CHECK (levelAt (lines, 1920) == GridLevel::Bar);
+    CHECK (levelAt (lines, 960) == GridLevel::Eighth);   // no Half / Quarter levels
+    CHECK (levelAt (lines, 360) == GridLevel::Eighth);
+}
+
+TEST_CASE ("GridLines: swung lines need their smallest gap to be minGridLinePixels", "[grid-lines][swing]")
+{
+    const EditorGridLines swung { 240, GridLevel::Eighth, true, 1.0 };   // smallest gap 120 ticks
+    CHECK (ticksOf (computeGridLines (0, 1920, 0.05, ppq, fourFour, swung)) == std::vector<int> { 0, 1920 });   // 6 px
+    CHECK (ticksOf (computeGridLines (0, 1920, 0.07, ppq, fourFour, swung)).size() == 9);                      // 8.4 px
+}
+
+TEST_CASE ("GridLines: swung pairs restart at a meter change", "[grid-lines][swing]")
+{
+    const auto lines = computeGridLines (0, 3360, 0.2, ppq, std::vector<MeterChange> { { 0, 3, 4 }, { 1440, 4, 4 } },
+                                         EditorGridLines { 480, GridLevel::Quarter, true, 1.0 });
+    CHECK (ticksOf (lines) == std::vector<int> { 0, 720, 960, 1440, 2160, 2400, 3120, 3360 });
+}

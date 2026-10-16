@@ -1,5 +1,7 @@
 #include "UI/GridLines.h"
 
+#include "UI/EditorGrid.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -63,7 +65,8 @@ std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixe
         }
     }
 
-    const double editorSpacing = (double) editorGrid.spacingTicks;
+    const bool swung = editorGrid.swung && editorGrid.spacingTicks > 0;
+    const double editorSpacing = swung ? 0.0 : (double) editorGrid.spacingTicks;
     const auto landsOnEditorGrid = [editorSpacing] (double spacing)
     {
         if (editorSpacing <= 0.0)
@@ -72,10 +75,22 @@ std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixe
         return multiple >= 1.0 - 1e-9 && std::abs (multiple - std::round (multiple)) < 1e-9;
     };
 
+    // A swung grid has no note-value lines: its pairs come from editorGridLinesIn
+    // alone, added after the bar lines so a bar tick keeps Bar.
+    if (swung)
+    {
+        const EditorGrid grid { editorGrid.spacingTicks, true, editorGrid.swing, segments };
+        if (editorGridMinGap (grid) * pixelsPerTick >= minGridLinePixels)
+            for (const int tick : editorGridLinesIn (grid, firstTick, lastTick))
+                lines.emplace (tick, editorGrid.level);
+    }
+
     const double wholeTicks = 4.0 * (double) ticksPerQuarter;
     double spacing = wholeTicks;
     for (const auto level : divisionLevels)
     {
+        if (swung)
+            break;
         if (spacing * pixelsPerTick < minGridLinePixels)
             break;   // every finer division is closer still
         if (landsOnEditorGrid (spacing))
