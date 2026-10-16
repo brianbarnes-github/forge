@@ -85,13 +85,6 @@ private:
 
     juce::Label selectionLabel;
     Box startBox, endBox, lengthBox, meterBox, tempoBox;
-    // LookAndFeel_V4 insets a rotary by 10 px a side, which leaves almost nothing of a 24 px knob.
-    struct KnobLook : juce::LookAndFeel_V4
-    {
-        void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height, float sliderPos,
-                               float startAngle, float endAngle, juce::Slider&) override;
-    };
-    KnobLook knobLook;
     juce::Slider rateSlider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox };
     juce::Label rateReadout;
     juce::String lastReason;

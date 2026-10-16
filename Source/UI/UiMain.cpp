@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "Theme/SongsmithLookAndFeel.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -14,6 +15,8 @@ public:
 
     void initialise (const juce::String&) override
     {
+        lookAndFeel = std::make_unique<SongsmithLookAndFeel>();
+        juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
         window = std::make_unique<MainWindow>();
         for (const auto& arg : getCommandLineParameterArray())
         {
@@ -25,7 +28,12 @@ public:
             }
         }
     }
-    void shutdown() override                               { window.reset(); }
+    void shutdown() override
+    {
+        window.reset();
+        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+        lookAndFeel.reset();
+    }
     void systemRequestedQuit() override
     {
         if (window != nullptr) window->requestQuit();   // prompts if dirty, then quit()s
@@ -33,6 +41,7 @@ public:
     }
 
 private:
+    std::unique_ptr<SongsmithLookAndFeel> lookAndFeel;   // before window: outlives it
     std::unique_ptr<MainWindow> window;
 };
 

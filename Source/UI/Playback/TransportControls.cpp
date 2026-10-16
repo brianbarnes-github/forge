@@ -61,7 +61,6 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
     setupBox (meterBox,  "Time signature at the playhead", [this] (bool) { commitMeter(); });
     setupBox (tempoBox,  "Tempo at the playhead",          [this] (bool) { commitTempo(); });
 
-    rateSlider.setLookAndFeel (&knobLook);
     rateSlider.setRange (-2.0, 2.0, 0.001);
     rateSlider.setValue (rateToSlider (controller.rate()), juce::dontSendNotification);
     rateSlider.setDoubleClickReturnValue (true, 0.0);
@@ -91,35 +90,7 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
 TransportControls::~TransportControls()
 {
     rateSlider.removeMouseListener (this);
-    rateSlider.setLookAndFeel (nullptr);
     controller.removeListener (this);
-}
-
-void TransportControls::KnobLook::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
-                                                    float startAngle, float endAngle, juce::Slider& slider)
-{
-    const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat().reduced (3.0f);
-    const auto radius = std::min (bounds.getWidth(), bounds.getHeight()) / 2.0f;
-    const auto centre = bounds.getCentre();
-    const auto angle = startAngle + sliderPos * (endAngle - startAngle);
-    const auto arcRadius = radius - 1.5f;
-
-    juce::Path track;
-    track.addCentredArc (centre.x, centre.y, arcRadius, arcRadius, 0.0f, startAngle, endAngle, true);
-    g.setColour (slider.findColour (juce::Slider::rotarySliderOutlineColourId));
-    g.strokePath (track, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    juce::Path fill;
-    fill.addCentredArc (centre.x, centre.y, arcRadius, arcRadius, 0.0f, startAngle, angle, true);
-    g.setColour (slider.findColour (juce::Slider::rotarySliderFillColourId));
-    g.strokePath (fill, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    // Pointer from the centre toward the current angle.
-    juce::Path pointer;
-    pointer.addLineSegment (juce::Line<float> (0.0f, -2.0f, 0.0f, -(arcRadius - 3.0f)), 0.0f);
-    g.setColour (slider.findColour (juce::Slider::thumbColourId));
-    g.strokePath (pointer, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
-                  juce::AffineTransform::rotation (angle).translated (centre));
 }
 
 void TransportControls::setupBox (Box& box, const juce::String& tooltip, std::function<void (bool enter)> onCommit)
