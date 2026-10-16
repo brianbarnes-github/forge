@@ -49,6 +49,10 @@ public:
 
     // Return false to veto Play (MainWindow shows why).
     std::function<bool()> onBeforePlay;
+    // Asked before each note preview: return false to drop it (no SoundFont, or no
+    // audio device; MainWindow opens the device here, quietly, so a preview sounds
+    // before the first Play).
+    std::function<bool()> onBeforePreview;
 
     void play();
     void pause();
@@ -91,7 +95,12 @@ public:
     // Session master level, 0..100 (clamped); unity at 100.
     // Sounds the request's notes through the engine's preview channels (see
     // PlaybackEngine::requestPreview); a full queue drops it.
-    void previewNotes (const PreviewRequest& request) { playbackEngine.requestPreview (request); }
+    void previewNotes (const PreviewRequest& request)
+    {
+        if (onBeforePreview && ! onBeforePreview())
+            return;
+        playbackEngine.requestPreview (request);
+    }
 
     void setMasterPercent (int percent);
     int masterPercent() const noexcept { return masterLevel; }

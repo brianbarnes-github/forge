@@ -796,3 +796,39 @@ TEST_CASE ("PlaybackController: previewNotes reaches the engine", "[playback][co
             heard = true;
     CHECK (heard);
 }
+
+TEST_CASE ("PlaybackController: previewNotes asks onBeforePreview first and drops the request when it declines", "[playback][controller][note-preview]")
+{
+    Rig r;
+    auto t = addTrack (r.doc);
+    addNote (t, 60, 0, 480);
+    r.controller.flushRebuild();
+
+    PreviewRequest request;
+    request.notes[0].trackId = (juce::int64) t.getProperty (SongIDs::trackId);
+    request.notes[0].pitch = 67;
+    request.notes[0].endTick = 480;
+    request.count = 1;
+
+    const auto heard = [&]
+    {
+        for (const auto& rec : r.sink.records)
+            if (rec.event.kind == PlaybackEventKind::NoteOn && rec.event.virtualChannel == kPreviewChannelBase)
+                return true;
+        return false;
+    };
+
+    int asked = 0;
+    bool ready = false;
+    r.controller.onBeforePreview = [&] { ++asked; return ready; };
+    r.controller.previewNotes (request);
+    r.render();
+    CHECK (asked == 1);
+    CHECK_FALSE (heard());
+
+    ready = true;
+    r.controller.previewNotes (request);
+    r.render();
+    CHECK (asked == 2);
+    CHECK (heard());
+}

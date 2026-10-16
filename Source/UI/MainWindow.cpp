@@ -189,6 +189,7 @@ MainWindow::MainWindow()
     refreshTitle();
 
     playback.onBeforePlay = [this] { return ensurePlaybackReady(); };
+    playback.onBeforePreview = [this] { return ensurePreviewReady(); };
     loadStartupSoundFont();
     applyViewSettings();
 
@@ -772,13 +773,33 @@ bool MainWindow::ensurePlaybackReady()
         showError ("No SoundFont", "Choose a SoundFont (.sf2) via Song > SoundFont... to enable playback.");
         return false;
     }
-    if (audioOutput == nullptr)
+    if (const auto problem = openAudioOutput(); problem.isNotEmpty())
     {
-        try { audioOutput = std::make_unique<AudioOutput> (playback.engine()); }
-        catch (const PlaybackError& e) { showError ("Audio unavailable", e.what()); return false; }
-        catch (const std::exception& e) { showError ("Audio unavailable", e.what()); return false; }
+        showError ("Audio unavailable", problem);
+        return false;
     }
+    previewAudioFailed = false;
     return true;
+}
+
+// As ensurePlaybackReady, but silent: a preview with no SoundFont or no device
+// just does not sound. A failed open is not retried on every drag step.
+bool MainWindow::ensurePreviewReady()
+{
+    if (! synth.hasSoundFont() || previewAudioFailed)
+        return false;
+    previewAudioFailed = openAudioOutput().isNotEmpty();
+    return ! previewAudioFailed;
+}
+
+juce::String MainWindow::openAudioOutput()
+{
+    if (audioOutput != nullptr)
+        return {};
+    try { audioOutput = std::make_unique<AudioOutput> (playback.engine()); }
+    catch (const PlaybackError& e) { return e.what(); }
+    catch (const std::exception& e) { return e.what(); }
+    return {};
 }
 
 void MainWindow::chooseSoundFont()

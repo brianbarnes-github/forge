@@ -112,7 +112,7 @@ private:
     void persistStripButtons();
 
     // Declared after everything it renders from so it is destroyed first.
-    // Created lazily on the message thread by ensurePlaybackReady().
+    // Created lazily on the message thread by openAudioOutput() (first Play or preview).
     std::unique_ptr<AudioOutput>            audioOutput;
 
     void chooseSoundFont();
@@ -123,6 +123,9 @@ private:
     SoundFontLoad useBundledSoundFont();
     juce::String activeSoundFontLabel() const;
     bool ensurePlaybackReady();
+    bool ensurePreviewReady();
+    juce::String openAudioOutput();   // empty on success (or already open), else why not
+    bool previewAudioFailed = false;  // a preview's quiet device open failed; previews stop trying until a Play succeeds
 
     void openMidiViaDialog();
     void openMidiFromPath (const juce::File& file);
