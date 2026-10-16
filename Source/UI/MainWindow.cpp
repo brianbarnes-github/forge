@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "Dock/ManageLayoutsDialog.h"
 #include "AboutBox.h"
+#include "Theme/ThemePaint.h"
 #include "AppSettings.h"
 #include "DiagnosticsPane.h"
 #include "DiscardGuard.h"
@@ -173,6 +174,11 @@ MainWindow::MainWindow()
     if (! restorePlacement || ! WindowPlacement::restoreWindow (*settings, mainWindowPlacementKey, *this))
         centreWithSize (getWidth(), getHeight());
     setVisible (true);
+    // The anvil in the title bar / taskbar while running (the exe's own icon is separate).
+    const auto icon = ThemePaint::renderAppIcon (256);
+    setIcon (icon);
+    if (auto* peer = getPeer())
+        peer->setIcon (icon);
     if (restorePlacement)
         WindowPlacement::applyMaximised (*settings, mainWindowPlacementKey, *this);
 

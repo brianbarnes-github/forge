@@ -1,5 +1,6 @@
 #include "UI/AboutBox.h"
 #include "UI/BuildInfo.h"
+#include "UI/SongsmithColours.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -59,4 +60,23 @@ TEST_CASE ("AboutComponent: shows the app name, creator, version and build", "[a
     CHECK (texts.contains ("Created by Vydor"));
     CHECK (texts.contains ("Version 0.1.0"));
     CHECK (texts.contains ("Build 201 (eb054de)"));
+}
+
+TEST_CASE ("AboutComponent: paints the copper anvil logo", "[about][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    const BuildInfo info { "0.1.0", 1, "abc1234", false };
+    AboutComponent about (info);
+    juce::Image image (juce::Image::ARGB, about.getWidth(), about.getHeight(), true, juce::SoftwareImageType());
+    { juce::Graphics g (image); about.paint (g); }
+    const juce::Colour copper (SongsmithColours::accentCopper);
+    bool found = false;
+    for (int y = 0; y < 80 && ! found; ++y)
+        for (int x = 0; x < image.getWidth() && ! found; ++x)
+        {
+            const auto p = image.getPixelAt (x, y);
+            found = std::abs (p.getRed() - copper.getRed()) < 24 && std::abs (p.getGreen() - copper.getGreen()) < 24
+                    && std::abs (p.getBlue() - copper.getBlue()) < 24;
+        }
+    CHECK (found);
 }

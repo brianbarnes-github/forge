@@ -1,6 +1,7 @@
 #include "UI/Playback/TransportStrip.h"
 
 #include "UI/SongsmithColours.h"
+#include "UI/Theme/ThemePaint.h"
 
 #include <algorithm>
 
@@ -26,8 +27,8 @@ namespace
             return d;
         };
         const auto normal = make (SongsmithColours::text);
-        const auto over   = make (SongsmithColours::selectionHighlight);
-        const auto down   = make (SongsmithColours::accentCopper);
+        const auto over   = make (SongsmithColours::accentCopper);
+        const auto down   = make (juce::Colour (SongsmithColours::accentCopper).darker (0.2f).getARGB());
         button.setImages (&normal, &over, &down);
     }
 }
@@ -84,8 +85,10 @@ TransportStrip::TransportStrip (PlaybackController& controllerIn, SongDocument& 
     setIcon (rewindButton, TransportIcon::rewind);
     setIcon (stopButton,   TransportIcon::stop);
     setIcon (endButton,    TransportIcon::goToEnd);
-    for (auto* b : { &startButton, &rewindButton, &playButton, &stopButton, &endButton })
+    for (auto* b : std::initializer_list<juce::DrawableButton*> { &startButton, &rewindButton, &playButton, &stopButton, &endButton })
         b->setEdgeIndent (6);
+    // Transparent, so PlayButton's own fill and glow show beneath the icon.
+    playButton.setColour (juce::DrawableButton::backgroundColourId, juce::Colours::transparentBlack);
     startButton.setTooltip ("Go to beginning");
     rewindButton.setTooltip ("Rewind one bar");
     playButton.setTooltip ("Play / Pause (Space)");
@@ -112,7 +115,7 @@ TransportStrip::~TransportStrip()
 
 void TransportStrip::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (SongsmithColours::background));
+    ThemePaint::paintPanelGradient (g, getLocalBounds());
 }
 
 void TransportStrip::resized()
@@ -139,6 +142,27 @@ void TransportStrip::refreshPlayIcon()
 {
     playIcon = controller.isPlaying() ? TransportIcon::pause : TransportIcon::play;
     setIcon (playButton, playIcon);
+    playButton.setPlaying (controller.isPlaying());
+}
+
+void PlayButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    const auto copper = juce::Colour (SongsmithColours::accentCopper);
+    const auto r = getLocalBounds().toFloat().reduced (2.0f);
+    constexpr float radius = 6.0f;
+    if (playing)
+    {
+        for (int ring = 2; ring >= 1; --ring)
+        {
+            g.setColour (copper.withAlpha (0.12f / (float) ring));
+            g.fillRoundedRectangle (r.expanded ((float) ring), radius + (float) ring);
+        }
+        g.setColour (copper.withAlpha (0.15f));
+        g.fillRoundedRectangle (r, radius);
+    }
+    g.setColour (highlighted ? copper.brighter (0.2f) : copper);
+    g.drawRoundedRectangle (r, radius, 1.5f);
+    juce::DrawableButton::paintButton (g, highlighted, down);   // the icon
 }
 
 } // namespace lotro

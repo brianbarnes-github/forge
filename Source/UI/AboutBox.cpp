@@ -1,12 +1,13 @@
 #include "AboutBox.h"
 #include "SongsmithColours.h"
+#include "Theme/ThemePaint.h"
 
 namespace lotro
 {
     namespace
     {
         constexpr int dialogWidth  = 320;
-        constexpr int dialogHeight = 170;
+        constexpr int dialogHeight = 234;
 
         void setUpLabel (juce::Component& parent, juce::Label& label, const juce::String& text,
                          float fontHeight, juce::uint32 colour)
@@ -25,17 +26,21 @@ namespace lotro
         setUpLabel (*this, creator, "Created by Vydor",        15.0f, SongsmithColours::text);
         setUpLabel (*this, version, formatVersionLine (info), 14.0f, SongsmithColours::textMuted);
         setUpLabel (*this, build,   formatBuildLine (info),   14.0f, SongsmithColours::textMuted);
+        appName.setVisible (false);
         setSize (dialogWidth, dialogHeight);
     }
 
     void AboutComponent::paint (juce::Graphics& g)
     {
         g.fillAll (juce::Colour (SongsmithColours::background));
+        ThemePaint::paintLogo (g, logoArea.toFloat(), true);
     }
 
     void AboutComponent::resized()
     {
         auto area = getLocalBounds().reduced (16);
+        logoArea = area.removeFromTop (56);
+        area.removeFromTop (8);
         appName.setBounds (area.removeFromTop (40));
         creator.setBounds (area.removeFromTop (28));
         area.removeFromTop (12);

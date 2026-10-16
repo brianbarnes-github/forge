@@ -17,7 +17,8 @@ namespace lotro
         void resized() override;
 
     private:
-        juce::Label appName, creator, version, build;
+        juce::Label appName, creator, version, build;   // appName is hidden: the logo's wordmark replaces it
+        juce::Rectangle<int> logoArea;
     };
 
     // Opens the About box as a modal dialog centred over `centreAround`

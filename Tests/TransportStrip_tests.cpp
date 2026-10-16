@@ -2,6 +2,7 @@
 #include "UI/Playback/PlaybackController.h"
 #include "UI/Playback/StripButtonsBar.h"
 #include "UI/Playback/TransportStrip.h"
+#include "UI/SongsmithColours.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -226,4 +227,69 @@ TEST_CASE ("TransportStrip: a buttons host puts the + bar in the left area and r
 
     strip.setButtonsHost (nullptr);
     CHECK (strip.buttonsBarForTesting() == nullptr);
+}
+
+namespace
+{
+    int copperPixels (const juce::Image& image)
+    {
+        const juce::Colour copper (SongsmithColours::accentCopper);
+        int n = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                const auto p = image.getPixelAt (x, y);
+                n += std::abs (p.getRed() - copper.getRed()) < 30 && std::abs (p.getGreen() - copper.getGreen()) < 30
+                     && std::abs (p.getBlue() - copper.getBlue()) < 30;
+            }
+        return n;
+    }
+
+    juce::Image paintOnBlack (juce::Component& c, bool withChildren)
+    {
+        juce::Image image (juce::Image::ARGB, c.getWidth(), c.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.fillAll (juce::Colours::black);
+        if (withChildren)
+            c.paintEntireComponent (g, true);
+        else
+            c.paint (g);
+        return image;
+    }
+}
+
+TEST_CASE ("TransportStrip: Play has a copper outline and lights up while playing", "[playback][strip][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    addNote (addTrack (doc), 60, 0, 4800);
+    controller.flushRebuild();
+    TransportStrip strip (controller, doc);
+    strip.setSize (900, 40);
+
+    auto& play = dynamic_cast<PlayButton&> (strip.playButtonForTesting());
+    REQUIRE (play.getWidth() > 8);
+    const auto stopped = paintOnBlack (play, true);
+    CHECK (copperPixels (stopped) > 0);   // the outline
+    CHECK (! play.isPlayingLook());
+
+    click (play);   // starts playback; refreshPlayIcon sets the look
+    CHECK (play.isPlayingLook());
+    const auto playing = paintOnBlack (play, true);
+    const juce::Point<int> inside (4, play.getHeight() / 2);   // inside the outline, left of the icon
+    CHECK (playing.getPixelAt (inside.x, inside.y).getBrightness() > stopped.getPixelAt (inside.x, inside.y).getBrightness());
+}
+
+TEST_CASE ("TransportStrip: the strip background is the panel gradient", "[playback][strip][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TransportStrip strip (controller, doc);
+    strip.setSize (900, 40);
+    const auto image = paintOnBlack (strip, false);
+    CHECK (image.getPixelAt (5, 3).getBrightness() > image.getPixelAt (5, 36).getBrightness());
 }

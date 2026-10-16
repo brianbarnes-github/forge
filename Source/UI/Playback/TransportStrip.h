@@ -25,6 +25,28 @@ juce::Path transportIconPath (TransportIcon icon);
 // Go to start | Rewind | Play/Pause | Stop | Go to end, bound to one
 // PlaybackController; the right one holds the transport controls; the left one
 // hosts the user's command buttons.
+// The Play/Pause button: a rounded copper outline; while playing, a faint
+// copper fill and a soft glow (the mock-up's lit Play button).
+class PlayButton : public juce::DrawableButton
+{
+public:
+    PlayButton() : juce::DrawableButton ("play", juce::DrawableButton::ImageFitted) {}
+
+    void setPlaying (bool shouldLookPlaying)
+    {
+        if (playing == shouldLookPlaying)
+            return;
+        playing = shouldLookPlaying;
+        repaint();
+    }
+    bool isPlayingLook() const noexcept { return playing; }
+
+    void paintButton (juce::Graphics& g, bool highlighted, bool down) override;
+
+private:
+    bool playing = false;
+};
+
 class TransportStrip : public juce::Component, private PlaybackController::Listener
 {
 public:
@@ -71,9 +93,9 @@ private:
     std::unique_ptr<StripButtonsBar> buttonsBar;   // after the areas, so it is destroyed first
     ThreePaneSplitter splitter;
     juce::DrawableButton startButton  { "start",  juce::DrawableButton::ImageFitted },
-                         rewindButton { "rewind", juce::DrawableButton::ImageFitted },
-                         playButton   { "play",   juce::DrawableButton::ImageFitted },
-                         stopButton   { "stop",   juce::DrawableButton::ImageFitted },
+                         rewindButton { "rewind", juce::DrawableButton::ImageFitted };
+    PlayButton           playButton;
+    juce::DrawableButton stopButton   { "stop",   juce::DrawableButton::ImageFitted },
                          endButton    { "end",    juce::DrawableButton::ImageFitted };
 };
 
