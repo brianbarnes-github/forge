@@ -413,6 +413,12 @@ void PianoRollComponent::setGridTicks (int ticks)
         sourceEditor->setGridTicks (ticks);
 }
 
+void PianoRollComponent::setPitchFilter (std::function<bool (int pitch)> allowed)
+{
+    if (sourceEditor != nullptr)
+        sourceEditor->setPitchFilter (std::move (allowed));
+}
+
 int PianoRollComponent::getGridTicks() const
 {
     return sourceEditor != nullptr ? sourceEditor->getGridTicks() : 0;

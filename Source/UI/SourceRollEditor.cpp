@@ -147,6 +147,8 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
     {
         if (hitTestNote (pos).isValid())
             return false;
+        if (pitchAllowed && ! pitchAllowed (geometry.pitchForY (pos.y)))
+            return false;
 
         createNoteAt (pos);
         return true;

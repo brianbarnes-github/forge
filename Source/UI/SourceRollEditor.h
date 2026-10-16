@@ -5,6 +5,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <functional>
 #include <vector>
 
 // Mouse/keyboard-gesture-driven note editing for the *source* piano roll
@@ -50,6 +51,12 @@ public:
     // no notion of the combo's enum, only the resulting tick count.
     void setGridTicks (int ticks) noexcept { currentGridTicks = ticks; }
     int getGridTicks() const noexcept { return currentGridTicks; }
+
+    // Options ▸ Snap to Key: which pitches a double-click may create a note on.
+    // Empty (the default) allows every pitch. A refused pitch changes nothing --
+    // no note, no selection change, no undo step. Moves, resizes and every other
+    // edit ignore it.
+    void setPitchFilter (std::function<bool (int pitch)> allowed) { pitchAllowed = std::move (allowed); }
 
     bool isSelected (const juce::ValueTree& note) const;
     // Replaces the selection with `note` (an invalid tree clears it), as a click does.
@@ -133,6 +140,7 @@ private:
     juce::ValueTree track;
     PianoRollGeometry geometry;
     int currentGridTicks = 0;
+    std::function<bool (int pitch)> pitchAllowed;
 
     std::vector<juce::ValueTree> selection;
     std::vector<juce::ValueTree> baseSelectionForRubberBand;

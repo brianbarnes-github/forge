@@ -727,3 +727,62 @@ TEST_CASE ("SourceRollEditor: addToSelection keeps the selection and adds a note
     editor.addToSelection ({});   // invalid: ignored
     CHECK (editor.getNumSelected() == 2);
 }
+
+TEST_CASE ("SourceRollEditor: a pitch filter refuses a double-click on a disallowed row", "[source-roll-editor][snap-to-key]")
+{
+    Fixture f;
+    f.editor.setPitchFilter ([] (int pitch) { return pitch != 72; });
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+    const bool couldUndo = f.doc.canUndo();
+
+    CHECK_FALSE (f.editor.mouseDown (emptyCell, {}, true));
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    CHECK (f.doc.canUndo() == couldUndo);
+}
+
+TEST_CASE ("SourceRollEditor: a refused double-click leaves the selection alone", "[source-roll-editor][snap-to-key]")
+{
+    Fixture f;
+    f.editor.selectOnly (f.noteA);
+    f.editor.setPitchFilter ([] (int pitch) { return pitch != 72; });
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+
+    f.editor.mouseDown (emptyCell, {}, true);
+    CHECK (f.editor.isSelected (f.noteA));
+    CHECK (f.editor.getNumSelected() == 1);
+}
+
+TEST_CASE ("SourceRollEditor: an allowed pitch still creates a note under a pitch filter", "[source-roll-editor][snap-to-key]")
+{
+    Fixture f;
+    f.editor.setPitchFilter ([] (int pitch) { return pitch == 72; });
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+
+    CHECK (f.editor.mouseDown (emptyCell, {}, true));
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 3);
+    CHECK ((int) SongDocument::getNotesNode (f.track).getChild (2).getProperty (SongIDs::pitch) == 72);
+}
+
+TEST_CASE ("SourceRollEditor: clearing the pitch filter allows every pitch again", "[source-roll-editor][snap-to-key]")
+{
+    Fixture f;
+    f.editor.setPitchFilter ([] (int) { return false; });
+    f.editor.setPitchFilter (nullptr);
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (72));
+
+    CHECK (f.editor.mouseDown (emptyCell, {}, true));
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 3);
+}
+
+TEST_CASE ("SourceRollEditor: a pitch filter never stops a note being dragged onto a refused pitch", "[source-roll-editor][snap-to-key]")
+{
+    Fixture f;
+    f.editor.setPitchFilter ([] (int pitch) { return pitch != 58; });
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (0, f.geometry.yForPitch (58) - f.geometry.yForPitch (60));
+
+    REQUIRE (f.editor.mouseDown (start, {}, false));
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+    CHECK ((int) f.noteA.getProperty (SongIDs::pitch) == 58);
+}
