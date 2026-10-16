@@ -83,3 +83,37 @@ TEST_CASE ("SongsmithLookAndFeel: a linear slider fills copper up to its thumb",
     CHECK (hasCopperPixel (image.getClippedImage ({ 0, 0, 90, 24 })));
     CHECK (! hasCopperPixel (image.getClippedImage ({ 120, 0, 80, 24 })));
 }
+
+namespace
+{
+    // Rec. 709 luma, 0..255: enough to tell readable text from its background.
+    float luma (juce::Colour c) { return 0.2126f * c.getRed() + 0.7152f * c.getGreen() + 0.0722f * c.getBlue(); }
+}
+
+TEST_CASE ("SongsmithLookAndFeel: a toggled-on button's text stands out from its background", "[theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ScopedSongsmithLookAndFeel installed;
+    juce::TextButton button ("MMMMMMMM");
+    button.setClickingTogglesState (true);
+    button.setToggleState (true, juce::dontSendNotification);
+    button.setSize (160, 28);
+    const auto image = paintComponent (button);
+
+    const auto background = image.getPixelAt (4, 14);
+    float brightestText = 0.0f;
+    for (int y = 6; y < 22; ++y)
+        for (int x = 30; x < 130; ++x)
+            brightestText = std::max (brightestText, std::abs (luma (image.getPixelAt (x, y)) - luma (background)));
+    CHECK (brightestText > 100.0f);
+}
+
+TEST_CASE ("SongsmithLookAndFeel: selected text in an editor stands out from the highlight", "[theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongsmithLookAndFeel lf;
+    const auto highlight = juce::Colour (SongsmithColours::surfaceBottom)
+                               .overlaidWith (lf.findColour (juce::TextEditor::highlightColourId));
+    const auto text = lf.findColour (juce::TextEditor::highlightedTextColourId);
+    CHECK (std::abs (luma (text) - luma (highlight)) > 100.0f);
+}

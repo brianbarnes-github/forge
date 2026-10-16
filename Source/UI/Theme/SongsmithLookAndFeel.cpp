@@ -33,6 +33,7 @@ SongsmithLookAndFeel::SongsmithLookAndFeel() : juce::LookAndFeel_V4 (songsmithSc
     setColour (juce::TextEditor::outlineColourId, c (border));
     setColour (juce::TextEditor::focusedOutlineColourId, copper);
     setColour (juce::TextEditor::highlightColourId, copper.withAlpha (0.35f));
+    setColour (juce::TextEditor::highlightedTextColourId, c (text));
     setColour (juce::CaretComponent::caretColourId, copper);
     setColour (juce::ComboBox::backgroundColourId, c (surfaceBottom));
     setColour (juce::ComboBox::textColourId, c (text));
@@ -62,7 +63,8 @@ SongsmithLookAndFeel::SongsmithLookAndFeel() : juce::LookAndFeel_V4 (songsmithSc
     setColour (juce::TextButton::buttonColourId, c (surfaceTop));
     setColour (juce::TextButton::buttonOnColourId, copper);
     setColour (juce::TextButton::textColourOffId, c (text));
-    setColour (juce::TextButton::textColourOnId, c (background));
+    // A toggled-on button is the dark gradient with a copper tint (drawButtonBackground), so light text.
+    setColour (juce::TextButton::textColourOnId, c (text));
     setColour (juce::AlertWindow::backgroundColourId, c (panelHeader));
     setColour (juce::AlertWindow::textColourId, c (text));
     setColour (juce::AlertWindow::outlineColourId, c (border));
