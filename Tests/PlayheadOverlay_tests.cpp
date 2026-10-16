@@ -795,3 +795,16 @@ TEST_CASE ("TimelineRuler: playheadMoved repaints only when the cap moves", "[pl
     CHECK (ruler.capRepaintsForTesting() == before + 1);
     CHECK (ruler.playheadCapBounds()->getCentreX() == 150);
 }
+
+TEST_CASE ("TimelineRuler: when the playhead rests on the start marker, the ivory flag stays on top of the cap", "[playback][ruler][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    ruler.setSize (300, TimelineRuler::height);
+    ruler.setMarks ([] (double tick) { return (int) (tick / 10.0); }, [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
+    ruler.setMarker ([] { return std::optional<double> (1000.0); });     // x = 100
+    ruler.setPlayhead ([] { return std::optional<double> (1000.0); });   // the same x, as after Stop
+    juce::Image image (juce::Image::ARGB, 300, TimelineRuler::height, true, juce::SoftwareImageType());
+    { juce::Graphics g (image); ruler.paint (g); }
+    CHECK (image.getPixelAt (100, 2) == juce::Colour (SongsmithColours::markerIvory));
+}

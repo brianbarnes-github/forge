@@ -179,6 +179,18 @@ void TimelineRuler::paint (juce::Graphics& g)
             g.fillRect (bracket->getX(), bracket->getBottom() - stroke, bracket->getWidth(), stroke);
         }
 
+        // The playhead's cap, under the marker flag: after Stop they coincide and the
+        // ivory flag must stay readable.
+        if (const auto cap = playheadCapBounds())
+        {
+            juce::Path triangle;
+            triangle.addTriangle ((float) cap->getX(), 0.0f, (float) cap->getRight(), 0.0f,
+                                  (float) cap->getCentreX() + 0.5f, (float) cap->getBottom());
+            g.setColour (juce::Colour (SongsmithColours::accentCopper));
+            g.fillPath (triangle);
+        }
+        lastCap = playheadCapBounds();   // a full repaint (zoom, scroll) resyncs playheadMoved's bookkeeping
+
         if (const auto handle = markerHandleBounds())
         {
             const int x = handle->getCentreX();
@@ -189,17 +201,6 @@ void TimelineRuler::paint (juce::Graphics& g)
                               (float) x + 0.5f, (float) handle->getBottom());
             g.fillPath (flag);
         }
-
-        // The playhead's cap, on top of everything else.
-        if (const auto cap = playheadCapBounds())
-        {
-            juce::Path triangle;
-            triangle.addTriangle ((float) cap->getX(), 0.0f, (float) cap->getRight(), 0.0f,
-                                  (float) cap->getCentreX() + 0.5f, (float) cap->getBottom());
-            g.setColour (juce::Colour (SongsmithColours::accentCopper));
-            g.fillPath (triangle);
-        }
-        lastCap = playheadCapBounds();   // a full repaint (zoom, scroll) resyncs playheadMoved's bookkeeping
 
         g.restoreState();
     }
