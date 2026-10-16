@@ -62,7 +62,20 @@ with one rename. Values sampled from the mock-up:
 the green `eventMarker`, and the section/merge tokens keep their hues;
 alphas are tweaked only where contrast on the new background requires it.
 
-`accentAmber` is renamed everywhere it's used (~13 call sites).
+`accentAmber` is renamed everywhere it's used (~20 call sites). Today it
+also colours the **start marker** (`MarkerOverlay` line + ruler flag), the
+**loop range** (overlay fill, ruler brackets), part-slot highlights, the
+ghost toggle and the strip-button "on" state — see §4.2 for how the copper
+playhead stays distinguishable from the start marker.
+
+**Track colours are stored per song.** `colorArgb` is set on each track node
+at import (`SongModelBridge` via `trackColourFor`) and saved in the
+`.songsmith` file. The retuned `familyBaseColour` therefore reaches newly
+imported tracks only; existing songs keep their saved colours (and the
+user's own picks). No migration — that would overwrite user choices.
+`TrackRowComponent` (instrument segments) reads `familyBaseColour` live, so
+in an old song a segment tint may differ slightly from the stored track
+colour; accepted.
 
 **Grid lines** (`GridLinePaint.h`) already draw white at per-level alpha,
 which reads on any row shade; the scheme stays. The alpha table may be
@@ -139,6 +152,13 @@ panel headers (`sourceHeader` and friends), the instrument band.
 - Ghost outlines and the dropped-note hatch stay in `drawNotes`; they
   simply call `paintNoteBody` for the body first.
 
+**Overhang.** The glow and selection edge draw outside `noteBounds`. A
+shared `ThemePaint::noteOverhang` constant (glow + selection edge, 2 px)
+inflates the note's cull rect in `drawNotes` / `TrackNotePreview`, and any
+note-sized dirty rect (today the canvas repaints wholesale, so this mainly
+guards viewport partial repaints and future targeted repaints). Test: move a
+note, repaint, and the old glow pixels are background again.
+
 Callers: `PianoRollComponent::drawNotes` (source and preview roles) and
 `TrackNotePreview` (track-row notes). Colours remain the per-track
 `note.colourArgb`.
@@ -158,6 +178,9 @@ logic). Paint only:
 - Black keys: vertical gradient `#1A1B1E → #2A2C30`, 1 px highlight on the
   top edge (glossy), 2 px shadow down the right side.
 - Hover tints re-derived from the new key colours.
+- The keyboard and row-band constants move from the `PianoRollComponent.cpp`
+  anonymous namespace into `Source/UI/Theme/PianoRollPalette.h` so
+  `PianoRollComponent_tests` can assert against names, not literals.
 - **C rows are always labelled** ("C4") in muted text, as in the mock-up.
   Hover / active naming of other keys stays as today.
 
@@ -176,7 +199,17 @@ A 2 px `accentCopper` core with a glow 3 px each side (copper ~30 % alpha
 falling to 0). `PlayheadDirtyTracker` gains a `paintHalfWidth` so dirty
 rects cover the glow (no trails).
 
-### 4.2 Ruler cap (`TimelineRuler`)
+### 4.2 Playhead vs start marker
+
+The start marker (`MarkerOverlay`, the ruler flag) and the loop range are
+amber today, distinct from the white playhead (see the `eventMarker` comment
+in `SongsmithColours.h`). With a copper playhead they would merge. **Open
+question for the user** (resolved before planning; the chosen option is
+written back here): (a) copper playhead, start marker and loop range move to
+a neutral light grey/ivory; (b) playhead stays white with a white glow and
+copper is used for chrome only; (c) accept the overlap.
+
+### 4.3 Ruler cap (`TimelineRuler`)
 
 A small copper downward triangle at the playhead x in the ruler. The ruler
 listens to the same `PlaybackController` position notifications as the
@@ -211,7 +244,8 @@ TDD throughout: each new test is written and seen failing before its code.
 
 - `ThemePaint_tests`:
   - note body centre pixel within ±12 per channel of `fill`;
-  - corners transparent when height ≥ 9 px;
+  - corner pixel differs from the body fill (rounded) when height ≥ 9 px —
+    with glow, corners carry glow alpha rather than being transparent;
   - no glow pixels outside the body when height < 6 px; glow alpha
     decreases with distance when ≥ 6 px;
   - `selected` puts white on the edge;
@@ -229,6 +263,11 @@ TDD throughout: each new test is written and seen failing before its code.
   playhead is off-screen.
 - Keyboard: a C row shows its label without hover.
 - Play button: copper outline present; fill/glow only while playing.
+
+Components that theme through `findColour` are tested with the
+`SongsmithLookAndFeel` installed via a small RAII helper
+(`ScopedSongsmithLookAndFeel`) in those test files; the test runner's global
+default stays `LookAndFeel_V4`, so unrelated tests are unaffected.
 
 ### 6.2 Existing pixel tests (~150 `getPixelAt` asserts)
 
