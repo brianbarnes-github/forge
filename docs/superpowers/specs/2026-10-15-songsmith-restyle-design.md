@@ -182,8 +182,8 @@ logic). Paint only:
 - The keyboard and row-band constants move from the `PianoRollComponent.cpp`
   anonymous namespace into `Source/UI/Theme/PianoRollPalette.h` so
   `PianoRollComponent_tests` can assert against names, not literals.
-- **C rows are always labelled** ("C4") in muted text, as in the mock-up.
-  Hover / active naming of other keys stays as today.
+- C rows keep their existing always-on "C4" labels (already as in the
+  mock-up); hover / active naming of other keys stays as today.
 
 ### 3.5 Anvil logo — `anvilPath()` / `paintLogo (g, area, withWordmark)`
 
@@ -267,7 +267,8 @@ TDD throughout: each new test is written and seen failing before its code.
 - `PlayheadDirtyTracker`: dirty rects cover `x ± paintHalfWidth`.
 - `TimelineRuler`: copper cap pixels at the playhead x; absent when the
   playhead is off-screen.
-- Keyboard: a C row shows its label without hover.
+- Keyboard: white keys shade darker toward the right edge; black keys
+  are lighter at the bottom than the top (gradient).
 - Play button: copper outline present; fill/glow only while playing.
 
 Components that theme through `findColour` are tested with the
