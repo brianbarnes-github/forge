@@ -442,7 +442,8 @@ TEST_CASE ("EditorMenuModel: Navigate is Move Marker Left / Right by Grid on the
     CHECK (labels (nav) == std::vector<std::string> { "Move Marker Left by Grid", "Move Marker Right by Grid",
                                                       "-", "Move Up a Semitone", "Move Down a Semitone",
                                                       "-", "Select Note Nearest Cursor",
-                                                      "Add Note Nearest Cursor to Selection" });
+                                                      "Add Note Nearest Cursor to Selection",
+                                                      "-", "Select Previous Note", "Select Next Note" });
     CHECK (nav.items[0].id == EditorNavigateMarkerLeft);
     CHECK (nav.items[1].id == EditorNavigateMarkerRight);
     CHECK (nav.items[0].shortcut == "Left");
@@ -497,6 +498,30 @@ TEST_CASE ("EditorMenuModel: Navigate's Add Note Nearest Cursor to Selection has
 
     s.canAddNearestNote = true;
     CHECK (menuNamed (editorMenus (s), "Navigate").items[7].enabled);
+}
+
+TEST_CASE ("EditorMenuModel: Navigate's Select Previous / Next Note have no shortcut and are enabled when there is a note that way", "[menu-model][editor-menu][note-nav]")
+{
+    EditorMenuState s;
+    s.canSelectNearestNote = true;
+    const auto nav = menuNamed (editorMenus (s), "Navigate");
+    CHECK (nav.items[9].id == EditorNavigateSelectPreviousNote);
+    CHECK (nav.items[10].id == EditorNavigateSelectNextNote);
+    CHECK (nav.items[9].shortcut.empty());
+    CHECK (nav.items[10].shortcut.empty());
+    CHECK_FALSE (nav.items[9].enabled);    // their own flags
+    CHECK_FALSE (nav.items[10].enabled);
+
+    s.canSelectPreviousNote = true;
+    const auto previousOnly = menuNamed (editorMenus (s), "Navigate");
+    CHECK (previousOnly.items[9].enabled);
+    CHECK_FALSE (previousOnly.items[10].enabled);
+
+    s.canSelectPreviousNote = false;
+    s.canSelectNextNote = true;
+    const auto nextOnly = menuNamed (editorMenus (s), "Navigate");
+    CHECK_FALSE (nextOnly.items[9].enabled);
+    CHECK (nextOnly.items[10].enabled);
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")

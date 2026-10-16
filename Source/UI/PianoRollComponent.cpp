@@ -607,10 +607,50 @@ bool PianoRollComponent::pickNoteNearest (double tick, bool add)
         sourceEditor->addToSelection (notes.getChild (index));
     else
         sourceEditor->selectOnly (notes.getChild (index));
-    const auto bounds = geometry.noteBounds (noteSource->getNote (index));
-    scrollIntoView ({ bounds.x, bounds.y, juce::jmax (1, bounds.width), juce::jmax (1, bounds.height) });
+    scrollNoteIntoView (index);
     canvas.repaint();
     return true;
+}
+
+void PianoRollComponent::scrollNoteIntoView (int index)
+{
+    const auto bounds = geometry.noteBounds (noteSource->getNote (index));
+    scrollIntoView ({ bounds.x, bounds.y, juce::jmax (1, bounds.width), juce::jmax (1, bounds.height) });
+}
+
+int PianoRollComponent::steppedNote (double tick, int direction) const
+{
+    if (! hasNotes())
+        return -1;
+    // Note i of the source is child i of the editor's track (see setEditableTrack).
+    const auto notes = SongDocument::getNotesNode (sourceEditor->getTrackNode());
+    std::vector<NoteStart> starts;
+    std::vector<bool> selected;
+    for (int i = 0; i < noteSource->getNumNotes(); ++i)
+    {
+        const auto note = noteSource->getNote (i);
+        starts.push_back ({ note.startTick, note.pitch });
+        selected.push_back (sourceEditor->isSelected (notes.getChild (i)));
+    }
+    return steppedNoteIndex (starts, tick, selected, direction);
+}
+
+bool PianoRollComponent::hasSteppedNote (double tick, int direction) const
+{
+    return steppedNote (tick, direction) >= 0;
+}
+
+std::optional<int> PianoRollComponent::selectSteppedNote (double tick, int direction)
+{
+    const int index = steppedNote (tick, direction);
+    if (index < 0)
+        return std::nullopt;
+    const auto note = noteSource->getNote (index);
+    sourceEditor->selectOnly (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (index));
+    setActivePitch (note.pitch);
+    scrollNoteIntoView (index);
+    canvas.repaint();
+    return note.startTick;
 }
 
 void PianoRollComponent::scrollIntoView (juce::Rectangle<int> area)

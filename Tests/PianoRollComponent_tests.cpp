@@ -1861,6 +1861,81 @@ TEST_CASE ("PianoRollComponent: addNoteNearestToSelection does nothing with no n
     CHECK_FALSE (preview.addNoteNearestToSelection (0.0));
 }
 
+namespace
+{
+    void addNoteToTrack (SourceRollFixture& f, int pitch, int startTick)
+    {
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, pitch, nullptr);
+        note.setProperty (SongIDs::startTick, startTick, nullptr);
+        note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+        SongDocument::getNotesNode (f.track).addChild (note, -1, nullptr);
+    }
+}
+
+TEST_CASE ("PianoRollComponent: selectSteppedNote walks a chord lowest first, moves the active row, and returns each start", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 72 });   // starts 0
+    addNoteToTrack (fixture, 67, 480);
+    addNoteToTrack (fixture, 60, 480);
+    addNoteToTrack (fixture, 64, 480);
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+
+    CHECK (fixture.roll.hasSteppedNote (1.0, +1));
+    auto start = fixture.roll.selectSteppedNote (1.0, +1);
+    REQUIRE (start.has_value());
+    CHECK (*start == 480);
+    CHECK (editor.getNumSelected() == 1);
+    CHECK (editor.isSelected (noteAt (fixture, 2)));   // 60, the chord's lowest
+    CHECK (fixture.roll.getActivePitch() == 60);
+
+    // The caller moves the cursor to the returned start; the selection anchors the next step.
+    CHECK (fixture.roll.selectSteppedNote (480.0, +1) == std::optional<int> (480));
+    CHECK (editor.isSelected (noteAt (fixture, 3)));   // 64
+    CHECK (fixture.roll.selectSteppedNote (480.0, +1) == std::optional<int> (480));
+    CHECK (editor.isSelected (noteAt (fixture, 1)));   // 67
+    CHECK (fixture.roll.getActivePitch() == 67);
+    CHECK_FALSE (fixture.roll.hasSteppedNote (480.0, +1));   // nothing after the chord
+
+    CHECK (fixture.roll.selectSteppedNote (480.0, -1) == std::optional<int> (480));
+    CHECK (editor.isSelected (noteAt (fixture, 3)));   // back to 64
+    fixture.roll.selectSteppedNote (480.0, -1);
+    CHECK (fixture.roll.selectSteppedNote (480.0, -1) == std::optional<int> (0));
+    CHECK (editor.isSelected (noteAt (fixture, 0)));
+    CHECK (editor.getNumSelected() == 1);
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("PianoRollComponent: selectSteppedNote past either end leaves the selection alone", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62 });   // starts 0, 480
+    auto& editor = Access::editor (fixture.roll);
+    REQUIRE (fixture.roll.selectSteppedNote (480.0, +1).has_value());
+    REQUIRE (editor.isSelected (noteAt (fixture, 1)));
+
+    CHECK_FALSE (fixture.roll.hasSteppedNote (480.0, +1));
+    CHECK_FALSE (fixture.roll.selectSteppedNote (480.0, +1).has_value());
+    CHECK_FALSE (fixture.roll.selectSteppedNote (0.0, -1).has_value());
+    CHECK (editor.getNumSelected() == 1);
+    CHECK (editor.isSelected (noteAt (fixture, 1)));
+    CHECK (fixture.roll.getActivePitch() == 62);
+}
+
+TEST_CASE ("PianoRollComponent: selectSteppedNote does nothing with no notes or on a Preview roll", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture empty ({});
+    CHECK_FALSE (empty.roll.hasSteppedNote (0.0, +1));
+    CHECK_FALSE (empty.roll.selectSteppedNote (0.0, +1).has_value());
+
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    CHECK_FALSE (preview.hasSteppedNote (0.0, +1));
+    CHECK_FALSE (preview.selectSteppedNote (0.0, -1).has_value());
+}
+
 TEST_CASE ("PianoRollComponent: a right-click on a keyboard key selects every note of that semitone; shift adds", "[piano-roll][pitch-select]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

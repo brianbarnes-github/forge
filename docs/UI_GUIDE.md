@@ -308,7 +308,16 @@ When you say…       …I'll know you mean
   Add Note Nearest Cursor to Selection** (no shortcut) works the same way but
   adds the nearest note that is not selected yet to the selection, keeping the
   rest, so each use grows the selection outward from the cursor (with nothing
-  selected it acts like Select). It is greyed once every note is selected. It hosts the source piano roll (#13)
+  selected it acts like Select). It is greyed once every note is selected.
+  **Navigate → Select Next Note / Select Previous Note** (no shortcut) select
+  only the next / previous note in time from the cursor, on any pitch, and move
+  the start marker to that note's exact start (not snapped to the grid), so each
+  use carries on from there. Notes that start together are stepped one at a
+  time, lowest first going forward and highest first going back. The active row
+  moves to the note's pitch and the view scrolls to show it; there is no undo
+  step. With nothing selected at the marker, Next picks the first note starting
+  at or after it and Previous the last starting before it. Each is greyed with
+  no track, no notes, or no note left that way. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
   below for the editing gestures — plus translucent overlays of any tracks
   currently ghost-toggled on in the track list (#10). The loop range (#35), when

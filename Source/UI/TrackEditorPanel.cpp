@@ -49,6 +49,8 @@ namespace lotro
         s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
         s.canSelectNearestNote = owner.canSelectNearestNote();
         s.canAddNearestNote = s.canSelectNearestNote && owner.roll.hasUnselectedNotes();
+        s.canSelectPreviousNote = s.canSelectNearestNote && owner.roll.hasSteppedNote (owner.cursorTick(), -1);
+        s.canSelectNextNote = s.canSelectNearestNote && owner.roll.hasSteppedNote (owner.cursorTick(), +1);
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -92,6 +94,12 @@ namespace lotro
             case EditorNavigateAddNearestNote:
                 if (canSelectNearestNote())
                     roll.addNoteNearestToSelection (cursorTick());
+                return;
+            case EditorNavigateSelectPreviousNote:
+                selectSteppedNote (-1);
+                return;
+            case EditorNavigateSelectNextNote:
+                selectSteppedNote (+1);
                 return;
             case EditorOptionsSnapToGrid:
                 setSnapToGrid (! snapToGrid);
@@ -281,6 +289,18 @@ namespace lotro
     bool TrackEditorPanel::canSelectNearestNote() const
     {
         return currentTrackId != -1 && playback != nullptr && roll.hasNotes();
+    }
+
+    bool TrackEditorPanel::selectSteppedNote (int direction)
+    {
+        if (! canSelectNearestNote())
+            return false;
+        const auto start = roll.selectSteppedNote (cursorTick(), direction);
+        if (! start.has_value())
+            return false;
+        // The note's own start, not snapped: the point is to land on the note.
+        playback->setMarkerTick ((double) *start);
+        return true;
     }
 
     bool TrackEditorPanel::stepMarker (int direction)

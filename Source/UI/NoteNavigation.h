@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cmath>
+#include <climits>
 #include <cstdlib>
+#include <tuple>
 #include <vector>
 
 // Picking a note from the MIDI editor's cursor (the time position and the
@@ -56,6 +58,48 @@ inline int nearestNoteIndex (const std::vector<NoteStart>& notes, double tick, i
             }
         }
         if (n.pitch > b.pitch)
+            best = i;
+    }
+    return best;
+}
+
+// The note Navigate > Select Next Note (`direction` +1) or Select Previous Note
+// (-1) moves to. Notes are ordered by start, then pitch (lowest first), then
+// their index. A selected note starting exactly at `tick` anchors the step, so
+// repeated steps walk a chord one pitch at a time: Next goes from the last
+// anchor in that order, Previous from the first. With no anchor, Next is the
+// first note starting at or after `tick` and Previous the last starting before
+// it. An empty `selected` anchors nothing. -1 when there is no such note.
+inline int steppedNoteIndex (const std::vector<NoteStart>& notes, double tick,
+                             const std::vector<bool>& selected, int direction)
+{
+    using Key = std::tuple<double, int, int>;
+    auto keyOf = [&notes] (int i)
+    {
+        const auto& n = notes[(std::size_t) i];
+        return Key { (double) n.startTick, n.pitch, i };
+    };
+
+    Key from { tick, INT_MIN, INT_MIN };
+    bool anchored = false;
+    for (int i = 0; i < (int) notes.size(); ++i)
+    {
+        if ((std::size_t) i >= selected.size() || ! selected[(std::size_t) i]
+            || (double) notes[(std::size_t) i].startTick != tick)
+            continue;
+        const auto key = keyOf (i);
+        if (! anchored || (direction > 0 ? key > from : key < from))
+            from = key;
+        anchored = true;
+    }
+
+    int best = -1;
+    for (int i = 0; i < (int) notes.size(); ++i)
+    {
+        const auto key = keyOf (i);
+        if (direction > 0 ? ! (key > from) : ! (key < from))
+            continue;
+        if (best < 0 || (direction > 0 ? key < keyOf (best) : key > keyOf (best)))
             best = i;
     }
     return best;

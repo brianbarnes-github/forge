@@ -9,6 +9,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 // The shared piano-roll component: rectangles, keyboard gutter, gridlines,
@@ -119,6 +120,15 @@ public:
     // selection, so repeated calls grow it outward from `tick`. False when
     // every note is selected (or there is none).
     bool addNoteNearestToSelection (double tick);
+    // Source role with an editor: there is a note for selectSteppedNote to move to.
+    bool hasSteppedNote (double tick, int direction) const;
+    // Source role with an editor: selects only the next (`direction` +1) or
+    // previous (-1) note from `tick` on any pitch (see steppedNoteIndex; a
+    // selected note starting at `tick` anchors the step), makes its pitch the
+    // active row and scrolls just enough to show it. No undo step. Returns the
+    // note's start for the caller to move the cursor to; nullopt (nothing
+    // changed) when there is no such note.
+    std::optional<int> selectSteppedNote (double tick, int direction);
     juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
@@ -237,6 +247,10 @@ private:
     // Selects (or with `add`, adds) the nearest note to `tick` not yet selected
     // when `add`, and scrolls to it; false when there is none.
     bool pickNoteNearest (double tick, bool add);
+    // The index steppedNoteIndex picks from the track's notes and selection; -1 for none.
+    int steppedNote (double tick, int direction) const;
+    // Scrolls just enough to show note `index` of the note source.
+    void scrollNoteIntoView (int index);
 
     void rebuildContentSize();
     void fitTimeline();
