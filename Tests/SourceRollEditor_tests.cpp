@@ -786,3 +786,147 @@ TEST_CASE ("SourceRollEditor: a pitch filter never stops a note being dragged on
     f.editor.mouseUp (end);
     CHECK ((int) f.noteA.getProperty (SongIDs::pitch) == 58);
 }
+
+namespace
+{
+    // Records every note-change report as (change, number of notes, first note's pitch).
+    struct ChangeRecorder
+    {
+        struct Call { NoteChange change; size_t count; int firstPitch; };
+        std::vector<Call> calls;
+
+        NoteChangeListener listener()
+        {
+            return [this] (NoteChange change, const std::vector<juce::ValueTree>& notes)
+            {
+                calls.push_back ({ change, notes.size(), notes.empty() ? -1 : (int) notes.front().getProperty (SongIDs::pitch) });
+            };
+        }
+    };
+
+    juce::Point<int> rowsUp (const Fixture& f, juce::Point<int> p, int rows)
+    {
+        return p.translated (0, f.geometry.yForPitch (60 + rows) - f.geometry.yForPitch (60));
+    }
+}
+
+TEST_CASE ("SourceRollEditor: a double-click insert reports the new note", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (62));
+
+    REQUIRE (f.editor.mouseDown (emptyCell, {}, true));
+    REQUIRE (rec.calls.size() == 1);
+    CHECK (rec.calls[0].change == NoteChange::inserted);
+    CHECK (rec.calls[0].count == 1);
+    CHECK (rec.calls[0].firstPitch == 62);
+}
+
+TEST_CASE ("SourceRollEditor: a pitch-filter refusal reports nothing", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    f.editor.setPitchFilter ([] (int) { return false; });
+    const juce::Point<int> emptyCell (f.geometry.xForTick (ticksPerQuarter * 3), f.geometry.yForPitch (62));
+
+    f.editor.mouseDown (emptyCell, {}, true);
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, true);   // a double-click on a note creates nothing either
+    CHECK (rec.calls.empty());
+}
+
+TEST_CASE ("SourceRollEditor: a drag reports each new row at once, and nothing more on release", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const auto start = f.centreOf (f.noteA);
+
+    REQUIRE (f.editor.mouseDown (start, {}, false));
+    f.editor.mouseDrag (rowsUp (f, start, 1));
+    f.editor.mouseDrag (rowsUp (f, start, 1));   // same row again: nothing new
+    f.editor.mouseDrag (rowsUp (f, start, 2));
+    REQUIRE (rec.calls.size() == 2);
+    CHECK (rec.calls[0].change == NoteChange::edited);
+    CHECK (rec.calls[0].firstPitch == 61);
+    CHECK (rec.calls[1].firstPitch == 62);
+
+    f.editor.mouseUp (rowsUp (f, start, 2));
+    CHECK (rec.calls.size() == 2);
+}
+
+TEST_CASE ("SourceRollEditor: a drag that only moves in time reports once, on release", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const auto start = f.centreOf (f.noteA);
+    const auto end = start.translated (f.geometry.xForTick (ticksPerQuarter) - f.geometry.xForTick (0), 0);
+
+    REQUIRE (f.editor.mouseDown (start, {}, false));
+    f.editor.mouseDrag (end);
+    CHECK (rec.calls.empty());
+    f.editor.mouseUp (end);
+    REQUIRE (rec.calls.size() == 1);
+    CHECK (rec.calls[0].change == NoteChange::edited);
+    CHECK (rec.calls[0].firstPitch == 60);
+}
+
+TEST_CASE ("SourceRollEditor: a drag that leaves and returns to its row while moving in time reports no release preview", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const auto start = f.centreOf (f.noteA);
+    const auto sideways = start.translated (f.geometry.xForTick (ticksPerQuarter) - f.geometry.xForTick (0), 0);
+
+    REQUIRE (f.editor.mouseDown (start, {}, false));
+    f.editor.mouseDrag (rowsUp (f, start, 1));
+    f.editor.mouseDrag (start);
+    f.editor.mouseDrag (sideways);
+    f.editor.mouseUp (sideways);
+    REQUIRE (rec.calls.size() == 2);
+    CHECK (rec.calls[0].firstPitch == 61);
+    CHECK (rec.calls[1].firstPitch == 60);
+}
+
+TEST_CASE ("SourceRollEditor: a group drag reports every selected note", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    f.editor.selectOnly (f.noteA);
+    f.editor.addToSelection (f.noteB);
+    const auto start = f.centreOf (f.noteA);
+
+    REQUIRE (f.editor.mouseDown (start, {}, false));
+    f.editor.mouseDrag (rowsUp (f, start, 1));
+    f.editor.mouseUp (rowsUp (f, start, 1));
+    REQUIRE (rec.calls.size() == 1);
+    CHECK (rec.calls[0].count == 2);
+}
+
+TEST_CASE ("SourceRollEditor: resizing reports nothing", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const int shift = f.geometry.xForTick (ticksPerQuarter / 2) - f.geometry.xForTick (0);
+
+    auto a = f.geometry.noteBounds (Fixture::toNote (f.noteA));
+    const juce::Point<int> rightEdge (a.x + a.width - 1, a.y + a.height / 2);
+    REQUIRE (f.editor.mouseDown (rightEdge, {}, false));
+    f.editor.mouseDrag (rightEdge.translated (shift, 0));
+    f.editor.mouseUp (rightEdge.translated (shift, 0));
+
+    auto b = f.geometry.noteBounds (Fixture::toNote (f.noteB));
+    const juce::Point<int> leftEdge (b.x + 1, b.y + b.height / 2);
+    REQUIRE (f.editor.mouseDown (leftEdge, {}, false));
+    f.editor.mouseDrag (leftEdge.translated (shift, 0));
+    f.editor.mouseUp (leftEdge.translated (shift, 0));
+
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) != ticksPerQuarter);   // the left edge really moved
+    CHECK (rec.calls.empty());
+}

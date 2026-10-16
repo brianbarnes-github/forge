@@ -1,5 +1,6 @@
 #pragma once
 
+#include "NotePreview.h"
 #include "PianoRollGeometry.h"
 #include "SongDocument.h"
 
@@ -57,6 +58,13 @@ public:
     // no note, no selection change, no undo step. Moves, resizes and every other
     // edit ignore it.
     void setPitchFilter (std::function<bool (int pitch)> allowed) { pitchAllowed = std::move (allowed); }
+
+    // Options ▸ Note Preview: told which notes a gesture inserted or moved, so
+    // the owner can sound them. A double-click insert reports the new note; a
+    // body drag reports the dragged notes each time they land on a new pitch
+    // row, or once on release if only their timing changed. Resizes, deletes,
+    // selection and undo report nothing.
+    void setNoteChangeListener (NoteChangeListener listener) { noteChanged = std::move (listener); }
 
     bool isSelected (const juce::ValueTree& note) const;
     // Replaces the selection with `note` (an invalid tree clears it), as a click does.
@@ -135,12 +143,15 @@ private:
     void updateRubberBandSelection();
     void createNoteAt (juce::Point<int> pos);
     void markTimingEdited (juce::ValueTree note);
+    void reportChange (NoteChange change, const std::vector<juce::ValueTree>& notes) const;
+    std::vector<juce::ValueTree> draggedNotes() const;
 
     SongDocument& doc;
     juce::ValueTree track;
     PianoRollGeometry geometry;
     int currentGridTicks = 0;
     std::function<bool (int pitch)> pitchAllowed;
+    NoteChangeListener noteChanged;
 
     std::vector<juce::ValueTree> selection;
     std::vector<juce::ValueTree> baseSelectionForRubberBand;
@@ -151,6 +162,7 @@ private:
     juce::Rectangle<int> rubberBandRect;
     std::vector<DragOriginal> dragOriginals; // Move: every selected note. Resize: just the primary note.
     juce::ValueTree grabbedNote;              // Move: the note under the press.
+    bool movePitchChanged = false;            // Move: some step of this drag changed a pitch.
 
     static constexpr int edgeThresholdPixels = 6;
     static constexpr int lassoThresholdPixels = 4;   // as the roll's marker click

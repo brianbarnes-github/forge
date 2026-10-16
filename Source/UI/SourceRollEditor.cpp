@@ -180,6 +180,7 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
     dragStartPos = pos;
 
     dragOriginals.clear();
+    movePitchChanged = false;
     grabbedNote = dragMode == DragMode::Move ? note : juce::ValueTree();
     if (dragMode == DragMode::Move)
     {
@@ -224,6 +225,7 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
     if (dragMode == DragMode::Move)
     {
         const int deltaPitch = geometry.pitchForY (pos.y) - geometry.pitchForY (dragStartPos.y);
+        bool pitchChanged = false;
         for (auto& orig : dragOriginals)
         {
             const int newStart = std::max (0, orig.startTick + deltaTick);
@@ -234,7 +236,15 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
                 markTimingEdited (orig.note);
             }
             if ((int) orig.note.getProperty (SongIDs::pitch) != newPitch)
+            {
                 doc.setProperty (orig.note, SongIDs::pitch, newPitch, false);
+                pitchChanged = true;
+            }
+        }
+        if (pitchChanged)
+        {
+            movePitchChanged = true;
+            reportChange (NoteChange::edited, draggedNotes());
         }
         return true;
     }
@@ -273,6 +283,15 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
 bool SourceRollEditor::mouseUp (juce::Point<int>)
 {
     const bool wasActive = dragMode != DragMode::None;
+    // A drag that only moved in time sounds once, on release; one that changed
+    // a pitch already sounded on each new row.
+    if (dragMode == DragMode::Move && ! movePitchChanged)
+    {
+        const bool moved = std::any_of (dragOriginals.begin(), dragOriginals.end(), [] (const DragOriginal& o)
+                                        { return (int) o.note.getProperty (SongIDs::startTick) != o.startTick; });
+        if (moved)
+            reportChange (NoteChange::edited, draggedNotes());
+    }
     dragMode = DragMode::None;
     dragOriginals.clear();
     grabbedNote = {};
@@ -390,6 +409,22 @@ void SourceRollEditor::createNoteAt (juce::Point<int> pos)
 
     doc.addChild (SongDocument::getNotesNode (track), note);
     selectOnly (note);
+    reportChange (NoteChange::inserted, { note });
+}
+
+void SourceRollEditor::reportChange (NoteChange change, const std::vector<juce::ValueTree>& notes) const
+{
+    if (noteChanged)
+        noteChanged (change, notes);
+}
+
+std::vector<juce::ValueTree> SourceRollEditor::draggedNotes() const
+{
+    std::vector<juce::ValueTree> notes;
+    notes.reserve (dragOriginals.size());
+    for (const auto& o : dragOriginals)
+        notes.push_back (o.note);
+    return notes;
 }
 
 } // namespace lotro

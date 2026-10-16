@@ -174,6 +174,9 @@ public:
     // Source role only: Options ▸ Snap to Key's filter on double-click note
     // creation (SourceRollEditor::setPitchFilter); a no-op without an editor.
     void setPitchFilter (std::function<bool (int pitch)> allowed);
+    // Options ▸ Note Preview: forwards to SourceRollEditor::setNoteChangeListener;
+    // a no-op without an editor.
+    void setNoteChangeListener (NoteChangeListener listener);
 
     // Reads back what setGridTicks pushed; 0 for a roll with no editor (and
     // for "grid off", which is the same thing as far as snapping goes).
