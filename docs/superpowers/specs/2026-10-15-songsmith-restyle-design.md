@@ -54,7 +54,7 @@ with one rename. Values sampled from the mock-up:
 | `previewNoteNormal`, `conductorMeter` | `#7FA8D0` | `#5CC3DE` | the mock-up's cyan |
 | `previewNoteBorder` | `#A0C0E0` | `#8FD8EC` | cyan border, lighter |
 | `rangeBandFill` / `rangeBandBorder` | cyan-blue | re-derived from the new cyan (same alphas) | |
-| `selectedRow` | `#3D4A5A` | `#2E3238` (+ copper 1 px left edge where painted) | |
+| `selectedRow` | `#3D4A5A` | `#2E3238` | |
 | `sourceHeaderLabel` *(new)* | literal `0xFF7FA8D0` in `SongsmithMainComponent.cpp:111` | `= previewNoteNormal` | removes the stray literal |
 | `familyBaseColour[17]` | as now | same hues, ~+10 % saturation and value | read on the darker canvas |
 
@@ -105,8 +105,8 @@ A `juce::LookAndFeel_V4` subclass.
 - **Draw overrides** (only for widgets the app uses):
   - `drawButtonBackground` — 4 px rounded rect, `surfaceTop → surfaceBottom`
     gradient, 1 px `edgeHighlight` top line, 1 px `border` outline; hover
-    lightens slightly, pressed darkens; toggled-on / default button gets a
-    copper outline.
+    lightens slightly, pressed darkens; a toggled-on button gets a copper
+    outline (`juce::Button` has no default-button flag).
   - `drawToggleButton` / `drawTickBox` — rounded box, copper fill + dark
     tick when on.
   - `drawLinearSlider` — recessed dark track, copper fill up to the thumb,
@@ -138,7 +138,8 @@ Stateless free functions shared by the custom-painted components.
 
 `surfaceTop → surfaceBottom` vertical gradient, 1 px `edgeHighlight` top
 line, 1 px `border` bottom line. Used by: transport strip, dock headers,
-panel headers (`sourceHeader` and friends), the instrument band.
+the menu bar and the timeline ruler. The `sourceHeader` label and the
+track rows' instrument band stay flat (`panelHeader` / `instrumentBand`).
 
 ### 3.2 `paintNoteBody (g, rect, fill, NoteStyle)`
 
@@ -153,16 +154,20 @@ panel headers (`sourceHeader` and friends), the instrument band.
 - Ghost outlines and the dropped-note hatch stay in `drawNotes`; they
   simply call `paintNoteBody` for the body first.
 
-**Overhang.** The glow and selection edge draw outside `noteBounds`. A
-shared `ThemePaint::noteOverhang` constant (glow + selection edge, 2 px)
-inflates the note's cull rect in `drawNotes` / `TrackNotePreview`, and any
-note-sized dirty rect (today the canvas repaints wholesale, so this mainly
-guards viewport partial repaints and future targeted repaints). Test: move a
-note, repaint, and the old glow pixels are background again.
+**Small-note fast path.** Below 4 px in height or width the body is a flat
+`fillRect` in `fill` (plus a 1 px white rect if selected): no path fill,
+gradient or edge, so zoomed-out rolls stay cheap to paint.
 
-Callers: `PianoRollComponent::drawNotes` (source and preview roles) and
-`TrackNotePreview` (track-row notes). Colours remain the per-track
-`note.colourArgb`.
+**Overhang.** The glow draws outside `noteBounds`. A shared
+`ThemePaint::noteOverhang` constant (2 px) inflates the note's cull rect in
+`drawNotes` (today the canvas repaints wholesale, so this guards viewport
+partial repaints and future targeted repaints). Test: a clip covering only
+the strip above a note still draws its glow.
+
+Caller: `PianoRollComponent::drawNotes` (source and preview roles). Colours
+remain the per-track `note.colourArgb`. The track rows' note bars
+(`TrackNotePreview`, fixed 2 px tall `fillRect`s) are unchanged — they would
+only ever take the fast path.
 
 ### 3.3 Grid rows (in `PianoRollComponent`)
 
