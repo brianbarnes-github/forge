@@ -96,6 +96,7 @@ add_executable(forge_tests
     ThreePaneSplitter_tests.cpp
     TrackNotePreview_tests.cpp
     SongsmithColours_tests.cpp
+    ThemePaint_tests.cpp
     TrackRowComponent_tests.cpp
     TrackHeadComponent_tests.cpp
     MuteSoloIconButton_tests.cpp
@@ -168,6 +169,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteDiff.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PreviewNoteSource.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/PianoRollComponent.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/Theme/ThemePaint.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/TrackEditorPanel.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/WindowPlacement.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/BuildInfo.cpp
