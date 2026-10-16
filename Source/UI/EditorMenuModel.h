@@ -18,7 +18,9 @@ enum EditorMenuCommandId : int
     EditorFileClose,
     EditorOptionsSnapToGrid,
     EditorNavigateMarkerLeft,
-    EditorNavigateMarkerRight
+    EditorNavigateMarkerRight,
+    EditorNavigatePitchUp,
+    EditorNavigatePitchDown
 };
 
 struct EditorMenuState
@@ -26,6 +28,7 @@ struct EditorMenuState
     bool hasTrack = false;     // a track is loaded in the editor
     bool snapToGrid = true;    // Options > Snap to Grid is ticked
     bool canStepMarker = false; // a track, playback and a grid (not Off)
+    bool canStepPitch = false;  // a track and an active row (a canvas click picks one)
 };
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
@@ -38,7 +41,10 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
              { "Edit", {} },
              { "Navigate", {
                  item (EditorNavigateMarkerLeft,  "Move Marker Left by Grid",  "Left",  s.canStepMarker),
-                 item (EditorNavigateMarkerRight, "Move Marker Right by Grid", "Right", s.canStepMarker) } },
+                 item (EditorNavigateMarkerRight, "Move Marker Right by Grid", "Right", s.canStepMarker),
+                 separator(),
+                 item (EditorNavigatePitchUp,   "Move Up a Semitone",   "Up",   s.canStepPitch),
+                 item (EditorNavigatePitchDown, "Move Down a Semitone", "Down", s.canStepPitch) } },
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
              { "View", {} } };

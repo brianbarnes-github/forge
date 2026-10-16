@@ -23,6 +23,14 @@ namespace lotro
         static juce::MenuBarComponent& menuBar (TrackEditorPanel& w) { return w.menuBar; }
         static int menuActivations (TrackEditorPanel& w) { return w.menuModel.activationsForTesting(); }
         static juce::Component& rollCanvas (TrackEditorPanel& w) { return w.roll.canvasForTesting(); }
+        // A plain left press on the roll's canvas in the middle of `pitch`'s row, past the notes.
+        static void clickRow (TrackEditorPanel& w, int pitch)
+        {
+            const auto& geometry = w.roll.geometry;
+            const juce::Point<int> pos { geometry.xForTick (48000), geometry.yForPitch (pitch) + geometry.getRowHeight() / 2 };
+            w.roll.handleEditorMouseDown (pos, {}, false);
+            w.roll.handleEditorMouseUp (pos);
+        }
     };
 }
 
@@ -385,7 +393,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 2);   // marker left, right
+    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 4);   // marker left, right, semitone up, down
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
@@ -641,4 +649,57 @@ TEST_CASE ("TrackEditorPanel: with Snap to Grid on a ruler click sets the marker
     f.panel->setGridTicks (0);   // grid Off: nothing to snap to
     rulerClick (*f.panel, 1100.0);
     CHECK (*f.controller->getMarkerTick() != 960.0);
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Move Up / Down a Semitone step the active row, from the menu and the arrow keys", "[track-editor-window][editor-menu][active-row]")
+{
+    MarkerPanelFixture f;
+    auto& roll = TrackEditorPanelTestAccess::roll (*f.panel);
+    CHECK_FALSE (f.navigateEnabled (3));   // no active row yet
+    CHECK_FALSE (f.navigateEnabled (4));
+    CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey)));   // left to the roll's scrolling
+
+    TrackEditorPanelTestAccess::clickRow (*f.panel, 64);
+    REQUIRE (roll.getActivePitch() == 64);
+    CHECK (f.navigateEnabled (3));
+    CHECK (f.navigateEnabled (4));
+
+    TrackEditorPanelTestAccess::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigatePitchUp, 2);
+    CHECK (roll.getActivePitch() == 65);
+    f.panel->invokeMenuCommand (EditorNavigatePitchDown);
+    f.panel->invokeMenuCommand (EditorNavigatePitchDown);
+    CHECK (roll.getActivePitch() == 63);
+
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK (roll.getActivePitch() == 64);
+    auto& canvas = TrackEditorPanelTestAccess::rollCanvas (*f.panel);
+    CHECK (canvas.keyPressed (juce::KeyPress (juce::KeyPress::downKey)));   // before the Viewport's scrolling
+    CHECK (roll.getActivePitch() == 63);
+
+    // Modified arrows are not the semitone commands.
+    CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey, juce::ModifierKeys::shiftModifier, 0)));
+    CHECK (roll.getActivePitch() == 63);
+
+    // Independent of the grid: still steps with the grid Off.
+    f.panel->setGridTicks (0);
+    CHECK (f.navigateEnabled (3));
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+    CHECK (roll.getActivePitch() == 64);
+}
+
+TEST_CASE ("TrackEditorPanel: the active row stays across tracks and is gone once the editor has no track", "[track-editor-window][active-row]")
+{
+    MarkerPanelFixture f;
+    auto& roll = TrackEditorPanelTestAccess::roll (*f.panel);
+    TrackEditorPanelTestAccess::clickRow (*f.panel, 64);
+
+    auto other = f.doc.addTrack ("B", (int) 0xFF112233, 1, 0);
+    f.panel->setTrack (other);
+    CHECK (roll.getActivePitch() == 64);
+    CHECK (f.navigateEnabled (3));
+
+    f.panel->clearTrack();
+    CHECK (roll.getActivePitch() == -1);
+    CHECK_FALSE (f.navigateEnabled (3));
+    CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
 }

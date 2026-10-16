@@ -1438,3 +1438,188 @@ TEST_CASE ("PianoRollComponent: grid lines run from the bar down to the note val
     CHECK (lineAt (120));           // sixteenth
     CHECK_FALSE (lineAt (60));      // thirty-second: only 5 px
 }
+
+namespace
+{
+    // Paints the canvas rows from `topPitch` down to `bottomPitch` into an image
+    // of the visible width, origin at `topPitch`'s row top.
+    juce::Image paintRows (PianoRollComponent& roll, int topPitch, int bottomPitch)
+    {
+        const auto& geometry = Access::geometry (roll);
+        const int top = geometry.yForPitch (topPitch);
+        const int height = geometry.yForPitch (bottomPitch) + geometry.getRowHeight() - top;
+        juce::Image image (juce::Image::ARGB, viewportWidth, height, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.setOrigin (0, -top);
+        Access::paintCanvas (roll, g, { 0, top, viewportWidth, height });
+        return image;
+    }
+
+    // Pixels in `pitch`'s row (image from paintRows, origin at `topPitch`) of exactly `colour`.
+    int pixelsOfColourInRow (const juce::Image& image, PianoRollComponent& roll, int topPitch, int pitch, juce::Colour colour)
+    {
+        const auto& geometry = Access::geometry (roll);
+        const int y = geometry.yForPitch (pitch) - geometry.yForPitch (topPitch) + geometry.getRowHeight() / 2;
+        int count = 0;
+        for (int x = 0; x < image.getWidth(); ++x)
+            if (image.getPixelAt (x, y) == colour)
+                ++count;
+        return count;
+    }
+
+    constexpr juce::uint32 activeRowColour = 0xFF3A3A3A;
+}
+
+TEST_CASE ("PianoRollComponent: a click on the canvas makes the row under it the active row, on a note or not", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const auto& geometry = Access::geometry (fixture.roll);
+    CHECK (fixture.roll.getActivePitch() == -1);
+
+    const int emptyX = geometry.xForTick (ticksPerQuarter * 6);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 66), {}, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 66));
+    CHECK (fixture.roll.getActivePitch() == 66);
+
+    const int onFirstNote = geometry.xForTick (ticksPerQuarter / 2);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 60), {}, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, onFirstNote, 60));
+    CHECK (fixture.roll.getActivePitch() == 60);
+
+    // A right-click lands on a row too.
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 70), juce::ModifierKeys::rightButtonModifier, false);
+    CHECK (fixture.roll.getActivePitch() == 70);
+}
+
+TEST_CASE ("PianoRollComponent: the active row is painted lighter, the same grey for sharps/flats and naturals", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
+    const juce::Colour active (activeRowColour);
+
+    const auto before = paintRows (fixture.roll, 72, 66);
+    CHECK (pixelsOfColourInRow (before, fixture.roll, 72, 69, active) == 0);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 69), {}, false);   // A, a natural
+    const auto natural = paintRows (fixture.roll, 72, 66);
+    CHECK (pixelsOfColourInRow (natural, fixture.roll, 72, 69, active) > viewportWidth / 2);
+    CHECK (pixelsOfColourInRow (natural, fixture.roll, 72, 68, active) == 0);   // neighbours untouched
+    CHECK (pixelsOfColourInRow (natural, fixture.roll, 72, 70, active) == 0);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 70), {}, false);   // A#, a sharp
+    const auto sharp = paintRows (fixture.roll, 72, 66);
+    CHECK (pixelsOfColourInRow (sharp, fixture.roll, 72, 70, active) > viewportWidth / 2);
+    CHECK (pixelsOfColourInRow (sharp, fixture.roll, 72, 69, active) == 0);
+}
+
+TEST_CASE ("PianoRollComponent: stepActivePitch moves the active row a semitone, clamped to 0..127", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
+
+    CHECK_FALSE (fixture.roll.stepActivePitch (+1));   // nothing active yet
+    CHECK (fixture.roll.getActivePitch() == -1);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 60), {}, false);
+    CHECK (fixture.roll.stepActivePitch (+1));
+    CHECK (fixture.roll.getActivePitch() == 61);
+    CHECK (fixture.roll.stepActivePitch (-1));
+    CHECK (fixture.roll.stepActivePitch (-1));
+    CHECK (fixture.roll.getActivePitch() == 59);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 127), {}, false);
+    CHECK (fixture.roll.stepActivePitch (+1));   // still claimed at the top, just no further
+    CHECK (fixture.roll.getActivePitch() == 127);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 0), {}, false);
+    CHECK (fixture.roll.stepActivePitch (-1));
+    CHECK (fixture.roll.getActivePitch() == 0);
+}
+
+TEST_CASE ("PianoRollComponent: stepping the active row off screen scrolls just enough to show it", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const auto& geometry = Access::geometry (fixture.roll);
+    auto& viewport = Access::viewport (fixture.roll);
+    const int rowHeight = geometry.getRowHeight();
+    const int emptyX = geometry.xForTick (ticksPerQuarter * 6);
+
+    // The topmost fully visible row.
+    const int topVisible = geometry.getTopPitch() - (viewport.getViewPositionY() + rowHeight - 1) / rowHeight;
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, topVisible), {}, false);
+    const int scrollBefore = viewport.getViewPositionY();
+    REQUIRE (scrollBefore > 0);
+
+    fixture.roll.stepActivePitch (+1);
+    CHECK (viewport.getViewPositionY() == geometry.yForPitch (topVisible + 1));   // row now at the top edge
+
+    // The bottommost fully visible row, stepping down past it.
+    const int visibleBottom = viewport.getViewPositionY() + viewport.getMaximumVisibleHeight();
+    const int bottomVisible = geometry.getTopPitch() - visibleBottom / rowHeight + 1;
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, bottomVisible), {}, false);
+    const int scrollAtBottom = viewport.getViewPositionY();
+    fixture.roll.stepActivePitch (-1);
+    CHECK (viewport.getViewPositionY() + viewport.getMaximumVisibleHeight()
+           == geometry.yForPitch (bottomVisible - 1) + rowHeight);   // row now at the bottom edge
+
+    // A step that stays on screen does not scroll.
+    const int scrollAfter = viewport.getViewPositionY();
+    REQUIRE (scrollAfter != scrollAtBottom);
+    fixture.roll.stepActivePitch (+1);
+    CHECK (viewport.getViewPositionY() == scrollAfter);
+}
+
+TEST_CASE ("PianoRollComponent: the active row's keyboard key is tinted and named like a hovered one", "[piano-roll][active-row][keyboard]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
+    const int leftX = 3;
+    const int rowMiddle = Access::geometry (fixture.roll).getRowHeight() / 2;
+
+    const auto plain = paintKeyboard (fixture.roll);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 62), {}, false);   // D4, a white key
+    auto& canvas = Access::canvas (fixture.roll);
+    const auto away = canvasRowPoint (fixture.roll, emptyX, 66);
+    canvas.mouseMove (makeMouseEvent (canvas, away, away, 0, false));   // the mouse hovers elsewhere
+    const auto active = paintKeyboard (fixture.roll);
+
+    const auto face = active.getPixelAt (leftX, keyTopY (fixture.roll, 62) + rowMiddle);
+    CHECK (face != plain.getPixelAt (leftX, keyTopY (fixture.roll, 62) + rowMiddle));
+    CHECK (isLight (face));
+    CHECK (markedPixelsInKeyRow (active, fixture.roll, 62) > 0);
+}
+
+TEST_CASE ("PianoRollComponent: the active row survives a track change and clears with no track", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 66), {}, false);
+
+    auto other = fixture.doc.addTrack ("Track B", 0x00FF00, 1, 1);
+    SourceTrackNoteSource otherSource (other);
+    fixture.roll.setNoteSource (&otherSource, ticksPerQuarter, {});
+    fixture.roll.setEditableTrack (other);
+    CHECK (fixture.roll.getActivePitch() == 66);
+
+    fixture.roll.setEditableTrack ({});
+    fixture.roll.setNoteSource (nullptr, ticksPerQuarter, {});
+    CHECK (fixture.roll.getActivePitch() == -1);
+    CHECK_FALSE (fixture.roll.stepActivePitch (+1));
+}
+
+TEST_CASE ("PianoRollComponent: a Preview roll has no active row", "[piano-roll][active-row]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    PianoRollComponent roll (PianoRollComponent::Role::Preview);
+    PreviewNoteSource source ({});
+    roll.setBounds (0, 0, viewportWidth, viewportHeight);
+    roll.setNoteSource (&source, ticksPerQuarter, {});
+    Access::mouseDown (roll, { 200, 20 }, {}, false);
+    CHECK (roll.getActivePitch() == -1);
+    CHECK_FALSE (roll.stepActivePitch (+1));
+}

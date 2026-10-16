@@ -43,7 +43,8 @@ namespace lotro
         // MIDI File fires onExportTrackMidi with the loaded track (nothing when none
         // is loaded); File > Close Editor fires onCloseRequested; Options > Snap to
         // Grid flips the snap state and fires onSnapToGridChanged with the new value;
-        // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker).
+        // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
+        // Navigate > Move Up / Down a Semitone step the roll's active row.
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
@@ -155,7 +156,8 @@ namespace lotro
         // Moves the start marker (or, with none, the playhead's tick) to the previous
         // (-1) or next (+1) grid line. Returns whether it could.
         bool stepMarker (int direction);
-        // Plain Left/Right, from the panel or ahead of the roll's Viewport scrolling.
+        // Plain Left/Right (marker) and Up/Down (active row), from the panel or ahead
+        // of the roll's Viewport scrolling; unclaimed when the step can't happen.
         bool navigateKeyPressed (const juce::KeyPress& key);
 
         SongDocument& doc;

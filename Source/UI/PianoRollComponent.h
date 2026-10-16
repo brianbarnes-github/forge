@@ -95,6 +95,15 @@ public:
     // A key the canvas's editor left alone, offered before the Viewport (which
     // scrolls on the arrow keys) sees it; return true to claim it.
     std::function<bool (const juce::KeyPress&)> onUnhandledKey;
+    // Source role only: the semitone row the last canvas click landed on (-1 for
+    // none, and always for Preview), painted lighter and its key tinted. Display
+    // state only -- not saved, not undoable. Kept across setNoteSource; cleared
+    // when the roll is left with no note source.
+    int getActivePitch() const noexcept { return activePitch; }
+    // Moves the active row `semitones` up (positive) or down, clamped to 0..127,
+    // scrolling just enough to keep it in view. False (nothing done) when no row
+    // is active; true at the clamp too, so the key is still claimed.
+    bool stepActivePitch (int semitones);
     juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
@@ -129,6 +138,7 @@ public:
 private:
     friend struct PianoRollComponentTestAccess;
     friend struct SongsmithMainComponentTestAccess;   // drives a note gesture through handleEditorMouseDown/Up
+    friend struct TrackEditorPanelTestAccess;         // clicks a row through handleEditorMouseDown/Up
 
     class Canvas : public juce::Component
     {
@@ -204,6 +214,8 @@ private:
     // can tint that key and name it. The gutter is mouse-transparent, so the
     // Canvas beneath it tracks this for both the gutter and the note rows.
     void setHoveredPitch (int pitch);
+    // Sets the active row (clamped to 0..127) and repaints the canvas and gutter.
+    void setActivePitch (int pitch);
 
     void rebuildContentSize();
     void fitTimeline();
@@ -262,6 +274,7 @@ private:
     bool snapEnabled = false;
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
+    int activePitch = -1; // Source role only; see getActivePitch.
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded
     // value pushed into `geometry` after every geometry rebuild (fitTimeline and
     // setNoteSource replace the whole geometry, which would reset it to 14).

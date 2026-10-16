@@ -439,7 +439,8 @@ TEST_CASE ("EditorMenuModel: Navigate is Move Marker Left / Right by Grid on the
 {
     EditorMenuState s;
     const auto nav = menuNamed (editorMenus (s), "Navigate");
-    CHECK (labels (nav) == std::vector<std::string> { "Move Marker Left by Grid", "Move Marker Right by Grid" });
+    CHECK (labels (nav) == std::vector<std::string> { "Move Marker Left by Grid", "Move Marker Right by Grid",
+                                                      "-", "Move Up a Semitone", "Move Down a Semitone" });
     CHECK (nav.items[0].id == EditorNavigateMarkerLeft);
     CHECK (nav.items[1].id == EditorNavigateMarkerRight);
     CHECK (nav.items[0].shortcut == "Left");
@@ -451,6 +452,24 @@ TEST_CASE ("EditorMenuModel: Navigate is Move Marker Left / Right by Grid on the
     const auto on = menuNamed (editorMenus (s), "Navigate");
     CHECK (on.items[0].enabled);
     CHECK (on.items[1].enabled);
+}
+
+TEST_CASE ("EditorMenuModel: Navigate's Move Up / Down a Semitone are on Up and Down, enabled when a row is active", "[menu-model][editor-menu][active-row]")
+{
+    EditorMenuState s;
+    const auto nav = menuNamed (editorMenus (s), "Navigate");
+    CHECK (nav.items[3].id == EditorNavigatePitchUp);
+    CHECK (nav.items[4].id == EditorNavigatePitchDown);
+    CHECK (nav.items[3].shortcut == "Up");
+    CHECK (nav.items[4].shortcut == "Down");
+    CHECK_FALSE (nav.items[3].enabled);
+    CHECK_FALSE (nav.items[4].enabled);
+
+    s.canStepPitch = true;
+    const auto on = menuNamed (editorMenus (s), "Navigate");
+    CHECK (on.items[3].enabled);
+    CHECK (on.items[4].enabled);
+    CHECK_FALSE (on.items[0].enabled);   // independent of the marker steps
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")

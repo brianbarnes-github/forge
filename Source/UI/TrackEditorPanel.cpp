@@ -46,6 +46,7 @@ namespace lotro
         s.hasTrack = owner.currentTrackId != -1;
         s.snapToGrid = owner.snapToGrid;
         s.canStepMarker = owner.canStepMarker();
+        s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -75,6 +76,12 @@ namespace lotro
                 return;
             case EditorNavigateMarkerRight:
                 stepMarker (+1);
+                return;
+            case EditorNavigatePitchUp:
+                roll.stepActivePitch (+1);
+                return;
+            case EditorNavigatePitchDown:
+                roll.stepActivePitch (-1);
                 return;
             case EditorOptionsSnapToGrid:
                 setSnapToGrid (! snapToGrid);
@@ -268,6 +275,10 @@ namespace lotro
             return stepMarker (-1);
         if (key == juce::KeyPress (juce::KeyPress::rightKey))
             return stepMarker (+1);
+        if (key == juce::KeyPress (juce::KeyPress::upKey))
+            return roll.stepActivePitch (+1);
+        if (key == juce::KeyPress (juce::KeyPress::downKey))
+            return roll.stepActivePitch (-1);
         return false;
     }
 

@@ -17,6 +17,9 @@ namespace
     // palette (those are piano-roll-specific).
     constexpr juce::uint32 rowBandLight = 0xFF252525;
     constexpr juce::uint32 rowBandDark  = 0xFF202020;
+    // The active row (the semitone the last click landed on): lighter than
+    // both bands, so it reads as "here", not as a selection.
+    constexpr juce::uint32 activeRowBand = 0xFF3A3A3A;
 
     // Keyboard gutter, drawn as a real piano keyboard (white keys full
     // width, black keys shorter and on top) so sharps/flats read at a glance.
@@ -154,7 +157,11 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
     if (noteSource != nullptr)
         fitTimeline();
     else
+    {
         geometry = PianoRollGeometry();
+        activePitch = -1;
+        gutter.repaint();
+    }
     geometry.setRowHeight (rowHeight);
     timelineFitted = role == Role::Source && noteSource != nullptr;
 
@@ -446,6 +453,8 @@ bool PianoRollComponent::handleEditorMouseDown (juce::Point<int> pos, juce::Modi
     markerClickCandidate = playback != nullptr && ! isDoubleClick && ! mods.isPopupMenu()
                            && (sourceEditor == nullptr || ! sourceEditor->isOverNote (pos));
     markerPressPos = pos;
+    if (role == Role::Source && noteSource != nullptr)
+        setActivePitch (geometry.pitchForY (pos.y));
     if (sourceEditor == nullptr)
         return false;
     const bool changed = sourceEditor->mouseDown (pos, mods, isDoubleClick);
@@ -531,6 +540,33 @@ void PianoRollComponent::setHoveredPitch (int pitch)
     gutter.repaint();
 }
 
+void PianoRollComponent::setActivePitch (int pitch)
+{
+    pitch = juce::jlimit (0, 127, pitch);
+    if (pitch == activePitch)
+        return;
+    activePitch = pitch;
+    canvas.repaint();
+    gutter.repaint();
+}
+
+bool PianoRollComponent::stepActivePitch (int semitones)
+{
+    if (activePitch < 0)
+        return false;
+    setActivePitch (activePitch + semitones);
+
+    const int top = geometry.yForPitch (activePitch);
+    const int bottom = top + geometry.getRowHeight();
+    const int viewY = viewport.getViewPositionY();
+    const int viewHeight = viewport.getMaximumVisibleHeight();
+    if (top < viewY)
+        viewport.setViewPosition (viewport.getViewPositionX(), top);
+    else if (bottom > viewY + viewHeight)
+        viewport.setViewPosition (viewport.getViewPositionX(), bottom - viewHeight);
+    return true;
+}
+
 void PianoRollComponent::Canvas::mouseUp (const juce::MouseEvent& e)
 {
     owner.handleEditorMouseUp (e.getPosition());
@@ -572,7 +608,8 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
     for (int row = firstRow; row <= lastRow; ++row)
     {
         const int pitch = topPitch - row;
-        g.setColour (juce::Colour (PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
+        g.setColour (juce::Colour (pitch == activePitch ? activeRowBand
+                                   : PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
         g.fillRect (clip.getX(), row * rowHeight, clip.getWidth(), rowHeight);
     }
 }
@@ -637,7 +674,8 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
             const int pitchClass = ((pitch % 12) + 12) % 12;
             const int y = geometry.yForPitch (pitch) - scrollY;
 
-            const bool hovered = pitch == hoveredPitch;
+            // The active row's key looks hovered too, so it stays named.
+            const bool hovered = pitch == hoveredPitch || pitch == activePitch;
 
             if (PianoRollGeometry::isBlackKey (pitch))
             {
