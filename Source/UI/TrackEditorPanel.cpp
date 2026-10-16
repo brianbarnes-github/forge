@@ -2,6 +2,7 @@
 #include "EditorMenuModel.h"
 #include "GridSnap.h"
 #include "MenuPopup.h"
+#include "Playback/PreviewRequest.h"
 #include "SongsmithColours.h"
 
 namespace lotro
@@ -16,6 +17,13 @@ namespace lotro
         {
             const auto key = currentSnapKey();
             return ! (snapToKey && key.has_value()) || isPitchAllowed (*key, pitch);
+        });
+        roll.setNoteChangeListener ([this] (NoteChange change, const std::vector<juce::ValueTree>& notes)
+        {
+            if (playback == nullptr || currentTrackId == -1 || ! previewWanted (notePreview, change))
+                return;
+            if (const auto request = makePreviewRequest (currentTrackId, notes))
+                playback->previewNotes (*request);
         });
         roll.onUnhandledKey = [this] (const juce::KeyPress& key) { return navigateKeyPressed (key); };
         addAndMakeVisible (menuBar);
@@ -63,6 +71,7 @@ namespace lotro
         s.canAddNextNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (+1);
         s.canMoveCursorToSelectionStart = s.canSelectNearestNote && owner.roll.selectionStart().has_value();
         s.snapToKey = owner.snapToKey;
+        s.notePreview = owner.notePreview;
         if (const auto key = owner.currentSnapKey())
         {
             s.snapRootIndex = key->rootIndex;
@@ -142,6 +151,18 @@ namespace lotro
                 if (onSnapToGridChanged)
                     onSnapToGridChanged (snapToGrid);
                 return;
+            case EditorOptionsPreviewOnInsert:
+            case EditorOptionsPreviewOnEdit:
+            case EditorOptionsPreviewOnVelocity:
+            {
+                auto& flag = commandId == EditorOptionsPreviewOnInsert ? notePreview.onInsert
+                           : commandId == EditorOptionsPreviewOnEdit   ? notePreview.onEdit
+                                                                       : notePreview.onVelocity;
+                flag = ! flag;
+                if (onNotePreviewChanged)
+                    onNotePreviewChanged (notePreview);
+                return;
+            }
             case EditorOptionsSnapToKeyEnabled:
                 if (currentSnapKey().has_value())
                     snapToKey = ! snapToKey;

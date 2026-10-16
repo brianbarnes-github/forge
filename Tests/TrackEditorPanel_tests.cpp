@@ -3,6 +3,7 @@
 #include "UI/Playback/PlaybackController.h"
 #include "UI/SongDocument.h"
 #include "UI/EditorMenuModel.h"
+#include "UI/Playback/PreviewRequest.h"
 #include "UI/TrackEditorPanel.h"
 #include "UI/Theme/ThemePaint.h"
 
@@ -42,6 +43,22 @@ namespace lotro
         }
         static bool isSelected (TrackEditorPanel& w, const juce::ValueTree& note) { return w.roll.sourceEditor->isSelected (note); }
         static int numSelected (TrackEditorPanel& w) { return w.roll.sourceEditor->getNumSelected(); }
+        static void addToSelection (TrackEditorPanel& w, const juce::ValueTree& note) { w.roll.sourceEditor->addToSelection (note); }
+        // A body drag of the note at (`pitch`, `tick`): press inside it, then one
+        // drag step per row up to `rows` rows up, calling `afterStep` after each,
+        // then release.
+        static void dragNoteRows (TrackEditorPanel& w, int pitch, int tick, int rows, const std::function<void()>& afterStep)
+        {
+            const auto& geometry = w.roll.geometry;
+            const auto at = [&] (int p) { return juce::Point<int> { geometry.xForTick (tick), geometry.yForPitch (p) + geometry.getRowHeight() / 2 }; };
+            w.roll.handleEditorMouseDown (at (pitch), {}, false);
+            for (int r = 1; r <= rows; ++r)
+            {
+                w.roll.handleEditorMouseDrag (at (pitch + r));
+                afterStep();
+            }
+            w.roll.handleEditorMouseUp (at (pitch + rows));
+        }
     };
 }
 
@@ -411,7 +428,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
-    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 2);    // snap to grid, snap to key
+    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 3);    // snap to grid, snap to key, note preview
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
 
@@ -1179,4 +1196,145 @@ TEST_CASE ("TrackEditorPanel: clearTrack after a pick goes back to following the
     f.doc.setSongKey (7);   // G major
     CHECK (f.panel->currentSnapKey() == snapKeyForSongKey (7));
     CHECK (f.panel->getSnapToKey());
+}
+
+namespace
+{
+    // Renders one block and returns the NoteOn pitches the preview channels got in it.
+    std::vector<int> previewNoteOns (MarkerPanelFixture& f)
+    {
+        const size_t before = f.sink.records.size();
+        juce::AudioBuffer<float> buffer (2, 512);
+        f.controller->engine().renderBlock (buffer, 0, 512);
+        std::vector<int> pitches;
+        for (size_t i = before; i < f.sink.records.size(); ++i)
+        {
+            const auto& e = f.sink.records[i].event;
+            if (e.kind == PlaybackEventKind::NoteOn && e.virtualChannel >= kPreviewChannelBase)
+                pitches.push_back (e.data1);
+        }
+        return pitches;
+    }
+
+    NotePreviewSettings previewSettings (bool insert, bool edit, bool velocity)
+    {
+        NotePreviewSettings s;
+        s.onInsert = insert; s.onEdit = edit; s.onVelocity = velocity;
+        return s;
+    }
+
+    using Pitches = std::vector<int>;
+}
+
+TEST_CASE ("TrackEditorPanel: Note Preview starts all off, and inserting is silent", "[track-editor][note-preview]")
+{
+    MarkerPanelFixture f;
+    CHECK (f.panel->getNotePreview() == NotePreviewSettings {});
+    TrackEditorPanelTestAccess::doubleClickRow (*f.panel, 62);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    CHECK (previewNoteOns (f).empty());
+}
+
+TEST_CASE ("TrackEditorPanel: Preview notes when inserting sounds the inserted note and reports the change", "[track-editor][note-preview]")
+{
+    MarkerPanelFixture f;
+    std::vector<NotePreviewSettings> reported;
+    f.panel->onNotePreviewChanged = [&] (const NotePreviewSettings& s) { reported.push_back (s); };
+
+    auto* model = TrackEditorPanelTestAccess::menuBar (*f.panel).getModel();
+    model->menuItemSelected (EditorOptionsPreviewOnInsert, 3);
+    REQUIRE (reported.size() == 1);
+    CHECK (reported[0] == previewSettings (true, false, false));
+    CHECK (f.panel->getNotePreview().onInsert);
+
+    TrackEditorPanelTestAccess::doubleClickRow (*f.panel, 62);
+    CHECK (previewNoteOns (f) == Pitches { 62 });
+
+    f.panel->invokeMenuCommand (EditorOptionsPreviewOnInsert);
+    REQUIRE (reported.size() == 2);
+    CHECK (reported[1] == NotePreviewSettings {});
+    TrackEditorPanelTestAccess::doubleClickRow (*f.panel, 64);
+    CHECK (previewNoteOns (f).empty());
+}
+
+TEST_CASE ("TrackEditorPanel: Preview notes when editing sounds each new row of a drag", "[track-editor][note-preview]")
+{
+    MarkerPanelFixture f;
+    f.panel->setNotePreview (previewSettings (false, true, false));
+    std::vector<Pitches> heard;
+    TrackEditorPanelTestAccess::dragNoteRows (*f.panel, 60, 240, 2, [&] { heard.push_back (previewNoteOns (f)); });
+    CHECK (heard == std::vector<Pitches> { { 61 }, { 62 } });
+
+    f.panel->setNotePreview (previewSettings (true, false, false));
+    heard.clear();
+    TrackEditorPanelTestAccess::dragNoteRows (*f.panel, 62, 240, 2, [&] { heard.push_back (previewNoteOns (f)); });
+    CHECK (heard == std::vector<Pitches> { {}, {} });
+    CHECK (previewNoteOns (f).empty());   // nothing on release either
+}
+
+TEST_CASE ("TrackEditorPanel: a drag of more than six notes, or of notes that do not start together, is silent", "[track-editor][note-preview]")
+{
+    SECTION ("seven notes starting together")
+    {
+        MarkerPanelFixture f;
+        f.panel->setNotePreview (previewSettings (false, true, false));
+        auto notes = SongDocument::getNotesNode (f.track);
+        for (int p = 62; p <= 67; ++p)
+            lotro::playbacktest::addNote (f.track, p, 0, 480);
+        REQUIRE (notes.getNumChildren() == 7);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
+            TrackEditorPanelTestAccess::addToSelection (*f.panel, notes.getChild (i));
+        REQUIRE (TrackEditorPanelTestAccess::numSelected (*f.panel) == 7);
+
+        Pitches heard;
+        TrackEditorPanelTestAccess::dragNoteRows (*f.panel, 60, 240, 1, [&] { heard = previewNoteOns (f); });
+        CHECK (heard.empty());
+        CHECK ((int) notes.getChild (0).getProperty (SongIDs::pitch) == 61);   // the drag did move them
+    }
+    SECTION ("two notes with different starts")
+    {
+        MarkerPanelFixture f;
+        f.panel->setNotePreview (previewSettings (false, true, false));
+        auto notes = SongDocument::getNotesNode (f.track);
+        lotro::playbacktest::addNote (f.track, 72, 480, 480);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
+            TrackEditorPanelTestAccess::addToSelection (*f.panel, notes.getChild (i));
+        REQUIRE (TrackEditorPanelTestAccess::numSelected (*f.panel) == 2);
+
+        Pitches heard;
+        TrackEditorPanelTestAccess::dragNoteRows (*f.panel, 60, 240, 1, [&] { heard = previewNoteOns (f); });
+        CHECK (heard.empty());
+        CHECK ((int) notes.getChild (1).getProperty (SongIDs::pitch) == 73);
+    }
+}
+
+TEST_CASE ("TrackEditorPanel: without playback, a preview-enabled insert still adds the note", "[track-editor][note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 480);
+    TrackEditorPanel panel (doc);
+    panel.setTrack (track);
+    panel.setSize (800, 400);
+    panel.setNotePreview (previewSettings (true, true, true));
+
+    TrackEditorPanelTestAccess::doubleClickRow (panel, 62);
+    CHECK (SongDocument::getNotesNode (track).getNumChildren() == 2);
+}
+
+TEST_CASE ("TrackEditorPanel: Preview notes when velocity changes toggles and reports but nothing triggers it yet", "[track-editor][note-preview]")
+{
+    MarkerPanelFixture f;
+    std::vector<NotePreviewSettings> reported;
+    f.panel->onNotePreviewChanged = [&] (const NotePreviewSettings& s) { reported.push_back (s); };
+
+    f.panel->invokeMenuCommand (EditorOptionsPreviewOnVelocity);
+    CHECK (f.panel->getNotePreview() == previewSettings (false, false, true));
+    REQUIRE (reported.size() == 1);
+    CHECK (reported[0] == previewSettings (false, false, true));
+
+    f.panel->invokeMenuCommand (EditorOptionsPreviewOnEdit);
+    CHECK (f.panel->getNotePreview() == previewSettings (false, true, true));
+    REQUIRE (reported.size() == 2);
 }

@@ -45,7 +45,8 @@ namespace lotro
         // is loaded); File > Close Editor fires onCloseRequested; Options > Snap to
         // Grid flips the snap state and fires onSnapToGridChanged with the new value;
         // Options > Snap to Key > Enabled toggles it (only with a key) and its Root /
-        // Type items set the session pick (see currentSnapKey);
+        // Type items set the session pick (see currentSnapKey); Options > Note
+        // Preview's items flip their checkbox (see setNotePreview);
         // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
         // Navigate > Move Up / Down a Semitone step the roll's active row;
         // Navigate > Select Note Nearest Cursor selects the note starting nearest
@@ -63,6 +64,17 @@ namespace lotro
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
         std::function<void (bool on)> onSnapToGridChanged;
+        // Options > Note Preview's three items each flip their checkbox and fire
+        // this with the new settings.
+        std::function<void (const NotePreviewSettings&)> onNotePreviewChanged;
+
+        // Options > Note Preview: which edits in the roll sound the inserted or
+        // moved notes through the playback synth (a single note, or a chord of
+        // up to six starting together; anything else stays silent). Nothing
+        // sounds without playback or a track. Setting it does not fire
+        // onNotePreviewChanged.
+        void setNotePreview (const NotePreviewSettings& settings) noexcept { notePreview = settings; }
+        NotePreviewSettings getNotePreview() const noexcept { return notePreview; }
 
         // Options > Snap to Grid's tick: a click in the roll or the ruler that drops the
         // start marker lands on the nearest grid line. Setting it does not fire
@@ -215,6 +227,7 @@ namespace lotro
         juce::int64 currentTrackId = -1;
         bool snapToGrid = true;
         bool snapToKey = false;
+        NotePreviewSettings notePreview;
         std::optional<SnapKey> pickedSnapKey;   // nullopt: follow the song key
         int appearanceRepaintCount = 0;   // test observability
     };

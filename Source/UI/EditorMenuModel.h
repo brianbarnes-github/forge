@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MenuModel.h"
+#include "NotePreview.h"
 #include "ScaleSnap.h"
 
 #include <vector>
@@ -33,6 +34,9 @@ enum EditorMenuCommandId : int
     EditorNavigateAddNextNote,
     EditorNavigateCursorToSelectionStart,
     EditorOptionsSnapToKeyEnabled,
+    EditorOptionsPreviewOnInsert,
+    EditorOptionsPreviewOnEdit,
+    EditorOptionsPreviewOnVelocity,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -68,10 +72,20 @@ struct EditorMenuState
     bool snapToKey = false;     // Options > Snap to Key > Enabled is ticked
     int snapRootIndex = -1;     // the current root (snapRoots()), -1 with no key
     int snapScaleIndex = -1;    // the current (int) SnapScale, -1 with no key
+    NotePreviewSettings notePreview; // Options > Note Preview's ticks
 };
 
 namespace menu_detail
 {
+    // Always enabled, so the checkboxes can be set before a track is loaded.
+    inline MenuItemDesc notePreviewSubmenu (const EditorMenuState& s)
+    {
+        return submenu ("Note Preview", {
+            item (EditorOptionsPreviewOnInsert, "Preview notes when inserting", {}, true, s.notePreview.onInsert),
+            item (EditorOptionsPreviewOnEdit, "Preview notes when editing", {}, true, s.notePreview.onEdit),
+            item (EditorOptionsPreviewOnVelocity, "Preview notes when velocity changes", {}, true, s.notePreview.onVelocity) });
+    }
+
     // Enabled and Type need a key (the song's or a picked root); Root is always open.
     inline MenuItemDesc snapToKeySubmenu (const EditorMenuState& s)
     {
@@ -135,7 +149,8 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                        s.canMoveCursorToSelectionStart) } },
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid),
-                 snapToKeySubmenu (s) } },
+                 snapToKeySubmenu (s),
+                 notePreviewSubmenu (s) } },
              { "View", {} } };
 }
 

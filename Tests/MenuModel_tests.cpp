@@ -464,12 +464,12 @@ TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close
     CHECK (menuNamed (editorMenus (s), "File").items[0].enabled);
 }
 
-TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key and Note Preview", "[menu-model][editor-menu]")
 {
     EditorMenuState s;
     s.snapToGrid = false;
     const auto off = menuNamed (editorMenus (s), "Options");
-    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid", "Snap to Key>" });
+    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid", "Snap to Key>", "Note Preview>" });
     CHECK (off.items[0].id == EditorOptionsSnapToGrid);
     CHECK (off.items[0].enabled);   // no track loaded
     CHECK_FALSE (off.items[0].ticked);
@@ -662,7 +662,7 @@ namespace
     MenuItemDesc snapToKeyMenu (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 2);
+        REQUIRE (options.items.size() == 3);
         return options.items[1];
     }
 
@@ -768,4 +768,45 @@ TEST_CASE ("EditorMenuModel: the Snap to Key root and type id ranges", "[menu-mo
     CHECK_FALSE (isEditorSnapScaleCommand (EditorSnapScaleBase + snapScaleCount));
     CHECK (EditorSnapRootBase == 1000);
     CHECK (EditorSnapScaleBase == 1100);
+}
+
+TEST_CASE ("EditorMenuModel: Note Preview holds three checkboxes, enabled with or without a track, ticked by the settings", "[menu-model][editor-menu][note-preview]")
+{
+    const auto previewMenu = [] (const EditorMenuState& s)
+    {
+        const auto options = menuNamed (editorMenus (s), "Options");
+        REQUIRE (options.items.size() == 3);
+        return options.items[2];
+    };
+
+    const auto menu = previewMenu ({});
+    CHECK (menu.isSubmenu);
+    CHECK (menu.label == "Note Preview");
+    CHECK (menu.enabled);
+    REQUIRE (childLabels (menu) == V { "Preview notes when inserting", "Preview notes when editing",
+                                       "Preview notes when velocity changes" });
+    const int ids[] = { EditorOptionsPreviewOnInsert, EditorOptionsPreviewOnEdit, EditorOptionsPreviewOnVelocity };
+    for (size_t i = 0; i < 3; ++i)
+    {
+        CAPTURE (i);
+        CHECK (menu.children[i].id == ids[i]);
+        CHECK (menu.children[i].enabled);   // no track loaded
+        CHECK_FALSE (menu.children[i].ticked);
+    }
+
+    for (size_t on = 0; on < 3; ++on)
+    {
+        EditorMenuState s;
+        s.hasTrack = true;
+        s.notePreview.onInsert = on == 0;
+        s.notePreview.onEdit = on == 1;
+        s.notePreview.onVelocity = on == 2;
+        const auto m = previewMenu (s);
+        for (size_t i = 0; i < 3; ++i)
+        {
+            CAPTURE (on, i);
+            CHECK (m.children[i].enabled);
+            CHECK (m.children[i].ticked == (i == on));
+        }
+    }
 }
