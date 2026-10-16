@@ -103,23 +103,98 @@ TEST_CASE ("SourceRollEditor: shift-click toggles a note into and out of the sel
     CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == before); // shift-click never starts a drag
 }
 
-TEST_CASE ("SourceRollEditor: dragging on empty canvas rubber-bands every note it intersects", "[source-roll-editor]")
+TEST_CASE ("SourceRollEditor: a right-drag rubber-bands every note it intersects", "[source-roll-editor][lasso]")
 {
     Fixture f;
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
     const juce::Point<int> start (f.geometry.getKeyboardGutterWidth() + 2, f.geometry.yForPitch (70));
     const juce::Point<int> end (f.geometry.xForTick (ticksPerQuarter * 2), f.geometry.yForPitch (55));
 
-    REQUIRE (f.editor.mouseDown (start, {}, false));
-    f.editor.mouseDrag (end);
+    f.editor.mouseDown (start, right, false);
+    CHECK (f.editor.mouseDrag (end));
+    CHECK (f.editor.getRubberBandRect() == juce::Rectangle<int> (start, end));
 
     CHECK (f.editor.isSelected (f.noteA));
     CHECK (f.editor.isSelected (f.noteB));
 
     f.editor.mouseUp (end);
     CHECK (f.editor.getRubberBandRect().isEmpty());
+    CHECK (f.editor.getNumSelected() == 2);   // the release does not row-select
 }
 
-TEST_CASE ("SourceRollEditor: a move or rubber-band drag is a gesture in progress until the release; a shift-click is not", "[source-roll-editor]")
+TEST_CASE ("SourceRollEditor: a right-drag starting on a note lassos and leaves the note where it is", "[source-roll-editor][lasso]")
+{
+    Fixture f;
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+    const auto press = f.centreOf (f.noteA);
+    const juce::Point<int> end (f.geometry.xForTick (ticksPerQuarter * 2), f.geometry.yForPitch (66));
+
+    f.editor.mouseDown (press, right, false);
+    f.editor.mouseDrag (end);
+    f.editor.mouseUp (end);
+
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    CHECK ((int) f.noteA.getProperty (SongIDs::pitch) == 60);
+    CHECK (f.editor.isSelected (f.noteA));
+    CHECK (f.editor.isSelected (f.noteB));
+}
+
+TEST_CASE ("SourceRollEditor: a right-drag replaces the selection; with shift or ctrl it adds to it", "[source-roll-editor][lasso]")
+{
+    Fixture f;
+    const juce::Point<int> overB (f.geometry.xForTick (ticksPerQuarter + 10), f.geometry.yForPitch (66));
+    const juce::Point<int> overBEnd (f.geometry.xForTick (ticksPerQuarter * 2), f.geometry.yForPitch (63));
+
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteA));
+    f.editor.mouseDown (overB, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier), false);
+    f.editor.mouseDrag (overBEnd);
+    f.editor.mouseUp (overBEnd);
+    CHECK_FALSE (f.editor.isSelected (f.noteA));
+    CHECK (f.editor.isSelected (f.noteB));
+
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteA));
+    for (const auto modifier : { juce::ModifierKeys::shiftModifier, juce::ModifierKeys::ctrlModifier })
+    {
+        f.editor.mouseDown (overB, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier | modifier), false);
+        f.editor.mouseDrag (overBEnd);
+        f.editor.mouseUp (overBEnd);
+        CHECK (f.editor.isSelected (f.noteA));
+        CHECK (f.editor.isSelected (f.noteB));
+    }
+}
+
+TEST_CASE ("SourceRollEditor: a left-drag on empty canvas selects nothing and draws no band", "[source-roll-editor][lasso]")
+{
+    Fixture f;
+    const juce::Point<int> start (f.geometry.getKeyboardGutterWidth() + 2, f.geometry.yForPitch (70));
+    const juce::Point<int> end (f.geometry.xForTick (ticksPerQuarter * 2), f.geometry.yForPitch (55));
+
+    f.editor.mouseDown (start, {}, false);
+    CHECK_FALSE (f.editor.mouseDrag (end));
+    CHECK (f.editor.getRubberBandRect().isEmpty());
+    f.editor.mouseUp (end);
+    CHECK (f.editor.getNumSelected() == 0);
+}
+
+TEST_CASE ("SourceRollEditor: a shift- or ctrl-click on empty canvas keeps the selection", "[source-roll-editor][lasso]")
+{
+    Fixture f;
+    const juce::Point<int> empty (f.geometry.getKeyboardGutterWidth() + 2, f.geometry.yForPitch (70));
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    f.editor.mouseUp (f.centreOf (f.noteA));
+
+    for (const auto modifier : { juce::ModifierKeys::shiftModifier, juce::ModifierKeys::ctrlModifier })
+    {
+        f.editor.mouseDown (empty, juce::ModifierKeys (modifier), false);
+        f.editor.mouseUp (empty);
+        CHECK (f.editor.isSelected (f.noteA));
+        CHECK (f.editor.getNumSelected() == 1);
+    }
+}
+
+TEST_CASE ("SourceRollEditor: a move or a right press (a possible rubber band) is a gesture in progress until the release; a shift-click or empty left-click is not", "[source-roll-editor]")
 {
     Fixture f;
     CHECK_FALSE (f.editor.isGestureActive());
@@ -130,9 +205,12 @@ TEST_CASE ("SourceRollEditor: a move or rubber-band drag is a gesture in progres
     CHECK_FALSE (f.editor.isGestureActive());
 
     const juce::Point<int> empty (f.geometry.getKeyboardGutterWidth() + 2, f.geometry.yForPitch (70));
-    f.editor.mouseDown (empty, {}, false);   // a rubber band
+    f.editor.mouseDown (empty, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier), false);   // a rubber band or row pick
     CHECK (f.editor.isGestureActive());
     f.editor.mouseUp (empty);
+    CHECK_FALSE (f.editor.isGestureActive());
+
+    f.editor.mouseDown (empty, {}, false);   // a plain empty click
     CHECK_FALSE (f.editor.isGestureActive());
 
     f.editor.mouseDown (f.centreOf (f.noteB), juce::ModifierKeys (juce::ModifierKeys::shiftModifier), false);
@@ -413,7 +491,10 @@ TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pi
     f.editor.mouseDown (f.centreOf (f.noteB), {}, false); // prior selection is replaced
     f.editor.mouseUp (f.centreOf (f.noteB));
 
-    CHECK (f.editor.mouseDown (rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 60), rightClick, false));
+    const auto press = rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 60);
+    f.editor.mouseDown (press, rightClick, false);
+    CHECK (f.editor.isSelected (f.noteB));   // picked on the release, not the press
+    CHECK (f.editor.mouseUp (press));
 
     CHECK (f.editor.getNumSelected() == 2);
     CHECK (f.editor.isSelected (f.noteA));
@@ -424,7 +505,8 @@ TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pi
 TEST_CASE ("SourceRollEditor: right-clicking over the keyboard gutter selects that key's notes too", "[source-roll-editor][pitch-select]")
 {
     Fixture f;
-    CHECK (f.editor.mouseDown (rowPoint (f.geometry, 5, 64), rightClick, false));
+    f.editor.mouseDown (rowPoint (f.geometry, 5, 64), rightClick, false);
+    CHECK (f.editor.mouseUp (rowPoint (f.geometry, 5, 64)));
     CHECK (f.editor.getNumSelected() == 1);
     CHECK (f.editor.isSelected (f.noteB));
 }
@@ -433,7 +515,9 @@ TEST_CASE ("SourceRollEditor: shift+right-click adds a pitch's notes to the exis
 {
     Fixture f;
     f.editor.mouseDown (rowPoint (f.geometry, 5, 60), rightClick, false);
+    f.editor.mouseUp (rowPoint (f.geometry, 5, 60));
     f.editor.mouseDown (rowPoint (f.geometry, 5, 64), shiftRightClick, false);
+    f.editor.mouseUp (rowPoint (f.geometry, 5, 64));
 
     CHECK (f.editor.getNumSelected() == 2);
     CHECK (f.editor.isSelected (f.noteA));
@@ -447,20 +531,21 @@ TEST_CASE ("SourceRollEditor: right-clicking a pitch with no notes clears the se
     f.editor.mouseUp (f.centreOf (f.noteA));
 
     f.editor.mouseDown (rowPoint (f.geometry, 5, 62), rightClick, false);
+    f.editor.mouseUp (rowPoint (f.geometry, 5, 62));
     CHECK (f.editor.getNumSelected() == 0);
 }
 
-TEST_CASE ("SourceRollEditor: right-click selection never starts a drag or moves a note", "[source-roll-editor][pitch-select]")
+TEST_CASE ("SourceRollEditor: a right press that wobbles under 4 px is still a row pick, not a lasso", "[source-roll-editor][pitch-select]")
 {
     Fixture f;
-    const auto press = f.centreOf (f.noteA);
+    const auto press = rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 64);
     f.editor.mouseDown (press, rightClick, false);
-    CHECK_FALSE (f.editor.mouseDrag (press.translated (80, -30)));
-    f.editor.mouseUp (press.translated (80, -30));
-
-    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
-    CHECK ((int) f.noteA.getProperty (SongIDs::pitch) == 60);
+    CHECK_FALSE (f.editor.mouseDrag (press.translated (3, 0)));
     CHECK (f.editor.getRubberBandRect().isEmpty());
+    f.editor.mouseUp (press.translated (3, 0));
+
+    CHECK (f.editor.getNumSelected() == 1);
+    CHECK (f.editor.isSelected (f.noteB));
 }
 
 namespace

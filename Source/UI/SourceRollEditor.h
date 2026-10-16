@@ -67,10 +67,15 @@ public:
     // own mouseDown/mouseDrag/mouseUp overrides with canvas-local pixel
     // coordinates. Each returns true if the caller should repaint (and
     // rebuild the canvas's content size, in case a note's extent changed).
-    // A right-click (ModifierKeys::isPopupMenu) anywhere in a pitch's row --
-    // on a note, on empty canvas, or over the keyboard gutter -- selects
-    // every note of that pitch, replacing the selection (shift/ctrl/cmd adds
-    // to it instead). It never starts a drag or mutates the document.
+    // A right press (ModifierKeys::isPopupMenu) is a lasso or a row pick,
+    // decided by whether it moves lassoThresholdPixels before the release.
+    // A right-drag, from a note or empty canvas, rubber-bands every note it
+    // intersects. A right-click anywhere in a pitch's row -- on a note, on
+    // empty canvas, or over the keyboard gutter -- selects every note of
+    // that pitch on the release. Either replaces the selection (shift/ctrl/
+    // cmd adds to it instead); neither mutates the document. A plain left
+    // press on empty canvas only clears the selection (with a modifier it
+    // keeps it); a left-drag there does nothing.
     bool mouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
     bool mouseDrag (juce::Point<int> pos);
     bool mouseUp (juce::Point<int> pos);
@@ -96,7 +101,8 @@ public:
     // an empty-space click from a note gesture).
     bool isOverNote (juce::Point<int> pos) const { return hitTestNote (pos).isValid(); }
 
-    // A move, resize or rubber-band drag is in progress (between mouseDown and mouseUp).
+    // A move, resize or rubber-band drag, or a right press not yet decided
+    // between rubber band and row pick, is in progress (between mouseDown and mouseUp).
     bool isGestureActive() const noexcept { return dragMode != DragMode::None; }
 
     // The current pitch of the note grabbed for a move drag (the one under the
@@ -104,7 +110,7 @@ public:
     int movingNotePitch() const;
 
 private:
-    enum class DragMode { None, Move, ResizeLeft, ResizeRight, RubberBand };
+    enum class DragMode { None, Move, ResizeLeft, ResizeRight, RightPress, RubberBand };
 
     struct DragOriginal
     {
@@ -130,6 +136,7 @@ private:
 
     std::vector<juce::ValueTree> selection;
     std::vector<juce::ValueTree> baseSelectionForRubberBand;
+    bool rightPressAdds = false;   // RightPress: shift/ctrl/cmd was held, so add to the selection
 
     DragMode dragMode = DragMode::None;
     juce::Point<int> dragStartPos;
@@ -138,6 +145,7 @@ private:
     juce::ValueTree grabbedNote;              // Move: the note under the press.
 
     static constexpr int edgeThresholdPixels = 6;
+    static constexpr int lassoThresholdPixels = 4;   // as the roll's marker click
 };
 
 } // namespace lotro

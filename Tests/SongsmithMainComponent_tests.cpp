@@ -113,9 +113,9 @@ namespace lotro
         }
         // A press/release on the editor roll's canvas (canvas pixels), through the same
         // handler the real Canvas::mouseDown/mouseUp call (minus their grabKeyboardFocus).
-        static void editorMouseDown (SongsmithMainComponent& c, juce::Point<int> pos)
+        static void editorMouseDown (SongsmithMainComponent& c, juce::Point<int> pos, juce::ModifierKeys mods = {})
         {
-            c.trackEditor->roll.handleEditorMouseDown (pos, {}, false);
+            c.trackEditor->roll.handleEditorMouseDown (pos, mods, false);
         }
         static void editorMouseUp (SongsmithMainComponent& c, juce::Point<int> pos)
         {
@@ -1285,9 +1285,9 @@ TEST_CASE ("SongsmithMainComponent: Escape during a note-editor drag leaves the 
     REQUIRE (view.isTrackEditorLoaded());
     REQUIRE (controller.setLoopRange (1200.0, 2400.0));
 
-    // A press on empty canvas (the pitch-127 row, far above the note) starts a rubber band.
+    // A right press on empty canvas (the pitch-127 row, far above the note) may start a rubber band.
     const juce::Point<int> empty { 300, 2 };
-    Access::editorMouseDown (view, empty);
+    Access::editorMouseDown (view, empty, juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier));
     CHECK_FALSE (view.escapePressed());
     CHECK (controller.getLoopRange().has_value());
 

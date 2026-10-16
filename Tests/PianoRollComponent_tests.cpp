@@ -1012,7 +1012,7 @@ TEST_CASE ("PianoRollComponent: a plain click on empty canvas sets the shared st
     Access::mouseUp (f.roll, onNote);
     CHECK (! f.controller.getMarkerTick().has_value());
 
-    // A drag (rubber band across empty space): no marker.
+    // A drag across empty space: no marker.
     Access::mouseDown (f.roll, empty, {}, false);
     Access::mouseDrag (f.roll, empty.translated (60, 0));
     Access::mouseUp (f.roll, empty.translated (60, 0));
@@ -1688,7 +1688,7 @@ TEST_CASE ("PianoRollComponent: a rubber-band drag leaves the active row on the 
     SourceRollFixture fixture ({ 60, 64 });
     const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
 
-    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 66), {}, false);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 66), juce::ModifierKeys::rightButtonModifier, false);
     Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, emptyX + 40, 62));
     CHECK (fixture.roll.getActivePitch() == 66);
     Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, emptyX + 40, 62));

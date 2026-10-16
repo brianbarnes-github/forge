@@ -137,9 +137,10 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
 
     if (mods.isPopupMenu())
     {
-        dragMode = DragMode::None;
-        selectPitch (geometry.pitchForY (pos.y), mods.isShiftDown() || mods.isCtrlDown() || mods.isCommandDown());
-        return true;
+        dragMode = DragMode::RightPress;
+        dragStartPos = pos;
+        rightPressAdds = mods.isShiftDown() || mods.isCtrlDown() || mods.isCommandDown();
+        return false;
     }
 
     if (isDoubleClick)
@@ -155,13 +156,10 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
 
     if (! note.isValid())
     {
-        baseSelectionForRubberBand = (mods.isShiftDown() || mods.isCtrlDown() || mods.isCommandDown())
-                                          ? selection
-                                          : std::vector<juce::ValueTree>();
-        selection = baseSelectionForRubberBand;
-        dragMode = DragMode::RubberBand;
-        dragStartPos = pos;
-        rubberBandRect = { pos.x, pos.y, 0, 0 };
+        dragMode = DragMode::None;
+        if (mods.isShiftDown() || mods.isCtrlDown() || mods.isCommandDown() || selection.empty())
+            return false;
+        selection.clear();
         return true;
     }
 
@@ -201,6 +199,14 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
 
 bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
 {
+    if (dragMode == DragMode::RightPress)
+    {
+        if (pos.getDistanceFrom (dragStartPos) < lassoThresholdPixels)
+            return false;
+        baseSelectionForRubberBand = rightPressAdds ? selection : std::vector<juce::ValueTree>();
+        dragMode = DragMode::RubberBand;
+    }
+
     if (dragMode == DragMode::RubberBand)
     {
         rubberBandRect = juce::Rectangle<int> (dragStartPos, pos);
@@ -264,6 +270,8 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
 
 bool SourceRollEditor::mouseUp (juce::Point<int>)
 {
+    if (dragMode == DragMode::RightPress)
+        selectPitch (geometry.pitchForY (dragStartPos.y), rightPressAdds);
     const bool wasActive = dragMode != DragMode::None;
     dragMode = DragMode::None;
     dragOriginals.clear();
