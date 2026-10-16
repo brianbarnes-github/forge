@@ -930,3 +930,32 @@ TEST_CASE ("SourceRollEditor: resizing reports nothing", "[source-roll-editor][n
     CHECK ((int) f.noteB.getProperty (SongIDs::startTick) != ticksPerQuarter);   // the left edge really moved
     CHECK (rec.calls.empty());
 }
+
+TEST_CASE ("SourceRollEditor: a click on a note, without moving, reports nothing", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const auto at = f.centreOf (f.noteA);
+
+    REQUIRE (f.editor.mouseDown (at, {}, false));
+    f.editor.mouseUp (at);
+    REQUIRE (f.editor.isSelected (f.noteA));
+    CHECK (rec.calls.empty());
+}
+
+TEST_CASE ("SourceRollEditor: a drag that moves in time and comes back to its start reports nothing", "[source-roll-editor][note-preview]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    const auto start = f.centreOf (f.noteA);
+    const auto sideways = start.translated (f.geometry.xForTick (ticksPerQuarter) - f.geometry.xForTick (0), 0);
+
+    REQUIRE (f.editor.mouseDown (start, {}, false));
+    f.editor.mouseDrag (sideways);
+    f.editor.mouseDrag (start);
+    f.editor.mouseUp (start);
+    REQUIRE ((int) f.noteA.getProperty (SongIDs::startTick) == 0);
+    CHECK (rec.calls.empty());
+}
