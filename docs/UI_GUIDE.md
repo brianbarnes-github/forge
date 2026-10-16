@@ -351,10 +351,10 @@ When you say…       …I'll know you mean
   add or remove one from the selection (a plain click on empty canvas clears
   it); right-drag, from empty canvas or a note, to lasso (rubber-band) select
   every note the box touches (replacing the selection; shift/ctrl/cmd+
-  right-drag adds to it instead); right-click a key, or anywhere in its row,
-  without dragging (under 4 px) to select every note of that MIDI pitch on the
-  release (replacing the selection; shift/ctrl/cmd+right-click adds to it
-  instead); a left-drag on empty canvas selects nothing; drag a selected note's body to move it (and every
+  right-drag adds to it instead); right-click a key on the keyboard to select
+  every note of that MIDI pitch (replacing the selection; shift/ctrl/cmd+
+  right-click adds to it instead) -- a right-click on the roll itself, without
+  dragging, selects nothing; a left-drag on empty canvas selects nothing; drag a selected note's body to move it (and every
   other selected note, together) or its left/right edge to resize it;
   double-click empty canvas to create a note there (duration from the Edit
   menu's Grid Size, or a quarter note if the grid is off); Delete/Backspace
