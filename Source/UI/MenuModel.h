@@ -1,10 +1,12 @@
 #pragma once
 
+#include "GridLength.h"
 #include "GridSize.h"
 #include "KeyDetector.h"
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -122,6 +124,7 @@ struct MenuState
     bool hasTimeBase = false;            // the Song has a tempo/meter time base to edit
     std::vector<std::string> layoutNames;   // the saved dock layouts, in order
     int  songKeyIndex = -1;              // the Conductor head's key (keyIndex); -1 for none
+    std::optional<GridLength> editorGridLength;   // the loaded editor's Grid Length; none without one
 };
 
 struct MenuItemDesc
@@ -169,6 +172,14 @@ namespace menu_detail
         d.isSubmenu = true;
         d.children = std::move (children);
         return d;
+    }
+
+    // Edit > Grid Size: ticked when the loaded editor's Grid Length is this size
+    // (whatever its Grid Division); a length with no Grid Size ticks none.
+    inline MenuItemDesc gridSizeItem (GridSize size, std::string label, const MenuState& s)
+    {
+        return item (EditGridSizeBase + (int) size, std::move (label), {}, s.trackEditorOpen,
+                     s.editorGridLength == gridLengthForSize (size));
     }
 }
 
@@ -231,10 +242,10 @@ inline std::vector<MenuDesc> buildMenus (const MenuState& s)
         separator(),
         item (EditQuantize, "Quantize", {}, s.trackEditorOpen),
         submenu ("Grid Size", {
-            item (EditGridSizeBase + (int) GridSize::Off,       "Off",  {}, s.trackEditorOpen),
-            item (EditGridSizeBase + (int) GridSize::Quarter,   "1/4",  {}, s.trackEditorOpen),
-            item (EditGridSizeBase + (int) GridSize::Eighth,    "1/8",  {}, s.trackEditorOpen),
-            item (EditGridSizeBase + (int) GridSize::Sixteenth, "1/16", {}, s.trackEditorOpen) },
+            gridSizeItem (GridSize::Off,       "Off",  s),
+            gridSizeItem (GridSize::Quarter,   "1/4",  s),
+            gridSizeItem (GridSize::Eighth,    "1/8",  s),
+            gridSizeItem (GridSize::Sixteenth, "1/16", s) },
             s.trackEditorOpen),
         separator(),
         item (EditTempoMeter, "Tempo and Meter...", {}, s.hasTimeBase) } });

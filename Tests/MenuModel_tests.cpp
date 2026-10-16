@@ -2,6 +2,7 @@
 // enabled/ticked state as a function of MenuState.
 
 #include "UI/EditorMenuModel.h"
+
 #include "UI/MenuModel.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -193,6 +194,28 @@ TEST_CASE ("MenuModel: Quantize and the Grid Size submenu need an open track edi
     }
     CHECK_FALSE (isGridSizeCommand (EditGridSizeBase - 1));
     CHECK_FALSE (isGridSizeCommand (EditGridSizeBase + 4));
+}
+
+TEST_CASE ("MenuModel: Grid Size ticks the open editor's Grid Length when it is one of its sizes, and nothing otherwise", "[menu-model][grid-length]")
+{
+    const auto ticks = [] (std::optional<GridLength> length)
+    {
+        MenuState s;
+        s.trackEditorOpen = length.has_value();
+        s.editorGridLength = length;
+        const auto edit = menuNamed (buildMenus (s), "Edit");
+        std::vector<bool> out;
+        for (const auto& c : edit.items[edit.items.size() - 3].children)
+            out.push_back (c.ticked);
+        return out;
+    };
+    CHECK (ticks (std::nullopt) == std::vector<bool> { false, false, false, false });   // no editor loaded
+    CHECK (ticks (GridLength::Off) == std::vector<bool> { true, false, false, false });
+    CHECK (ticks (GridLength::Quarter) == std::vector<bool> { false, true, false, false });
+    CHECK (ticks (GridLength::Eighth) == std::vector<bool> { false, false, true, false });
+    CHECK (ticks (GridLength::Sixteenth) == std::vector<bool> { false, false, false, true });
+    CHECK (ticks (GridLength::Whole) == std::vector<bool> { false, false, false, false });        // not a Grid Size
+    CHECK (ticks (GridLength::SixtyFourth) == std::vector<bool> { false, false, false, false });
 }
 
 TEST_CASE ("MenuModel: Song menu opens with Set Key and has no shortcuts", "[menu-model]")

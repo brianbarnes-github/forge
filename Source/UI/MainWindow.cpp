@@ -306,6 +306,7 @@ MenuState MainWindow::currentMenuState()
     s.trackCount         = songDocument.getNumTracks();
     s.hasAbc             = ! lastAbc.empty();
     s.trackEditorOpen    = songsmith.isTrackEditorLoaded();
+    s.editorGridLength   = songsmith.activeEditorGridLength();
     s.exportPanelVisible = body->isExportPanelVisible();
     s.diagnosticsVisible = songsmith.isDiagnosticsVisible();
     s.midiEditorVisible  = songsmith.isMidiEditorVisible();

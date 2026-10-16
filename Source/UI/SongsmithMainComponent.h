@@ -25,6 +25,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -241,6 +242,13 @@ public:
     bool isTrackEditorLoaded() const noexcept { return isTrackEditorOpen() && trackEditor->getTrackId() != -1; }
     // Edit > Grid Size: the editor's Grid Length (its Grid Division is kept).
     void setActiveEditorGridSize (GridSize size);
+    // The loaded editor's Grid Length, for Grid Size's tick; none without a loaded editor.
+    std::optional<GridLength> activeEditorGridLength() const
+    {
+        if (! isTrackEditorLoaded())
+            return std::nullopt;
+        return trackEditor->getGridLength();
+    }
     void setFollowPlayhead (bool follow);
     // Pushed from the setting to the MIDI editor; its Options > Snap to Grid toggle reports
     // the new value through onSnapToGridChanged (to be saved).

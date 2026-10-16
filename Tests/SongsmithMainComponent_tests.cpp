@@ -1450,6 +1450,13 @@ TEST_CASE ("SongsmithMainComponent: the main window's Grid Size sets the editor'
     CHECK (editor.getGridLength() == GridLength::Eighth);
     CHECK (editor.getGridDivision() == GridDivision::Triplet);
     CHECK (Access::activeEditorGridTicks (main) == 160);
+    CHECK (main.activeEditorGridLength() == GridLength::Eighth);   // for Grid Size's tick
+
+    editor.invokeMenuCommand (EditorGridLengthBase + (int) GridLength::ThirtySecond);
+    CHECK (main.activeEditorGridLength() == GridLength::ThirtySecond);
+
+    main.setMidiEditorVisible (false);
+    CHECK_FALSE (main.activeEditorGridLength().has_value());   // no editor loaded
 }
 
 TEST_CASE ("SongsmithMainComponent: a newly opened editor starts on the default length, Straight; an open one keeps both", "[track-editor][grid-length]")

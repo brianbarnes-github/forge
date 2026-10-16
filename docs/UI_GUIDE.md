@@ -330,7 +330,7 @@ When you say…       …I'll know you mean
   Grid, new note lengths and the track list's loop-range snap all use it. Both
   are session-only: nothing is saved and the Preferences default is untouched.
   The main window's Edit ▸ Grid Size sets the Grid Length too (keeping the
-  division); an editor opened afresh (first time, or after New / Open) starts
+  division) and ticks the editor's length when it is one of its four sizes; an editor opened afresh (first time, or after New / Open) starts
   from Preferences ▸ Editing's default grid, Straight, while switching tracks
   keeps both. **Navigate → Move Marker Left by Grid** / **Right by
   Grid** (`Left` / `Right` while the editor has keyboard focus) move the start
