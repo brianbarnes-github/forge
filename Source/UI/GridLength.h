@@ -78,7 +78,8 @@ constexpr GridLength gridLengthForSize (GridSize size) noexcept
 
 // The grid spacing in ticks: 0 for Off (or no PPQ), else the note value, two
 // thirds of it for Triplet and one and a half times it for Dotted, rounded to a
-// whole tick and never below one. Swing spaces the grid as Straight for now.
+// whole tick and never below one. Swing spaces the grid as Straight; the swing shift
+// itself is EditorGrid's (EditorGrid.h).
 inline int editorGridTicks (GridLength length, GridDivision division, int ticksPerQuarter) noexcept
 {
     if (length == GridLength::Off || ticksPerQuarter <= 0)

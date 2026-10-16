@@ -101,8 +101,8 @@ public:
     // happens; otherwise the loop range is cleared. Returns false when nothing happened.
     bool escapePressed();
 
-    // The grid, in ticks, loop-range edges snap to: the loaded editor's grid, else the
-    // default grid (Preferences ▸ Editing) at the document's ticksPerQuarter.
+    // The grid loop-range edges snap to: the loaded editor's grid (swung lines included),
+    // else the default grid (Preferences ▸ Editing) at the document's ticksPerQuarter.
     EditorGrid currentLoopSnapGrid() const;
     // Menu paths: no pointer is consulted (the pointer is over the menu).
     bool splitAtMarker()          { return trackList.splitSections (std::nullopt, -1); }
