@@ -317,7 +317,10 @@ void TrackListComponent::rebuild()
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
         row->setHeadWidth (headWidth);
         if ((bool) doc.getTrack (i).getProperty (SongIDs::isConductor, false))
+        {
             row->setTempoText (conductorTempoText());
+            row->setKeyText (keyText);
+        }
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
         row->onTrackSelected = [this] (juce::int64 trackId, const juce::ModifierKeys& m) { selectTrack (trackId, m); };
@@ -443,6 +446,14 @@ juce::String TrackListComponent::conductorTempoText() const
     const auto text = tick.has_value() ? formatExactTempoText (bpmAt (events, (int) *tick))
                                        : formatTempoText (averageBpm (events, documentEndTick()));
     return juce::String::fromUTF8 (text.c_str());
+}
+
+void TrackListComponent::setKeyText (const juce::String& text)
+{
+    keyText = text;
+    for (auto* row : content.rows)
+        if (row->isConductor())
+            row->setKeyText (keyText);
 }
 
 void TrackListComponent::refreshConductorTempo()

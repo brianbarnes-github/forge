@@ -19,7 +19,7 @@ namespace lotro
 
 struct TrackHeadLayout
 {
-    juce::Rectangle<int> index, swatch, name, mute, solo, volume, tempo;
+    juce::Rectangle<int> index, swatch, name, mute, solo, volume, tempo, key;
 };
 
 class TrackHeadComponent : public juce::Component
@@ -29,11 +29,12 @@ public:
     // shown (0 = the conductor, drawn unnumbered).
     TrackHeadComponent (juce::ValueTree trackNode, int displayIndex);
 
-    static constexpr int sidePadding = 8, rightPadding = 6, indexWidth = 16, swatchSize = 14, iconSize = 22, gap = 4;
+    static constexpr int sidePadding = 8, rightPadding = 6, indexWidth = 16, swatchSize = 14, iconSize = 22, gap = 4, tempoWidth = 60;
 
     // Pure geometry: bounds = the head's own local bounds. The conductor gets
-    // index, name and the tempo text (second row); its swatch / button / slider
-    // rectangles are empty, and tracks have no tempo rectangle.
+    // index, name, and on the second row the tempo text then the key text; its
+    // swatch / button / slider rectangles are empty, and tracks have no tempo or
+    // key rectangle.
     static TrackHeadLayout layoutFor (juce::Rectangle<int> bounds, bool conductor);
 
     void paint (juce::Graphics& g) override;
@@ -50,6 +51,9 @@ public:
 
     // The conductor's second-row text (the average tempo); ignored on other heads.
     void setTempoText (const juce::String& text);
+
+    // The conductor's "key: G major", right of the tempo; ignored on other heads.
+    void setKeyText (const juce::String& text);
 
     // Fired when the M / S button is clicked, with the new state.
     std::function<void (bool)> onMuteToggled;
@@ -100,6 +104,7 @@ public:
     juce::Button& soloButtonForTesting() { return soloButton; }
     juce::Slider& volumeSliderForTesting() { return volumeSlider; }
     const juce::String& tempoTextForTesting() const { return tempoText; }
+    const juce::String& keyTextForTesting() const { return keyText; }
 
 private:
     // Detaches the editor now and deletes it on the next message-loop turn, so
@@ -114,6 +119,7 @@ private:
     MuteSoloIconButton soloButton { MuteSoloIconButton::Kind::Solo, juce::Colours::gold };
     juce::Slider    volumeSlider;
     juce::String    tempoText;
+    juce::String    keyText;
     bool            dragging = false;        // between the slider's onDragStart and onDragEnd
     bool            dragHasChanged = false;  // the current drag has already reported a change
     std::unique_ptr<juce::TextEditor> renameEditor;

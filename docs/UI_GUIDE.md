@@ -168,7 +168,11 @@ When you say…       …I'll know you mean
   The first row is always the song's **conductor** (`isConductor`): no
   index number, name "Conductor", muted text, and a head that shows the name
   and, on its second row, the song's average tempo (`♩= 118`: each tempo weighted by the ticks it is
-  in force, rounded to a whole BPM; while a timeline marker is set it shows the exact tempo at the playhead while playing, or at the marker when stopped, instead (up to two decimals, e.g. `♩= 93.75`), and returns to the average when the marker is cleared; no swatch picker, rename, mute / solo or volume). Its note strip shows the song's
+  in force, rounded to a whole BPM; while a timeline marker is set it shows the exact tempo at the playhead while playing, or at the marker when stopped, instead (up to two decimals, e.g. `♩= 93.75`), and returns to the average when the marker is cleared), followed on the same row by the song's
+  detected key (`key: G major`, `key: E♭ minor`; Krumhansl-Schmuckler over every non-drum note's
+  duration, worked out once when a MIDI is imported — it is session-only, so File ▸ New / Open
+  show no key until the next import, and note edits do not update it; nothing is shown for a
+  drums-only song). It has no swatch picker, rename, mute / solo or volume. Its note strip shows the song's
   tempo (copper, top half) and meter (cyan, bottom half) changes as 1 px lines with labels
   (`120`, `3/4`; labels that would overlap are hidden, the lines stay), and the background
   shade alternates at every tempo change (top half) and every meter change (bottom half). Double-clicking the

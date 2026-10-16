@@ -474,6 +474,8 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced clears the editor's track a
     REQUIRE (Access::ghostedCount (main) == 1);
     REQUIRE (Access::selectedPreviewPartId (main) == partId);
     REQUIRE (Access::partStrip (main).getSelectedPartId() == partId);
+    main.setSongKeyText ("key: D major");
+    REQUIRE (Access::trackList (main).getKeyText() == "key: D major");
 
     main.documentReplaced();
 
@@ -485,6 +487,7 @@ TEST_CASE ("SongsmithMainComponent: documentReplaced clears the editor's track a
     CHECK_FALSE (Access::hasPreviewNoteSource (main));
     CHECK (Access::partStrip (main).getSelectedPartId() == -1);
     CHECK (Access::trackList (main).getSelectedTrackId() == -1);
+    CHECK (Access::trackList (main).getKeyText().isEmpty());   // New / Open show no key until a MIDI import
 }
 
 TEST_CASE ("SongsmithMainComponent: after a document swap an old id never re-selects the new Song's part", "[session-reset]")

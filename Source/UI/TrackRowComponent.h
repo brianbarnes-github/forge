@@ -169,6 +169,8 @@ public:
     void refreshHead();
     // The conductor head's average-tempo text (no effect on other rows).
     void setTempoText (const juce::String& text) { head.setTempoText (text); }
+    // The conductor head's detected-key text (no effect on other rows).
+    void setKeyText (const juce::String& text) { head.setKeyText (text); }
     bool isConductor() const { return isConductorTrack(); }
 
     // True for a point in the head column (headWidth px wide), where a right-click opens

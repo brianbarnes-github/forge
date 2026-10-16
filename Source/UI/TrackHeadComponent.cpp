@@ -63,7 +63,10 @@ TrackHeadLayout TrackHeadComponent::layoutFor (juce::Rectangle<int> bounds, bool
     if (conductor)
     {
         l.name = top.withTrimmedRight (rightPadding);
-        l.tempo = bottom.withTrimmedLeft (sidePadding + indexWidth).withTrimmedRight (rightPadding);
+        auto row = bottom.withTrimmedLeft (sidePadding + indexWidth).withTrimmedRight (rightPadding);
+        l.tempo = row.removeFromLeft (tempoWidth);
+        row.removeFromLeft (gap);
+        l.key = row;
         return l;
     }
     l.swatch = top.removeFromLeft (swatchSize + gap).withSizeKeepingCentre (swatchSize, swatchSize);
@@ -111,6 +114,8 @@ void TrackHeadComponent::paint (juce::Graphics& g)
 
     if (conductor && tempoText.isNotEmpty())
         g.drawText (tempoText, l.tempo, juce::Justification::centredLeft, true);
+    if (conductor && keyText.isNotEmpty())
+        g.drawText (keyText, l.key, juce::Justification::centredLeft, true);
 }
 
 void TrackHeadComponent::setTempoText (const juce::String& text)
@@ -118,6 +123,14 @@ void TrackHeadComponent::setTempoText (const juce::String& text)
     if (tempoText == text)
         return;
     tempoText = text;
+    repaint();
+}
+
+void TrackHeadComponent::setKeyText (const juce::String& text)
+{
+    if (keyText == text)
+        return;
+    keyText = text;
     repaint();
 }
 

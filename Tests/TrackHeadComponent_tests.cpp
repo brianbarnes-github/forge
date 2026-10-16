@@ -75,6 +75,34 @@ TEST_CASE ("TrackHead: the conductor head keeps the tempo text it is given", "[t
     CHECK (head.tempoTextForTesting() == juce::String::fromUTF8 ("\xe2\x99\xa9= 118"));
 }
 
+TEST_CASE ("TrackHead layout: the conductor's key text sits right of the tempo on the second row; tracks have none", "[track-head][layout][key]")
+{
+    for (const int h : { 45, 62, 136 })
+        for (const int w : { 200, 400 })
+        {
+            const juce::Rectangle<int> bounds (0, 0, w, h);
+            const auto c = TrackHeadComponent::layoutFor (bounds, true);
+            CHECK (bounds.contains (c.key));
+            CHECK (! c.key.isEmpty());
+            CHECK (c.key.getY() >= c.name.getBottom());
+            CHECK (c.key.getX() >= c.tempo.getRight());
+            CHECK (! c.key.intersects (c.tempo));
+            CHECK (TrackHeadComponent::layoutFor (bounds, false).key.isEmpty());
+        }
+}
+
+TEST_CASE ("TrackHead: the conductor head keeps the key text it is given", "[track-head][key]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Conductor", (int) 0xFF808080, 1, 1);
+    track.setProperty (SongIDs::isConductor, true, nullptr);
+    TrackHeadComponent head (track, 0);
+    CHECK (head.keyTextForTesting().isEmpty());
+    head.setKeyText ("key: G major");
+    CHECK (head.keyTextForTesting() == "key: G major");
+}
+
 TEST_CASE ("TrackHead: M and S fire their callbacks with the new state", "[track-head][mutesolo]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

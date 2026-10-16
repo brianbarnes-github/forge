@@ -8,6 +8,7 @@
 #include "GridSize.h"
 #include "HistoryKeys.h"
 #include "ImportOptionsDialog.h"
+#include "KeyDetection.h"
 #include "MenuPopup.h"
 #include "MidiExport.h"
 #include "RawMidi.h"
@@ -480,7 +481,8 @@ void MainWindow::importMidiWithOptions (const juce::File& file, const ImportOpti
     Diagnostics diags;
     auto placed = options;
     placed.startOffsetTicks = importStartOffsetTicks (appSettings, playback.getMarkerTick());
-    importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, placed);
+    if (importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, placed))
+        body->getSongsmith().setSongKeyText (detectedKeyText (songDocument));
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
     body->getSongsmith().fitTrackTimelineToDocument();
 }

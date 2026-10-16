@@ -366,6 +366,7 @@ void SongsmithMainComponent::documentReplaced()
     trackList.clearSelection();
     partStrip.clearSelection();
     selectPartForPreview (-1);
+    trackList.setKeyText ({});
     trackList.fitTimelineToDocument();
 }
 
