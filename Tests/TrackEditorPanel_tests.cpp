@@ -402,7 +402,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 8);   // marker left, right, semitone up, down, select / add nearest note, previous / next note
+    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 11);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
@@ -846,6 +846,95 @@ TEST_CASE ("TrackEditorPanel: Select Previous / Next Note are greyed with no not
     CHECK_FALSE (f.navigateEnabled (9));
     CHECK_FALSE (f.navigateEnabled (10));
     f.panel->invokeMenuCommand (EditorNavigateSelectNextNote);
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Select Next / Previous Note of the Same Pitch step along the selected note's pitch and move the marker", "[track-editor-window][editor-menu][same-pitch]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 72, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 60, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 55, 3000, 480);
+    lotro::playbacktest::addNote (f.track, 60, 4000, 480);
+    f.panel->setTrack (f.track);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    auto& roll = TrackEditorPanelTestAccess::roll (*f.panel);
+    using Access = TrackEditorPanelTestAccess;
+
+    f.controller->setMarkerTick (0.0);
+    CHECK_FALSE (f.navigateEnabled (12));   // nothing selected
+    CHECK_FALSE (f.navigateEnabled (13));
+    CHECK_FALSE (f.navigateEnabled (14));
+    f.panel->invokeMenuCommand (EditorNavigateSelectNextSamePitch);   // nothing happens
+    CHECK (Access::numSelected (*f.panel) == 0);
+
+    f.panel->invokeMenuCommand (EditorNavigateSelectNextNote);   // the note at 0
+    REQUIRE (Access::isSelected (*f.panel, notes.getChild (0)));
+    CHECK_FALSE (f.navigateEnabled (12));   // the first 60
+    CHECK (f.navigateEnabled (13));
+    CHECK (f.navigateEnabled (14));
+
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigateSelectNextSamePitch, 2);
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (2)));   // 60 at 2000, not 72
+    CHECK (*f.controller->getMarkerTick() == 2000.0);            // exact, though not on the 480 grid
+    CHECK (roll.getActivePitch() == 60);
+
+    f.panel->invokeMenuCommand (EditorNavigateSelectNextSamePitch);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (4)));
+    CHECK (*f.controller->getMarkerTick() == 4000.0);
+    CHECK_FALSE (f.navigateEnabled (13));   // the last 60
+    f.panel->invokeMenuCommand (EditorNavigateSelectNextSamePitch);   // nothing happens
+    CHECK (Access::isSelected (*f.panel, notes.getChild (4)));
+    CHECK (*f.controller->getMarkerTick() == 4000.0);
+
+    f.panel->invokeMenuCommand (EditorNavigateSelectPreviousSamePitch);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (2)));
+    CHECK (*f.controller->getMarkerTick() == 2000.0);
+    f.panel->invokeMenuCommand (EditorNavigateSelectPreviousSamePitch);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (0)));
+    CHECK (*f.controller->getMarkerTick() == 0.0);
+    CHECK (Access::numSelected (*f.panel) == 1);
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Select All Notes of the Same Pitch selects the pitch and leaves the marker", "[track-editor-window][editor-menu][same-pitch]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 72, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 60, 4000, 480);
+    f.panel->setTrack (f.track);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    using Access = TrackEditorPanelTestAccess;
+
+    f.controller->setMarkerTick (3900.0);
+    f.panel->invokeMenuCommand (EditorNavigateSelectNearestNote);   // 60 at 4000
+    REQUIRE (Access::isSelected (*f.panel, notes.getChild (2)));
+    f.controller->setMarkerTick (1000.0);
+    CHECK (f.navigateEnabled (14));
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigateSelectAllSamePitch, 2);
+    CHECK (Access::numSelected (*f.panel) == 2);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (0)));
+    CHECK (Access::isSelected (*f.panel, notes.getChild (2)));
+    CHECK (*f.controller->getMarkerTick() == 1000.0);
+
+    // Two selected now: the whole group greys out and does nothing.
+    CHECK_FALSE (f.navigateEnabled (12));
+    CHECK_FALSE (f.navigateEnabled (13));
+    CHECK_FALSE (f.navigateEnabled (14));
+    f.panel->invokeMenuCommand (EditorNavigateSelectPreviousSamePitch);
+    CHECK (Access::numSelected (*f.panel) == 2);
+    CHECK (*f.controller->getMarkerTick() == 1000.0);
+
+    // The only note of its pitch: nothing else to select.
+    f.controller->setMarkerTick (2000.0);
+    f.panel->invokeMenuCommand (EditorNavigateSelectNearestNote);   // 72
+    REQUIRE (Access::numSelected (*f.panel) == 1);
+    CHECK_FALSE (f.navigateEnabled (14));
+
+    f.panel->clearTrack();
+    CHECK_FALSE (f.navigateEnabled (12));
+    CHECK_FALSE (f.navigateEnabled (13));
+    CHECK_FALSE (f.navigateEnabled (14));
+    f.panel->invokeMenuCommand (EditorNavigateSelectAllSamePitch);   // no track, no crash
 }
 
 TEST_CASE ("TrackEditorPanel: the ruler's playhead cap follows the playhead", "[track-editor][playhead][theme]")

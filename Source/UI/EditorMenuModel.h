@@ -24,7 +24,10 @@ enum EditorMenuCommandId : int
     EditorNavigateSelectNearestNote,
     EditorNavigateAddNearestNote,
     EditorNavigateSelectPreviousNote,
-    EditorNavigateSelectNextNote
+    EditorNavigateSelectNextNote,
+    EditorNavigateSelectPreviousSamePitch,
+    EditorNavigateSelectNextSamePitch,
+    EditorNavigateSelectAllSamePitch
 };
 
 struct EditorMenuState
@@ -37,6 +40,9 @@ struct EditorMenuState
     bool canAddNearestNote = false;    // as canSelectNearestNote, with a note not yet selected
     bool canSelectPreviousNote = false; // as canSelectNearestNote, with a note before the cursor
     bool canSelectNextNote = false;     // as canSelectNearestNote, with a note after the cursor
+    bool canSelectPreviousSamePitch = false; // as canSelectNearestNote, one note selected, an earlier one of its pitch
+    bool canSelectNextSamePitch = false;     // as canSelectNearestNote, one note selected, a later one of its pitch
+    bool canSelectAllSamePitch = false;      // a track, one note selected, another of its pitch
 };
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
@@ -58,7 +64,14 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorNavigateAddNearestNote, "Add Note Nearest Cursor to Selection", {}, s.canAddNearestNote),
                  separator(),
                  item (EditorNavigateSelectPreviousNote, "Select Previous Note", {}, s.canSelectPreviousNote),
-                 item (EditorNavigateSelectNextNote, "Select Next Note", {}, s.canSelectNextNote) } },
+                 item (EditorNavigateSelectNextNote, "Select Next Note", {}, s.canSelectNextNote),
+                 separator(),
+                 item (EditorNavigateSelectPreviousSamePitch, "Select Previous Note of the Same Pitch", {},
+                       s.canSelectPreviousSamePitch),
+                 item (EditorNavigateSelectNextSamePitch, "Select Next Note of the Same Pitch", {},
+                       s.canSelectNextSamePitch),
+                 item (EditorNavigateSelectAllSamePitch, "Select All Notes of the Same Pitch", {},
+                       s.canSelectAllSamePitch) } },
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
              { "View", {} } };

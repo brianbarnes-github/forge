@@ -49,7 +49,10 @@ namespace lotro
         // the cursor's time (selectNoteNearest); Add Note Nearest Cursor to Selection
         // adds the nearest one not yet selected (addNoteNearestToSelection);
         // Select Previous / Next Note select the note before / after the cursor on
-        // any pitch and move the start marker to its start (selectSteppedNote).
+        // any pitch and move the start marker to its start (selectSteppedNote);
+        // with exactly one note selected, Select Previous / Next Note of the Same
+        // Pitch do the same along its pitch (selectSamePitchNote) and Select All
+        // Notes of the Same Pitch selects that pitch, leaving the marker alone.
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
@@ -169,6 +172,10 @@ namespace lotro
         // PianoRollComponent::selectSteppedNote) and moves the start marker to its
         // exact start. Returns whether there was one.
         bool selectSteppedNote (int direction);
+        // Selects only the previous (-1) or next (+1) note of the one selected note's
+        // pitch (see PianoRollComponent::selectSamePitchNote) and moves the start
+        // marker to its exact start. Returns whether there was one.
+        bool selectSamePitchNote (int direction);
         // Plain Left/Right (marker) and Up/Down (active row), from the panel or ahead
         // of the roll's Viewport scrolling; unclaimed when the step can't happen.
         bool navigateKeyPressed (const juce::KeyPress& key);

@@ -47,6 +47,7 @@ namespace lotro
 
         static const PianoRollGeometry& geometry (const PianoRollComponent& c) { return c.geometry; }
         static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
+        static void setActivePitch (PianoRollComponent& c, int pitch) { c.setActivePitch (pitch); }
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
         static void zoom (PianoRollComponent& c, float wheelDeltaY) { c.zoom (wheelDeltaY); }
         // A wheel notch at `componentPos` (this component's own coordinates, i.e.
@@ -1934,6 +1935,91 @@ TEST_CASE ("PianoRollComponent: selectSteppedNote does nothing with no notes or 
     PianoRollComponent preview (PianoRollComponent::Role::Preview);
     CHECK_FALSE (preview.hasSteppedNote (0.0, +1));
     CHECK_FALSE (preview.selectSteppedNote (0.0, -1).has_value());
+}
+
+TEST_CASE ("PianoRollComponent: selectSamePitchNote steps the one selected note along its pitch, moves the active row, and returns each start", "[piano-roll][same-pitch]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 60, 64, 60 });   // starts 0, 480, 960, 1440, 1920
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+    editor.selectOnly (noteAt (fixture, 0));
+    Access::setActivePitch (fixture.roll, 70);
+
+    CHECK_FALSE (fixture.roll.hasSamePitchNote (-1));
+    CHECK (fixture.roll.hasSamePitchNote (+1));
+    CHECK (fixture.roll.selectSamePitchNote (+1) == std::optional<int> (960));
+    CHECK (editor.getNumSelected() == 1);
+    CHECK (editor.isSelected (noteAt (fixture, 2)));
+    CHECK (fixture.roll.getActivePitch() == 60);
+    CHECK (fixture.roll.selectSamePitchNote (+1) == std::optional<int> (1920));
+    CHECK (editor.isSelected (noteAt (fixture, 4)));
+    CHECK_FALSE (fixture.roll.hasSamePitchNote (+1));
+    CHECK_FALSE (fixture.roll.selectSamePitchNote (+1).has_value());   // past the end: unchanged
+    CHECK (editor.isSelected (noteAt (fixture, 4)));
+    CHECK (fixture.roll.selectSamePitchNote (-1) == std::optional<int> (960));
+    CHECK (editor.isSelected (noteAt (fixture, 2)));
+    CHECK (editor.getNumSelected() == 1);
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("PianoRollComponent: same-pitch commands do nothing unless exactly one note is selected", "[piano-roll][same-pitch]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 60, 60 });
+    auto& editor = Access::editor (fixture.roll);
+
+    CHECK_FALSE (fixture.roll.hasSamePitchNote (+1));   // nothing selected
+    CHECK_FALSE (fixture.roll.canSelectAllOfSamePitch());
+    CHECK_FALSE (fixture.roll.selectSamePitchNote (+1).has_value());
+    CHECK_FALSE (fixture.roll.selectAllOfSamePitch());
+    CHECK (editor.getNumSelected() == 0);
+
+    editor.selectOnly (noteAt (fixture, 0));
+    editor.addToSelection (noteAt (fixture, 1));
+    CHECK_FALSE (fixture.roll.hasSamePitchNote (+1));   // two selected
+    CHECK_FALSE (fixture.roll.hasSamePitchNote (-1));
+    CHECK_FALSE (fixture.roll.canSelectAllOfSamePitch());
+    CHECK_FALSE (fixture.roll.selectSamePitchNote (+1).has_value());
+    CHECK_FALSE (fixture.roll.selectAllOfSamePitch());
+    CHECK (editor.getNumSelected() == 2);
+    CHECK_FALSE (editor.isSelected (noteAt (fixture, 2)));
+
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    CHECK_FALSE (preview.hasSamePitchNote (+1));
+    CHECK_FALSE (preview.canSelectAllOfSamePitch());
+    CHECK_FALSE (preview.selectAllOfSamePitch());
+}
+
+TEST_CASE ("PianoRollComponent: selectAllOfSamePitch selects every note of the selected note's pitch and leaves the view alone", "[piano-roll][same-pitch]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 60, 64, 60 });
+    for (int i = 0; i < 40; ++i)
+        addNoteToTrack (fixture, 60, 20000 + i * 480);   // far off to the right
+    fixture.roll.setNoteSource (fixture.source.get(), ticksPerQuarter, {});
+    fixture.roll.setEditableTrack (fixture.track);
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+
+    editor.selectOnly (noteAt (fixture, 3));   // 64, the only one
+    CHECK_FALSE (fixture.roll.canSelectAllOfSamePitch());
+    CHECK_FALSE (fixture.roll.selectAllOfSamePitch());
+    CHECK (editor.getNumSelected() == 1);
+
+    editor.selectOnly (noteAt (fixture, 2));
+    Access::setActivePitch (fixture.roll, 70);
+    const auto viewBefore = Access::viewport (fixture.roll).getViewPosition();
+    CHECK (fixture.roll.canSelectAllOfSamePitch());
+    CHECK (fixture.roll.selectAllOfSamePitch());
+    CHECK (editor.getNumSelected() == 43);
+    CHECK_FALSE (editor.isSelected (noteAt (fixture, 1)));
+    CHECK_FALSE (editor.isSelected (noteAt (fixture, 3)));
+    CHECK (Access::viewport (fixture.roll).getViewPosition() == viewBefore);
+    CHECK (fixture.roll.getActivePitch() == 70);
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+
+    CHECK_FALSE (fixture.roll.canSelectAllOfSamePitch());   // many selected now
 }
 
 TEST_CASE ("PianoRollComponent: a right-click on a keyboard key selects every note of that semitone; shift adds", "[piano-roll][pitch-select]")

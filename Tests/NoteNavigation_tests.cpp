@@ -114,3 +114,43 @@ TEST_CASE ("NoteNavigation: no notes, no step", "[note-nav]")
     CHECK (steppedNoteIndex ({}, 480.0, {}, +1) == -1);
     CHECK (steppedNoteIndex ({}, 480.0, {}, -1) == -1);
 }
+
+TEST_CASE ("NoteNavigation: from the one selected note, Next / Previous of the Same Pitch go to the nearest note of its pitch later / earlier", "[note-nav][same-pitch]")
+{
+    const std::vector<NoteStart> notes { { 0, 60 }, { 480, 62 }, { 960, 60 }, { 960, 64 }, { 1920, 60 }, { 2400, 62 } };
+    auto selectedOnly = [&] (int index)
+    {
+        std::vector<bool> selected (notes.size(), false);
+        selected[(std::size_t) index] = true;
+        return selected;
+    };
+    CHECK (samePitchNoteIndex (notes, selectedOnly (0), +1) == 2);
+    CHECK (samePitchNoteIndex (notes, selectedOnly (2), +1) == 4);
+    CHECK (samePitchNoteIndex (notes, selectedOnly (4), +1) == -1);   // the last 60
+    CHECK (samePitchNoteIndex (notes, selectedOnly (4), -1) == 2);
+    CHECK (samePitchNoteIndex (notes, selectedOnly (0), -1) == -1);   // the first 60
+    CHECK (samePitchNoteIndex (notes, selectedOnly (1), +1) == 5);    // 62 skips the 60s and 64
+    CHECK (samePitchNoteIndex (notes, selectedOnly (3), +1) == -1);   // the only 64
+    CHECK (samePitchNoteIndex (notes, selectedOnly (3), -1) == -1);
+}
+
+TEST_CASE ("NoteNavigation: Same Pitch steps need exactly one selected note", "[note-nav][same-pitch]")
+{
+    const std::vector<NoteStart> notes { { 0, 60 }, { 480, 60 }, { 960, 60 } };
+    CHECK (samePitchNoteIndex (notes, {}, +1) == -1);
+    CHECK (samePitchNoteIndex (notes, { false, false, false }, +1) == -1);
+    CHECK (samePitchNoteIndex (notes, { true, true, false }, +1) == -1);
+    CHECK (samePitchNoteIndex (notes, { false, true, true }, -1) == -1);
+    CHECK (soleSelectedIndex ({ false, true, false }) == 1);
+    CHECK (soleSelectedIndex ({ true, true, false }) == -1);
+    CHECK (soleSelectedIndex ({}) == -1);
+}
+
+TEST_CASE ("NoteNavigation: same-pitch notes starting together step in their stored order, whatever the order in the track", "[note-nav][same-pitch]")
+{
+    const std::vector<NoteStart> notes { { 960, 60 }, { 480, 60 }, { 480, 60 } };
+    CHECK (samePitchNoteIndex (notes, { false, true, false }, +1) == 2);
+    CHECK (samePitchNoteIndex (notes, { false, false, true }, +1) == 0);
+    CHECK (samePitchNoteIndex (notes, { true, false, false }, -1) == 2);
+    CHECK (samePitchNoteIndex (notes, { false, false, true }, -1) == 1);
+}

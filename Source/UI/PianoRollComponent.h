@@ -21,6 +21,7 @@
 // stays read-only.
 namespace lotro
 {
+struct NoteStart; // NoteNavigation.h
 
 class PianoRollComponent : public juce::Component, private PlaybackController::Listener
 {
@@ -129,6 +130,21 @@ public:
     // note's start for the caller to move the cursor to; nullopt (nothing
     // changed) when there is no such note.
     std::optional<int> selectSteppedNote (double tick, int direction);
+    // Source role with an editor and exactly one note selected: there is a note
+    // of its pitch for selectSamePitchNote to move to.
+    bool hasSamePitchNote (int direction) const;
+    // Selects only the nearest note after (`direction` +1) or before (-1) the one
+    // selected note on its pitch (see samePitchNoteIndex), makes that pitch the
+    // active row and scrolls just enough to show it. No undo step. Returns the
+    // note's start for the caller to move the cursor to; nullopt (nothing
+    // changed) unless exactly one note is selected and there is such a note.
+    std::optional<int> selectSamePitchNote (int direction);
+    // Exactly one note is selected and another note shares its pitch.
+    bool canSelectAllOfSamePitch() const;
+    // Selects every note of the one selected note's pitch, without scrolling or
+    // moving the active row. No undo step. False (nothing changed) unless
+    // canSelectAllOfSamePitch.
+    bool selectAllOfSamePitch();
     juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
@@ -249,6 +265,10 @@ private:
     bool pickNoteNearest (double tick, bool add);
     // The index steppedNoteIndex picks from the track's notes and selection; -1 for none.
     int steppedNote (double tick, int direction) const;
+    // The index samePitchNoteIndex picks from the track's notes and selection; -1 for none.
+    int samePitchNote (int direction) const;
+    // The track's note starts and which are selected, index for index (empty with no notes).
+    void noteStartsAndSelection (std::vector<NoteStart>& starts, std::vector<bool>& selected) const;
     // Scrolls just enough to show note `index` of the note source.
     void scrollNoteIntoView (int index);
 

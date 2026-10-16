@@ -317,7 +317,15 @@ When you say…       …I'll know you mean
   moves to the note's pitch and the view scrolls to show it; there is no undo
   step. With nothing selected at the marker, Next picks the first note starting
   at or after it and Previous the last starting before it. Each is greyed with
-  no track, no notes, or no note left that way. It hosts the source piano roll (#13)
+  no track, no notes, or no note left that way.
+  **Navigate → Select Previous / Next Note of the Same Pitch** (no shortcut)
+  work from the one selected note: each selects only the nearest earlier / later
+  note of that pitch and moves the start marker to its exact start, scrolling it
+  into view. **Select All Notes of the Same Pitch** selects every note of that
+  pitch on the track and leaves the marker and the view where they are. All three
+  are greyed unless exactly one note is selected (nothing selected or a
+  multi-selection turns them off), and when no other note of that pitch is left
+  that way; none adds an undo step. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
   below for the editing gestures — plus translucent overlays of any tracks
   currently ghost-toggled on in the track list (#10). The loop range (#35), when

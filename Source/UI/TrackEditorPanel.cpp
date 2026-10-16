@@ -51,6 +51,9 @@ namespace lotro
         s.canAddNearestNote = s.canSelectNearestNote && owner.roll.hasUnselectedNotes();
         s.canSelectPreviousNote = s.canSelectNearestNote && owner.roll.hasSteppedNote (owner.cursorTick(), -1);
         s.canSelectNextNote = s.canSelectNearestNote && owner.roll.hasSteppedNote (owner.cursorTick(), +1);
+        s.canSelectPreviousSamePitch = s.canSelectNearestNote && owner.roll.hasSamePitchNote (-1);
+        s.canSelectNextSamePitch = s.canSelectNearestNote && owner.roll.hasSamePitchNote (+1);
+        s.canSelectAllSamePitch = owner.currentTrackId != -1 && owner.roll.canSelectAllOfSamePitch();
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -100,6 +103,16 @@ namespace lotro
                 return;
             case EditorNavigateSelectNextNote:
                 selectSteppedNote (+1);
+                return;
+            case EditorNavigateSelectPreviousSamePitch:
+                selectSamePitchNote (-1);
+                return;
+            case EditorNavigateSelectNextSamePitch:
+                selectSamePitchNote (+1);
+                return;
+            case EditorNavigateSelectAllSamePitch:
+                if (currentTrackId != -1)
+                    roll.selectAllOfSamePitch();
                 return;
             case EditorOptionsSnapToGrid:
                 setSnapToGrid (! snapToGrid);
@@ -299,6 +312,18 @@ namespace lotro
         if (! start.has_value())
             return false;
         // The note's own start, not snapped: the point is to land on the note.
+        playback->setMarkerTick ((double) *start);
+        return true;
+    }
+
+    bool TrackEditorPanel::selectSamePitchNote (int direction)
+    {
+        if (! canSelectNearestNote())
+            return false;
+        const auto start = roll.selectSamePitchNote (direction);
+        if (! start.has_value())
+            return false;
+        // As selectSteppedNote: the note's own start, not snapped.
         playback->setMarkerTick ((double) *start);
         return true;
     }

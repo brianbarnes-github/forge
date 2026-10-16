@@ -105,4 +105,48 @@ inline int steppedNoteIndex (const std::vector<NoteStart>& notes, double tick,
     return best;
 }
 
+// The index of the one selected note; -1 when none or several are selected.
+inline int soleSelectedIndex (const std::vector<bool>& selected)
+{
+    int sole = -1;
+    for (int i = 0; i < (int) selected.size(); ++i)
+    {
+        if (! selected[(std::size_t) i])
+            continue;
+        if (sole >= 0)
+            return -1;
+        sole = i;
+    }
+    return sole;
+}
+
+// The note Navigate > Select Next Note of the Same Pitch (`direction` +1) or
+// Select Previous Note of the Same Pitch (-1) moves to: from the one selected
+// note, the nearest note of its pitch after / before it, ordered by start then
+// index. -1 unless exactly one note is selected, or when there is no such note.
+inline int samePitchNoteIndex (const std::vector<NoteStart>& notes, const std::vector<bool>& selected,
+                               int direction)
+{
+    const int from = soleSelectedIndex (selected);
+    if (from < 0 || from >= (int) notes.size())
+        return -1;
+    using Key = std::tuple<int, int>;
+    auto keyOf = [&notes] (int i) { return Key { notes[(std::size_t) i].startTick, i }; };
+    const int pitch = notes[(std::size_t) from].pitch;
+    const auto fromKey = keyOf (from);
+
+    int best = -1;
+    for (int i = 0; i < (int) notes.size(); ++i)
+    {
+        if (notes[(std::size_t) i].pitch != pitch)
+            continue;
+        const auto key = keyOf (i);
+        if (direction > 0 ? ! (key > fromKey) : ! (key < fromKey))
+            continue;
+        if (best < 0 || (direction > 0 ? key < keyOf (best) : key > keyOf (best)))
+            best = i;
+    }
+    return best;
+}
+
 } // namespace lotro

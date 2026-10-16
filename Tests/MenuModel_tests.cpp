@@ -443,7 +443,10 @@ TEST_CASE ("EditorMenuModel: Navigate is Move Marker Left / Right by Grid on the
                                                       "-", "Move Up a Semitone", "Move Down a Semitone",
                                                       "-", "Select Note Nearest Cursor",
                                                       "Add Note Nearest Cursor to Selection",
-                                                      "-", "Select Previous Note", "Select Next Note" });
+                                                      "-", "Select Previous Note", "Select Next Note",
+                                                      "-", "Select Previous Note of the Same Pitch",
+                                                      "Select Next Note of the Same Pitch",
+                                                      "Select All Notes of the Same Pitch" });
     CHECK (nav.items[0].id == EditorNavigateMarkerLeft);
     CHECK (nav.items[1].id == EditorNavigateMarkerRight);
     CHECK (nav.items[0].shortcut == "Left");
@@ -522,6 +525,43 @@ TEST_CASE ("EditorMenuModel: Navigate's Select Previous / Next Note have no shor
     const auto nextOnly = menuNamed (editorMenus (s), "Navigate");
     CHECK_FALSE (nextOnly.items[9].enabled);
     CHECK (nextOnly.items[10].enabled);
+}
+
+TEST_CASE ("EditorMenuModel: Navigate's Same Pitch items have no shortcut and follow their own flags", "[menu-model][editor-menu][same-pitch]")
+{
+    EditorMenuState s;
+    s.canSelectNearestNote = true;
+    s.canSelectPreviousNote = true;
+    s.canSelectNextNote = true;
+    const auto nav = menuNamed (editorMenus (s), "Navigate");
+    CHECK (nav.items[12].id == EditorNavigateSelectPreviousSamePitch);
+    CHECK (nav.items[13].id == EditorNavigateSelectNextSamePitch);
+    CHECK (nav.items[14].id == EditorNavigateSelectAllSamePitch);
+    for (int i : { 12, 13, 14 })
+    {
+        CHECK (nav.items[(std::size_t) i].shortcut.empty());
+        CHECK_FALSE (nav.items[(std::size_t) i].enabled);
+    }
+
+    s.canSelectPreviousSamePitch = true;
+    const auto previous = menuNamed (editorMenus (s), "Navigate");
+    CHECK (previous.items[12].enabled);
+    CHECK_FALSE (previous.items[13].enabled);
+    CHECK_FALSE (previous.items[14].enabled);
+
+    s.canSelectPreviousSamePitch = false;
+    s.canSelectNextSamePitch = true;
+    const auto next = menuNamed (editorMenus (s), "Navigate");
+    CHECK_FALSE (next.items[12].enabled);
+    CHECK (next.items[13].enabled);
+    CHECK_FALSE (next.items[14].enabled);
+
+    s.canSelectNextSamePitch = false;
+    s.canSelectAllSamePitch = true;
+    const auto all = menuNamed (editorMenus (s), "Navigate");
+    CHECK_FALSE (all.items[12].enabled);
+    CHECK_FALSE (all.items[13].enabled);
+    CHECK (all.items[14].enabled);
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")
