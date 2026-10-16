@@ -103,7 +103,7 @@ public:
 
     // The grid, in ticks, loop-range edges snap to: the loaded editor's grid, else the
     // default grid (Preferences ▸ Editing) at the document's ticksPerQuarter.
-    int currentLoopSnapTicks() const;
+    EditorGrid currentLoopSnapGrid() const;
     // Menu paths: no pointer is consulted (the pointer is over the menu).
     bool splitAtMarker()          { return trackList.splitSections (std::nullopt, -1); }
     bool canSplitAtMarker() const { return trackList.canSplitAtMarker(); }

@@ -339,6 +339,37 @@ namespace
     using TickPair = std::pair<double, double>;
 }
 
+TEST_CASE ("TrackEditorPanel: a dragged ruler bracket snaps to the swung grid", "[track-editor][loop][ruler][swing]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackEditorPanel window (doc);
+    window.setPlayback (&controller);
+    window.setSize (800, 400);
+    window.setTrack (track);
+    window.setGridLength (GridLength::Eighth);
+    window.setGridDivision (GridDivision::Swing);
+    window.setSwing (100);
+
+    auto& ruler = TrackEditorPanelTestAccess::ruler (window);
+    auto& roll = TrackEditorPanelTestAccess::roll (window);
+    REQUIRE (controller.setLoopRange (1200.0, 2400.0));
+    const auto endBracket = ruler.loopHandleBounds (false);
+    REQUIRE (endBracket.has_value());
+    const juce::Point<int> endDown { endBracket->getRight() - 3, endBracket->getCentreY() };
+    const juce::Point<int> to { roll.xForTickInComponent (700.0), 5 };   // straight would give 720
+    ruler.mouseDown (rulerEvent (ruler, endDown, endDown));
+    ruler.mouseDrag (rulerEvent (ruler, endDown, to));
+    ruler.mouseUp (rulerEvent (ruler, endDown, to));
+    // Dragged past the start edge, the pair flips: the dragged edge is 840, the anchor 1200.
+    CHECK (loopOf (controller) == std::optional<TickPair> (TickPair { 840.0, 1200.0 }));
+}
+
 TEST_CASE ("TrackEditorPanel: dragging a ruler bracket moves that loop edge, snapped to the roll's grid and anchored on the other edge", "[track-editor][loop][ruler]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -665,6 +696,50 @@ TEST_CASE ("TrackEditorPanel: Navigate > Move Marker Left / Right by Grid step t
     f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
     f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
     CHECK (*f.controller->getMarkerTick() == 0.0);   // stops at the start
+}
+
+TEST_CASE ("TrackEditorPanel: Move Marker by Grid steps along the swung lines", "[track-editor-window][swing]")
+{
+    MarkerPanelFixture f;
+    f.panel->setGridLength (GridLength::Eighth);
+    f.panel->setGridDivision (GridDivision::Swing);
+    f.panel->setSwing (100);
+    f.controller->setMarkerTick (0.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 360.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 480.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerLeft);
+    CHECK (*f.controller->getMarkerTick() == 360.0);
+}
+
+TEST_CASE ("TrackEditorPanel: a ruler click snaps the marker to the nearest swung line", "[track-editor-window][swing]")
+{
+    MarkerPanelFixture f;
+    f.panel->setGridLength (GridLength::Eighth);
+    f.panel->setGridDivision (GridDivision::Swing);
+    f.panel->setSwing (100);
+    rulerClick (*f.panel, 700.0);   // straight would give 720
+    REQUIRE (f.controller->getMarkerTick().has_value());
+    CHECK (*f.controller->getMarkerTick() == 840.0);
+}
+
+TEST_CASE ("TrackEditorPanel: swing strength is kept but inert off the Swing division", "[track-editor-window][swing]")
+{
+    MarkerPanelFixture f;
+    f.panel->setGridLength (GridLength::Eighth);
+    f.panel->setGridDivision (GridDivision::Swing);
+    f.panel->setSwing (100);
+    f.panel->setGridDivision (GridDivision::Straight);
+    f.controller->setMarkerTick (0.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 240.0);
+    CHECK (f.panel->getSwing() == 100);
+
+    f.panel->setGridDivision (GridDivision::Swing);
+    f.controller->setMarkerTick (0.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 360.0);
 }
 
 TEST_CASE ("TrackEditorPanel: with no marker the first step starts from the playhead", "[track-editor-window][editor-menu][marker]")

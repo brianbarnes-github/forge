@@ -199,7 +199,7 @@ void TrackListComponent::refreshOverlay()
 
 double TrackListComponent::snapLoop (double tick, bool unsnapped) const
 {
-    return snapLoopTick (tick, loopSnapTicks ? loopSnapTicks() : 0, unsnapped);
+    return snapLoopTick (tick, loopSnapGrid ? loopSnapGrid() : EditorGrid::straight (0), unsnapped);
 }
 
 void TrackListComponent::loopBandDragged (double pressTick, double tick, bool finished, bool unsnapped)

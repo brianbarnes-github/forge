@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../EditorGrid.h"
+
 #include <atomic>
 #include <optional>
 
@@ -20,6 +22,10 @@ std::optional<LoopRange> normaliseLoopRange (double a, double b, double endTickL
 
 // Nearest multiple of gridTicks (>= 0). gridTicks <= 0 or unsnapped = the tick unchanged.
 double snapLoopTick (double tick, int gridTicks, bool unsnapped) noexcept;
+
+// The same for an editor grid: swung grids snap to the swung lines, others as above.
+// No grid (spacingTicks <= 0) or unsnapped = the tick unchanged.
+double snapLoopTick (double tick, const EditorGrid& grid, bool unsnapped) noexcept;
 
 // The range in seconds. start < end, both >= 0.
 struct LoopSpan

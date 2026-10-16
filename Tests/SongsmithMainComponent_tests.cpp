@@ -1233,26 +1233,34 @@ TEST_CASE ("SongsmithMainComponent: loop edges snap to the loaded editor's grid,
     SongsmithMainComponent view (doc);
     view.setSize (1000, 700);
     auto& list = Access::trackList (view);
-    REQUIRE (list.loopSnapTicks != nullptr);
+    REQUIRE (list.loopSnapGrid != nullptr);
 
     // No editor loaded: the default grid.
     view.setDefaultGridSize (GridSize::Quarter);
-    CHECK (view.currentLoopSnapTicks() == 120);
-    CHECK (list.loopSnapTicks() == 120);
+    CHECK (view.currentLoopSnapGrid().spacingTicks == 120);
+    CHECK (list.loopSnapGrid().spacingTicks == 120);
 
     // A loaded editor whose grid was changed from the default: its grid.
     Access::trackDoubleClicked (view, trackId);
     REQUIRE (view.isTrackEditorLoaded());
     view.setActiveEditorGridSize (GridSize::Sixteenth);
-    CHECK (view.currentLoopSnapTicks() == 30);
-    CHECK (list.loopSnapTicks() == 30);
+    CHECK (view.currentLoopSnapGrid().spacingTicks == 30);
+    CHECK (list.loopSnapGrid().spacingTicks == 30);
+
+    // On the Swing division the loaded editor's swung lines decide (120 PPQ: 1/8 = 60 ticks).
+    view.setActiveEditorGridSize (GridSize::Eighth);
+    Access::trackEditor (view).setGridDivision (GridDivision::Swing);
+    Access::trackEditor (view).setSwing (100);
+    CHECK (snapLoopTick (175.0, list.loopSnapGrid(), false) == 210.0);   // straight would give 180
+    Access::trackEditor (view).setGridDivision (GridDivision::Straight);
+    view.setActiveEditorGridSize (GridSize::Sixteenth);
 
     // Hidden again, the editor no longer decides: the (changed) default does.
     view.setDefaultGridSize (GridSize::Eighth);
     view.setMidiEditorVisible (false);
     REQUIRE_FALSE (view.isTrackEditorLoaded());
-    CHECK (view.currentLoopSnapTicks() == 60);
-    CHECK (list.loopSnapTicks() == 60);
+    CHECK (view.currentLoopSnapGrid().spacingTicks == 60);
+    CHECK (list.loopSnapGrid().spacingTicks == 60);
 }
 
 TEST_CASE ("SongsmithMainComponent: Escape clears the loop range, and does nothing when there is none", "[songsmith][loop]")

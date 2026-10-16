@@ -1,4 +1,5 @@
 #include "UI/Playback/LoopRange.h"
+#include "UI/EditorGrid.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -70,4 +71,17 @@ TEST_CASE ("LoopSpanCell round-trips and clears", "[loop]")
     CHECK (v->endSeconds == 3.0);
     cell.publish (std::nullopt);
     CHECK (! cell.read().has_value());
+}
+
+TEST_CASE ("snapLoopTick(EditorGrid) matches the int overload when straight, and snaps to swung lines", "[loop][swing]")
+{
+    const auto straight = EditorGrid::straight (120);
+    for (const double t : { -70.0, 0.0, 59.0, 130.0, 181.0, 5000.0 })
+        CHECK (snapLoopTick (t, straight, false) == snapLoopTick (t, 120, false));
+    CHECK (snapLoopTick (130.0, straight, true) == 130.0);
+    CHECK (snapLoopTick (130.0, EditorGrid::straight (0), false) == 130.0);
+
+    const auto swung = makeEditorGrid (GridLength::Eighth, GridDivision::Swing, 100, 480, { MeterChange { 0, 4, 4 } });
+    CHECK (snapLoopTick (700.0, swung, false) == 840.0);   // straight would give 720
+    CHECK (snapLoopTick (700.0, swung, true) == 700.0);
 }

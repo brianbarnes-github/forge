@@ -3280,7 +3280,7 @@ namespace
             list->setSize (800, 300);
             Access::timelineViewMut (*list).setPixelsPerTick (0.1);
             Access::timelineViewMut (*list).setScrollOffsetTicks (0.0);
-            list->loopSnapTicks = [] { return 120; };
+            list->loopSnapGrid = [] { return EditorGrid::straight (120); };
         }
 
         TrackRowComponent& row() { return *Access::rowFor (*list, (juce::int64) track.getProperty (SongIDs::trackId)); }
@@ -3356,12 +3356,12 @@ TEST_CASE ("TrackListComponent: a band drag within one grid cell sets no loop ra
     CHECK_FALSE (rig.range().has_value());
 
     // Without a grid the same drag is a range (so the fixture is long enough).
-    rig.list->loopSnapTicks = nullptr;
+    rig.list->loopSnapGrid = nullptr;
     rig.bandDrag (315, { 325 });
     CHECK (rig.range() == std::optional<TickPair> (TickPair { 1150.0, 1250.0 }));
 
     // Outside that range, a too-short drag leaves it alone.
-    rig.list->loopSnapTicks = [] { return 120; };
+    rig.list->loopSnapGrid = [] { return EditorGrid::straight (120); };
     rig.bandDrag (513, { 517 });   // 3130 .. 3170: both snap to 3120
     CHECK (rig.range() == std::optional<TickPair> (TickPair { 1150.0, 1250.0 }));
 }

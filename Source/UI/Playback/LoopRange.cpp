@@ -23,6 +23,15 @@ double snapLoopTick (double tick, int gridTicks, bool unsnapped) noexcept
     return std::round (tick / (double) gridTicks) * (double) gridTicks;
 }
 
+double snapLoopTick (double tick, const EditorGrid& grid, bool unsnapped) noexcept
+{
+    if (unsnapped || grid.spacingTicks <= 0)
+        return tick;
+    if (grid.swung)
+        return snapToEditorGrid (grid, tick);
+    return snapLoopTick (tick, grid.spacingTicks, false);
+}
+
 void LoopSpanCell::publish (std::optional<LoopSpan> span) noexcept
 {
     version.fetch_add (1, std::memory_order_release);   // odd: write in progress

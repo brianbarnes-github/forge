@@ -297,7 +297,7 @@ namespace lotro
         // (and Alt frees it the same way).
         ruler.onSetMarker = [&controller, &rollIn] (double tick, bool unsnapped)
         {
-            controller.setMarkerTick (rollIn.getSnapToGrid() && ! unsnapped ? snapTickToGrid (tick, rollIn.getGridTicks()) : tick);
+            controller.setMarkerTick (rollIn.getSnapToGrid() && ! unsnapped ? snapToEditorGrid (rollIn.getEditorGrid(), tick) : tick);
         };
         ruler.onClearMarker = [&controller] { controller.clearMarker(); };
         ruler.setLoopRange ([&controller] { return controller.getLoopRange(); });
@@ -317,7 +317,7 @@ namespace lotro
                 return;
             // The ruler reports no modifiers; Alt is read from the live keyboard state.
             const bool unsnapped = juce::ModifierKeys::getCurrentModifiers().isAltDown();
-            controller.setLoopRange (*loopEdgeAnchor, snapLoopTick (tick, rollIn.getGridTicks(), unsnapped));
+            controller.setLoopRange (*loopEdgeAnchor, snapLoopTick (tick, rollIn.getEditorGrid(), unsnapped));
         };
         ruler.onClearLoop = [this, &controller]
         {
@@ -433,7 +433,7 @@ namespace lotro
         if (! canStepMarker())
             return false;
         const double from = cursorTick();
-        playback->setMarkerTick (stepTickByGrid (from, roll.getGridTicks(), direction));
+        playback->setMarkerTick (stepEditorGrid (roll.getEditorGrid(), from, direction));
         return true;
     }
 
@@ -520,6 +520,21 @@ namespace lotro
     int TrackEditorPanel::getGridTicks() const
     {
         return roll.getGridTicks();
+    }
+
+    EditorGrid TrackEditorPanel::getEditorGrid() const
+    {
+        return roll.getEditorGrid();
+    }
+
+    void TrackEditorPanel::setSwing (int percent)
+    {
+        roll.setSwing (percent);
+    }
+
+    int TrackEditorPanel::getSwing() const noexcept
+    {
+        return roll.getSwing();
     }
 
     void TrackEditorPanel::quantizeSelection()

@@ -100,6 +100,11 @@ namespace lotro
         GridLength getGridLength() const noexcept { return roll.getGridLength(); }
         GridDivision getGridDivision() const noexcept { return roll.getGridDivision(); }
         int getGridTicks() const;
+        // The Swing division's strength (percent, -100..100; kept but inert off Swing) and the
+        // grid as a value, swung lines included. Session-only; setting reports nothing.
+        void setSwing (int percent);
+        int getSwing() const noexcept;
+        EditorGrid getEditorGrid() const;
         void setFollowPlayhead (bool on) { roll.setFollowPlayhead (on); }
         bool getFollowPlayhead() const { return roll.getFollowPlayhead(); }
         void quantizeSelection();

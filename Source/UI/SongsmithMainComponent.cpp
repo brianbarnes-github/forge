@@ -119,7 +119,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     trackList.onViewChanged = [this] { if (tempoMeterWindow != nullptr) tempoMeterWindow->timelineViewChanged(); };
     trackList.onGhostToggled = [this] (juce::int64 trackId, bool visible) { trackGhostToggled (trackId, visible); };
     trackList.isTrackGhosted = [this] (juce::int64 trackId) { return ghostedTrackIds.count (trackId) > 0; };
-    trackList.loopSnapTicks = [this] { return currentLoopSnapTicks(); };
+    trackList.loopSnapGrid = [this] { return currentLoopSnapGrid(); };
     trackList.onTrackAppearanceChanged = [this] (juce::int64 trackId)
     {
         partStrip.trackAppearanceChanged();
@@ -317,12 +317,12 @@ void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
     trackEditor->setGridLength (gridLengthForSize (size));
 }
 
-int SongsmithMainComponent::currentLoopSnapTicks() const
+EditorGrid SongsmithMainComponent::currentLoopSnapGrid() const
 {
     if (isTrackEditorLoaded())
-        return trackEditor->getGridTicks();
+        return trackEditor->getEditorGrid();
     const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
-    return gridSizeToTicks (defaultGridSize, ticksPerQuarter);
+    return EditorGrid::straight (gridSizeToTicks (defaultGridSize, ticksPerQuarter));
 }
 
 bool SongsmithMainComponent::escapePressed()

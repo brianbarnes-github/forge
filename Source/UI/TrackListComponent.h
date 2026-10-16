@@ -2,6 +2,7 @@
 
 #include "Playback/PlaybackController.h"
 #include "Playback/PlayheadOverlay.h"
+#include "EditorGrid.h"
 #include "EventMarkerOverlay.h"
 #include "Playback/TimelineRuler.h"
 #include "NoteMerge.h"
@@ -332,9 +333,9 @@ public:
     // and song-length change.
     std::function<void()> onViewChanged;
 
-    // The grid, in ticks, that loop-range edges snap to (a band drag or a ruler
-    // bracket drag; Alt bypasses it). Unset or <= 0 = unsnapped.
-    std::function<int()> loopSnapTicks;
+    // The grid that loop-range edges snap to (a band drag or a ruler bracket
+    // drag; Alt bypasses it), swung lines included. Unset or no grid = unsnapped.
+    std::function<EditorGrid()> loopSnapGrid;
 
 private:
 
