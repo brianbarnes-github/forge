@@ -19,7 +19,7 @@ constexpr int kPreviewChannelBase = kMaxVirtualChannels;
 constexpr int kSynthChannels = kMaxVirtualChannels + kMaxPreviewNotes;
 constexpr double kMaxPreviewSeconds = 1.0;
 
-struct PreviewNote
+struct PreviewedNote
 {
     juce::int64 trackId = -1;
     int midiChannel = 1;
@@ -32,7 +32,7 @@ struct PreviewNote
 // Fixed-size so it can cross to the audio thread through a FIFO.
 struct PreviewRequest
 {
-    std::array<PreviewNote, kMaxPreviewNotes> notes {};
+    std::array<PreviewedNote, kMaxPreviewNotes> notes {};
     int count = 0;
 };
 

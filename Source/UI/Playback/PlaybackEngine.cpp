@@ -222,6 +222,7 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
         sink.releaseAll();
     if (snapshot != nullptr)
         releaseNewlyMutedTracks (*snapshot);
+    servicePreviews (snapshot, numSamples);
 
     if (! playing)
     {
@@ -294,6 +295,127 @@ void PlaybackEngine::renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int 
     expectedPosition = advanced ? std::min (segPos, endSeconds) : -1.0;
     insideLoopLastBlock = advanced && loop.has_value()
                           && segPos >= loop->startSeconds && segPos < loop->endSeconds;
+}
+
+bool PlaybackEngine::requestPreview (const PreviewRequest& request) noexcept
+{
+    const auto scope = previewFifo.write (1);
+    if (scope.blockSize1 + scope.blockSize2 == 0)
+        return false;
+    previewQueue[(size_t) (scope.blockSize1 > 0 ? scope.startIndex1 : scope.startIndex2)] = request;
+    return true;
+}
+
+// Once per block, before the stopped/playing split: takes the newest queued
+// request (stopping whatever the last one still sounds), then ends notes whose
+// time is up. Events land at the block's first frame, so the NoteOff is
+// block-granular.
+void PlaybackEngine::servicePreviews (const PlaybackSnapshot* snapshot, int numSamples) noexcept
+{
+    PreviewRequest request;
+    bool any = false;
+    const int ready = previewFifo.getNumReady();
+    if (ready > 0)
+    {
+        const auto scope = previewFifo.read (ready);
+        const int last = scope.blockSize2 > 0 ? scope.startIndex2 + scope.blockSize2 - 1
+                                              : scope.startIndex1 + scope.blockSize1 - 1;
+        request = previewQueue[(size_t) last];
+        any = true;
+    }
+
+    const auto noteOff = [this] (int slot)
+    {
+        PlaybackEvent off;
+        off.kind = PlaybackEventKind::NoteOff;
+        off.virtualChannel = kPreviewChannelBase + slot;
+        off.data1 = previewKey[(size_t) slot];
+        sink.handle (off);
+        previewKey[(size_t) slot] = -1;
+    };
+
+    if (any)
+    {
+        for (int slot = 0; slot < kMaxPreviewNotes; ++slot)
+            if (previewKey[(size_t) slot] >= 0)
+                noteOff (slot);
+        if (snapshot != nullptr)
+            for (int slot = 0; slot < std::min (request.count, kMaxPreviewNotes); ++slot)
+                startPreviewNote (*snapshot, slot, request.notes[(size_t) slot]);
+    }
+
+    for (int slot = 0; slot < kMaxPreviewNotes; ++slot)
+    {
+        if (previewKey[(size_t) slot] < 0)
+            continue;
+        if (previewFramesLeft[(size_t) slot] <= 0)
+            noteOff (slot);
+        else
+            previewFramesLeft[(size_t) slot] -= numSamples;
+    }
+}
+
+// Sounds one preview note on its own preview channel, set up as the note's
+// playback channel is at its start tick: that channel's Program, Control and
+// PitchBend events up to the tick replayed (sustain skipped, so the cap holds;
+// pan as the track's override allows), the track's gain applied. Mute/solo is
+// not consulted.
+void PlaybackEngine::startPreviewNote (const PlaybackSnapshot& snapshot, int slot, const PreviewedNote& note) noexcept
+{
+    constexpr int kSustain = 64;
+    const int ch = kPreviewChannelBase + slot;
+    sink.resetChannel (ch);
+
+    const int trackIndex = snapshot.trackIndexForId (note.trackId);
+    int vch = -1;
+    const auto& channels = snapshot.channels();
+    for (size_t c = 0; c < channels.size() && vch < 0; ++c)
+        if (channels[c].trackId == note.trackId && channels[c].midiChannel == note.midiChannel)
+            vch = (int) c;
+
+    const auto pan = trackIndex >= 0 ? snapshot.panOverride (trackIndex) : std::nullopt;
+    if (vch >= 0)
+    {
+        for (const auto& e : snapshot.events())
+        {
+            if (e.tick > note.startTick)
+                break;
+            if (e.virtualChannel != vch || e.kind == PlaybackEventKind::NoteOn || e.kind == PlaybackEventKind::NoteOff)
+                continue;
+            if (e.kind == PlaybackEventKind::Control && (e.data1 == kSustain || (pan.has_value() && isPanControl (e))))
+                continue;
+            PlaybackEvent copy = e;
+            copy.virtualChannel = ch;
+            sink.handle (copy);
+            if (pan.has_value() && e.kind == PlaybackEventKind::Control && e.data1 == kResetAllControllers)
+                sink.setChannelPan (ch, *pan);
+        }
+    }
+    else
+    {
+        PlaybackEvent program;
+        program.kind = PlaybackEventKind::Program;
+        program.virtualChannel = ch;
+        program.data1 = 0;
+        program.data2 = note.midiChannel == 10 ? 1 : 0;
+        sink.handle (program);
+    }
+    if (pan.has_value())
+        sink.setChannelPan (ch, *pan);
+
+    const int velocity = trackIndex >= 0 ? scaleVelocity (note.velocity, snapshot.gainPercent (trackIndex)) : note.velocity;
+    if (velocity <= 0)
+        return;
+    PlaybackEvent on;
+    on.kind = PlaybackEventKind::NoteOn;
+    on.virtualChannel = ch;
+    on.data1 = note.pitch;
+    on.data2 = velocity;
+    sink.handle (on);
+    previewKey[(size_t) slot] = note.pitch;
+    const double seconds = std::min (kMaxPreviewSeconds,
+                                     snapshot.tempo().ticksToSeconds (note.endTick) - snapshot.tempo().ticksToSeconds (note.startTick));
+    previewFramesLeft[(size_t) slot] = (long) std::llround (std::max (0.0, seconds) * sampleRate);
 }
 
 // Renders `samples` frames starting at segPos, delivering the events before

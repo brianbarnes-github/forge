@@ -89,6 +89,10 @@ public:
     bool isSilencedBySolo (juce::int64 trackId) const { return muteSolo.isSilencedBySolo (trackId); }
 
     // Session master level, 0..100 (clamped); unity at 100.
+    // Sounds the request's notes through the engine's preview channels (see
+    // PlaybackEngine::requestPreview); a full queue drops it.
+    void previewNotes (const PreviewRequest& request) { playbackEngine.requestPreview (request); }
+
     void setMasterPercent (int percent);
     int masterPercent() const noexcept { return masterLevel; }
 

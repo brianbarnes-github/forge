@@ -4,11 +4,13 @@
 #include "UI/Playback/HandOff.h"
 #include "UI/Playback/LoopRange.h"
 #include "UI/Playback/PlaybackSnapshot.h"
+#include "UI/Playback/PreviewRequest.h"
 #include "UI/Playback/RateMapping.h"
 #include "UI/Playback/Transport.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -49,6 +51,12 @@ public:
         loopCell.publish (span);
     }
 
+    // Queues a note preview (message thread, the single producer). The audio
+    // thread sounds it at the start of its next block, playing or stopped,
+    // and the latest request cuts off the one before. False when the queue is
+    // full (the request is dropped).
+    bool requestPreview (const PreviewRequest& request) noexcept;
+
     // TEST-ONLY: the span last published by setLoopSpan. Message thread; it
     // reads the writer-side copy, never the cell, so it is safe while the
     // audio thread renders.
@@ -62,6 +70,8 @@ private:
     void retriggerHeldNotes (const PlaybackSnapshot& snapshot, double positionSeconds) noexcept;
     void deliverControl (const PlaybackSnapshot& snapshot, const PlaybackEvent& e) noexcept;
     void renderBlockUnscaled (juce::AudioBuffer<float>& buffer, int startSample, int numSamples) noexcept;
+    void servicePreviews (const PlaybackSnapshot* snapshot, int numSamples) noexcept;
+    void startPreviewNote (const PlaybackSnapshot& snapshot, int slot, const PreviewedNote& note) noexcept;
     void renderSegment (const PlaybackSnapshot& snapshot, float* left, float* right, int samples,
                         double segPos, double eventsBeforeSeconds, double framesPerSongSecond) noexcept;
 
@@ -82,6 +92,13 @@ private:
     double expectedPosition = -1.0;   // audio thread only: where this engine left the playhead; -1 = unknown
     std::vector<int> heldNoteOn;      // audio thread only: scratch for retriggerHeldNotes, [channel * kKeys + key] = event index or -1
     bool insideLoopLastBlock = false; // audio thread only: the last block left the playhead inside the loop
+
+    static constexpr int kPreviewQueueSize = 8;
+    // AbstractFifo keeps one slot free, so the ring is one longer than the queue.
+    juce::AbstractFifo previewFifo { kPreviewQueueSize + 1 };
+    std::array<PreviewRequest, kPreviewQueueSize + 1> previewQueue;
+    std::array<int, kMaxPreviewNotes> previewKey { -1, -1, -1, -1, -1, -1 };   // audio thread only: sounding key per preview channel, -1 = silent
+    std::array<long, kMaxPreviewNotes> previewFramesLeft {};                    // audio thread only: frames until that key's NoteOff
 };
 
 } // namespace lotro

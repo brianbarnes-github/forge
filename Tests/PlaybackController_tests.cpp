@@ -774,3 +774,25 @@ TEST_CASE ("PlaybackController: a rebuilt snapshot is announced", "[playback][co
     CHECK (listener.snapshotChanges == before + 1);
     r.controller.removeListener (&listener);
 }
+
+TEST_CASE ("PlaybackController: previewNotes reaches the engine", "[playback][controller][note-preview]")
+{
+    Rig r;
+    auto t = addTrack (r.doc);
+    addNote (t, 60, 0, 480);
+    r.controller.flushRebuild();
+
+    PreviewRequest request;
+    request.notes[0].trackId = (juce::int64) t.getProperty (SongIDs::trackId);
+    request.notes[0].pitch = 67;
+    request.notes[0].endTick = 480;
+    request.count = 1;
+    r.controller.previewNotes (request);
+    r.render();
+
+    bool heard = false;
+    for (const auto& rec : r.sink.records)
+        if (rec.event.kind == PlaybackEventKind::NoteOn && rec.event.virtualChannel == kPreviewChannelBase && rec.event.data1 == 67)
+            heard = true;
+    CHECK (heard);
+}

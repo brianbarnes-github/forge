@@ -16,7 +16,7 @@ std::optional<PreviewRequest> makePreviewRequest (juce::int64 trackId, const std
     for (const auto& note : notes)
     {
         // Read as buildSnapshot reads a NOTE, so the preview matches playback.
-        PreviewNote p;
+        PreviewedNote p;
         p.trackId = trackId;
         p.midiChannel = juce::jlimit (1, 16, (int) note.getProperty (SongIDs::channel, 1));
         p.pitch = juce::jlimit (0, 127, (int) note.getProperty (SongIDs::pitch, 60));

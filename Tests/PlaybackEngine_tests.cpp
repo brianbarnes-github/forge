@@ -2,6 +2,7 @@
 #include "UI/Playback/LoopRange.h"
 #include "UI/Playback/PlaybackEngine.h"
 #include "UI/Playback/PlaybackSnapshot.h"
+#include "UI/Playback/PreviewRequest.h"
 #include "UI/Playback/RateMapping.h"
 #include "UI/Playback/Transport.h"
 
@@ -1328,4 +1329,236 @@ TEST_CASE ("PlaybackEngine rate: the loop wraps on the exact frame at 0.5 and 4.
         CHECK (rig.transport.getPositionSeconds() >= kLoopStart);
         CHECK (rig.transport.getPositionSeconds() < kLoopEnd);
     }
+}
+
+namespace
+{
+    juce::int64 idOf (const juce::ValueTree& track) { return (juce::int64) track.getProperty (SongIDs::trackId); }
+
+    PreviewRequest previewOf (std::vector<PreviewedNote> notes)
+    {
+        PreviewRequest r;
+        for (const auto& n : notes)
+            r.notes[(size_t) r.count++] = n;
+        return r;
+    }
+
+    PreviewedNote previewNote (juce::int64 trackId, int pitch, int startTick, int endTick, int midiChannel = 1, int velocity = 100)
+    {
+        PreviewedNote n;
+        n.trackId = trackId; n.midiChannel = midiChannel; n.pitch = pitch; n.velocity = velocity;
+        n.startTick = startTick; n.endTick = endTick;
+        return n;
+    }
+
+    std::vector<RecordingSink::Record> previewRecords (const RecordingSink& sink)
+    {
+        std::vector<RecordingSink::Record> out;
+        for (const auto& r : sink.records)
+            if (r.event.virtualChannel >= kPreviewChannelBase)
+                out.push_back (r);
+        return out;
+    }
+
+    const RecordingSink::Record* findPreview (const RecordingSink& sink, PlaybackEventKind kind, int channel, int data1)
+    {
+        for (const auto& r : sink.records)
+            if (r.event.kind == kind && r.event.virtualChannel == channel && r.event.data1 == data1)
+                return &r;
+        return nullptr;
+    }
+
+    size_t indexOf (const RecordingSink& sink, const RecordingSink::Record* r) { return (size_t) (r - sink.records.data()); }
+}
+
+TEST_CASE ("PlaybackEngine: a preview sounds while stopped on the first preview channel with the track's program", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 24 });
+    addNote (t, 60, 0, 480);
+    Rig rig (doc);
+
+    REQUIRE (rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 67, 0, 480) })));
+    rig.render();
+
+    const auto* program = findPreview (rig.sink, PlaybackEventKind::Program, kPreviewChannelBase, 24);
+    const auto* on = findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase, 67);
+    REQUIRE (program != nullptr);
+    REQUIRE (on != nullptr);
+    CHECK (indexOf (rig.sink, program) < indexOf (rig.sink, on));
+    CHECK (program->frame == 0);
+    CHECK (on->frame == 0);
+    CHECK (on->event.data2 == 100);
+    for (const auto& r : rig.sink.records)
+        CHECK (r.event.virtualChannel >= kPreviewChannelBase);   // stopped: nothing but the preview
+}
+
+TEST_CASE ("PlaybackEngine: a preview stops after its own length, capped at one second", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+
+    {
+        Rig rig (doc);
+        rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 67, 0, 480) }));   // 0.5 s at 120 BPM
+        rig.render (60);
+        const auto* off = findPreview (rig.sink, PlaybackEventKind::NoteOff, kPreviewChannelBase, 67);
+        REQUIRE (off != nullptr);
+        CHECK (off->frame >= 24000);
+        CHECK (off->frame < 24512);
+    }
+    {
+        Rig rig (doc);
+        rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 67, 0, 4800) }));  // 5 s, capped at 1 s
+        rig.render (100);
+        const auto* off = findPreview (rig.sink, PlaybackEventKind::NoteOff, kPreviewChannelBase, 67);
+        REQUIRE (off != nullptr);
+        CHECK (off->frame >= 48000);
+        CHECK (off->frame < 48512);
+    }
+}
+
+TEST_CASE ("PlaybackEngine: a new preview stops the previous one first", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    Rig rig (doc);
+
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 60, 0, 480) }));
+    rig.render();
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 62, 0, 480) }));
+    rig.render();
+
+    const auto* off = findPreview (rig.sink, PlaybackEventKind::NoteOff, kPreviewChannelBase, 60);
+    const auto* on = findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase, 62);
+    REQUIRE (off != nullptr);
+    REQUIRE (on != nullptr);
+    CHECK (off->frame == 512);
+    CHECK (on->frame == 512);
+    CHECK (indexOf (rig.sink, off) < indexOf (rig.sink, on));
+}
+
+TEST_CASE ("PlaybackEngine: a chord preview uses one preview channel per note", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    Rig rig (doc);
+
+    const auto id = idOf (t);
+    rig.engine.requestPreview (previewOf ({ previewNote (id, 60, 0, 480), previewNote (id, 64, 0, 480), previewNote (id, 67, 0, 480) }));
+    rig.render();
+
+    CHECK (findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase, 60) != nullptr);
+    CHECK (findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase + 1, 64) != nullptr);
+    CHECK (findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase + 2, 67) != nullptr);
+}
+
+TEST_CASE ("PlaybackEngine: a preview chases controls up to its start, skips sustain, and ignores later ones", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xB0, 7, 30 });
+    addEvent (t, 0, { 0xB0, 64, 127 });
+    addEvent (t, 960, { 0xB0, 7, 90 });
+    addNote (t, 60, 0, 1920);
+    Rig rig (doc);
+
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 62, 480, 960) }));
+    rig.render();
+
+    bool volume30 = false, volume90 = false, sustain = false;
+    for (const auto& r : previewRecords (rig.sink))
+    {
+        if (r.event.kind != PlaybackEventKind::Control) continue;
+        if (r.event.data1 == 7 && r.event.data2 == 30) volume30 = true;
+        if (r.event.data1 == 7 && r.event.data2 == 90) volume90 = true;
+        if (r.event.data1 == 64) sustain = true;
+    }
+    CHECK (volume30);
+    CHECK_FALSE (volume90);
+    CHECK_FALSE (sustain);
+    REQUIRE_FALSE (rig.sink.resets.empty());
+    CHECK (rig.sink.resets.front().channel == kPreviewChannelBase);
+}
+
+TEST_CASE ("PlaybackEngine: a preview on a channel the snapshot lacks gets program 0, or the drum kit on channel 10", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addEvent (t, 0, { 0xC0, 24 });
+    addNote (t, 60, 0, 480);
+    Rig rig (doc);
+
+    const auto programsOnPreview = [&]
+    {
+        std::vector<std::pair<int, int>> out;
+        for (const auto& r : previewRecords (rig.sink))
+            if (r.event.kind == PlaybackEventKind::Program) out.push_back ({ r.event.data1, r.event.data2 });
+        return out;
+    };
+
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 62, 0, 480, 5) }));
+    rig.render();
+    CHECK (programsOnPreview() == std::vector<std::pair<int, int>> { { 0, 0 } });
+
+    rig.sink.records.clear();
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 36, 0, 480, 10) }));
+    rig.render();
+    CHECK (programsOnPreview() == std::vector<std::pair<int, int>> { { 0, 1 } });
+}
+
+TEST_CASE ("PlaybackEngine: a preview follows the track gain and pan override and ignores mute", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 480);
+    Rig rig (doc);
+    const int idx = trackIndexOf (*rig.snapshot, t);
+    rig.snapshot->setGainPercent (idx, 50);
+    rig.snapshot->setPanOverride (idx, -40);
+    rig.snapshot->setAudible (idx, false);
+
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 67, 0, 480) }));
+    rig.render();
+
+    const auto* on = findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase, 67);
+    REQUIRE (on != nullptr);
+    CHECK (on->event.data2 == scaleVelocity (100, 50));
+    const bool panned = std::any_of (rig.sink.pans.begin(), rig.sink.pans.end(),
+                                     [] (const RecordingSink::Pan& p) { return p.channel == kPreviewChannelBase && p.pan == -40; });
+    CHECK (panned);
+}
+
+TEST_CASE ("PlaybackEngine: a preview keeps sounding across a snapshot swap while playing", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    addNote (t, 60, 0, 9600);
+    Rig rig (doc);
+    rig.transport.play (rig.snapshot->endSeconds());
+
+    rig.engine.requestPreview (previewOf ({ previewNote (idOf (t), 67, 0, 480) }));
+    rig.render();
+    REQUIRE (findPreview (rig.sink, PlaybackEventKind::NoteOn, kPreviewChannelBase, 67) != nullptr);
+    const int releasesBefore = rig.sink.releaseAllCount;
+
+    rig.engine.publishSnapshot (buildSnapshot (doc));
+    rig.render();
+    CHECK (rig.sink.releaseAllCount > releasesBefore);   // the swap did release playback
+    CHECK (findPreview (rig.sink, PlaybackEventKind::NoteOff, kPreviewChannelBase, 67) == nullptr);
+}
+
+TEST_CASE ("PlaybackEngine: a full preview queue drops the request", "[playback][engine][note-preview]")
+{
+    SongDocument doc;
+    auto t = addTrack (doc);
+    Rig rig (doc);
+    const auto request = previewOf ({ previewNote (idOf (t), 67, 0, 480) });
+    for (int i = 0; i < 8; ++i)
+        CHECK (rig.engine.requestPreview (request));
+    CHECK_FALSE (rig.engine.requestPreview (request));
 }
