@@ -52,8 +52,8 @@ double stepEditorGrid (const EditorGrid&, double tick, int direction);
 // Every line in [firstTick, lastTick], sorted.
 std::vector<int> editorGridLinesIn (const EditorGrid&, int firstTick, int lastTick);
 
-// The smallest distance between neighbouring lines: s * (1 - |w| / 2) swung,
-// s otherwise, 0 when the grid is off.
+// The smallest distance between neighbouring lines: s * (1 - |w| / 2) swung
+// (the gap inside a swing pair), s otherwise, 0 when the grid is off.
 double editorGridMinGap (const EditorGrid&);
 
 // "+67%", "0%", "-25%".

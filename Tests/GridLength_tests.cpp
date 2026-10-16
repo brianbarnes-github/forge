@@ -32,7 +32,7 @@ TEST_CASE ("GridLength: Triplet is two thirds of the length and Dotted one and a
     CHECK (editorGridTicks (GridLength::Off, GridDivision::Dotted, ppq) == 0);
 }
 
-TEST_CASE ("GridLength: Swing spaces the grid as Straight for now", "[grid-length]")
+TEST_CASE ("GridLength: Swing spaces the grid as Straight; the swing shift is EditorGrid's", "[grid-length]")
 {
     CHECK (editorGridTicks (GridLength::Eighth, GridDivision::Swing, 480) == 240);
     CHECK (editorGridTicks (GridLength::Off, GridDivision::Swing, 480) == 0);

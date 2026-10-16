@@ -1,5 +1,4 @@
 #include "SourceRollEditor.h"
-#include "GridSnap.h"
 #include "SectionEdit.h"
 
 #include <algorithm>

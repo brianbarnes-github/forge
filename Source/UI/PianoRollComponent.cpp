@@ -1,6 +1,5 @@
 #include "PianoRollComponent.h"
 #include "NoteNavigation.h"
-#include "GridSnap.h"
 #include "GridLinePaint.h"
 #include "SongDocument.h"
 #include "SongsmithColours.h"
@@ -157,8 +156,6 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
 
     if (sourceEditor != nullptr)
         sourceEditor->setGeometry (geometry);
-    if (gridLength != GridLength::Off)
-        setGrid (gridLength, gridDivision);   // the spacing at the new PPQ
 
     rebuildContentSize();
     if (role == Role::Source && noteSource != nullptr)

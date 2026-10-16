@@ -1,6 +1,5 @@
 #include "TrackEditorPanel.h"
 #include "EditorMenuModel.h"
-#include "GridSnap.h"
 #include "MenuPopup.h"
 #include "Playback/PreviewRequest.h"
 #include "SongsmithColours.h"

@@ -190,7 +190,7 @@ public:
     // a no-op without an editor.
     void setNoteChangeListener (NoteChangeListener listener);
 
-    // Reads back the spacing setGrid or setGridTicks pushed; 0 for a roll with no editor (and
+    // Reads back the current grid spacing (setGrid or setGridTicks, at the roll's PPQ); 0 for a roll with no editor (and
     // for "grid off", which is the same thing as far as snapping goes).
     int getGridTicks() const;
 

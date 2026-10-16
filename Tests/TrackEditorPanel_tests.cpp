@@ -1607,7 +1607,7 @@ TEST_CASE ("TrackEditorPanel: Options > Grid Division sets triplet and dotted sp
     CHECK (f.panel->getGridDivision() == GridDivision::Dotted);
     CHECK (f.panel->getGridTicks() == 180);
 
-    // Swing can be chosen and is ticked; for now it spaces the grid as Straight.
+    // Swing can be chosen and is ticked; it spaces the grid as Straight (the swing shift is EditorGrid's).
     f.panel->invokeMenuCommand (EditorGridDivisionBase + (int) GridDivision::Swing);
     CHECK (f.panel->getGridDivision() == GridDivision::Swing);
     CHECK (f.panel->getGridTicks() == 120);

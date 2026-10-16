@@ -45,14 +45,11 @@ public:
     // tick conversion.
     void setGeometry (const PianoRollGeometry& geometryIn) noexcept { geometry = geometryIn; }
 
-    // Ticks spanned by the toolbar's current grid-size selection; 0 means
-    // "off". Drives both quantizeSelection()'s snap size and create's
-    // default duration fallback (a quarter note, via geometry's
-    // ticksPerQuarter, when this is 0). Owned/pushed by
-    // SongsmithMainComponent from its grid-size combo box -- this class has
-    // no notion of the combo's enum, only the resulting tick count.
-    // The grid is pulled on demand, never cached, so a meter edit or a swing change
-    // reaches the next gesture step with no hook. Without a source there is no grid.
+    // The editor's grid, pulled from `source` on demand and never cached, so a
+    // meter edit or a swing change reaches the next gesture step with no hook.
+    // Its spacing drives quantizeSelection()'s duration rule and create's
+    // default duration fallback (a quarter note, via geometry's ticksPerQuarter,
+    // when the spacing is 0 = "off"). Without a source there is no grid.
     void setGridSource (std::function<EditorGrid()> source) { gridSource = std::move (source); }
     // A fixed straight grid of `ticks` (0 = none).
     void setGridTicks (int ticks) { setGridSource ([ticks] { return EditorGrid::straight (ticks); }); }
@@ -63,8 +60,8 @@ public:
     // start (the one under the press; the rest of the selection keeps its
     // spacing) and a resized edge land on the nearest grid line, never closer
     // than one line to the other edge, and a double-click creates its note at
-    // the start of the grid cell under it. Alt held on that press or drag step
-    // places freely. Off by default.
+    // the start of the grid cell under it, running to the next grid line. Alt
+    // held on that press or drag step places freely. Off by default.
     void setSnapToGrid (bool on) noexcept { snapToGrid = on; }
     bool getSnapToGrid() const noexcept { return snapToGrid; }
 
@@ -122,8 +119,9 @@ public:
     // (see the plan's scope decisions) can trigger it directly.
     bool deleteSelection();
 
-    // Grid-snaps every selected note's startTick and durationTicks to
-    // the grid's spacing, one undo transaction regardless of selection size.
+    // Grid-snaps every selected note's startTick to the grid's lines (swung
+    // under Swing) and its durationTicks to the grid's spacing, one undo
+    // transaction regardless of selection size.
     // No-op (false) if the selection is empty or the grid's spacing <= 0
     // ("off" -- there is no implicit grid to snap to).
     bool quantizeSelection();

@@ -421,7 +421,7 @@ TEST_CASE ("SourceRollEditor: quantizeSelection is a no-op with an empty selecti
     CHECK_FALSE (f.editor.quantizeSelection()); // nothing selected
 
     f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
-    CHECK_FALSE (f.editor.quantizeSelection()); // grid still off (currentGridTicks == 0)
+    CHECK_FALSE (f.editor.quantizeSelection()); // grid still off (no grid source)
 }
 
 TEST_CASE ("SourceRollEditor: the delete key removes the selection; backspace does too", "[source-roll-editor]")
