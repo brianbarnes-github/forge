@@ -5,6 +5,7 @@
 #include "SongDocument.h"
 #include "SongsmithColours.h"
 #include "Theme/PianoRollPalette.h"
+#include "Theme/ThemePaint.h"
 #include "WheelResize.h"
 
 #include <cmath>
@@ -719,7 +720,9 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
     const int gutterWidth = geometry.getKeyboardGutterWidth();
     const int gutterHeight = gutter.getHeight();
 
-    g.setColour (juce::Colour (whiteKey));
+    // White keys shade slightly toward their right edge, like a lit keyboard.
+    g.setGradientFill (juce::ColourGradient (juce::Colour (whiteKey), 0.0f, 0.0f,
+                                             juce::Colour (whiteKeyShade), (float) gutterWidth, 0.0f, false));
     g.fillRect (0, 0, gutterWidth, gutterHeight);
 
     const int rowHeight = geometry.getRowHeight();
@@ -748,8 +751,18 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
 
             if (PianoRollGeometry::isBlackKey (pitch))
             {
-                g.setColour (juce::Colour (hovered ? blackKeyHover : blackKeyTop));
-                g.fillRect (0, y, blackKeyWidth, rowHeight);
+                // Glossy black key: lighter toward the bottom, a highlight on top, a shadow to the right.
+                const juce::Rectangle<float> key (0.0f, (float) y, (float) blackKeyWidth, (float) rowHeight);
+                if (hovered)
+                    g.setColour (juce::Colour (blackKeyHover));
+                else
+                    g.setGradientFill (juce::ColourGradient (juce::Colour (blackKeyTop), 0.0f, key.getY(),
+                                                             juce::Colour (blackKeyBottom), 0.0f, key.getBottom(), false));
+                g.fillRect (key);
+                g.setColour (juce::Colour (blackKeyHighlight));
+                g.fillRect (0, y, blackKeyWidth - 1, 1);
+                g.setColour (juce::Colours::black.withAlpha (0.35f));
+                g.fillRect (blackKeyWidth, y, 2, rowHeight);
 
                 // The two white keys either side meet behind the black key's middle.
                 g.setColour (juce::Colour (whiteKeyDivider));
@@ -860,32 +873,19 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         // a Viewport scroll exposing only a newly-visible strip) that
         // contains the ghost's row but not the solid rect's row still draws
         // the note.
-        if (! (hasGhost ? rect.getUnion (ghostRect) : rect).intersects (clip))
+        // Glow and selection edge reach noteOverhang px beyond the note.
+        const auto paintedRect = rect.expanded (ThemePaint::noteOverhang);
+        if (! (hasGhost ? paintedRect.getUnion (ghostRect) : paintedRect).intersects (clip))
             continue;
 
         const auto fill = juce::Colour (note.colourArgb);
-        g.setColour (fill);
-        g.fillRect (rect);
-
+        ThemePaint::NoteStyle style;
         if (role == Role::Preview)
-        {
-            const auto borderArgb = note.state == NoteState::Normal
-                                         ? SongsmithColours::previewNoteBorder
-                                         : SongsmithColours::outOfRangeBorder;
-            g.setColour (juce::Colour (borderArgb));
-        }
-        else
-        {
-            g.setColour (fill.brighter (0.4f));
-        }
-        g.drawRect (rect, 1);
-
-        if (role == Role::Source && sourceEditor != nullptr
-            && sourceEditor->isSelected (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (i)))
-        {
-            g.setColour (juce::Colour (SongsmithColours::selectionHighlight));
-            g.drawRect (rect, 2);
-        }
+            style.border = juce::Colour (note.state == NoteState::Normal ? SongsmithColours::previewNoteBorder
+                                                                         : SongsmithColours::outOfRangeBorder);
+        style.selected = role == Role::Source && sourceEditor != nullptr
+            && sourceEditor->isSelected (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (i));
+        ThemePaint::paintNoteBody (g, rect, fill, style);
 
         if (role != Role::Preview)
             continue;

@@ -6,6 +6,7 @@
 #include "PlaybackTestSupport.h"
 #include "UI/PianoRollComponent.h"
 #include "UI/Theme/PianoRollPalette.h"
+#include "UI/Theme/ThemePaint.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/PreviewNoteDiff.h"
 #include "UI/PreviewNoteSource.h"
@@ -725,12 +726,15 @@ namespace
         const int top = keyTopY (roll, pitch);
         const int rowHeight = Access::geometry (roll).getRowHeight();
         const int blackKeyRight = juce::roundToInt ((float) image.getWidth() * 0.6f);
-        const auto face = image.getPixelAt (image.getWidth() - 3, top + 1);
         int marked = 0;
-        for (int y = top + 2; y < top + rowHeight - 2; ++y)
-            for (int x = blackKeyRight + 1; x < image.getWidth() - 2; ++x)
+        for (int x = blackKeyRight + 1; x < image.getWidth() - 2; ++x)
+        {
+            // White keys shade horizontally, so each column has its own face colour.
+            const auto face = image.getPixelAt (x, top + 1);
+            for (int y = top + 2; y < top + rowHeight - 2; ++y)
                 if (image.getPixelAt (x, y) != face)
                     ++marked;
+        }
         return marked;
     }
 }
@@ -1924,4 +1928,69 @@ TEST_CASE ("PianoRollComponent: a right-click on the roll itself selects nothing
         CHECK (editor.getNumSelected() == 0);
         CHECK (fixture.roll.getActivePitch() == 60);
     }
+}
+
+namespace
+{
+    // Paints the roll's canvas under `clip` into a canvas-sized image (black ground).
+    juce::Image paintCanvasClipped (PianoRollComponent& roll, juce::Rectangle<int> clip)
+    {
+        auto& canvas = Access::canvas (roll);
+        juce::Image image (juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.fillAll (juce::Colours::black);
+        g.reduceClipRegion (clip);
+        Access::paintCanvas (roll, g, clip);
+        return image;
+    }
+}
+
+TEST_CASE ("PianoRollComponent: a partial repaint covering only a note's glow still draws the glow", "[piano-roll][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60 });
+    fixture.track.setProperty (SongIDs::colorArgb, (int) 0xFFE0E0E0, nullptr);   // bright, opaque
+    const auto bounds = Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (0));
+    REQUIRE (bounds.height >= ThemePaint::glowMinHeight);
+    REQUIRE (bounds.y >= ThemePaint::noteOverhang);   // else the strip above the note is off-canvas
+
+    // Clip: the overhang rows directly above the note, nothing of the note itself.
+    const juce::Rectangle<int> glowStrip (bounds.x, bounds.y - ThemePaint::noteOverhang,
+                                          bounds.width, ThemePaint::noteOverhang);
+    const juce::Point<int> sample (bounds.x + bounds.width / 2 + 3, bounds.y - 1);
+    const auto withNote = paintCanvasClipped (fixture.roll, glowStrip).getPixelAt (sample.x, sample.y);
+
+    // The same paint with the note invisible: same bands and grid lines, no glow.
+    fixture.track.setProperty (SongIDs::colorArgb, 0, nullptr);
+    const auto withoutNote = paintCanvasClipped (fixture.roll, glowStrip).getPixelAt (sample.x, sample.y);
+    CHECK (withNote.getBrightness() > withoutNote.getBrightness());
+}
+
+TEST_CASE ("PianoRollComponent: notes paint in their track's stored colour", "[piano-roll][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60 });
+    constexpr juce::uint32 legacy = 0xFF7FA8D0;   // an old-palette colour as saved in an existing song
+    fixture.track.setProperty (SongIDs::colorArgb, (int) legacy, nullptr);
+    const auto bounds = Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (0));
+    const auto image = paintCanvasClipped (fixture.roll, Access::canvas (fixture.roll).getLocalBounds());
+    const auto centre = image.getPixelAt (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    const juce::Colour stored (legacy);
+    CHECK (std::abs (centre.getRed() - stored.getRed()) <= 16);
+    CHECK (std::abs (centre.getGreen() - stored.getGreen()) <= 16);
+    CHECK (std::abs (centre.getBlue() - stored.getBlue()) <= 16);
+}
+
+TEST_CASE ("PianoRollComponent: white keys shade toward the right edge; black keys are glossy", "[piano-roll][keyboard][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    const auto image = paintKeyboard (fixture.roll);
+    const int width = Access::gutter (fixture.roll).getWidth();
+    const int rowHeight = Access::geometry (fixture.roll).getRowHeight();
+    const int whiteY = keyTopY (fixture.roll, 62) + 2;
+    CHECK (image.getPixelAt (2, whiteY).getBrightness() > image.getPixelAt (width - 3, whiteY).getBrightness());
+    const int blackTop = keyTopY (fixture.roll, 61);
+    CHECK (image.getPixelAt (3, blackTop + rowHeight - 2).getBrightness()
+           > image.getPixelAt (3, blackTop + 2).getBrightness());
 }

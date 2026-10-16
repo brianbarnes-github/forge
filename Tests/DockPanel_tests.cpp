@@ -135,3 +135,16 @@ TEST_CASE ("dock panel: a right click anywhere on the header, buttons included, 
     CHECK_FALSE (panel.isContextMenuTrigger (juce::Point<int> (10, 5), false));   // a left click
     CHECK_FALSE (panel.isContextMenuTrigger (juce::Point<int> (10, DockPanel::headerHeight + 5), true));   // content
 }
+
+TEST_CASE ("DockPanel: the header is the panel gradient", "[dock][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    juce::Component content;
+    DockPanel panel ("p", "Panel", juce::Colours::white, content);
+    panel.setSize (300, 200);
+    juce::Image image (juce::Image::ARGB, panel.getWidth(), panel.getHeight(), true, juce::SoftwareImageType());
+    { juce::Graphics g (image); panel.paint (g); }
+    // Sample at the far right, away from the title text and header buttons' text.
+    CHECK (image.getPixelAt (panel.getWidth() - 3, 2).getBrightness()
+           > image.getPixelAt (panel.getWidth() - 3, DockPanel::headerHeight - 3).getBrightness());
+}

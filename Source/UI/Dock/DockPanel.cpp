@@ -1,6 +1,6 @@
 #include "UI/Dock/DockPanel.h"
 
-#include "UI/SongsmithColours.h"
+#include "UI/Theme/ThemePaint.h"
 
 namespace lotro::dock
 {
@@ -88,8 +88,7 @@ juce::PopupMenu DockPanel::buildMenu() const
 void DockPanel::paint (juce::Graphics& g)
 {
     auto header = getLocalBounds().removeFromTop (headerHeight);
-    g.setColour (juce::Colour (SongsmithColours::panelHeader));
-    g.fillRect (header);
+    ThemePaint::paintPanelGradient (g, header);
     g.setColour (titleColour);
     g.setFont (juce::FontOptions (11.0f));
     g.drawText (title, header.withTrimmedLeft (6).withTrimmedRight (110), juce::Justification::centredLeft, true);
