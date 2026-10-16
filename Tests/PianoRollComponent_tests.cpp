@@ -1623,3 +1623,111 @@ TEST_CASE ("PianoRollComponent: a Preview roll has no active row", "[piano-roll]
     CHECK (roll.getActivePitch() == -1);
     CHECK_FALSE (roll.stepActivePitch (+1));
 }
+
+namespace
+{
+    juce::ValueTree noteAt (SourceRollFixture& f, int index) { return SongDocument::getNotesNode (f.track).getChild (index); }
+}
+
+TEST_CASE ("PianoRollComponent: selectNoteNearest selects only the note starting nearest the tick, with no undo step", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64, 65 });   // starts 0, 480, 960, 1440
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+
+    CHECK (fixture.roll.selectNoteNearest (1000.0));
+    CHECK (editor.getNumSelected() == 1);
+    CHECK (editor.isSelected (noteAt (fixture, 2)));
+
+    CHECK (fixture.roll.selectNoteNearest (300.0));
+    CHECK (editor.getNumSelected() == 1);   // replaces the selection
+    CHECK (editor.isSelected (noteAt (fixture, 1)));
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("PianoRollComponent: selectNoteNearest breaks a tie on start by the active row", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60 });
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 67, nullptr);
+    note.setProperty (SongIDs::startTick, 0, nullptr);
+    note.setProperty (SongIDs::durationTicks, ticksPerQuarter, nullptr);
+    SongDocument::getNotesNode (fixture.track).addChild (note, -1, nullptr);
+
+    const int emptyX = Access::geometry (fixture.roll).xForTick (ticksPerQuarter * 6);
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 61), {}, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, emptyX, 61));
+    REQUIRE (fixture.roll.selectNoteNearest (0.0));
+    CHECK (Access::editor (fixture.roll).isSelected (noteAt (fixture, 0)));
+    CHECK (fixture.roll.getActivePitch() == 61);   // the cursor stays put
+}
+
+TEST_CASE ("PianoRollComponent: selectNoteNearest does nothing with no notes, no track, or on a Preview roll", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture empty ({});
+    CHECK_FALSE (empty.roll.hasNotes());
+    CHECK_FALSE (empty.roll.selectNoteNearest (0.0));
+
+    SourceRollFixture fixture ({ 60 });
+    CHECK (fixture.roll.hasNotes());
+    fixture.roll.setEditableTrack ({});
+    fixture.roll.setNoteSource (nullptr, ticksPerQuarter, {});
+    CHECK_FALSE (fixture.roll.hasNotes());
+    CHECK_FALSE (fixture.roll.selectNoteNearest (0.0));
+
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    PreviewNote previewNote;
+    previewNote.prePitch = 60;
+    previewNote.durationTicks = ticksPerQuarter;
+    PreviewNoteSource source ({ previewNote });
+    preview.setBounds (0, 0, viewportWidth, viewportHeight);
+    preview.setNoteSource (&source, ticksPerQuarter, {});
+    CHECK_FALSE (preview.selectNoteNearest (0.0));
+}
+
+TEST_CASE ("PianoRollComponent: selecting a nearest note off screen scrolls just enough to show it", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 30, 100 });   // starts 0 and 480, far apart in pitch
+    const auto& geometry = Access::geometry (fixture.roll);
+    auto& viewport = Access::viewport (fixture.roll);
+    const int rowHeight = geometry.getRowHeight();
+    const int gutterWidth = geometry.getKeyboardGutterWidth();
+
+    auto rowVisible = [&] (int pitch)
+    {
+        const int top = geometry.yForPitch (pitch);
+        return top >= viewport.getViewPositionY()
+            && top + rowHeight <= viewport.getViewPositionY() + viewport.getMaximumVisibleHeight();
+    };
+    REQUIRE_FALSE (rowVisible (30));
+    REQUIRE_FALSE (rowVisible (100));
+
+    REQUIRE (fixture.roll.selectNoteNearest (0.0));
+    CHECK (rowVisible (30));
+    CHECK (geometry.yForPitch (30) + rowHeight == viewport.getViewPositionY() + viewport.getMaximumVisibleHeight());
+
+    // Zoomed in just until the second (shortened) note starts past the right edge.
+    noteAt (fixture, 1).setProperty (SongIDs::durationTicks, ticksPerQuarter / 8, nullptr);
+    PianoRollNote second;
+    second.pitch = 100;
+    second.startTick = ticksPerQuarter;
+    second.durationTicks = ticksPerQuarter / 8;
+    for (int i = 0; i < 40 && geometry.noteBounds (second).x < viewport.getMaximumVisibleWidth(); ++i)
+    {
+        Access::zoom (fixture.roll, 1.0f);
+        viewport.setViewPosition (0, viewport.getViewPositionY());
+    }
+    const auto bounds = geometry.noteBounds (second);
+    REQUIRE (bounds.x >= viewport.getMaximumVisibleWidth());
+    REQUIRE (bounds.width <= viewport.getMaximumVisibleWidth() - gutterWidth);
+
+    REQUIRE (fixture.roll.selectNoteNearest ((double) ticksPerQuarter));
+    CHECK (rowVisible (100));
+    const int viewX = viewport.getViewPositionX();
+    CHECK (bounds.x >= viewX + gutterWidth);   // clear of the pinned keyboard
+    CHECK (bounds.x + bounds.width <= viewX + viewport.getMaximumVisibleWidth());
+}

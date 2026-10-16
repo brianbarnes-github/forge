@@ -52,6 +52,8 @@ public:
     int getGridTicks() const noexcept { return currentGridTicks; }
 
     bool isSelected (const juce::ValueTree& note) const;
+    // Replaces the selection with `note` (an invalid tree clears it), as a click does.
+    void selectOnly (const juce::ValueTree& note);
     int getNumSelected() const noexcept { return (int) selection.size(); }
 
     // In-progress rubber-band rect, in the same canvas-pixel space as
@@ -108,7 +110,6 @@ private:
 
     juce::ValueTree hitTestNote (juce::Point<int> pos) const;
     int hitTestEdgeZone (const juce::ValueTree& note, juce::Point<int> pos) const;
-    void selectOnly (const juce::ValueTree& note);
     void selectPitch (int pitch, bool addToSelection);
     void toggleSelection (const juce::ValueTree& note);
     void pruneSelection();

@@ -31,6 +31,8 @@ namespace lotro
             w.roll.handleEditorMouseDown (pos, {}, false);
             w.roll.handleEditorMouseUp (pos);
         }
+        static bool isSelected (TrackEditorPanel& w, const juce::ValueTree& note) { return w.roll.sourceEditor->isSelected (note); }
+        static int numSelected (TrackEditorPanel& w) { return w.roll.sourceEditor->getNumSelected(); }
     };
 }
 
@@ -393,7 +395,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 4);   // marker left, right, semitone up, down
+    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 5);   // marker left, right, semitone up, down, nearest note
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
@@ -702,4 +704,42 @@ TEST_CASE ("TrackEditorPanel: the active row stays across tracks and is gone onc
     CHECK (roll.getActivePitch() == -1);
     CHECK_FALSE (f.navigateEnabled (3));
     CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Select Note Nearest Cursor selects the note starting nearest the marker, else the playhead", "[track-editor-window][editor-menu][note-nav]")
+{
+    MarkerPanelFixture f;   // one long note at 0
+    lotro::playbacktest::addNote (f.track, 72, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 48, 4000, 480);
+    f.panel->setTrack (f.track);   // reload the note source
+    const auto notes = SongDocument::getNotesNode (f.track);
+    using Access = TrackEditorPanelTestAccess;
+
+    CHECK (f.navigateEnabled (6));   // no active row needed
+    f.controller->setMarkerTick (2900.0);
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigateSelectNearestNote, 2);
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (1)));
+
+    f.controller->clearMarker();
+    f.controller->seekToTick (3500.0);
+    f.panel->invokeMenuCommand (EditorNavigateSelectNearestNote);
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (2)));
+    CHECK_FALSE (f.controller->getMarkerTick().has_value());   // the cursor stays put
+    CHECK (f.controller->getPositionTicks() == Catch::Approx (3500.0).margin (1.0));
+}
+
+TEST_CASE ("TrackEditorPanel: Select Note Nearest Cursor is greyed with no notes or no track", "[track-editor-window][editor-menu][note-nav]")
+{
+    MarkerPanelFixture f;
+    auto empty = f.doc.addTrack ("Empty", (int) 0xFF112233, 1, 0);
+    f.panel->setTrack (empty);
+    CHECK_FALSE (f.navigateEnabled (6));
+    f.panel->invokeMenuCommand (EditorNavigateSelectNearestNote);   // nothing to select, no crash
+
+    f.panel->setTrack (f.track);
+    CHECK (f.navigateEnabled (6));
+    f.panel->clearTrack();
+    CHECK_FALSE (f.navigateEnabled (6));
 }

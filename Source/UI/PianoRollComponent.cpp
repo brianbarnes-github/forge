@@ -1,4 +1,5 @@
 #include "PianoRollComponent.h"
+#include "NoteNavigation.h"
 #include "GridSnap.h"
 #include "GridLinePaint.h"
 #include "SongDocument.h"
@@ -555,16 +556,55 @@ bool PianoRollComponent::stepActivePitch (int semitones)
     if (activePitch < 0)
         return false;
     setActivePitch (activePitch + semitones);
-
     const int top = geometry.yForPitch (activePitch);
-    const int bottom = top + geometry.getRowHeight();
-    const int viewY = viewport.getViewPositionY();
-    const int viewHeight = viewport.getMaximumVisibleHeight();
-    if (top < viewY)
-        viewport.setViewPosition (viewport.getViewPositionX(), top);
-    else if (bottom > viewY + viewHeight)
-        viewport.setViewPosition (viewport.getViewPositionX(), bottom - viewHeight);
+    scrollIntoView ({ viewport.getViewPositionX() + geometry.getKeyboardGutterWidth(), top, 1, geometry.getRowHeight() });
     return true;
+}
+
+bool PianoRollComponent::hasNotes() const
+{
+    return sourceEditor != nullptr && noteSource != nullptr && noteSource->getNumNotes() > 0;
+}
+
+bool PianoRollComponent::selectNoteNearest (double tick)
+{
+    if (! hasNotes())
+        return false;
+    std::vector<NoteStart> starts;
+    for (int i = 0; i < noteSource->getNumNotes(); ++i)
+    {
+        const auto note = noteSource->getNote (i);
+        starts.push_back ({ note.startTick, note.pitch });
+    }
+    const int index = nearestNoteIndex (starts, tick, activePitch);
+    // Note i of the source is child i of the editor's track (see setEditableTrack).
+    sourceEditor->selectOnly (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (index));
+    const auto bounds = geometry.noteBounds (noteSource->getNote (index));
+    scrollIntoView ({ bounds.x, bounds.y, juce::jmax (1, bounds.width), juce::jmax (1, bounds.height) });
+    canvas.repaint();
+    return true;
+}
+
+void PianoRollComponent::scrollIntoView (juce::Rectangle<int> area)
+{
+    const int gutterWidth = geometry.getKeyboardGutterWidth();
+    const int viewWidth = viewport.getMaximumVisibleWidth();
+    const int viewHeight = viewport.getMaximumVisibleHeight();
+    int x = viewport.getViewPositionX();
+    int y = viewport.getViewPositionY();
+
+    if (area.getRight() > x + viewWidth)
+        x = area.getRight() - viewWidth;
+    if (area.getX() < x + gutterWidth)
+        x = area.getX() - gutterWidth;
+    if (area.getBottom() > y + viewHeight)
+        y = area.getBottom() - viewHeight;
+    if (area.getY() < y)
+        y = area.getY();
+
+    if (x != viewport.getViewPositionX())
+        timelineFitted = false; // do not let a resize refit undo the scroll
+    viewport.setViewPosition (juce::jmax (0, x), juce::jmax (0, y));
 }
 
 void PianoRollComponent::Canvas::mouseUp (const juce::MouseEvent& e)

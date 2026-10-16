@@ -47,6 +47,7 @@ namespace lotro
         s.snapToGrid = owner.snapToGrid;
         s.canStepMarker = owner.canStepMarker();
         s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
+        s.canSelectNearestNote = owner.canSelectNearestNote();
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -82,6 +83,10 @@ namespace lotro
                 return;
             case EditorNavigatePitchDown:
                 roll.stepActivePitch (-1);
+                return;
+            case EditorNavigateSelectNearestNote:
+                if (canSelectNearestNote())
+                    roll.selectNoteNearest (cursorTick());
                 return;
             case EditorOptionsSnapToGrid:
                 setSnapToGrid (! snapToGrid);
@@ -260,11 +265,21 @@ namespace lotro
         return currentTrackId != -1 && playback != nullptr && roll.getGridTicks() > 0;
     }
 
+    double TrackEditorPanel::cursorTick() const
+    {
+        return playback->getMarkerTick().value_or (playback->getPositionTicks());
+    }
+
+    bool TrackEditorPanel::canSelectNearestNote() const
+    {
+        return currentTrackId != -1 && playback != nullptr && roll.hasNotes();
+    }
+
     bool TrackEditorPanel::stepMarker (int direction)
     {
         if (! canStepMarker())
             return false;
-        const double from = playback->getMarkerTick().value_or (playback->getPositionTicks());
+        const double from = cursorTick();
         playback->setMarkerTick (stepTickByGrid (from, roll.getGridTicks(), direction));
         return true;
     }

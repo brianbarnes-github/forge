@@ -89,6 +89,7 @@ add_executable(forge_tests
     HistoryKeys_tests.cpp
     MenuModel_tests.cpp
     GridSnap_tests.cpp
+    NoteNavigation_tests.cpp
     PreviewAssignedPanel_tests.cpp
     GridSize_tests.cpp
     SplitterComponent_tests.cpp

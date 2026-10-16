@@ -44,7 +44,9 @@ namespace lotro
         // is loaded); File > Close Editor fires onCloseRequested; Options > Snap to
         // Grid flips the snap state and fires onSnapToGridChanged with the new value;
         // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
-        // Navigate > Move Up / Down a Semitone step the roll's active row.
+        // Navigate > Move Up / Down a Semitone step the roll's active row;
+        // Navigate > Select Note Nearest Cursor selects the note starting nearest
+        // the cursor's time (selectNoteNearest).
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
@@ -153,6 +155,10 @@ namespace lotro
         void titleChanged();
         // A track, playback and a grid that is not Off.
         bool canStepMarker() const;
+        // The cursor's time: the start marker, else the playhead. Needs playback.
+        double cursorTick() const;
+        // A track with notes, and playback.
+        bool canSelectNearestNote() const;
         // Moves the start marker (or, with none, the playhead's tick) to the previous
         // (-1) or next (+1) grid line. Returns whether it could.
         bool stepMarker (int direction);

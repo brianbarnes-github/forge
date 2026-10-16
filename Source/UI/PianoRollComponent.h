@@ -104,6 +104,13 @@ public:
     // scrolling just enough to keep it in view. False (nothing done) when no row
     // is active; true at the clamp too, so the key is still claimed.
     bool stepActivePitch (int semitones);
+    // Source role with an editor: the track has notes to pick from.
+    bool hasNotes() const;
+    // Source role with an editor: selects only the note starting nearest `tick`
+    // on any pitch (ties: nearest the active row, then higher; see
+    // nearestNoteIndex), scrolling just enough to show it. No undo step; the
+    // active row stays. False when there is no note.
+    bool selectNoteNearest (double tick);
     juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
@@ -216,6 +223,9 @@ private:
     void setHoveredPitch (int pitch);
     // Sets the active row (clamped to 0..127) and repaints the canvas and gutter.
     void setActivePitch (int pitch);
+    // Scrolls the Viewport just enough that `area` (canvas space) is in view,
+    // clear of the pinned keyboard gutter; its top-left wins when it can't all fit.
+    void scrollIntoView (juce::Rectangle<int> area);
 
     void rebuildContentSize();
     void fitTimeline();

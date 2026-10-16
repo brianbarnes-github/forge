@@ -440,7 +440,8 @@ TEST_CASE ("EditorMenuModel: Navigate is Move Marker Left / Right by Grid on the
     EditorMenuState s;
     const auto nav = menuNamed (editorMenus (s), "Navigate");
     CHECK (labels (nav) == std::vector<std::string> { "Move Marker Left by Grid", "Move Marker Right by Grid",
-                                                      "-", "Move Up a Semitone", "Move Down a Semitone" });
+                                                      "-", "Move Up a Semitone", "Move Down a Semitone",
+                                                      "-", "Select Note Nearest Cursor" });
     CHECK (nav.items[0].id == EditorNavigateMarkerLeft);
     CHECK (nav.items[1].id == EditorNavigateMarkerRight);
     CHECK (nav.items[0].shortcut == "Left");
@@ -470,6 +471,18 @@ TEST_CASE ("EditorMenuModel: Navigate's Move Up / Down a Semitone are on Up and 
     CHECK (on.items[3].enabled);
     CHECK (on.items[4].enabled);
     CHECK_FALSE (on.items[0].enabled);   // independent of the marker steps
+}
+
+TEST_CASE ("EditorMenuModel: Navigate's Select Note Nearest Cursor has no shortcut and is enabled when there is a note to pick", "[menu-model][editor-menu][note-nav]")
+{
+    EditorMenuState s;
+    const auto nav = menuNamed (editorMenus (s), "Navigate");
+    CHECK (nav.items[6].id == EditorNavigateSelectNearestNote);
+    CHECK (nav.items[6].shortcut.empty());
+    CHECK_FALSE (nav.items[6].enabled);
+
+    s.canSelectNearestNote = true;
+    CHECK (menuNamed (editorMenus (s), "Navigate").items[6].enabled);
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")
