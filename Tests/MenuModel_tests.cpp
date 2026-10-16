@@ -464,12 +464,12 @@ TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close
     CHECK (menuNamed (editorMenus (s), "File").items[0].enabled);
 }
 
-TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key", "[menu-model][editor-menu]")
 {
     EditorMenuState s;
     s.snapToGrid = false;
     const auto off = menuNamed (editorMenus (s), "Options");
-    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid" });
+    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid", "Snap to Key>" });
     CHECK (off.items[0].id == EditorOptionsSnapToGrid);
     CHECK (off.items[0].enabled);   // no track loaded
     CHECK_FALSE (off.items[0].ticked);
@@ -655,4 +655,117 @@ TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wr
     CHECK (nextOpenableMenu ({ false, true, false }, 1, +1) == -1);   // only the open one has items
     CHECK (nextOpenableMenu ({ false, false, false }, 0, +1) == -1);
     CHECK (nextOpenableMenu ({}, 0, +1) == -1);
+}
+
+namespace
+{
+    MenuItemDesc snapToKeyMenu (const EditorMenuState& s)
+    {
+        const auto options = menuNamed (editorMenus (s), "Options");
+        REQUIRE (options.items.size() == 2);
+        return options.items[1];
+    }
+
+    MenuItemDesc childNamed (const MenuItemDesc& m, const std::string& label)
+    {
+        for (const auto& c : m.children)
+            if (c.label == label)
+                return c;
+        FAIL ("no child " << label);
+        return {};
+    }
+
+    std::vector<std::string> childLabels (const MenuItemDesc& m)
+    {
+        return labels (MenuDesc { m.label, m.children });
+    }
+}
+
+TEST_CASE ("EditorMenuModel: Snap to Key holds Enabled, Root and Type; Type lists the scales then Chords", "[menu-model][editor-menu][snap-to-key]")
+{
+    const auto snap = snapToKeyMenu ({});
+    CHECK (snap.isSubmenu);
+    CHECK (snap.label == "Snap to Key");
+    CHECK (snap.enabled);
+    CHECK (childLabels (snap) == V { "Enabled", "Root>", "Type>" });
+    CHECK (childNamed (snap, "Enabled").id == EditorOptionsSnapToKeyEnabled);
+
+    const auto root = childNamed (snap, "Root");
+    REQUIRE ((int) root.children.size() == snapRootCount);
+    for (int i = 0; i < snapRootCount; ++i)
+    {
+        CAPTURE (i);
+        CHECK (root.children[(std::size_t) i].label == snapRoots()[(std::size_t) i].name);
+        CHECK (root.children[(std::size_t) i].id == EditorSnapRootBase + i);
+    }
+
+    const auto type = childNamed (snap, "Type");
+    CHECK (childLabels (type) == V { "Major", "Natural minor", "Melodic minor", "Harmonic minor", "Major pentatonic",
+                                     "Minor pentatonic", "Major blues", "Minor blues", "Chords>" });
+    for (int i = 0; i < snapFirstChord; ++i)
+        CHECK (type.children[(std::size_t) i].id == EditorSnapScaleBase + i);
+
+    const auto chords = childNamed (type, "Chords");
+    CHECK (childLabels (chords) == V { "Major triad", "Minor triad", "Major seventh", "Minor seventh", "Dominant seventh",
+                                       "Diminished triad", "Diminished seventh", "Augmented fifth triad" });
+    for (int i = snapFirstChord; i < snapScaleCount; ++i)
+        CHECK (chords.children[(std::size_t) (i - snapFirstChord)].id == EditorSnapScaleBase + i);
+}
+
+TEST_CASE ("EditorMenuModel: with no key, Snap to Key's Enabled and Type are greyed and Root stays open", "[menu-model][editor-menu][snap-to-key]")
+{
+    EditorMenuState s;
+    s.snapRootIndex = -1;
+    s.snapToKey = true;
+    const auto snap = snapToKeyMenu (s);
+    CHECK_FALSE (childNamed (snap, "Enabled").enabled);
+    CHECK_FALSE (childNamed (snap, "Type").enabled);
+    const auto root = childNamed (snap, "Root");
+    CHECK (root.enabled);
+    for (const auto& c : root.children)
+    {
+        CHECK (c.enabled);
+        CHECK_FALSE (c.ticked);
+    }
+}
+
+TEST_CASE ("EditorMenuModel: Snap to Key ticks Enabled, the exact root spelling and the current type", "[menu-model][editor-menu][snap-to-key]")
+{
+    EditorMenuState s;
+    s.snapToKey = true;
+    s.snapRootIndex = 3;   // A♯
+    s.snapScaleIndex = (int) SnapScale::dominantSeventh;
+    const auto snap = snapToKeyMenu (s);
+
+    const auto enabled = childNamed (snap, "Enabled");
+    CHECK (enabled.enabled);
+    CHECK (enabled.ticked);
+
+    const auto root = childNamed (snap, "Root");
+    for (int i = 0; i < snapRootCount; ++i)
+        CHECK (root.children[(std::size_t) i].ticked == (i == 3));   // B♭ (2) shares the pitch class but is not ticked
+
+    const auto type = childNamed (snap, "Type");
+    CHECK (type.enabled);
+    for (int i = 0; i < snapFirstChord; ++i)
+        CHECK_FALSE (type.children[(std::size_t) i].ticked);
+    const auto chords = childNamed (type, "Chords");
+    for (int i = snapFirstChord; i < snapScaleCount; ++i)
+        CHECK (chords.children[(std::size_t) (i - snapFirstChord)].ticked == (i == (int) SnapScale::dominantSeventh));
+
+    s.snapToKey = false;
+    CHECK_FALSE (childNamed (snapToKeyMenu (s), "Enabled").ticked);
+}
+
+TEST_CASE ("EditorMenuModel: the Snap to Key root and type id ranges", "[menu-model][editor-menu][snap-to-key]")
+{
+    CHECK (isEditorSnapRootCommand (EditorSnapRootBase));
+    CHECK (isEditorSnapRootCommand (EditorSnapRootBase + snapRootCount - 1));
+    CHECK_FALSE (isEditorSnapRootCommand (EditorSnapRootBase + snapRootCount));
+    CHECK_FALSE (isEditorSnapRootCommand (EditorSnapRootBase - 1));
+    CHECK (isEditorSnapScaleCommand (EditorSnapScaleBase));
+    CHECK (isEditorSnapScaleCommand (EditorSnapScaleBase + snapScaleCount - 1));
+    CHECK_FALSE (isEditorSnapScaleCommand (EditorSnapScaleBase + snapScaleCount));
+    CHECK (EditorSnapRootBase == 1000);
+    CHECK (EditorSnapScaleBase == 1100);
 }

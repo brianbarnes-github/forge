@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MenuModel.h"
+#include "ScaleSnap.h"
 
 #include <vector>
 
@@ -30,8 +31,23 @@ enum EditorMenuCommandId : int
     EditorNavigateSelectAllSamePitch,
     EditorNavigateAddPreviousNote,
     EditorNavigateAddNextNote,
-    EditorNavigateCursorToSelectionStart
+    EditorNavigateCursorToSelectionStart,
+    EditorOptionsSnapToKeyEnabled,
+    // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
+    EditorSnapRootBase = 1000,
+    // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
+    EditorSnapScaleBase = 1100
 };
+
+constexpr bool isEditorSnapRootCommand (int id) noexcept
+{
+    return id >= EditorSnapRootBase && id < EditorSnapRootBase + snapRootCount;
+}
+
+constexpr bool isEditorSnapScaleCommand (int id) noexcept
+{
+    return id >= EditorSnapScaleBase && id < EditorSnapScaleBase + snapScaleCount;
+}
 
 struct EditorMenuState
 {
@@ -49,7 +65,41 @@ struct EditorMenuState
     bool canAddPreviousNote = false;         // as canSelectNearestNote, a selection, a note before it
     bool canAddNextNote = false;             // as canSelectNearestNote, a selection, a note after it
     bool canMoveCursorToSelectionStart = false; // a track, playback, and a selection
+    bool snapToKey = false;     // Options > Snap to Key > Enabled is ticked
+    int snapRootIndex = -1;     // the current root (snapRoots()), -1 with no key
+    int snapScaleIndex = -1;    // the current (int) SnapScale, -1 with no key
 };
+
+namespace menu_detail
+{
+    // Enabled and Type need a key (the song's or a picked root); Root is always open.
+    inline MenuItemDesc snapToKeySubmenu (const EditorMenuState& s)
+    {
+        const bool hasKey = s.snapRootIndex >= 0;
+
+        std::vector<MenuItemDesc> roots;
+        for (int i = 0; i < snapRootCount; ++i)
+            roots.push_back (item (EditorSnapRootBase + i, snapRoots()[(std::size_t) i].name, {}, true,
+                                   i == s.snapRootIndex));
+
+        const auto scaleItem = [&s] (int i)
+        {
+            return item (EditorSnapScaleBase + i, snapScaleName ((SnapScale) i), {}, true, i == s.snapScaleIndex);
+        };
+        std::vector<MenuItemDesc> types;
+        for (int i = 0; i < snapFirstChord; ++i)
+            types.push_back (scaleItem (i));
+        std::vector<MenuItemDesc> chords;
+        for (int i = snapFirstChord; i < snapScaleCount; ++i)
+            chords.push_back (scaleItem (i));
+        types.push_back (submenu ("Chords", std::move (chords)));
+
+        return submenu ("Snap to Key", {
+            item (EditorOptionsSnapToKeyEnabled, "Enabled", {}, hasKey, s.snapToKey),
+            submenu ("Root", std::move (roots)),
+            submenu ("Type", std::move (types), hasKey) });
+    }
+}
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
 {
@@ -84,7 +134,8 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorNavigateCursorToSelectionStart, "Move Cursor to Start of Selection", {},
                        s.canMoveCursorToSelectionStart) } },
              { "Options", {
-                 item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
+                 item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid),
+                 snapToKeySubmenu (s) } },
              { "View", {} } };
 }
 
