@@ -3348,6 +3348,15 @@ TEST_CASE ("TrackListComponent: dragging in a track's band sets a grid-snapped l
     CHECK (rig.range() == std::optional<TickPair> (TickPair { 1080.0, 2520.0 }));
 }
 
+TEST_CASE ("TrackListComponent: a band drag snaps to the swung grid's lines", "[track-list][loop][swing]")
+{
+    LoopListRig rig;
+    // 1/8 Swing at +100 % in 4/4 at 480 PPQ: lines 0, 360, 480, 840, 960 ... (straight would put 700 at 720).
+    rig.list->loopSnapGrid = [] { return makeEditorGrid (GridLength::Eighth, GridDivision::Swing, 100, 480, {}); };
+    rig.bandDrag (210, { 270 });   // ticks 100 .. 700
+    CHECK (rig.range() == std::optional<TickPair> (TickPair { 0.0, 840.0 }));
+}
+
 TEST_CASE ("TrackListComponent: a band drag within one grid cell sets no loop range and keeps an existing one", "[track-list][loop]")
 {
     LoopListRig rig;

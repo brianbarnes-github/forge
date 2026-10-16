@@ -1092,6 +1092,22 @@ TEST_CASE ("PianoRollComponent: Alt on a click on empty canvas sets the marker e
     CHECK (*f.controller.getMarkerTick() == 960.0);
 }
 
+TEST_CASE ("PianoRollComponent: a click on empty canvas snaps the marker to the swung grid's lines", "[piano-roll][marker][swing]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    f.roll.setPlayback (&f.controller);
+    f.roll.setGrid (GridLength::Eighth, GridDivision::Swing);
+    f.roll.setSwing (100);   // lines 0, 360, 480, 840, 960 ...
+    f.roll.setSnapToGrid (true);
+    const auto& geometry = Access::geometry (f.roll);
+    const juce::Point<int> empty { geometry.xForTick (700), geometry.yForPitch (40) + geometry.getRowHeight() / 2 };
+
+    Access::mouseDown (f.roll, empty, {}, false);
+    Access::mouseUp (f.roll, empty);
+    CHECK (*f.controller.getMarkerTick() == 840.0);   // straight eighths would give 720
+}
+
 TEST_CASE ("PianoRollComponent: Snap to Grid reaches the note editor, and Alt on a drag moves freely", "[piano-roll][grid-snap]")
 {
     PlayheadRollFixture f;   // pitch 64 at 1920..2400
