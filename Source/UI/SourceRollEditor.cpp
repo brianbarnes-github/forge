@@ -201,9 +201,9 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
     return true;
 }
 
-bool SourceRollEditor::snapsWith (juce::ModifierKeys mods) const noexcept
+bool SourceRollEditor::snapsWith (juce::ModifierKeys mods) const
 {
-    return snapToGrid && currentGridTicks > 0 && ! mods.isAltDown();
+    return snapToGrid && grid().spacingTicks > 0 && ! mods.isAltDown();
 }
 
 bool SourceRollEditor::mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
@@ -230,8 +230,10 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
     // Snapping, a pointer within a few pixels of the press keeps the original
     // timing, so a pitch drag's wobble never pulls an off-grid note onto the grid.
     const bool nearPress = std::abs (pos.x - dragStartPos.x) < lassoThresholdPixels;
-    const bool snap = snapsWith (mods) && ! nearPress;
-    if (snapsWith (mods) && nearPress)
+    const bool snapping = snapsWith (mods);
+    const bool snap = snapping && ! nearPress;
+    const EditorGrid g = snap ? grid() : EditorGrid::straight (0);
+    if (snapping && nearPress)
         deltaTick = 0;
 
     if (dragMode == DragMode::Move)
@@ -243,7 +245,7 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
             const auto grabbed = std::find_if (dragOriginals.begin(), dragOriginals.end(),
                                                [this] (const DragOriginal& o) { return o.note == grabbedNote; });
             const int anchor = grabbed != dragOriginals.end() ? grabbed->startTick : dragOriginals.front().startTick;
-            deltaTick = (int) snapTickToGrid (anchor + deltaTick, currentGridTicks) - anchor;
+            deltaTick = (int) snapToEditorGrid (g, anchor + deltaTick) - anchor;
         }
         bool pitchChanged = false;
         for (auto& orig : dragOriginals)
@@ -277,8 +279,8 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
         int newDuration = std::max (1, orig.durationTicks + deltaTick);
         if (snap)
         {
-            const int end = std::max ((int) snapTickToGrid (orig.startTick + newDuration, currentGridTicks),
-                                      (int) stepTickByGrid (orig.startTick, currentGridTicks, 1));
+            const int end = std::max ((int) snapToEditorGrid (g, orig.startTick + newDuration),
+                                      (int) stepEditorGrid (g, orig.startTick, 1));
             newDuration = end - orig.startTick;
         }
         if ((int) orig.note.getProperty (SongIDs::durationTicks) != newDuration)
@@ -292,8 +294,8 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos, juce::ModifierKeys mods)
         const int endTick = orig.startTick + orig.durationTicks;
         int newStart = juce::jlimit (0, endTick - 1, orig.startTick + deltaTick);
         if (snap)
-            newStart = std::min ((int) snapTickToGrid (newStart, currentGridTicks),
-                                 (int) stepTickByGrid (endTick, currentGridTicks, -1));
+            newStart = std::min ((int) snapToEditorGrid (g, newStart),
+                                 (int) stepEditorGrid (g, endTick, -1));
         const int newDuration = endTick - newStart;
         if ((int) orig.note.getProperty (SongIDs::startTick) != newStart)
         {
@@ -380,7 +382,8 @@ bool SourceRollEditor::deleteSelection()
 bool SourceRollEditor::quantizeSelection()
 {
     pruneSelection();
-    if (selection.empty() || currentGridTicks <= 0)
+    const EditorGrid g = grid();
+    if (selection.empty() || g.spacingTicks <= 0)
         return false;
 
     doc.getUndoManager().beginNewTransaction();
@@ -389,11 +392,11 @@ bool SourceRollEditor::quantizeSelection()
         const int origStart = (int) note.getProperty (SongIDs::startTick);
         const int origDuration = (int) note.getProperty (SongIDs::durationTicks);
 
-        const int snappedStart = juce::jmax (0, (int) std::lround ((double) origStart / currentGridTicks) * currentGridTicks);
+        const int snappedStart = (int) snapToEditorGrid (g, origStart);
         // At least one grid unit -- the spec sets no floor, but a
         // zero-length note after quantize is nonsensical.
-        const int snappedDuration = juce::jmax (currentGridTicks,
-                                                 (int) std::lround ((double) origDuration / currentGridTicks) * currentGridTicks);
+        const int snappedDuration = juce::jmax (g.spacingTicks,
+                                                 (int) std::lround ((double) origDuration / g.spacingTicks) * g.spacingTicks);
 
         if (origStart != snappedStart)
         {
@@ -424,13 +427,16 @@ void SourceRollEditor::createNoteAt (juce::Point<int> pos, bool snap)
 
     // Snapped, the note starts at the grid line at or before the click: the cell it is in.
     const int tick = std::max (0, geometry.tickForX (pos.x));
-    const int startTick = snap ? tick / currentGridTicks * currentGridTicks : tick;
+    const EditorGrid g = grid();
+    const int startTick = snap ? (int) editorGridLineAtOrBefore (g, tick) : tick;
+    // Snapped, it runs to the next line; unsnapped it is one grid spacing long (a quarter with no grid).
+    const int duration = snap ? (int) editorGridLineAfter (g, startTick) - startTick
+                              : g.spacingTicks > 0 ? g.spacingTicks : geometry.getTicksPerQuarter();
 
     juce::ValueTree note (SongIDs::NOTE);
     note.setProperty (SongIDs::pitch, geometry.pitchForY (pos.y), nullptr);
     note.setProperty (SongIDs::startTick, startTick, nullptr);
-    note.setProperty (SongIDs::durationTicks,
-                       currentGridTicks > 0 ? currentGridTicks : geometry.getTicksPerQuarter(), nullptr);
+    note.setProperty (SongIDs::durationTicks, duration, nullptr);
     note.setProperty (SongIDs::velocity, 100, nullptr);
     note.setProperty (SongIDs::isDrum, false, nullptr);
     note.setProperty (SongIDs::sourceTrackIndex, -1, nullptr);

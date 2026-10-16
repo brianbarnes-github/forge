@@ -26,7 +26,10 @@ namespace
 PianoRollComponent::PianoRollComponent (Role roleIn, SongDocument* editableDocument) : role (roleIn)
 {
     if (role == Role::Source && editableDocument != nullptr)
+    {
         sourceEditor = std::make_unique<SourceRollEditor> (*editableDocument);
+        sourceEditor->setGridSource ([this] { return getEditorGrid(); });
+    }
 
     viewport.setViewedComponent (&canvas, false);
     viewport.setScrollBarsShown (true, true);
@@ -412,8 +415,7 @@ void PianoRollComponent::setEditableTrack (juce::ValueTree trackNode)
 void PianoRollComponent::setGridTicks (int ticks)
 {
     gridLength = GridLength::Off;
-    if (sourceEditor != nullptr)
-        sourceEditor->setGridTicks (ticks);
+    rawGridTicks = ticks;
     canvas.repaint();
 }
 
@@ -421,9 +423,22 @@ void PianoRollComponent::setGrid (GridLength length, GridDivision division)
 {
     gridLength = length;
     gridDivision = division;
-    if (sourceEditor != nullptr)
-        sourceEditor->setGridTicks (editorGridTicks (length, division, ticksPerQuarter));
+    rawGridTicks = 0;
     canvas.repaint();
+}
+
+void PianoRollComponent::setSwing (int percent)
+{
+    swingPercent = clampSwingPercent (percent);
+    canvas.repaint();
+}
+
+EditorGrid PianoRollComponent::getEditorGrid() const
+{
+    if (gridLength == GridLength::Off)
+        return EditorGrid::straight (rawGridTicks);
+    return makeEditorGrid (gridLength, gridDivision, swingPercent, ticksPerQuarter,
+                           SongDocument::meterChangesOf (meterMap));
 }
 
 void PianoRollComponent::setSnapToGrid (bool on) noexcept
@@ -447,7 +462,7 @@ void PianoRollComponent::setNoteChangeListener (NoteChangeListener listener)
 
 int PianoRollComponent::getGridTicks() const
 {
-    return sourceEditor != nullptr ? sourceEditor->getGridTicks() : 0;
+    return sourceEditor != nullptr ? getEditorGrid().spacingTicks : 0;
 }
 
 bool PianoRollComponent::quantizeSelection()
@@ -509,7 +524,7 @@ bool PianoRollComponent::handleEditorMouseUp (juce::Point<int> pos, juce::Modifi
     {
         // Alt on the release places the marker freely, as Alt does for a note drag.
         const double tick = geometry.tickForX (pos.x);
-        playback->setMarkerTick (snapEnabled && ! mods.isAltDown() ? snapTickToGrid (tick, getGridTicks()) : tick);
+        playback->setMarkerTick (snapEnabled && ! mods.isAltDown() ? snapToEditorGrid (getEditorGrid(), tick) : tick);
     }
     markerClickCandidate = false;
     if (sourceEditor == nullptr)
@@ -878,7 +893,8 @@ void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> 
 void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const
 {
     const EditorGridLines editorGrid { gridLength == GridLength::Off ? 0 : getGridTicks(),
-                                       gridLevelForLength (gridLength) };
+                                       gridLevelForLength (gridLength),
+                                       gridDivision == GridDivision::Swing, getSwing() / 100.0 };
     paintGridLines (g, clip, geometry.getPixelsPerQuarterNote() / (double) ticksPerQuarter, ticksPerQuarter,
                     SongDocument::meterChangesOf (meterMap), editorGrid,
                     [this] (int tick) { return geometry.xForTick (tick); },

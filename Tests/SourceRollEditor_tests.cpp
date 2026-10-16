@@ -3,6 +3,7 @@
 // selection, and move/resize drags, plus their undo-transaction
 // boundaries. No JUCE painting involved.
 
+#include "UI/EditorGrid.h"
 #include "UI/SourceRollEditor.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -1166,4 +1167,97 @@ TEST_CASE ("SourceRollEditor: with snap on pressing an off-grid note's edge with
     f.editor.mouseUp (edge.translated (1, 0));
 
     CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == 430);
+}
+
+namespace
+{
+    // 1/8 grid at full swing: lines at 0, 360, 480, 840, 960, 1320, 1440, 1800, 1920 ...
+    void useSwungEighths (Fixture& f)
+    {
+        const auto grid = makeEditorGrid (GridLength::Eighth, GridDivision::Swing, 100, ticksPerQuarter, {});
+        f.editor.setGridSource ([grid] { return grid; });
+        f.editor.setSnapToGrid (true);
+    }
+
+    juce::Point<int> rightEdgeOf (const Fixture& f, const juce::ValueTree& note)
+    {
+        auto b = f.geometry.noteBounds (Fixture::toNote (note));
+        return { b.x + b.width - 1, b.y + b.height / 2 };
+    }
+}
+
+TEST_CASE ("SourceRollEditor: a moved note's start lands on the nearest swung line", "[source-roll-editor][swing]")
+{
+    Fixture f;
+    useSwungEighths (f);
+    const auto start = f.centreOf (f.noteA);
+    f.editor.mouseDown (start, {}, false);
+    f.editor.mouseDrag (start.translated (f.geometry.xForTick (700) - f.geometry.xForTick (0), 0));
+    f.editor.mouseUp (start);
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 840);   // not 720, the straight line
+}
+
+TEST_CASE ("SourceRollEditor: resize right ends on a swung line, at least one line from the start", "[source-roll-editor][swing]")
+{
+    Fixture f;   // noteB: 480..960
+    useSwungEighths (f);
+    const auto edge = rightEdgeOf (f, f.noteB);
+    f.editor.mouseDown (edge, {}, false);
+    f.editor.mouseDrag (edge.translated (f.geometry.xForTick (500) - f.geometry.xForTick (960), 0));
+    f.editor.mouseUp (edge);
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == 480);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == 360);
+}
+
+TEST_CASE ("SourceRollEditor: resize left starts on a swung line, at most one line before the end", "[source-roll-editor][swing]")
+{
+    Fixture f;   // noteB: 480..960
+    useSwungEighths (f);
+    auto b = f.geometry.noteBounds (Fixture::toNote (f.noteB));
+    const juce::Point<int> edge (b.x + 1, b.y + b.height / 2);
+    f.editor.mouseDown (edge, {}, false);
+    f.editor.mouseDrag (edge.translated (f.geometry.xForTick (950) - f.geometry.xForTick (480), 0));
+    f.editor.mouseUp (edge);
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == 840);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == 120);
+}
+
+TEST_CASE ("SourceRollEditor: a snapped double-click insert runs to the next swung line", "[source-roll-editor][swing]")
+{
+    Fixture f;
+    useSwungEighths (f);
+    f.editor.mouseDown ({ f.geometry.xForTick (400), f.geometry.yForPitch (72) }, {}, true);
+    auto first = SongDocument::getNotesNode (f.track).getChild (2);
+    CHECK ((int) first.getProperty (SongIDs::startTick) == 360);
+    CHECK ((int) first.getProperty (SongIDs::durationTicks) == 120);
+
+    f.editor.mouseDown ({ f.geometry.xForTick (1850), f.geometry.yForPitch (74) }, {}, true);
+    auto second = SongDocument::getNotesNode (f.track).getChild (3);
+    CHECK ((int) second.getProperty (SongIDs::startTick) == 1800);
+    CHECK ((int) second.getProperty (SongIDs::durationTicks) == 120);
+}
+
+TEST_CASE ("SourceRollEditor: an unsnapped insert keeps the grid spacing as its length", "[source-roll-editor][swing]")
+{
+    Fixture f;
+    useSwungEighths (f);
+    f.editor.setSnapToGrid (false);
+    const int x = f.geometry.xForTick (400);
+    f.editor.mouseDown ({ x, f.geometry.yForPitch (72) }, {}, true);
+    auto created = SongDocument::getNotesNode (f.track).getChild (2);
+    CHECK ((int) created.getProperty (SongIDs::startTick) == f.geometry.tickForX (x));
+    CHECK ((int) created.getProperty (SongIDs::durationTicks) == 240);
+}
+
+TEST_CASE ("SourceRollEditor: quantize moves starts to the nearest swung line and keeps the duration rule", "[source-roll-editor][swing]")
+{
+    Fixture f;
+    f.noteA.setProperty (SongIDs::startTick, 700, nullptr);
+    f.noteA.setProperty (SongIDs::durationTicks, 250, nullptr);
+    useSwungEighths (f);
+    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
+    REQUIRE (f.editor.isSelected (f.noteA));
+    CHECK (f.editor.quantizeSelection());
+    CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 840);
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == 240);
 }

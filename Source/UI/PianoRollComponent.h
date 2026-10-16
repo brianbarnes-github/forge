@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EditorGrid.h"
 #include "GridLength.h"
 #include "PianoRollGeometry.h"
 #include "PianoRollNoteSource.h"
@@ -193,6 +194,16 @@ public:
     // for "grid off", which is the same thing as far as snapping goes).
     int getGridTicks() const;
 
+    // The Swing division's strength (percent, clamped to +-100). Repaints the canvas;
+    // reports nothing -- the editor reads the grid when it next needs it.
+    void setSwing (int percent);
+    int getSwing() const noexcept { return swingPercent; }
+
+    // The editor's grid as a value, built on demand from the live METER_MAP (the
+    // source drawGridlines uses) so a meter edit needs no hook: a Grid Length of Off
+    // gives the raw setGridTicks spacing.
+    EditorGrid getEditorGrid() const;
+
     // Source role only: grid-snaps the current selection. Returns true if
     // anything changed (mirrors SourceRollEditor::quantizeSelection).
     bool quantizeSelection();
@@ -366,6 +377,8 @@ private:
     bool snapEnabled = false;
     GridLength gridLength = GridLength::Off;
     GridDivision gridDivision = GridDivision::Straight;
+    int swingPercent = 0;
+    int rawGridTicks = 0;   // setGridTicks's spacing, read while gridLength is Off
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
     int activePitch = -1; // Source role only; see getActivePitch.

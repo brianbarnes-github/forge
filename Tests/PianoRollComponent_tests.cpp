@@ -4,6 +4,7 @@
 // not the generic fill.brighter(0.4f) used by Role::Source.
 
 #include "PlaybackTestSupport.h"
+#include "UI/EditorGrid.h"
 #include "UI/PianoRollComponent.h"
 #include "UI/Theme/PianoRollPalette.h"
 #include "UI/Theme/ThemePaint.h"
@@ -2317,4 +2318,68 @@ TEST_CASE ("PianoRollComponent: white keys shade toward the right edge; black ke
     const int blackTop = keyTopY (fixture.roll, 61);
     CHECK (image.getPixelAt (3, blackTop + rowHeight - 2).getBrightness()
            > image.getPixelAt (3, blackTop + 2).getBrightness());
+}
+
+TEST_CASE ("PianoRollComponent: the editor grid follows a meter edit with no setGrid call", "[piano-roll][swing]")
+{
+    PlayheadRollFixture f;
+    f.roll.setGrid (GridLength::Quarter, GridDivision::Swing);
+    f.roll.setSwing (100);
+
+    auto meterMap = f.doc.getMeterMapNode();
+    const auto setMeter = [&meterMap] (int numerator)
+    {
+        meterMap.removeAllChildren (nullptr);
+        juce::ValueTree change (SongIDs::METER_CHANGE);
+        change.setProperty (SongIDs::tick, 0, nullptr);
+        change.setProperty (SongIDs::numerator, numerator, nullptr);
+        change.setProperty (SongIDs::denominator, 4, nullptr);
+        meterMap.addChild (change, -1, nullptr);
+    };
+
+    setMeter (4);
+    CHECK (editorGridLineAfter (f.roll.getEditorGrid(), 960) == 1680);   // 4/4: pairs 0, 720 | 960, 1680
+    setMeter (3);
+    CHECK (editorGridLineAfter (f.roll.getEditorGrid(), 960) == 1440);   // 3/4: the bar ends at 1440
+}
+
+TEST_CASE ("PianoRollComponent: a swung 1/8 grid draws its shifted lines and not the straight odd eighths", "[piano-roll][swing]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    constexpr int width = 400;
+    constexpr int height = 100;
+    roll.setBounds (0, 0, width, height);
+    roll.setGrid (GridLength::Eighth, GridDivision::Swing);
+    roll.setSwing (100);
+
+    PianoRollGeometry geometry;   // 40 px per quarter
+    juce::Image image (juce::Image::ARGB, width, height, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    Access::paintCanvas (roll, g, { 0, 0, width, height });
+
+    auto lineAt = [&] (int tick)
+    {
+        const int x = geometry.xForTick (tick);
+        return image.getPixelAt (x, 5) != image.getPixelAt (x + 1, 5);
+    };
+
+    CHECK (lineAt (360));
+    CHECK (lineAt (480));
+    CHECK_FALSE (lineAt (240));   // the straight odd eighth
+}
+
+TEST_CASE ("PianoRollComponent: setSwing clamps and reads back", "[piano-roll][swing]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    CHECK (roll.getSwing() == 0);
+    roll.setSwing (150);
+    CHECK (roll.getSwing() == 100);
+    roll.setSwing (-150);
+    CHECK (roll.getSwing() == -100);
 }

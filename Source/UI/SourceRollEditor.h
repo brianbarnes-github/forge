@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EditorGrid.h"
 #include "NotePreview.h"
 #include "PianoRollGeometry.h"
 #include "SongDocument.h"
@@ -50,8 +51,13 @@ public:
     // ticksPerQuarter, when this is 0). Owned/pushed by
     // SongsmithMainComponent from its grid-size combo box -- this class has
     // no notion of the combo's enum, only the resulting tick count.
-    void setGridTicks (int ticks) noexcept { currentGridTicks = ticks; }
-    int getGridTicks() const noexcept { return currentGridTicks; }
+    // The grid is pulled on demand, never cached, so a meter edit or a swing change
+    // reaches the next gesture step with no hook. Without a source there is no grid.
+    void setGridSource (std::function<EditorGrid()> source) { gridSource = std::move (source); }
+    // A fixed straight grid of `ticks` (0 = none).
+    void setGridTicks (int ticks) { setGridSource ([ticks] { return EditorGrid::straight (ticks); }); }
+    EditorGrid grid() const { return gridSource ? gridSource() : EditorGrid::straight (0); }
+    int getGridTicks() const { return grid().spacingTicks; }
 
     // Options ▸ Snap to Grid: while on (and the grid is not Off), a moved note's
     // start (the one under the press; the rest of the selection keeps its
@@ -117,8 +123,8 @@ public:
     bool deleteSelection();
 
     // Grid-snaps every selected note's startTick and durationTicks to
-    // currentGridTicks, one undo transaction regardless of selection size.
-    // No-op (false) if the selection is empty or currentGridTicks <= 0
+    // the grid's spacing, one undo transaction regardless of selection size.
+    // No-op (false) if the selection is empty or the grid's spacing <= 0
     // ("off" -- there is no implicit grid to snap to).
     bool quantizeSelection();
 
@@ -151,7 +157,7 @@ private:
     void pruneSelection();
     void updateRubberBandSelection();
     void createNoteAt (juce::Point<int> pos, bool snap);
-    bool snapsWith (juce::ModifierKeys mods) const noexcept;
+    bool snapsWith (juce::ModifierKeys mods) const;
     void markTimingEdited (juce::ValueTree note);
     void reportChange (NoteChange change, const std::vector<juce::ValueTree>& notes) const;
     std::vector<juce::ValueTree> draggedNotes() const;
@@ -159,7 +165,7 @@ private:
     SongDocument& doc;
     juce::ValueTree track;
     PianoRollGeometry geometry;
-    int currentGridTicks = 0;
+    std::function<EditorGrid()> gridSource;
     bool snapToGrid = false;
     std::function<bool (int pitch)> pitchAllowed;
     NoteChangeListener noteChanged;
