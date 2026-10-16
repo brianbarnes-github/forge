@@ -187,3 +187,20 @@ TEST_CASE ("EditorGrid: fractional bar lengths keep line-after and line-at-or-be
             }
         }
 }
+
+TEST_CASE ("EditorGrid: a meter denominator that is not a power of two still advances", "[editor-grid][swing]")
+{
+    // 5/7 at PPQ 480 (not reachable from the app): a bar's end can floor back into the same bar.
+    const auto g = make (GridLength::Eighth, GridDivision::Swing, 100, ppq, { { 0, 5, 7 } });
+    for (int t = 0; t < 20000; t += 7)
+    {
+        INFO ("t=" << t);
+        CHECK (editorGridLineAfter (g, t) > t);
+        CHECK (stepEditorGrid (g, t, 1) > t);
+        CHECK (editorGridLineAtOrBefore (g, t) <= t);
+        if (t > 0)
+            CHECK (stepEditorGrid (g, t, -1) < t);
+        const auto lines = editorGridLinesIn (g, t, t + 3000);
+        CHECK (std::is_sorted (lines.begin(), lines.end()));
+    }
+}

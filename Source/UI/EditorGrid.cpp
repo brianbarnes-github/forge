@@ -49,6 +49,17 @@ namespace
         return bar;
     }
 
+    // The bar after `bar`. Float error (a bar length that is not a whole number
+    // of ticks) can floor its end back into the same bar; step past it so a
+    // walk always advances.
+    Bar nextBar (const EditorGrid& grid, const Bar& bar)
+    {
+        Bar next = barContaining (grid, bar.end);
+        if (next.begin <= bar.begin)
+            next = barContaining (grid, bar.end + 1.0);
+        return next;
+    }
+
     // The last swung line at or below `tick` (below it when !inclusive), looking
     // back across bars: a fractional bar start can round its first line past a
     // tick that is still inside the bar. -1 when there is none.
@@ -63,7 +74,10 @@ namespace
                     best = (double) line;
             if (best >= 0.0 || bar.begin <= 0.0)
                 return best;
-            bar = barContaining (grid, bar.begin - 0.5);
+            const Bar previous = barContaining (grid, bar.begin - 0.5);
+            if (previous.begin >= bar.begin)
+                return best;
+            bar = previous;
         }
     }
 
@@ -77,7 +91,7 @@ namespace
             for (const long long line : bar.lines)
                 if ((double) line > tick)
                     return (double) line;
-            bar = barContaining (grid, bar.end);
+            bar = nextBar (grid, bar);
         }
     }
 
@@ -170,15 +184,10 @@ std::vector<int> editorGridLinesIn (const EditorGrid& grid, int firstTick, int l
         return out;
     }
 
-    double begin = barContaining (grid, firstTick).begin;
-    while (begin <= lastTick)
-    {
-        const Bar bar = barContaining (grid, begin);
+    for (Bar bar = barContaining (grid, firstTick); bar.begin <= lastTick; bar = nextBar (grid, bar))
         for (const long long line : bar.lines)
             if (line >= firstTick && line <= lastTick)
                 out.push_back ((int) line);
-        begin = bar.end;
-    }
     return out;
 }
 
