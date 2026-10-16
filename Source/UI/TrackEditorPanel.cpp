@@ -12,6 +12,11 @@ namespace lotro
     {
         setWantsKeyboardFocus (true);
         roll.setSnapToGrid (snapToGrid);
+        roll.setPitchFilter ([this] (int pitch)
+        {
+            const auto key = currentSnapKey();
+            return ! (snapToKey && key.has_value()) || isPitchAllowed (*key, pitch);
+        });
         roll.onUnhandledKey = [this] (const juce::KeyPress& key) { return navigateKeyPressed (key); };
         addAndMakeVisible (menuBar);
         addAndMakeVisible (roll);
@@ -57,6 +62,12 @@ namespace lotro
         s.canAddPreviousNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (-1);
         s.canAddNextNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (+1);
         s.canMoveCursorToSelectionStart = s.canSelectNearestNote && owner.roll.selectionStart().has_value();
+        s.snapToKey = owner.snapToKey;
+        if (const auto key = owner.currentSnapKey())
+        {
+            s.snapRootIndex = key->rootIndex;
+            s.snapScaleIndex = (int) key->scale;
+        }
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -131,9 +142,32 @@ namespace lotro
                 if (onSnapToGridChanged)
                     onSnapToGridChanged (snapToGrid);
                 return;
+            case EditorOptionsSnapToKeyEnabled:
+                if (currentSnapKey().has_value())
+                    snapToKey = ! snapToKey;
+                return;
             default:
+                if (isEditorSnapRootCommand (commandId))
+                {
+                    const auto current = currentSnapKey();
+                    pickedSnapKey = SnapKey { commandId - EditorSnapRootBase, current ? current->scale : SnapScale::major };
+                }
+                else if (isEditorSnapScaleCommand (commandId))
+                {
+                    if (const auto current = currentSnapKey())
+                        pickedSnapKey = SnapKey { current->rootIndex, (SnapScale) (commandId - EditorSnapScaleBase) };
+                }
                 return;
         }
+    }
+
+    std::optional<SnapKey> TrackEditorPanel::currentSnapKey() const
+    {
+        if (pickedSnapKey.has_value())
+            return pickedSnapKey;
+        if (const auto songKey = doc.getSongKey())
+            return snapKeyForSongKey (*songKey);
+        return std::nullopt;
     }
 
     void TrackEditorPanel::MenuModel::menuBarActivated (bool isActive)
@@ -424,6 +458,7 @@ namespace lotro
         roll.setGhostTracks ({});
         currentNoteSource.reset();
         currentTrackId = -1;
+        pickedSnapKey.reset();
         titleChanged();
         repaint();
     }

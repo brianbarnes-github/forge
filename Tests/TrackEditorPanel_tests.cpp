@@ -32,6 +32,14 @@ namespace lotro
             w.roll.handleEditorMouseDown (pos, {}, false);
             w.roll.handleEditorMouseUp (pos);
         }
+        // A double-click on the roll's canvas in the middle of `pitch`'s row, past the notes.
+        static void doubleClickRow (TrackEditorPanel& w, int pitch)
+        {
+            const auto& geometry = w.roll.geometry;
+            const juce::Point<int> pos { geometry.xForTick (48000), geometry.yForPitch (pitch) + geometry.getRowHeight() / 2 };
+            w.roll.handleEditorMouseDown (pos, {}, true);
+            w.roll.handleEditorMouseUp (pos);
+        }
         static bool isSelected (TrackEditorPanel& w, const juce::ValueTree& note) { return w.roll.sourceEditor->isSelected (note); }
         static int numSelected (TrackEditorPanel& w) { return w.roll.sourceEditor->getNumSelected(); }
     };
@@ -403,7 +411,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
-    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
+    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 2);    // snap to grid, snap to key
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
 
@@ -1029,4 +1037,146 @@ TEST_CASE ("TrackEditorPanel: the ruler's playhead cap follows the playhead", "[
     REQUIRE (later.has_value());
     CHECK (later->getCentreX() > first->getCentreX());
     CHECK (Access::ruler (window).capRepaintsForTesting() > repaints);   // the owner told the ruler
+}
+
+namespace
+{
+    int noteCount (const juce::ValueTree& track) { return SongDocument::getNotesNode (track).getNumChildren(); }
+
+    // Whether a double-click on `pitch`'s row adds a note.
+    bool createsNoteOn (TrackEditorPanel& panel, const juce::ValueTree& track, int pitch)
+    {
+        const int before = noteCount (track);
+        TrackEditorPanelTestAccess::doubleClickRow (panel, pitch);
+        return noteCount (track) == before + 1;
+    }
+
+    // Options (menu 3) > Snap to Key (item 1) > Enabled (its first item), as the bar builds it.
+    bool snapToKeyEnabledItemIsEnabled (TrackEditorPanel& panel)
+    {
+        const auto options = TrackEditorPanelTestAccess::menuBar (panel).getModel()->getMenuForIndex (3, "Options");
+        juce::PopupMenu::MenuItemIterator it (options);
+        REQUIRE (it.next());
+        REQUIRE (it.next());
+        REQUIRE (it.getItem().subMenu != nullptr);
+        juce::PopupMenu::MenuItemIterator sub (*it.getItem().subMenu);
+        REQUIRE (sub.next());
+        return sub.getItem().isEnabled;
+    }
+
+    void pick (TrackEditorPanel& panel, int commandId) { panel.invokeMenuCommand (commandId); }
+}
+
+TEST_CASE ("TrackEditorPanel: Snap to Key starts off, so any pitch can be added", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (0);   // C major
+    CHECK_FALSE (f.panel->getSnapToKey());
+    CHECK (createsNoteOn (*f.panel, f.track, 61));
+}
+
+TEST_CASE ("TrackEditorPanel: Snap to Key Enabled refuses an off-key double-click and allows an in-key one", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (0);   // C major
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    REQUIRE (f.panel->getSnapToKey());
+
+    CHECK_FALSE (createsNoteOn (*f.panel, f.track, 61));
+    CHECK (createsNoteOn (*f.panel, f.track, 62));
+}
+
+TEST_CASE ("TrackEditorPanel: Snap to Key follows the song key, through undo, until something is picked", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (0);   // C major
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    REQUIRE (f.panel->currentSnapKey() == snapKeyForSongKey (0));
+
+    f.doc.setSongKey (21);   // A minor
+    CHECK (f.panel->currentSnapKey() == snapKeyForSongKey (21));
+    CHECK (snapRoots()[(std::size_t) f.panel->currentSnapKey()->rootIndex].name == std::string ("A"));
+    CHECK (f.panel->currentSnapKey()->scale == SnapScale::naturalMinor);
+
+    f.doc.undo();
+    CHECK (f.panel->currentSnapKey() == snapKeyForSongKey (0));
+    CHECK_FALSE (createsNoteOn (*f.panel, f.track, 61));
+}
+
+TEST_CASE ("TrackEditorPanel: with no song key and nothing picked, Snap to Key is greyed and blocks nothing", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (0);
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    f.doc.setSongKey (std::nullopt);
+
+    CHECK_FALSE (f.panel->currentSnapKey().has_value());
+    CHECK_FALSE (snapToKeyEnabledItemIsEnabled (*f.panel));
+    CHECK (createsNoteOn (*f.panel, f.track, 61));
+
+    f.doc.setSongKey (0);
+    CHECK (snapToKeyEnabledItemIsEnabled (*f.panel));
+}
+
+TEST_CASE ("TrackEditorPanel: Enabled does nothing while there is no key", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    CHECK_FALSE (f.panel->getSnapToKey());
+}
+
+TEST_CASE ("TrackEditorPanel: picking a Type freezes Snap to Key against later song key changes", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (0);   // C major
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    pick (*f.panel, EditorSnapScaleBase + (int) SnapScale::majorTriad);
+
+    for (int pitch : { 60, 64, 67, 72 })
+        CHECK (createsNoteOn (*f.panel, f.track, pitch));
+    for (int pitch : { 62, 65, 69 })
+        CHECK_FALSE (createsNoteOn (*f.panel, f.track, pitch));
+
+    f.doc.setSongKey (7);   // G major
+    const auto key = f.panel->currentSnapKey();
+    REQUIRE (key.has_value());
+    CHECK (snapRoots()[(std::size_t) key->rootIndex].name == std::string ("C"));
+    CHECK (key->scale == SnapScale::majorTriad);
+}
+
+TEST_CASE ("TrackEditorPanel: a Root picked with no song key uses Major and keeps its exact spelling", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    pick (*f.panel, EditorSnapRootBase + 3);   // A♯
+    const auto key = f.panel->currentSnapKey();
+    REQUIRE (key.has_value());
+    CHECK (key->rootIndex == 3);   // not B♭ (2)
+    CHECK (key->scale == SnapScale::major);
+    CHECK (snapToKeyEnabledItemIsEnabled (*f.panel));
+
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    CHECK (f.panel->getSnapToKey());
+    CHECK_FALSE (createsNoteOn (*f.panel, f.track, 59));   // B is not in A♯ major
+    CHECK (createsNoteOn (*f.panel, f.track, 58));         // A♯
+}
+
+TEST_CASE ("TrackEditorPanel: a picked Root keeps the current type", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (21);   // A minor
+    pick (*f.panel, EditorSnapRootBase + 7);   // G
+    CHECK (f.panel->currentSnapKey() == SnapKey { 7, SnapScale::naturalMinor });
+}
+
+TEST_CASE ("TrackEditorPanel: clearTrack after a pick goes back to following the song key and keeps Enabled", "[track-editor][snap-to-key]")
+{
+    MarkerPanelFixture f;
+    f.doc.setSongKey (0);
+    pick (*f.panel, EditorOptionsSnapToKeyEnabled);
+    pick (*f.panel, EditorSnapScaleBase + (int) SnapScale::minorBlues);
+
+    f.panel->clearTrack();
+    f.doc.setSongKey (7);   // G major
+    CHECK (f.panel->currentSnapKey() == snapKeyForSongKey (7));
+    CHECK (f.panel->getSnapToKey());
 }

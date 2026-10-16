@@ -6,6 +6,7 @@
 #include "Playback/PlaybackController.h"
 #include "Playback/TimelineRuler.h"
 #include "Playback/TransportStrip.h"
+#include "ScaleSnap.h"
 #include "SongDocument.h"
 #include "SourceTrackNoteSource.h"
 
@@ -43,6 +44,8 @@ namespace lotro
         // MIDI File fires onExportTrackMidi with the loaded track (nothing when none
         // is loaded); File > Close Editor fires onCloseRequested; Options > Snap to
         // Grid flips the snap state and fires onSnapToGridChanged with the new value;
+        // Options > Snap to Key > Enabled toggles it (only with a key) and its Root /
+        // Type items set the session pick (see currentSnapKey);
         // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
         // Navigate > Move Up / Down a Semitone step the roll's active row;
         // Navigate > Select Note Nearest Cursor selects the note starting nearest
@@ -66,6 +69,14 @@ namespace lotro
         // onSnapToGridChanged.
         void setSnapToGrid (bool on) noexcept { snapToGrid = on; roll.setSnapToGrid (on); }
         bool getSnapToGrid() const noexcept { return snapToGrid; }
+
+        // Options > Snap to Key: while Enabled and there is a key, a double-click
+        // only adds a note on a pitch of that scale or chord (nothing else is
+        // filtered). Session-only. The key is the user's Root/Type pick, else the
+        // song key (read live, so Set Key and undo move it); nullopt when the
+        // song has none and nothing was picked. clearTrack drops the pick.
+        std::optional<SnapKey> currentSnapKey() const;
+        bool getSnapToKey() const noexcept { return snapToKey; }
 
         void setGridTicks (int ticks);
         int getGridTicks() const;
@@ -203,6 +214,8 @@ namespace lotro
         std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
         juce::int64 currentTrackId = -1;
         bool snapToGrid = true;
+        bool snapToKey = false;
+        std::optional<SnapKey> pickedSnapKey;   // nullopt: follow the song key
         int appearanceRepaintCount = 0;   // test observability
     };
 }
