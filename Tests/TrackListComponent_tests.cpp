@@ -3697,8 +3697,10 @@ TEST_CASE ("TrackListComponent: the ruler's playhead cap follows the playhead", 
     controller.seekToTick (960.0);
     const auto first = list.rulerForTesting()->playheadCapBounds();
     REQUIRE (first.has_value());
+    const int repaints = list.rulerForTesting()->capRepaintsForTesting();
     controller.seekToTick (1920.0);
     const auto later = list.rulerForTesting()->playheadCapBounds();
     REQUIRE (later.has_value());
     CHECK (later->getCentreX() > first->getCentreX());
+    CHECK (list.rulerForTesting()->capRepaintsForTesting() > repaints);   // the owner told the ruler
 }

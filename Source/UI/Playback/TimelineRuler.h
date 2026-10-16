@@ -97,6 +97,8 @@ public:
     void playheadMoved();
     // The cap's triangle (10 x 7 px at the top), in ruler coordinates; none when unset or off-screen.
     std::optional<juce::Rectangle<int>> playheadCapBounds() const;
+    // How many times playheadMoved() has repainted the cap (owner-wiring tests).
+    int capRepaintsForTesting() const noexcept { return capRepaints; }
 
     void paint (juce::Graphics& g) override;
     void mouseDown (const juce::MouseEvent& e) override;
@@ -113,6 +115,7 @@ private:
     std::function<std::optional<LoopRange>()> loopRange;
     std::function<std::optional<double>()> playhead;
     std::optional<juce::Rectangle<int>> lastCap;   // the cap as last painted, for playheadMoved
+    int capRepaints = 0;
     int contentLeft = 0;
     bool handleWasPressed = false;   // a press that cleared the marker: its drag must not set it again
 

@@ -786,7 +786,12 @@ TEST_CASE ("TimelineRuler: playheadMoved repaints only when the cap moves", "[pl
     ruler.setMarks ([] (double tick) { return (int) (tick / 10.0); }, [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
     double tick = 1000.0;
     ruler.setPlayhead ([&tick] { return std::optional<double> (tick); });
+    const int before = ruler.capRepaintsForTesting();
+    ruler.playheadMoved();   // the cap has not moved
+    CHECK (ruler.capRepaintsForTesting() == before);
+
     tick = 1500.0;
     ruler.playheadMoved();
+    CHECK (ruler.capRepaintsForTesting() == before + 1);
     CHECK (ruler.playheadCapBounds()->getCentreX() == 150);
 }

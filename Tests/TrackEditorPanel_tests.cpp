@@ -789,8 +789,10 @@ TEST_CASE ("TrackEditorPanel: the ruler's playhead cap follows the playhead", "[
     controller.seekToTick (0.0);
     const auto first = Access::ruler (window).playheadCapBounds();
     REQUIRE (first.has_value());
+    const int repaints = Access::ruler (window).capRepaintsForTesting();
     controller.seekToTick (240.0);
     const auto later = Access::ruler (window).playheadCapBounds();
     REQUIRE (later.has_value());
     CHECK (later->getCentreX() > first->getCentreX());
+    CHECK (Access::ruler (window).capRepaintsForTesting() > repaints);   // the owner told the ruler
 }

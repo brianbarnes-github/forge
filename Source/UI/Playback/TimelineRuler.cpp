@@ -227,6 +227,7 @@ void TimelineRuler::playheadMoved()
     if (lastCap) repaint (lastCap->expanded (1));
     if (cap)     repaint (cap->expanded (1));
     lastCap = cap;
+    ++capRepaints;
 }
 
 } // namespace lotro
