@@ -208,6 +208,7 @@ MainWindow::MainWindow()
     songsmith.onTrackHeadWidthChanged = [this] (int width) { appSettings.setTrackHeadWidth (width); };
     songsmith.onExportTrackMidi = [this] (juce::int64 trackId) { exportTrackMidiAs (trackId); };
     songsmith.onSnapToGridChanged = [this] (bool on) { appSettings.setSnapToGrid (on); };
+    songsmith.onNotePreviewChanged = [this] (const NotePreviewSettings& s) { appSettings.setNotePreview (s); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
         const juce::String json (dock::toJson (layout));
@@ -713,6 +714,7 @@ void MainWindow::applyViewSettings()
     auto& songsmith = body->getSongsmith();
     songsmith.setFollowPlayhead (appSettings.followPlayhead());
     songsmith.setSnapToGrid (appSettings.snapToGrid());
+    songsmith.setNotePreview (appSettings.notePreview());
     songsmith.setMergeScope (appSettings.mergeScope());
     songsmith.setDefaultGridSize (appSettings.defaultGrid());
 }

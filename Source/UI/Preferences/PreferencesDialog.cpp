@@ -84,7 +84,7 @@ namespace lotro
         saveNotice.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
         addChildComponent (saveNotice);   // hidden until a save fails
 
-        setSize (640, 400);
+        setSize (640, 470);   // tall enough for the Editing page's rows
         selectPage (0);
         if (auto* item = root->getSubItem (0))
             item->setSelected (true, false, juce::dontSendNotification);

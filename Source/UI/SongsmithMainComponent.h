@@ -245,6 +245,9 @@ public:
     // the new value through onSnapToGridChanged (to be saved).
     void setSnapToGrid (bool on);
     std::function<void (bool on)> onSnapToGridChanged;
+    // The same for the MIDI editor's Options > Note Preview checkboxes.
+    void setNotePreview (const NotePreviewSettings& settings);
+    std::function<void (const NotePreviewSettings&)> onNotePreviewChanged;
     void setMergeScope (MergeScope scope);
     // The track list's head-column width (see TrackListComponent::setHeadWidth). A divider
     // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.

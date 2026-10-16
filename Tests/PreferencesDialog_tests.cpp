@@ -1,4 +1,5 @@
 #include "UI/Preferences/PreferencesDialog.h"
+#include "UI/Preferences/EditingPreferencesPage.h"
 #include "UI/Preferences/GeneralPreferencesPage.h"
 #include "UI/Preferences/ImportPreferencesPage.h"
 #include "UI/Preferences/PlaybackPreferencesPage.h"
@@ -261,4 +262,21 @@ TEST_CASE ("PreferencesDialog: the notice clears once a later save succeeds", "[
     REQUIRE (blocked.deleteRecursively());                    // the path is writable again
     general->replaceFileToggleForTesting().setToggleState (true, juce::sendNotification);
     CHECK_FALSE (dialog.saveNoticeVisibleForTesting());
+}
+
+TEST_CASE ("PreferencesDialog: at its opening size the Editing page shows every control, the note preview toggles included", "[preferences][note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    Fixture f;
+    PreferencesDialog dialog (f.services);
+    dialog.selectPage (4);
+    auto* page = dynamic_cast<EditingPreferencesPage*> (dialog.currentPage());
+    REQUIRE (page != nullptr);
+    REQUIRE (page->getHeight() > 0);
+    for (auto* child : page->getChildren())
+    {
+        CAPTURE (child->getName(), child->getBounds().toString());
+        CHECK (child->getHeight() > 0);   // a layout that runs out of room squeezes the last rows to nothing
+        CHECK (child->getBottom() <= page->getHeight());
+    }
 }

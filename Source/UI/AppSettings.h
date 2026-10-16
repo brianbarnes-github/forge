@@ -4,6 +4,7 @@
 
 #include "GridSize.h"
 #include "MergeScope.h"
+#include "NotePreview.h"
 #include "TrackHeadWidth.h"
 
 #include <algorithm>
@@ -88,6 +89,24 @@ public:
     // The MIDI editor's Options > Snap to Grid, the same value as the Editing page's checkbox.
     bool snapToGrid() const { return read (keySnapToGrid); }
     bool setSnapToGrid (bool on) { return write (keySnapToGrid, on); }
+
+    // The MIDI editor's Options > Note Preview checkboxes, also on the Editing page.
+    // Unlike the other toggles these default off: only an explicit "1" reads on.
+    NotePreviewSettings notePreview() const
+    {
+        NotePreviewSettings s;
+        s.onInsert = file.getValue (keyPreviewOnInsert) == "1";
+        s.onEdit = file.getValue (keyPreviewOnEdit) == "1";
+        s.onVelocity = file.getValue (keyPreviewOnVelocity) == "1";
+        return s;
+    }
+    bool setNotePreview (const NotePreviewSettings& s)
+    {
+        file.setValue (keyPreviewOnInsert, s.onInsert ? "1" : "0");
+        file.setValue (keyPreviewOnEdit, s.onEdit ? "1" : "0");
+        file.setValue (keyPreviewOnVelocity, s.onVelocity ? "1" : "0");
+        return save();
+    }
 
     // What a newly opened track editor starts on. Absent or unrecognised reads Off.
     GridSize defaultGrid() const
@@ -179,6 +198,9 @@ private:
     static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";
     static constexpr const char* keySnapToGrid         = "editing.snapToGrid";
     static constexpr const char* keyMergeScope         = "editing.mergeScope";
+    static constexpr const char* keyPreviewOnInsert    = "editing.previewOnInsert";
+    static constexpr const char* keyPreviewOnEdit      = "editing.previewOnEdit";
+    static constexpr const char* keyPreviewOnVelocity  = "editing.previewOnVelocity";
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
     static constexpr const char* keyStripButtons       = "strip.buttons";

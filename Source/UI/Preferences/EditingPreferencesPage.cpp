@@ -45,6 +45,29 @@ namespace lotro
         };
         addAndMakeVisible (follow);
 
+        // The same settings as the MIDI editor's Options > Note Preview.
+        previewLabel.setText ("Note preview (in the MIDI editor)", juce::dontSendNotification);
+        previewLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
+        addAndMakeVisible (previewLabel);
+        const auto preview = services.settings.notePreview();
+        previewInsert.setToggleState (preview.onInsert, juce::dontSendNotification);
+        previewEdit.setToggleState (preview.onEdit, juce::dontSendNotification);
+        previewVelocity.setToggleState (preview.onVelocity, juce::dontSendNotification);
+        for (auto* b : { &previewInsert, &previewEdit, &previewVelocity })
+        {
+            b->setColour (juce::ToggleButton::textColourId, juce::Colour (SongsmithColours::text));
+            b->onClick = [this]
+            {
+                NotePreviewSettings s;
+                s.onInsert = previewInsert.getToggleState();
+                s.onEdit = previewEdit.getToggleState();
+                s.onVelocity = previewVelocity.getToggleState();
+                services.settings.setNotePreview (s);
+                notify();
+            };
+            addAndMakeVisible (*b);
+        }
+
         scopeLabel.setText ("When moving or copying sections to another track (Alt-drag), carry", juce::dontSendNotification);
         scopeLabel.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::text));
         addAndMakeVisible (scopeLabel);
@@ -90,6 +113,11 @@ namespace lotro
         snap.setBounds (area.removeFromTop (24));
         area.removeFromTop (12);
         follow.setBounds (area.removeFromTop (24));
+        area.removeFromTop (16);
+        previewLabel.setBounds (area.removeFromTop (22));
+        previewInsert.setBounds (area.removeFromTop (24));
+        previewEdit.setBounds (area.removeFromTop (24));
+        previewVelocity.setBounds (area.removeFromTop (24));
         area.removeFromTop (16);
         scopeLabel.setBounds (area.removeFromTop (22));
         notesOnly.setBounds (area.removeFromTop (24));

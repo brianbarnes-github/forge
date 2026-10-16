@@ -150,3 +150,27 @@ TEST_CASE ("Editing page: the merge scope radios reflect and change the setting"
     EditingPreferencesPage reopened (app.services);
     CHECK (reopened.allEventsRadioForTesting().getToggleState());
 }
+
+TEST_CASE ("Editing page: the note preview toggles reflect the settings; a click writes them, applies and notifies", "[preferences][editing-page][note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    FakeApp app;
+    EditingPreferencesPage page (app.services, [&] { ++app.changedCalls; });
+    CHECK (page.previewInsertToggleForTesting().getButtonText() == "Preview notes when inserting");
+    CHECK (page.previewEditToggleForTesting().getButtonText() == "Preview notes when editing");
+    CHECK (page.previewVelocityToggleForTesting().getButtonText() == "Preview notes when velocity changes");
+    CHECK_FALSE (page.previewInsertToggleForTesting().getToggleState());
+    CHECK_FALSE (page.previewEditToggleForTesting().getToggleState());
+    CHECK_FALSE (page.previewVelocityToggleForTesting().getToggleState());
+
+    page.previewEditToggleForTesting().setToggleState (true, juce::sendNotification);
+    CHECK (app.settings.notePreview().onEdit);
+    CHECK_FALSE (app.settings.notePreview().onInsert);
+    CHECK_FALSE (app.settings.notePreview().onVelocity);
+    CHECK (app.applyCalls == 1);
+    CHECK (app.changedCalls == 1);
+
+    EditingPreferencesPage reopened (app.services);
+    CHECK (reopened.previewEditToggleForTesting().getToggleState());
+    CHECK_FALSE (reopened.previewInsertToggleForTesting().getToggleState());
+}

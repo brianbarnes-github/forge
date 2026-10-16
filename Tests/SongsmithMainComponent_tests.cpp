@@ -103,6 +103,10 @@ namespace lotro
         {
             return c.trackEditor->getFollowPlayhead();
         }
+        static NotePreviewSettings editorNotePreview (const SongsmithMainComponent& c)
+        {
+            return c.trackEditor->getNotePreview();
+        }
         static bool editorSnaps (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getSnapToGrid();
@@ -1405,4 +1409,25 @@ TEST_CASE ("SongsmithMainComponent: snap to grid reaches the editor, and the edi
     Access::invokeEditorMenuCommand (main, EditorOptionsSnapToGrid);
     CHECK_FALSE (Access::editorSnaps (main));
     CHECK (reported == std::vector<bool> { false });
+}
+
+TEST_CASE ("SongsmithMainComponent: note preview reaches the editor, and the editor's Options toggles reach onNotePreviewChanged", "[track-editor][editor-menu][view-settings][note-preview]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    std::vector<NotePreviewSettings> reported;
+    main.onNotePreviewChanged = [&] (const NotePreviewSettings& s) { reported.push_back (s); };
+
+    NotePreviewSettings edit;
+    edit.onEdit = true;
+    main.setNotePreview (edit);
+    CHECK (Access::editorNotePreview (main) == edit);
+    CHECK (reported.empty());   // pushing the setting is not a change to save
+
+    Access::invokeEditorMenuCommand (main, EditorOptionsPreviewOnInsert);
+    NotePreviewSettings both = edit;
+    both.onInsert = true;
+    CHECK (Access::editorNotePreview (main) == both);
+    CHECK (reported == std::vector<NotePreviewSettings> { both });
 }

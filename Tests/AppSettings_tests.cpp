@@ -370,3 +370,51 @@ TEST_CASE ("AppSettings: a corrupt or out-of-range track head width reads as the
     props.setValue ("trackList.headWidth", "400");
     CHECK (settings.trackHeadWidth() == headwidth::maximum);
 }
+
+TEST_CASE ("AppSettings: note preview defaults all off, round-trips each flag and persists across a re-opened file", "[app-settings][note-preview]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.notePreview() == NotePreviewSettings {});
+
+        for (int flag = 0; flag < 3; ++flag)
+        {
+            CAPTURE (flag);
+            NotePreviewSettings s;
+            s.onInsert = flag == 0;
+            s.onEdit = flag == 1;
+            s.onVelocity = flag == 2;
+            CHECK (settings.setNotePreview (s));
+            CHECK (settings.notePreview() == s);
+        }
+
+        NotePreviewSettings saved;
+        saved.onInsert = true;
+        saved.onVelocity = true;
+        CHECK (settings.setNotePreview (saved));
+    }
+    juce::PropertiesFile reopened (file, {});
+    const AppSettings settings (reopened);
+    CHECK (settings.notePreview().onInsert);
+    CHECK_FALSE (settings.notePreview().onEdit);
+    CHECK (settings.notePreview().onVelocity);
+    CHECK (reopened.getValue ("editing.previewOnInsert") == "1");
+    CHECK (reopened.getValue ("editing.previewOnEdit") == "0");
+    CHECK (reopened.getValue ("editing.previewOnVelocity") == "1");
+}
+
+TEST_CASE ("AppSettings: a junk note preview value reads off", "[app-settings][note-preview]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    juce::PropertiesFile props (file, {});
+    props.setValue ("editing.previewOnInsert", "yes");
+    props.setValue ("editing.previewOnEdit", "1");
+    const AppSettings settings (props);
+    CHECK_FALSE (settings.notePreview().onInsert);
+    CHECK (settings.notePreview().onEdit);
+    CHECK_FALSE (settings.notePreview().onVelocity);
+}

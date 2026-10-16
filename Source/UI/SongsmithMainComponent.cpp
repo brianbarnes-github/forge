@@ -173,6 +173,11 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         if (onSnapToGridChanged)
             onSnapToGridChanged (on);
     };
+    trackEditor->onNotePreviewChanged = [this] (const NotePreviewSettings& settings)
+    {
+        if (onNotePreviewChanged)
+            onNotePreviewChanged (settings);
+    };
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 
@@ -260,6 +265,11 @@ void SongsmithMainComponent::setFollowPlayhead (bool follow)
 void SongsmithMainComponent::setSnapToGrid (bool on)
 {
     trackEditor->setSnapToGrid (on);
+}
+
+void SongsmithMainComponent::setNotePreview (const NotePreviewSettings& settings)
+{
+    trackEditor->setNotePreview (settings);
 }
 
 // Remembered for editors opened later; an editor that is already open keeps its grid.
