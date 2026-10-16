@@ -458,6 +458,16 @@ bool PianoRollComponent::handleEditorMouseDown (juce::Point<int> pos, juce::Modi
         setActivePitch (geometry.pitchForY (pos.y));
     if (sourceEditor == nullptr)
         return false;
+    // The gutter is mouse-transparent and pinned, so a press on a key lands
+    // on the canvas within gutter width of the view's left edge.
+    const int viewX = pos.x - viewport.getViewPositionX();
+    if (mods.isPopupMenu() && ! isDoubleClick && viewX >= 0 && viewX < geometry.getKeyboardGutterWidth())
+    {
+        sourceEditor->selectPitch (geometry.pitchForY (pos.y),
+                                   mods.isShiftDown() || mods.isCtrlDown() || mods.isCommandDown());
+        afterEditorGesture (true);
+        return true;
+    }
     const bool changed = sourceEditor->mouseDown (pos, mods, isDoubleClick);
     afterEditorGesture (changed);
     return changed;

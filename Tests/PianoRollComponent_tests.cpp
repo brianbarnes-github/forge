@@ -1854,3 +1854,72 @@ TEST_CASE ("PianoRollComponent: addNoteNearestToSelection does nothing with no n
     CHECK_FALSE (preview.hasUnselectedNotes());
     CHECK_FALSE (preview.addNoteNearestToSelection (0.0));
 }
+
+TEST_CASE ("PianoRollComponent: a right-click on a keyboard key selects every note of that semitone; shift adds", "[piano-roll][pitch-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64, 60 });
+    auto& editor = Access::editor (fixture.roll);
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+    const int keyX = Access::viewport (fixture.roll).getViewPositionX() + 5;
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, keyX, 60), right, false);
+    CHECK (editor.getNumSelected() == 2);   // on the press
+    CHECK (editor.isSelected (noteAt (fixture, 0)));
+    CHECK (editor.isSelected (noteAt (fixture, 2)));
+    CHECK (fixture.roll.getActivePitch() == 60);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, keyX, 60));
+    CHECK (editor.getNumSelected() == 2);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, keyX, 64),
+                       juce::ModifierKeys (juce::ModifierKeys::rightButtonModifier | juce::ModifierKeys::shiftModifier), false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, keyX, 64));
+    CHECK (editor.getNumSelected() == 3);
+
+    // A plain right-click on a key with no notes clears it; a drag from a key draws no lasso.
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, keyX, 70), right, false);
+    Access::mouseDrag (fixture.roll, canvasRowPoint (fixture.roll, keyX + 300, 55));
+    CHECK (editor.getRubberBandRect().isEmpty());
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, keyX + 300, 55));
+    CHECK (editor.getNumSelected() == 0);
+}
+
+TEST_CASE ("PianoRollComponent: the keyboard is found by where it sits on screen, after a horizontal scroll too", "[piano-roll][pitch-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64, 60 });
+    auto& editor = Access::editor (fixture.roll);
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+    for (int i = 0; i < 15; ++i)
+        Access::zoom (fixture.roll, 1.0f);
+    auto& viewport = Access::viewport (fixture.roll);
+    viewport.setViewPosition (300, viewport.getViewPositionY());
+    const int scrollX = viewport.getViewPositionX();
+    REQUIRE (scrollX > Access::geometry (fixture.roll).getKeyboardGutterWidth());
+
+    // Canvas x 5 is scrolled off to the left: that is the roll, not the keyboard.
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, 5, 60), right, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, 5, 60));
+    CHECK (editor.getNumSelected() == 0);
+
+    Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, scrollX + 5, 60), right, false);
+    Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, scrollX + 5, 60));
+    CHECK (editor.getNumSelected() == 2);
+}
+
+TEST_CASE ("PianoRollComponent: a right-click on the roll itself selects nothing in its row", "[piano-roll][pitch-select]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64, 60 });
+    auto& editor = Access::editor (fixture.roll);
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+    const auto& geometry = Access::geometry (fixture.roll);
+
+    for (const int x : { geometry.xForTick (ticksPerQuarter * 6), geometry.xForTick (ticksPerQuarter / 2) })   // empty, on a C
+    {
+        Access::mouseDown (fixture.roll, canvasRowPoint (fixture.roll, x, 60), right, false);
+        Access::mouseUp (fixture.roll, canvasRowPoint (fixture.roll, x, 60));
+        CHECK (editor.getNumSelected() == 0);
+        CHECK (fixture.roll.getActivePitch() == 60);
+    }
+}

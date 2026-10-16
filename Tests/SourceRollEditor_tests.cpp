@@ -474,16 +474,15 @@ TEST_CASE ("SourceRollEditor: Ctrl+Shift+Z also redoes", "[source-roll-editor]")
 namespace
 {
     const juce::ModifierKeys rightClick { juce::ModifierKeys::rightButtonModifier };
-    const juce::ModifierKeys shiftRightClick { juce::ModifierKeys::rightButtonModifier | juce::ModifierKeys::shiftModifier };
 
-    // Any x inside `pitch`'s row -- right-click selects by row, not by note.
+    // Any x inside `pitch`'s row.
     juce::Point<int> rowPoint (const PianoRollGeometry& geometry, int x, int pitch)
     {
         return { x, geometry.yForPitch (pitch) + geometry.getRowHeight() / 2 };
     }
 }
 
-TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pitch and nothing else", "[source-roll-editor][pitch-select]")
+TEST_CASE ("SourceRollEditor: selectPitch selects every note of that pitch and nothing else", "[source-roll-editor][pitch-select]")
 {
     Fixture f;
     auto laterC = makeNote (60, ticksPerQuarter * 4, ticksPerQuarter);
@@ -491,10 +490,7 @@ TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pi
     f.editor.mouseDown (f.centreOf (f.noteB), {}, false); // prior selection is replaced
     f.editor.mouseUp (f.centreOf (f.noteB));
 
-    const auto press = rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 60);
-    f.editor.mouseDown (press, rightClick, false);
-    CHECK (f.editor.isSelected (f.noteB));   // picked on the release, not the press
-    CHECK (f.editor.mouseUp (press));
+    f.editor.selectPitch (60, false);
 
     CHECK (f.editor.getNumSelected() == 2);
     CHECK (f.editor.isSelected (f.noteA));
@@ -502,50 +498,42 @@ TEST_CASE ("SourceRollEditor: right-clicking a row selects every note of that pi
     CHECK_FALSE (f.editor.isSelected (f.noteB));
 }
 
-TEST_CASE ("SourceRollEditor: right-clicking over the keyboard gutter selects that key's notes too", "[source-roll-editor][pitch-select]")
+TEST_CASE ("SourceRollEditor: selectPitch adding keeps the existing selection", "[source-roll-editor][pitch-select]")
 {
     Fixture f;
-    f.editor.mouseDown (rowPoint (f.geometry, 5, 64), rightClick, false);
-    CHECK (f.editor.mouseUp (rowPoint (f.geometry, 5, 64)));
-    CHECK (f.editor.getNumSelected() == 1);
-    CHECK (f.editor.isSelected (f.noteB));
-}
-
-TEST_CASE ("SourceRollEditor: shift+right-click adds a pitch's notes to the existing selection", "[source-roll-editor][pitch-select]")
-{
-    Fixture f;
-    f.editor.mouseDown (rowPoint (f.geometry, 5, 60), rightClick, false);
-    f.editor.mouseUp (rowPoint (f.geometry, 5, 60));
-    f.editor.mouseDown (rowPoint (f.geometry, 5, 64), shiftRightClick, false);
-    f.editor.mouseUp (rowPoint (f.geometry, 5, 64));
+    f.editor.selectPitch (60, false);
+    f.editor.selectPitch (64, true);
 
     CHECK (f.editor.getNumSelected() == 2);
     CHECK (f.editor.isSelected (f.noteA));
     CHECK (f.editor.isSelected (f.noteB));
 }
 
-TEST_CASE ("SourceRollEditor: right-clicking a pitch with no notes clears the selection", "[source-roll-editor][pitch-select]")
+TEST_CASE ("SourceRollEditor: selectPitch on a pitch with no notes clears the selection", "[source-roll-editor][pitch-select]")
 {
     Fixture f;
-    f.editor.mouseDown (f.centreOf (f.noteA), {}, false);
-    f.editor.mouseUp (f.centreOf (f.noteA));
-
-    f.editor.mouseDown (rowPoint (f.geometry, 5, 62), rightClick, false);
-    f.editor.mouseUp (rowPoint (f.geometry, 5, 62));
+    f.editor.selectOnly (f.noteA);
+    f.editor.selectPitch (62, false);
     CHECK (f.editor.getNumSelected() == 0);
 }
 
-TEST_CASE ("SourceRollEditor: a right press that wobbles under 4 px is still a row pick, not a lasso", "[source-roll-editor][pitch-select]")
+TEST_CASE ("SourceRollEditor: a right-click on the roll, even with a wobble under 4 px, leaves the selection alone", "[source-roll-editor][pitch-select]")
 {
     Fixture f;
-    const auto press = rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 64);
-    f.editor.mouseDown (press, rightClick, false);
-    CHECK_FALSE (f.editor.mouseDrag (press.translated (3, 0)));
-    CHECK (f.editor.getRubberBandRect().isEmpty());
-    f.editor.mouseUp (press.translated (3, 0));
+    f.editor.selectOnly (f.noteA);
 
-    CHECK (f.editor.getNumSelected() == 1);
-    CHECK (f.editor.isSelected (f.noteB));
+    // In noteB's row, on empty canvas and on noteB itself.
+    for (const auto press : { rowPoint (f.geometry, f.geometry.xForTick (ticksPerQuarter * 3), 64), f.centreOf (f.noteB) })
+    {
+        f.editor.mouseDown (press, rightClick, false);
+        CHECK_FALSE (f.editor.mouseDrag (press.translated (3, 0)));
+        CHECK (f.editor.getRubberBandRect().isEmpty());
+        f.editor.mouseUp (press.translated (3, 0));
+
+        CHECK (f.editor.getNumSelected() == 1);
+        CHECK (f.editor.isSelected (f.noteA));
+    }
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter);
 }
 
 namespace

@@ -270,8 +270,6 @@ bool SourceRollEditor::mouseDrag (juce::Point<int> pos)
 
 bool SourceRollEditor::mouseUp (juce::Point<int>)
 {
-    if (dragMode == DragMode::RightPress)
-        selectPitch (geometry.pitchForY (dragStartPos.y), rightPressAdds);
     const bool wasActive = dragMode != DragMode::None;
     dragMode = DragMode::None;
     dragOriginals.clear();
