@@ -32,6 +32,7 @@ add_executable(forge_tests
     TempoMap_tests.cpp
     TimelineRulerMarks_tests.cpp
     GridLines_tests.cpp
+    EditorGrid_tests.cpp
     MeterSegments_tests.cpp
     KeyDetector_tests.cpp
     ScaleSnap_tests.cpp
@@ -147,6 +148,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TimelineRuler.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/TimelineRulerMarks.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/GridLines.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/EditorGrid.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/MeterSegments.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/KeyDetector.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/KeyDetection.cpp
