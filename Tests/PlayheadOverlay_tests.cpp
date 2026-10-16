@@ -145,7 +145,7 @@ TEST_CASE ("TimelineRuler: the marker's line and triangle are drawn through both
                     [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
     ruler.setMarker ([&] { return marker; });
 
-    const auto amber = juce::Colour (SongsmithColours::accentAmber);
+    const auto amber = juce::Colour (SongsmithColours::accentCopper);
     auto render = [&]
     {
         juce::Image image (juce::Image::ARGB, 500, TimelineRuler::height, true, juce::SoftwareImageType());
@@ -204,7 +204,7 @@ TEST_CASE ("MarkerOverlay: it is only a line and never takes clicks", "[playback
     juce::Image image (juce::Image::ARGB, 500, 100, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     overlay.paintEntireComponent (g, false);
-    const auto amber = juce::Colour (SongsmithColours::accentAmber);
+    const auto amber = juce::Colour (SongsmithColours::accentCopper);
     CHECK (image.getPixelAt (100, 0) == amber);
     CHECK (image.getPixelAt (100, 99) == amber);
     CHECK (image.getPixelAt (110, 50) != amber);
@@ -576,7 +576,7 @@ TEST_CASE ("TimelineRuler: the loop range is shaded through both rows and its br
     const auto with = renderComponent (ruler);
 
     constexpr int clockRow = TimelineRuler::height - 4;
-    const auto amber = juce::Colour (SongsmithColours::accentAmber);
+    const auto amber = juce::Colour (SongsmithColours::accentCopper);
     CHECK (with.getPixelAt (150, 4) != without.getPixelAt (150, 4));                   // top row, inside
     CHECK (with.getPixelAt (150, clockRow) != without.getPixelAt (150, clockRow));     // clock row, inside
     CHECK (with.getPixelAt (50, clockRow) == without.getPixelAt (50, clockRow));       // outside, left

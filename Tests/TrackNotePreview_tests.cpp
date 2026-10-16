@@ -112,7 +112,7 @@ TEST_CASE ("TrackNotePreview: draws ghost toggle as filled amber when visible, o
     juce::Graphics gInvisible (imageInvisible);
     preview.paint (gInvisible);
     auto pixelAtCentreInvisible = imageInvisible.getPixelAt (toggleCentre.x, toggleCentre.y);
-    CHECK (pixelAtCentreInvisible != juce::Colour (SongsmithColours::accentAmber));
+    CHECK (pixelAtCentreInvisible != juce::Colour (SongsmithColours::accentCopper));
 
     // When visible, draw filled toggle
     preview.setGhostVisible (true);
@@ -120,7 +120,7 @@ TEST_CASE ("TrackNotePreview: draws ghost toggle as filled amber when visible, o
     juce::Graphics gVisible (imageVisible);
     preview.paint (gVisible);
     auto pixelAtCentreVisible = imageVisible.getPixelAt (toggleCentre.x, toggleCentre.y);
-    CHECK (pixelAtCentreVisible == juce::Colour (SongsmithColours::accentAmber));
+    CHECK (pixelAtCentreVisible == juce::Colour (SongsmithColours::accentCopper));
 }
 
 namespace

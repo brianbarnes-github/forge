@@ -176,7 +176,7 @@ void PreviewAssignedPanel::paint (juce::Graphics& g)
     // — natural to build alongside Phase 7's mouse handlers, not here.
     if (willFoldNotes > 0)
     {
-        g.setColour (juce::Colour (accentAmber));
+        g.setColour (juce::Colour (accentCopper));
         g.drawText (juce::String (willFoldNotes) + " will octave-shift", area.removeFromTop (lineHeight),
                      juce::Justification::centredLeft);
     }

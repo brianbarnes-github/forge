@@ -70,7 +70,7 @@ namespace lotro
         table.setColour (juce::ListBox::outlineColourId, juce::Colour (SongsmithColours::border));
         table.setOutlineThickness (1);
 
-        message.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::accentAmber));
+        message.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::accentCopper));
         message.setMinimumHorizontalScale (1.0f);
 
         addAndMakeVisible (table);

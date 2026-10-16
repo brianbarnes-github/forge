@@ -11,32 +11,40 @@
 // need it, so this header stays juce_core-only on principle.
 namespace lotro::SongsmithColours
 {
-    constexpr juce::uint32 background   = 0xFF2B2B2B;
-    constexpr juce::uint32 panelHeader  = 0xFF383838;
-    constexpr juce::uint32 selectedRow  = 0xFF3D4A5A;
-    constexpr juce::uint32 border       = 0xFF1A1A1A;
-    constexpr juce::uint32 text         = 0xFFD0D0D0;
-    constexpr juce::uint32 textMuted    = 0xFF888888;
-    constexpr juce::uint32 accentAmber  = 0xFFE0B080;
+    constexpr juce::uint32 background    = 0xFF17191C;
+    constexpr juce::uint32 panelHeader   = 0xFF24272B;
+    // Header / transport-strip / button surfaces: a subtle top-to-bottom
+    // gradient with a 1 px highlight on top (ThemePaint::paintPanelGradient).
+    constexpr juce::uint32 surfaceTop    = 0xFF2C2F34;
+    constexpr juce::uint32 surfaceBottom = 0xFF1C1E22;
+    constexpr juce::uint32 edgeHighlight = 0x0FFFFFFF;
+    constexpr juce::uint32 selectedRow   = 0xFF2E3238;
+    constexpr juce::uint32 border        = 0xFF0E0F11;
+    constexpr juce::uint32 text          = 0xFFDADCE0;
+    constexpr juce::uint32 textMuted     = 0xFF8B8F96;
+    constexpr juce::uint32 accentCopper  = 0xFFE8955A;
+
+    // The start marker and loop range: ivory, so the copper playhead stays distinct.
+    constexpr juce::uint32 markerIvory   = 0xFFE6DFD2;
 
     // 1px line between MIDI-source track rows — lighter than `background`
     // (unlike `border`, which is darker and vanishes against it).
-    constexpr juce::uint32 trackDivider = 0xFF484848;
-    constexpr juce::uint32 columnDivider = 0xFF6A6A6A;
+    constexpr juce::uint32 trackDivider   = 0xFF2E3136;
+    constexpr juce::uint32 columnDivider  = 0xFF4A4E55;
     // Instrument-name band above each track's notes (the Reaper-style label bar).
-    constexpr juce::uint32 instrumentBand = 0xFF3C3C3C;
+    constexpr juce::uint32 instrumentBand = 0xFF25282C;
 
     // Phase 7 -- source-role selection highlight (roll editing).
     constexpr juce::uint32 selectionHighlight = 0xFFFFFFFF;
 
     // Conductor row tempo / meter markers (opaque). conductorMeter intentionally
     // shares previewNoteNormal's value.
-    constexpr juce::uint32 conductorTempo       = 0xFFE0B080;
-    constexpr juce::uint32 conductorMeter       = 0xFF7FA8D0;
+    constexpr juce::uint32 conductorTempo       = accentCopper;
+    constexpr juce::uint32 conductorMeter       = 0xFF5CC3DE;
 
     // The Tempo and Meter window's selected-event line across the track list.
-    // Green, so it differs from the white playhead, the amber start marker /
-    // conductor tempo (0xE0B080) and the blue conductor meter / preview notes.
+    // Green, so it differs from the copper playhead / conductor tempo, the
+    // ivory start marker and the cyan conductor meter / preview notes.
     constexpr juce::uint32 eventMarker          = 0xFF5FD38B;
 
     // Phase 6 — preview roll overlays (Songsmith UI Guide mockup's "LOTRO
@@ -46,12 +54,14 @@ namespace lotro::SongsmithColours
     // session lead decided during Phase 6 not to deviate from that (see
     // the plan's "Multi-track-per-part preview legibility" deferred
     // decision, resolved 2026-09-14).
-    constexpr juce::uint32 previewNoteNormal    = 0xFF7FA8D0;
-    constexpr juce::uint32 previewNoteBorder    = 0xFFA0C0E0;
+    constexpr juce::uint32 previewNoteNormal    = 0xFF5CC3DE;
+    constexpr juce::uint32 previewNoteBorder    = 0xFF8FD8EC;
+    // The source roll's header label ("MIDI SOURCE ...").
+    constexpr juce::uint32 sourceHeaderLabel    = previewNoteNormal;
     constexpr juce::uint32 outOfRangeFill       = 0xFFC06060;
     constexpr juce::uint32 outOfRangeBorder     = 0xFFE08080;
-    constexpr juce::uint32 rangeBandFill        = 0x0F7FA8D0;
-    constexpr juce::uint32 rangeBandBorder      = 0xFF5A7A9A;
+    constexpr juce::uint32 rangeBandFill        = 0x0F5CC3DE;
+    constexpr juce::uint32 rangeBandBorder      = 0xFF3F8AA0;
     constexpr juce::uint32 outOfRangeZoneFillHi = 0x14C06060;
     constexpr juce::uint32 outOfRangeZoneFillLo = 0x0AC06060;
 
@@ -85,23 +95,23 @@ namespace lotro::SongsmithColours
     // Indexed by GmFamily. Families that tend to share a score (Strings vs
     // Ensemble, Reed vs Pipe, Guitar vs Bass) are pushed apart in hue.
     constexpr juce::uint32 familyBaseColour[numGmFamilies] = {
-        0xFFE0D2A8, // Piano               — ivory
-        0xFFE0A0C0, // ChromaticPercussion — pink
-        0xFFB88850, // Organ               — brown
-        0xFFE8A060, // Guitar              — orange
-        0xFFB86048, // Bass                — rust
-        0xFF80C878, // Strings             — green
-        0xFF60B8B0, // Ensemble            — teal
-        0xFFE8C840, // Brass               — gold
-        0xFF6890E0, // Reed                — blue
-        0xFF70D8E8, // Pipe                — cyan
-        0xFFB880F0, // SynthLead           — violet
-        0xFF8C84C8, // SynthPad            — slate lavender
-        0xFFD870D0, // SynthEffects        — magenta
-        0xFFA8C850, // Ethnic              — olive
-        0xFFE88080, // Percussive          — salmon
-        0xFF989898, // SoundEffects        — grey
-        0xFFE04848, // Drums               — red
+        0xFFF0E0B0, // Piano               — ivory
+        0xFFF0A8CC, // ChromaticPercussion — pink
+        0xFFCC9450, // Organ               — brown
+        0xFFF8A860, // Guitar              — orange
+        0xFFCC6448, // Bass                — rust
+        0xFF84DC78, // Strings             — green
+        0xFF5CCCC2, // Ensemble            — teal
+        0xFFF8D840, // Brass               — gold
+        0xFF6898F4, // Reed                — blue
+        0xFF70E8F8, // Pipe                — cyan
+        0xFFC484FF, // SynthLead           — violet
+        0xFF948CDC, // SynthPad            — slate lavender
+        0xFFEC74E4, // SynthEffects        — magenta
+        0xFFB4DC50, // Ethnic              — olive
+        0xFFF88484, // Percussive          — salmon
+        0xFFA4A4A4, // SoundEffects        — grey
+        0xFFF44C4C, // Drums               — red
     };
 
     // Same-family tracks cycle through these shades (base, darker, lighter,

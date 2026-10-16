@@ -67,7 +67,7 @@ TransportControls::TransportControls (PlaybackController& controllerIn, SongDocu
     rateSlider.setDoubleClickReturnValue (true, 0.0);
     // Slider value 0 (rate 1.000) is the midpoint of the sweep, which is 2*pi: straight up.
     rateSlider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
-    rateSlider.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (SongsmithColours::accentAmber));
+    rateSlider.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (SongsmithColours::accentCopper));
     rateSlider.setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (SongsmithColours::columnDivider));
     rateSlider.setColour (juce::Slider::thumbColourId, juce::Colour (SongsmithColours::text));
     rateSlider.setWantsKeyboardFocus (false);
@@ -151,7 +151,7 @@ void TransportControls::paint (juce::Graphics& g)
 {
     // A fixed mark over the top of the knob's rim: the neutral 1.000 position at 12 o'clock.
     const auto knob = rateSlider.getBounds();
-    g.setColour (juce::Colour (SongsmithColours::accentAmber));
+    g.setColour (juce::Colour (SongsmithColours::accentCopper));
     g.fillRect (juce::Rectangle<float> ((float) knob.getCentreX() - 1.0f, (float) knob.getY() - 1.0f, 2.0f, 5.0f));
 
     // The Selection group's frame: label + three boxes.

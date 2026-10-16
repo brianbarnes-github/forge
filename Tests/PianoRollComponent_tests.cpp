@@ -5,6 +5,7 @@
 
 #include "PlaybackTestSupport.h"
 #include "UI/PianoRollComponent.h"
+#include "UI/Theme/PianoRollPalette.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/PreviewNoteDiff.h"
 #include "UI/PreviewNoteSource.h"
@@ -206,7 +207,7 @@ TEST_CASE ("PianoRollComponent: an upward-folding note's ghost and range band re
     {
         juce::Graphics rg (reference);
         rg.fillAll (underlyingBeneathGhost);
-        rg.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
+        rg.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.7f));
         rg.fillRect (0, 0, 1, 1);
     }
     CHECK (image.getPixelAt (sampleX, ghostY) == reference.getPixelAt (0, 0));
@@ -262,7 +263,7 @@ TEST_CASE ("PianoRollComponent: a WillFold note's ghost still paints when a part
     {
         juce::Graphics rg (reference);
         rg.fillAll (underlyingBeneathGhost);
-        rg.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
+        rg.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.7f));
         rg.fillRect (0, 0, 1, 1);
     }
 
@@ -430,14 +431,14 @@ TEST_CASE ("PianoRollComponent: ghost tracks render translucently and only for R
     // own row -- is a white-key row band (pitch 60 is C, pitch 59 is B), so
     // its rendered colour is exactly the ghost's own row's underlying
     // background before the ghost was painted on top. Compositing
-    // accentAmber@0.25 onto that colour and comparing proves the ghost
+    // accentCopper@0.25 onto that colour and comparing proves the ghost
     // renders as a translucent overlay, not a fully opaque note fill.
     const auto underlyingBeneathGhost = image.getPixelAt (sampleX, ghostY + rowHeight);
     juce::Image reference (juce::Image::ARGB, 1, 1, true, juce::SoftwareImageType());
     {
         juce::Graphics rg (reference);
         rg.fillAll (underlyingBeneathGhost);
-        rg.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.25f));
+        rg.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.25f));
         rg.fillRect (0, 0, 1, 1);
     }
 
@@ -479,7 +480,7 @@ TEST_CASE ("PianoRollComponent: Preview role ignores setGhostTracks", "[piano-ro
     // Same white-key-adjacent-row background argument as the Source-role
     // test above: if the Role::Preview gate in drawGhostTracks were broken
     // (inverted or removed), the ghost's own row would be tinted
-    // accentAmber while the untouched row beneath it would not -- so the
+    // accentCopper while the untouched row beneath it would not -- so the
     // two must be pixel-identical when the gate correctly suppresses ghost
     // rendering for this role.
     const auto ghostPixel = image.getPixelAt (sampleX, ghostY);
@@ -1467,7 +1468,8 @@ namespace
         return count;
     }
 
-    constexpr juce::uint32 activeRowColour = 0xFF3A3A3A;
+    const juce::uint32 activeRowColour = juce::Colour (PianoRollPalette::rowBandLight)
+                                             .overlaidWith (juce::Colour (PianoRollPalette::activeRowTint)).getARGB();
 }
 
 TEST_CASE ("PianoRollComponent: a click on the canvas makes the row under it the active row, on a note or not", "[piano-roll][active-row]")

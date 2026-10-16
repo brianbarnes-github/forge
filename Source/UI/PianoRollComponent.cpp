@@ -4,6 +4,7 @@
 #include "GridLinePaint.h"
 #include "SongDocument.h"
 #include "SongsmithColours.h"
+#include "Theme/PianoRollPalette.h"
 #include "WheelResize.h"
 
 #include <cmath>
@@ -11,26 +12,10 @@
 namespace lotro
 {
 
+using namespace PianoRollPalette;
+
 namespace
 {
-    // Row-band shades taken verbatim from the Songsmith UI Guide mockup's
-    // piano-roll pane background, not part of the general SongsmithColours
-    // palette (those are piano-roll-specific).
-    constexpr juce::uint32 rowBandLight = 0xFF252525;
-    constexpr juce::uint32 rowBandDark  = 0xFF202020;
-    // The active row (the semitone the last click landed on): lighter than
-    // both bands, so it reads as "here", not as a selection.
-    constexpr juce::uint32 activeRowBand = 0xFF3A3A3A;
-
-    // Keyboard gutter, drawn as a real piano keyboard (white keys full
-    // width, black keys shorter and on top) so sharps/flats read at a glance.
-    constexpr juce::uint32 whiteKey        = 0xFFEDEDED;
-    constexpr juce::uint32 blackKey        = 0xFF141414;
-    constexpr juce::uint32 whiteKeyDivider = 0xFF9A9A9A;
-    constexpr juce::uint32 whiteKeyLabel   = 0xFF505050;
-    constexpr juce::uint32 whiteKeyHover   = 0xFFD6D6D6;
-    constexpr juce::uint32 blackKeyHover   = 0xFF2E2E2E;
-    constexpr juce::uint32 hoverLabel      = 0xFF8C8C8C; // light grey: identifies the key without shouting
     constexpr float blackKeyWidthRatio = 0.6f;
 
     constexpr int middleC = 60;
@@ -690,8 +675,10 @@ void PianoRollComponent::drawRowBands (juce::Graphics& g, juce::Rectangle<int> c
     for (int row = firstRow; row <= lastRow; ++row)
     {
         const int pitch = topPitch - row;
-        g.setColour (juce::Colour (pitch == activePitch ? activeRowBand
-                                   : PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
+        // The active row: the copper tint over the light band, composited once
+        // so sharps and naturals get the same opaque colour.
+        g.setColour (pitch == activePitch ? juce::Colour (rowBandLight).overlaidWith (juce::Colour (activeRowTint))
+                     : juce::Colour (PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
         g.fillRect (clip.getX(), row * rowHeight, clip.getWidth(), rowHeight);
     }
 }
@@ -761,7 +748,7 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
 
             if (PianoRollGeometry::isBlackKey (pitch))
             {
-                g.setColour (juce::Colour (hovered ? blackKeyHover : blackKey));
+                g.setColour (juce::Colour (hovered ? blackKeyHover : blackKeyTop));
                 g.fillRect (0, y, blackKeyWidth, rowHeight);
 
                 // The two white keys either side meet behind the black key's middle.
@@ -826,7 +813,7 @@ void PianoRollComponent::drawGhostTracks (juce::Graphics& g, juce::Rectangle<int
     if (role != Role::Source || ghostTracks.empty())
         return;
 
-    g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.25f));
+    g.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.25f));
 
     for (auto& ghostTrack : ghostTracks)
     {
@@ -905,7 +892,7 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
 
         if (hasGhost)
         {
-            g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.7f));
+            g.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.7f));
             g.drawRect (ghostRect, 1);
         }
         else if (note.state == NoteState::Dropped)

@@ -99,7 +99,7 @@ void MarkerOverlay::paint (juce::Graphics& g)
     const auto x = currentX();
     if (! x.has_value() || *x < 0 || *x >= getWidth())
         return;
-    g.setColour (juce::Colour (SongsmithColours::accentAmber));
+    g.setColour (juce::Colour (SongsmithColours::accentCopper));
     g.fillRect (*x, 0, 1, getHeight());
 }
 
@@ -133,7 +133,7 @@ void LoopRangeOverlay::paint (juce::Graphics& g)
     if (first >= last)
         return;
 
-    const auto amber = juce::Colour (SongsmithColours::accentAmber);
+    const auto amber = juce::Colour (SongsmithColours::accentCopper);
     g.setColour (amber.withAlpha (0.14f));
     g.fillRect (first, 0, last - first, getHeight());
 

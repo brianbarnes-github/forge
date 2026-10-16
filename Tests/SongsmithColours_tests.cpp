@@ -1,5 +1,6 @@
 // Tests/SongsmithColours_tests.cpp
 #include "UI/SongsmithColours.h"
+#include "UI/Theme/PianoRollPalette.h"
 
 #include <juce_graphics/juce_graphics.h>
 #include <catch2/catch_test_macros.hpp>
@@ -63,4 +64,41 @@ TEST_CASE ("SongsmithColours: tracks within one family share a hue but get disti
 
     // The shade cycle wraps rather than running off the end.
     CHECK (trackColourFor (GmFamily::Strings, numFamilyShades) == trackColourFor (GmFamily::Strings, 0));
+}
+
+TEST_CASE ("SongsmithColours: the restyle palette", "[theme]")
+{
+    CHECK (SongsmithColours::background    == 0xFF17191Cu);
+    CHECK (SongsmithColours::panelHeader   == 0xFF24272Bu);
+    CHECK (SongsmithColours::surfaceTop    == 0xFF2C2F34u);
+    CHECK (SongsmithColours::surfaceBottom == 0xFF1C1E22u);
+    CHECK (SongsmithColours::edgeHighlight == 0x0FFFFFFFu);
+    CHECK (SongsmithColours::border        == 0xFF0E0F11u);
+    CHECK (SongsmithColours::text          == 0xFFDADCE0u);
+    CHECK (SongsmithColours::textMuted     == 0xFF8B8F96u);
+    CHECK (SongsmithColours::accentCopper  == 0xFFE8955Au);
+    CHECK (SongsmithColours::conductorTempo == SongsmithColours::accentCopper);
+    CHECK (SongsmithColours::previewNoteNormal == 0xFF5CC3DEu);
+    CHECK (SongsmithColours::conductorMeter == SongsmithColours::previewNoteNormal);
+    CHECK (SongsmithColours::previewNoteBorder == 0xFF8FD8ECu);
+    CHECK (SongsmithColours::selectedRow   == 0xFF2E3238u);
+    CHECK (SongsmithColours::markerIvory   == 0xFFE6DFD2u);
+    CHECK (SongsmithColours::sourceHeaderLabel == SongsmithColours::previewNoteNormal);
+}
+
+TEST_CASE ("SongsmithColours: the playhead copper differs from the marker ivory", "[theme]")
+{
+    CHECK (SongsmithColours::accentCopper != SongsmithColours::markerIvory);
+}
+
+TEST_CASE ("PianoRollPalette: keys keep light/dark contrast", "[theme]")
+{
+    const auto brightness = [] (juce::uint32 argb)
+    {
+        return (((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF)) / 3;
+    };
+    CHECK (brightness (PianoRollPalette::whiteKey) > 200);
+    CHECK (brightness (PianoRollPalette::whiteKeyShade) < brightness (PianoRollPalette::whiteKey));
+    CHECK (brightness (PianoRollPalette::blackKeyTop) < 50);
+    CHECK (brightness (PianoRollPalette::blackKeyBottom) > brightness (PianoRollPalette::blackKeyTop));
 }

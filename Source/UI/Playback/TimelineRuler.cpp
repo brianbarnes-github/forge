@@ -134,7 +134,7 @@ void TimelineRuler::paint (juce::Graphics& g)
             const int last = xForTick (range->endTick);   // exclusive
             if (first < last)
             {
-                g.setColour (juce::Colour (SongsmithColours::accentAmber).withAlpha (0.14f));
+                g.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.14f));
                 g.fillRect (first, 0, last - first, getHeight());
             }
         }
@@ -161,7 +161,7 @@ void TimelineRuler::paint (juce::Graphics& g)
         // Each edge: a faint line through both rows (continuing LoopRangeOverlay's
         // below) and a bracket in the top row opening into the range. Drawn before
         // the marker, which stays on top.
-        const auto amber = juce::Colour (SongsmithColours::accentAmber);
+        const auto amber = juce::Colour (SongsmithColours::accentCopper);
         for (const bool isStart : { true, false })
         {
             const auto bracket = loopHandleBounds (isStart);
@@ -181,7 +181,7 @@ void TimelineRuler::paint (juce::Graphics& g)
         if (const auto handle = markerHandleBounds())
         {
             const int x = handle->getCentreX();
-            g.setColour (juce::Colour (SongsmithColours::accentAmber));
+            g.setColour (juce::Colour (SongsmithColours::accentCopper));
             g.fillRect (x, handle->getBottom(), 1, getHeight() - handle->getBottom());
             juce::Path flag;
             flag.addTriangle ((float) handle->getX(), 0.0f, (float) handle->getRight(), 0.0f,

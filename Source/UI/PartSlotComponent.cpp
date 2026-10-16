@@ -41,13 +41,13 @@ void PartSlotComponent::paint (juce::Graphics& g)
 
     if (dragHighlight)
     {
-        g.setColour (juce::Colour (accentAmber).withAlpha (0.15f));
+        g.setColour (juce::Colour (accentCopper).withAlpha (0.15f));
         g.fillRect (bounds);
     }
 
     if (selected)
     {
-        g.setColour (juce::Colour (accentAmber));
+        g.setColour (juce::Colour (accentCopper));
         g.fillRect (bounds.removeFromTop (2));
     }
 
@@ -62,9 +62,9 @@ void PartSlotComponent::paint (juce::Graphics& g)
     juce::Font badgeFont (juce::FontOptions (10.0f));
     const int badgeWidth = juce::GlyphArrangement::getStringWidthInt (badgeFont, instrumentName) + 12;
     auto badgeArea = header.removeFromLeft (badgeWidth);
-    g.setColour (juce::Colour (accentAmber).withAlpha (0.25f));
+    g.setColour (juce::Colour (accentCopper).withAlpha (0.25f));
     g.fillRoundedRectangle (badgeArea.reduced (0, 2).toFloat(), 2.0f);
-    g.setColour (juce::Colour (accentAmber));
+    g.setColour (juce::Colour (accentCopper));
     g.setFont (badgeFont);
     g.drawText (instrumentName, badgeArea, juce::Justification::centred);
 

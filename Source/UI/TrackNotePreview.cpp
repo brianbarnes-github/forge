@@ -214,7 +214,7 @@ namespace lotro
         auto toggleBounds = ghostToggleBounds().toFloat();
         if (ghostVisible)
         {
-            g.setColour (juce::Colour (accentAmber));
+            g.setColour (juce::Colour (accentCopper));
             g.fillEllipse (toggleBounds);
         }
         else

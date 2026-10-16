@@ -108,7 +108,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         juce::String::fromUTF8 ("\xe2\x96\xb2 MIDI SOURCE \xc2\xb7 drag tracks down to assign"),
         juce::dontSendNotification);
     sourceHeader.setColour (juce::Label::backgroundColourId, juce::Colour (SongsmithColours::panelHeader));
-    sourceHeader.setColour (juce::Label::textColourId, juce::Colour (0xFF7FA8D0)); // mockup's blue label
+    sourceHeader.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::sourceHeaderLabel));
 
     trackList.setPlayback (playback);
     trackList.onTrackDoubleClicked = [this] (juce::int64 trackId) { trackDoubleClicked (trackId); };
@@ -136,7 +136,7 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
     // The LOTRO preview is the first dockable panel; the dock host puts it in the
     // bottom zone (today's layout) and parents upperRegion/lowerRegion in topStack.
     dockHost.setLowerChromeHeight (transportStrip != nullptr ? TransportStrip::height + dock::DockStack::dividerSize : 0);
-    dockHost.addPanel (dock::panelDefs()[0], juce::Colour (SongsmithColours::accentAmber), previewRegion);
+    dockHost.addPanel (dock::panelDefs()[0], juce::Colour (SongsmithColours::accentCopper), previewRegion);
     dockHost.panel ("lotroPreview")->setTitle (
         juce::String::fromUTF8 ("\xe2\x96\xbc LOTRO PREVIEW \xc2\xb7 how it will sound in-game"));
 

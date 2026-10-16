@@ -110,7 +110,7 @@ void StripButtonsBar::refresh()
         btn.setButtonText (juce::String (v.label));
         btn.setEnabled (v.enabled);
         btn.setToggleState (v.pressed, juce::dontSendNotification);
-        btn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (SongsmithColours::accentAmber));
+        btn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (SongsmithColours::accentCopper));
     }
     overflowButton.setVisible (overflowShown);
     layoutButtons();

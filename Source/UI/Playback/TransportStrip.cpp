@@ -27,7 +27,7 @@ namespace
         };
         const auto normal = make (SongsmithColours::text);
         const auto over   = make (SongsmithColours::selectionHighlight);
-        const auto down   = make (SongsmithColours::accentAmber);
+        const auto down   = make (SongsmithColours::accentCopper);
         button.setImages (&normal, &over, &down);
     }
 }
