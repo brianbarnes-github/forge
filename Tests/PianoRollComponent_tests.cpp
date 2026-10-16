@@ -2022,6 +2022,76 @@ TEST_CASE ("PianoRollComponent: selectAllOfSamePitch selects every note of the s
     CHECK_FALSE (fixture.roll.canSelectAllOfSamePitch());   // many selected now
 }
 
+TEST_CASE ("PianoRollComponent: addSteppedNoteToSelection grows the selection at either end, moves the active row, and returns each start", "[piano-roll][extend-selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62 });   // starts 0, 480
+    addNoteToTrack (fixture, 67, 960);
+    addNoteToTrack (fixture, 64, 960);
+    addNoteToTrack (fixture, 55, 1440);
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+    editor.selectOnly (noteAt (fixture, 1));   // 62 at 480
+
+    CHECK (fixture.roll.hasExtendableNote (-1));
+    CHECK (fixture.roll.addSteppedNoteToSelection (+1) == std::optional<int> (960));
+    CHECK (editor.isSelected (noteAt (fixture, 3)));   // 64, the chord's lowest
+    CHECK (fixture.roll.getActivePitch() == 64);
+    CHECK (fixture.roll.addSteppedNoteToSelection (+1) == std::optional<int> (960));
+    CHECK (editor.isSelected (noteAt (fixture, 2)));   // 67
+    CHECK (fixture.roll.addSteppedNoteToSelection (+1) == std::optional<int> (1440));
+    CHECK_FALSE (fixture.roll.hasExtendableNote (+1));
+    CHECK_FALSE (fixture.roll.addSteppedNoteToSelection (+1).has_value());
+    CHECK (editor.getNumSelected() == 4);
+
+    CHECK (fixture.roll.addSteppedNoteToSelection (-1) == std::optional<int> (0));
+    CHECK (editor.getNumSelected() == 5);
+    CHECK (fixture.roll.getActivePitch() == 60);
+    CHECK_FALSE (fixture.roll.hasExtendableNote (-1));
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("PianoRollComponent: addSteppedNoteToSelection and selectionStart need a selection", "[piano-roll][extend-selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62 });
+    CHECK_FALSE (fixture.roll.hasExtendableNote (+1));
+    CHECK_FALSE (fixture.roll.addSteppedNoteToSelection (+1).has_value());
+    CHECK_FALSE (fixture.roll.selectionStart().has_value());
+    CHECK (Access::editor (fixture.roll).getNumSelected() == 0);
+
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    CHECK_FALSE (preview.hasExtendableNote (+1));
+    CHECK_FALSE (preview.addSteppedNoteToSelection (-1).has_value());
+    CHECK_FALSE (preview.selectionStart().has_value());
+}
+
+TEST_CASE ("PianoRollComponent: selectionStart is the earliest selected start, and scrollTickIntoView brings it on screen", "[piano-roll][extend-selection]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64 });   // starts 0, 480, 960
+    addNoteToTrack (fixture, 60, 40000);
+    fixture.roll.setNoteSource (fixture.source.get(), ticksPerQuarter, {});
+    fixture.roll.setEditableTrack (fixture.track);
+    auto& editor = Access::editor (fixture.roll);
+    editor.selectOnly (noteAt (fixture, 2));
+    editor.addToSelection (noteAt (fixture, 1));
+    CHECK (fixture.roll.selectionStart() == std::optional<int> (480));
+
+    editor.selectOnly (noteAt (fixture, 3));
+    CHECK (fixture.roll.selectionStart() == std::optional<int> (40000));
+    for (int i = 0; i < 15; ++i)
+        Access::zoom (fixture.roll, 1.0f);   // fitted, the whole track would be on screen
+    auto& viewport = Access::viewport (fixture.roll);
+    REQUIRE (fixture.roll.xForTickInComponent (40000.0) > viewport.getMaximumVisibleWidth());
+    const int yBefore = viewport.getViewPositionY();
+    fixture.roll.scrollTickIntoView (40000.0);
+    const int x = fixture.roll.xForTickInComponent (40000.0);
+    CHECK (x >= Access::geometry (fixture.roll).getKeyboardGutterWidth());
+    CHECK (x < viewport.getMaximumVisibleWidth());
+    CHECK (viewport.getViewPositionY() == yBefore);   // time only
+}
+
 TEST_CASE ("PianoRollComponent: a right-click on a keyboard key selects every note of that semitone; shift adds", "[piano-roll][pitch-select]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

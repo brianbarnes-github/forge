@@ -325,7 +325,16 @@ When you say…       …I'll know you mean
   pitch on the track and leaves the marker and the view where they are. All three
   are greyed unless exactly one note is selected (nothing selected or a
   multi-selection turns them off), and when no other note of that pitch is left
-  that way; none adds an undo step. It hosts the source piano roll (#13)
+  that way; none adds an undo step.
+  **Navigate → Add Previous / Next Note to Selection** (no shortcut) add the
+  note right before the first selected note / right after the last one, on any
+  pitch and in the same order as Select Previous / Next Note, and move the start
+  marker to that note's exact start; repeated use grows the selection outward.
+  The active row moves to the note's pitch and the view scrolls to show it.
+  **Move Cursor to Start of Selection** moves the start marker to the earliest
+  selected note's exact start and scrolls it into view, keeping the selection.
+  All three are greyed with nothing selected or no track, and the adds also
+  when no note is left that way; none adds an undo step. It hosts the source piano roll (#13)
   and `SourceRollEditor` exactly as before this redesign — see that entry
   below for the editing gestures — plus translucent overlays of any tracks
   currently ghost-toggled on in the track list (#10). The loop range (#35), when

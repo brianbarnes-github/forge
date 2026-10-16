@@ -145,6 +145,18 @@ public:
     // moving the active row. No undo step. False (nothing changed) unless
     // canSelectAllOfSamePitch.
     bool selectAllOfSamePitch();
+    // Source role with an editor: there is a note for addSteppedNoteToSelection to add.
+    bool hasExtendableNote (int direction) const;
+    // Adds the note right after the last selected one (`direction` +1) or right
+    // before the first (-1) on any pitch (see extendedNoteIndex), makes its pitch
+    // the active row and scrolls just enough to show it. No undo step. Returns
+    // the note's start for the caller to move the cursor to; nullopt (nothing
+    // changed) with nothing selected or no note beyond that end.
+    std::optional<int> addSteppedNoteToSelection (int direction);
+    // The earliest start among the selected notes; nullopt with none selected.
+    std::optional<int> selectionStart() const;
+    // Scrolls horizontally just enough to show `tick` clear of the gutter.
+    void scrollTickIntoView (double tick);
     juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
@@ -267,6 +279,8 @@ private:
     int steppedNote (double tick, int direction) const;
     // The index samePitchNoteIndex picks from the track's notes and selection; -1 for none.
     int samePitchNote (int direction) const;
+    // The index extendedNoteIndex picks from the track's notes and selection; -1 for none.
+    int extendedNote (int direction) const;
     // The track's note starts and which are selected, index for index (empty with no notes).
     void noteStartsAndSelection (std::vector<NoteStart>& starts, std::vector<bool>& selected) const;
     // Scrolls just enough to show note `index` of the note source.

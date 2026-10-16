@@ -54,6 +54,9 @@ namespace lotro
         s.canSelectPreviousSamePitch = s.canSelectNearestNote && owner.roll.hasSamePitchNote (-1);
         s.canSelectNextSamePitch = s.canSelectNearestNote && owner.roll.hasSamePitchNote (+1);
         s.canSelectAllSamePitch = owner.currentTrackId != -1 && owner.roll.canSelectAllOfSamePitch();
+        s.canAddPreviousNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (-1);
+        s.canAddNextNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (+1);
+        s.canMoveCursorToSelectionStart = s.canSelectNearestNote && owner.roll.selectionStart().has_value();
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -113,6 +116,15 @@ namespace lotro
             case EditorNavigateSelectAllSamePitch:
                 if (currentTrackId != -1)
                     roll.selectAllOfSamePitch();
+                return;
+            case EditorNavigateAddPreviousNote:
+                addSteppedNote (-1);
+                return;
+            case EditorNavigateAddNextNote:
+                addSteppedNote (+1);
+                return;
+            case EditorNavigateCursorToSelectionStart:
+                moveCursorToSelectionStart();
                 return;
             case EditorOptionsSnapToGrid:
                 setSnapToGrid (! snapToGrid);
@@ -325,6 +337,30 @@ namespace lotro
             return false;
         // As selectSteppedNote: the note's own start, not snapped.
         playback->setMarkerTick ((double) *start);
+        return true;
+    }
+
+    bool TrackEditorPanel::addSteppedNote (int direction)
+    {
+        if (! canSelectNearestNote())
+            return false;
+        const auto start = roll.addSteppedNoteToSelection (direction);
+        if (! start.has_value())
+            return false;
+        // As selectSteppedNote: the note's own start, not snapped.
+        playback->setMarkerTick ((double) *start);
+        return true;
+    }
+
+    bool TrackEditorPanel::moveCursorToSelectionStart()
+    {
+        if (! canSelectNearestNote())
+            return false;
+        const auto start = roll.selectionStart();
+        if (! start.has_value())
+            return false;
+        playback->setMarkerTick ((double) *start);
+        roll.scrollTickIntoView ((double) *start);
         return true;
     }
 

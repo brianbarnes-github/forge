@@ -402,7 +402,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 11);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch
+    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
@@ -935,6 +935,78 @@ TEST_CASE ("TrackEditorPanel: Navigate > Select All Notes of the Same Pitch sele
     CHECK_FALSE (f.navigateEnabled (13));
     CHECK_FALSE (f.navigateEnabled (14));
     f.panel->invokeMenuCommand (EditorNavigateSelectAllSamePitch);   // no track, no crash
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Add Next / Previous Note to Selection grow the selection and move the marker to each added start", "[track-editor-window][editor-menu][extend-selection]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 72, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 48, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 55, 4000, 480);
+    f.panel->setTrack (f.track);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    auto& roll = TrackEditorPanelTestAccess::roll (*f.panel);
+    using Access = TrackEditorPanelTestAccess;
+
+    f.controller->setMarkerTick (0.0);
+    for (int i : { 16, 17, 18 })
+        CHECK_FALSE (f.navigateEnabled (i));   // nothing selected
+    f.panel->invokeMenuCommand (EditorNavigateAddNextNote);   // nothing happens
+    CHECK (Access::numSelected (*f.panel) == 0);
+
+    f.controller->setMarkerTick (2000.0);
+    f.panel->invokeMenuCommand (EditorNavigateSelectNextNote);   // 48 at 2000
+    REQUIRE (Access::isSelected (*f.panel, notes.getChild (2)));
+    CHECK (f.navigateEnabled (16));
+    CHECK (f.navigateEnabled (17));
+    CHECK (f.navigateEnabled (18));
+
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigateAddNextNote, 2);
+    CHECK (Access::numSelected (*f.panel) == 2);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (1)));   // 72, same start
+    CHECK (*f.controller->getMarkerTick() == 2000.0);
+    CHECK (roll.getActivePitch() == 72);
+    f.panel->invokeMenuCommand (EditorNavigateAddNextNote);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (3)));
+    CHECK (*f.controller->getMarkerTick() == 4000.0);
+    CHECK_FALSE (f.navigateEnabled (17));   // the last note is selected
+
+    f.panel->invokeMenuCommand (EditorNavigateAddPreviousNote);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (0)));
+    CHECK (*f.controller->getMarkerTick() == 0.0);
+    CHECK (Access::numSelected (*f.panel) == 4);
+    CHECK_FALSE (f.navigateEnabled (16));   // the first note is selected
+    f.panel->invokeMenuCommand (EditorNavigateAddPreviousNote);   // nothing happens
+    CHECK (*f.controller->getMarkerTick() == 0.0);
+
+    f.panel->clearTrack();
+    for (int i : { 16, 17, 18 })
+        CHECK_FALSE (f.navigateEnabled (i));
+    f.panel->invokeMenuCommand (EditorNavigateAddNextNote);   // no track, no crash
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Move Cursor to Start of Selection moves the marker to the earliest selected start", "[track-editor-window][editor-menu][extend-selection]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 72, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 48, 4010, 480);
+    f.panel->setTrack (f.track);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    using Access = TrackEditorPanelTestAccess;
+
+    f.controller->setMarkerTick (2000.0);
+    f.panel->invokeMenuCommand (EditorNavigateSelectNextNote);   // 72 at 2000
+    f.panel->invokeMenuCommand (EditorNavigateAddNextNote);      // 48 at 4010; marker 4010
+    REQUIRE (Access::numSelected (*f.panel) == 2);
+    REQUIRE (*f.controller->getMarkerTick() == 4010.0);
+
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigateCursorToSelectionStart, 2);
+    CHECK (*f.controller->getMarkerTick() == 2000.0);   // exact, though not on the 480 grid
+    CHECK (Access::numSelected (*f.panel) == 2);         // the selection stays
+
+    f.controller->clearMarker();
+    f.panel->invokeMenuCommand (EditorNavigateCursorToSelectionStart);   // sets one when there is none
+    CHECK (*f.controller->getMarkerTick() == 2000.0);
 }
 
 TEST_CASE ("TrackEditorPanel: the ruler's playhead cap follows the playhead", "[track-editor][playhead][theme]")

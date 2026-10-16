@@ -154,3 +154,36 @@ TEST_CASE ("NoteNavigation: same-pitch notes starting together step in their sto
     CHECK (samePitchNoteIndex (notes, { true, false, false }, -1) == 2);
     CHECK (samePitchNoteIndex (notes, { false, false, true }, -1) == 1);
 }
+
+TEST_CASE ("NoteNavigation: Add Next / Previous Note go from the last / first selected note in start, pitch, index order", "[note-nav][extend-selection]")
+{
+    const std::vector<NoteStart> notes { { 0, 60 }, { 480, 67 }, { 480, 60 }, { 960, 50 }, { 1440, 70 } };
+    const std::vector<bool> middle { false, true, true, false, false };   // the chord at 480
+    CHECK (extendedNoteIndex (notes, middle, +1) == 3);   // after its highest, 67
+    CHECK (extendedNoteIndex (notes, middle, -1) == 0);   // before its lowest, 60
+
+    const std::vector<bool> lowOnly { false, false, true, false, false };   // 60 at 480
+    CHECK (extendedNoteIndex (notes, lowOnly, +1) == 1);   // 67 in the same chord
+    CHECK (extendedNoteIndex (notes, lowOnly, -1) == 0);
+
+    const std::vector<bool> ends { true, false, false, false, true };
+    CHECK (extendedNoteIndex (notes, ends, +1) == -1);   // nothing after the last selected
+    CHECK (extendedNoteIndex (notes, ends, -1) == -1);   // nothing before the first selected
+}
+
+TEST_CASE ("NoteNavigation: Add Next / Previous Note need a selection", "[note-nav][extend-selection]")
+{
+    const std::vector<NoteStart> notes { { 0, 60 }, { 480, 62 } };
+    CHECK (extendedNoteIndex (notes, {}, +1) == -1);
+    CHECK (extendedNoteIndex (notes, { false, false }, -1) == -1);
+    CHECK (extendedNoteIndex ({}, {}, +1) == -1);
+}
+
+TEST_CASE ("NoteNavigation: the selection's start is its earliest selected start", "[note-nav][extend-selection]")
+{
+    const std::vector<NoteStart> notes { { 960, 60 }, { 480, 62 }, { 0, 64 } };
+    CHECK (selectionStartTick (notes, { true, true, false }) == 480);
+    CHECK (selectionStartTick (notes, { true, false, false }) == 960);
+    CHECK (selectionStartTick (notes, { false, false, false }) == -1);
+    CHECK (selectionStartTick (notes, {}) == -1);
+}

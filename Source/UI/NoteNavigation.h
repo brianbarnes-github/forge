@@ -149,4 +149,50 @@ inline int samePitchNoteIndex (const std::vector<NoteStart>& notes, const std::v
     return best;
 }
 
+// The note Navigate > Add Next Note to Selection (`direction` +1) or Add
+// Previous Note to Selection (-1) adds. Notes are ordered as for
+// steppedNoteIndex (start, then pitch lowest first, then index); Next is the
+// note right after the last selected one, Previous the note right before the
+// first. -1 with nothing selected or no note beyond that end.
+inline int extendedNoteIndex (const std::vector<NoteStart>& notes, const std::vector<bool>& selected,
+                              int direction)
+{
+    using Key = std::tuple<int, int, int>;
+    auto keyOf = [&notes] (int i)
+    {
+        const auto& n = notes[(std::size_t) i];
+        return Key { n.startTick, n.pitch, i };
+    };
+
+    int edge = -1;
+    for (int i = 0; i < (int) notes.size() && (std::size_t) i < selected.size(); ++i)
+        if (selected[(std::size_t) i]
+            && (edge < 0 || (direction > 0 ? keyOf (i) > keyOf (edge) : keyOf (i) < keyOf (edge))))
+            edge = i;
+    if (edge < 0)
+        return -1;
+
+    int best = -1;
+    for (int i = 0; i < (int) notes.size(); ++i)
+    {
+        const auto key = keyOf (i);
+        if (direction > 0 ? ! (key > keyOf (edge)) : ! (key < keyOf (edge)))
+            continue;
+        if (best < 0 || (direction > 0 ? key < keyOf (best) : key > keyOf (best)))
+            best = i;
+    }
+    return best;
+}
+
+// The earliest start among the selected notes (Navigate > Move Cursor to Start
+// of Selection); -1 with nothing selected.
+inline int selectionStartTick (const std::vector<NoteStart>& notes, const std::vector<bool>& selected)
+{
+    int start = -1;
+    for (int i = 0; i < (int) notes.size() && (std::size_t) i < selected.size(); ++i)
+        if (selected[(std::size_t) i] && (start < 0 || notes[(std::size_t) i].startTick < start))
+            start = notes[(std::size_t) i].startTick;
+    return start;
+}
+
 } // namespace lotro

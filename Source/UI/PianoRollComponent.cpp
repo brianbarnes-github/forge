@@ -705,6 +705,49 @@ std::optional<int> PianoRollComponent::selectSteppedNote (double tick, int direc
     return note.startTick;
 }
 
+int PianoRollComponent::extendedNote (int direction) const
+{
+    std::vector<NoteStart> starts;
+    std::vector<bool> selected;
+    noteStartsAndSelection (starts, selected);
+    return extendedNoteIndex (starts, selected, direction);
+}
+
+bool PianoRollComponent::hasExtendableNote (int direction) const
+{
+    return extendedNote (direction) >= 0;
+}
+
+std::optional<int> PianoRollComponent::addSteppedNoteToSelection (int direction)
+{
+    const int index = extendedNote (direction);
+    if (index < 0)
+        return std::nullopt;
+    const auto note = noteSource->getNote (index);
+    sourceEditor->addToSelection (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (index));
+    setActivePitch (note.pitch);
+    scrollNoteIntoView (index);
+    canvas.repaint();
+    return note.startTick;
+}
+
+std::optional<int> PianoRollComponent::selectionStart() const
+{
+    std::vector<NoteStart> starts;
+    std::vector<bool> selected;
+    noteStartsAndSelection (starts, selected);
+    const int start = selectionStartTick (starts, selected);
+    if (start < 0)
+        return std::nullopt;
+    return start;
+}
+
+void PianoRollComponent::scrollTickIntoView (double tick)
+{
+    const int x = geometry.xForTick ((int) tick);
+    scrollIntoView ({ x, viewport.getViewPositionY(), 1, 1 });
+}
+
 void PianoRollComponent::scrollIntoView (juce::Rectangle<int> area)
 {
     const int gutterWidth = geometry.getKeyboardGutterWidth();

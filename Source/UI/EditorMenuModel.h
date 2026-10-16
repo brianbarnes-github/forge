@@ -27,7 +27,10 @@ enum EditorMenuCommandId : int
     EditorNavigateSelectNextNote,
     EditorNavigateSelectPreviousSamePitch,
     EditorNavigateSelectNextSamePitch,
-    EditorNavigateSelectAllSamePitch
+    EditorNavigateSelectAllSamePitch,
+    EditorNavigateAddPreviousNote,
+    EditorNavigateAddNextNote,
+    EditorNavigateCursorToSelectionStart
 };
 
 struct EditorMenuState
@@ -43,6 +46,9 @@ struct EditorMenuState
     bool canSelectPreviousSamePitch = false; // as canSelectNearestNote, one note selected, an earlier one of its pitch
     bool canSelectNextSamePitch = false;     // as canSelectNearestNote, one note selected, a later one of its pitch
     bool canSelectAllSamePitch = false;      // a track, one note selected, another of its pitch
+    bool canAddPreviousNote = false;         // as canSelectNearestNote, a selection, a note before it
+    bool canAddNextNote = false;             // as canSelectNearestNote, a selection, a note after it
+    bool canMoveCursorToSelectionStart = false; // a track, playback, and a selection
 };
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
@@ -71,7 +77,12 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorNavigateSelectNextSamePitch, "Select Next Note of the Same Pitch", {},
                        s.canSelectNextSamePitch),
                  item (EditorNavigateSelectAllSamePitch, "Select All Notes of the Same Pitch", {},
-                       s.canSelectAllSamePitch) } },
+                       s.canSelectAllSamePitch),
+                 separator(),
+                 item (EditorNavigateAddPreviousNote, "Add Previous Note to Selection", {}, s.canAddPreviousNote),
+                 item (EditorNavigateAddNextNote, "Add Next Note to Selection", {}, s.canAddNextNote),
+                 item (EditorNavigateCursorToSelectionStart, "Move Cursor to Start of Selection", {},
+                       s.canMoveCursorToSelectionStart) } },
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
              { "View", {} } };
