@@ -285,7 +285,10 @@ When you say…       …I'll know you mean
   roll as before. A click anywhere on this editor's roll (on a note or not) makes
   the semitone row under it the **active row**: painted a lighter grey
   (`#3A3A3A`, the same for sharps/flats and naturals) across the full width, with
-  its keyboard key tinted and named as on hover. It is a highlight, not a
+  its keyboard key tinted and named as on hover. Dragging a note moves the active
+  row with it, row by row (with several selected, it follows the note you
+  grabbed); resizing a note or dragging a selection box leaves it on the row you
+  pressed. It is a highlight, not a
   selection: not saved, not undoable, no sound; it stays when the editor switches
   track and goes when the editor has no track. **Navigate → Move Up a Semitone** /
   **Move Down a Semitone** (`Up` / `Down`) move it one semitone (stopping at MIDI
