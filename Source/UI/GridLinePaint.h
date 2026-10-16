@@ -17,16 +17,18 @@ inline juce::Colour gridLineColour (GridLevel level)
 
 // Draws the grid for the ticks under `clip` (x range) from y = top to bottom.
 // `xForTick` maps a tick to a component x; `tickForX` is its inverse.
+// `editorGrid` is the MIDI editor's own grid (none by default).
 template <typename XForTick, typename TickForX>
 void paintGridLines (juce::Graphics& g, juce::Rectangle<int> clip, double pixelsPerTick, int ticksPerQuarter,
-                     const std::vector<MeterChange>& meters, XForTick xForTick, TickForX tickForX)
+                     const std::vector<MeterChange>& meters, EditorGridLines editorGrid,
+                     XForTick xForTick, TickForX tickForX)
 {
     if (clip.isEmpty())
         return;
 
     // One tick of slack either side so a line sitting on the clip edge is kept.
     const auto lines = computeGridLines (tickForX (clip.getX()) - 1, tickForX (clip.getRight()) + 1,
-                                         pixelsPerTick, ticksPerQuarter, meters);
+                                         pixelsPerTick, ticksPerQuarter, meters, editorGrid);
     for (const auto& line : lines)
     {
         const int x = xForTick (line.tick);
@@ -35,6 +37,13 @@ void paintGridLines (juce::Graphics& g, juce::Rectangle<int> clip, double pixels
         g.setColour (gridLineColour (line.level));
         g.drawVerticalLine (x, (float) clip.getY(), (float) clip.getBottom());
     }
+}
+
+template <typename XForTick, typename TickForX>
+void paintGridLines (juce::Graphics& g, juce::Rectangle<int> clip, double pixelsPerTick, int ticksPerQuarter,
+                     const std::vector<MeterChange>& meters, XForTick xForTick, TickForX tickForX)
+{
+    paintGridLines (g, clip, pixelsPerTick, ticksPerQuarter, meters, EditorGridLines {}, xForTick, tickForX);
 }
 
 // One meter for the whole timeline.

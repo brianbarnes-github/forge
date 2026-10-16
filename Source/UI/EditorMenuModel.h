@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GridLength.h"
 #include "MenuModel.h"
 #include "NotePreview.h"
 #include "ScaleSnap.h"
@@ -40,7 +41,11 @@ enum EditorMenuCommandId : int
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
-    EditorSnapScaleBase = 1100
+    EditorSnapScaleBase = 1100,
+    // Options > Grid Length: EditorGridLengthBase + (int) GridLength.
+    EditorGridLengthBase = 1200,
+    // Options > Grid Division: EditorGridDivisionBase + (int) GridDivision.
+    EditorGridDivisionBase = 1300
 };
 
 constexpr bool isEditorSnapRootCommand (int id) noexcept
@@ -51,6 +56,16 @@ constexpr bool isEditorSnapRootCommand (int id) noexcept
 constexpr bool isEditorSnapScaleCommand (int id) noexcept
 {
     return id >= EditorSnapScaleBase && id < EditorSnapScaleBase + snapScaleCount;
+}
+
+constexpr bool isEditorGridLengthCommand (int id) noexcept
+{
+    return id >= EditorGridLengthBase && id < EditorGridLengthBase + gridLengthCount;
+}
+
+constexpr bool isEditorGridDivisionCommand (int id) noexcept
+{
+    return id >= EditorGridDivisionBase && id < EditorGridDivisionBase + gridDivisionCount;
 }
 
 struct EditorMenuState
@@ -73,6 +88,8 @@ struct EditorMenuState
     int snapRootIndex = -1;     // the current root (snapRoots()), -1 with no key
     int snapScaleIndex = -1;    // the current (int) SnapScale, -1 with no key
     NotePreviewSettings notePreview; // Options > Note Preview's ticks
+    GridLength gridLength = GridLength::Off;              // Options > Grid Length's tick
+    GridDivision gridDivision = GridDivision::Straight;   // Options > Grid Division's tick
 };
 
 namespace menu_detail
@@ -84,6 +101,29 @@ namespace menu_detail
             item (EditorOptionsPreviewOnInsert, "Preview notes when inserting", {}, true, s.notePreview.onInsert),
             item (EditorOptionsPreviewOnEdit, "Preview notes when editing", {}, true, s.notePreview.onEdit),
             item (EditorOptionsPreviewOnVelocity, "Preview notes when velocity changes", {}, true, s.notePreview.onVelocity) });
+    }
+
+    // Both need a track: a newly opened editor starts again from the default grid.
+    inline MenuItemDesc gridLengthSubmenu (const EditorMenuState& s)
+    {
+        const auto lengthItem = [&s] (GridLength length)
+        {
+            return item (EditorGridLengthBase + (int) length, gridLengthName (length), {}, s.hasTrack,
+                         length == s.gridLength);
+        };
+        std::vector<MenuItemDesc> items { lengthItem (GridLength::Off), separator() };
+        for (int i = (int) GridLength::Whole; i < gridLengthCount; ++i)
+            items.push_back (lengthItem ((GridLength) i));
+        return submenu ("Grid Length", std::move (items));
+    }
+
+    inline MenuItemDesc gridDivisionSubmenu (const EditorMenuState& s)
+    {
+        std::vector<MenuItemDesc> items;
+        for (int i = 0; i < gridDivisionCount; ++i)
+            items.push_back (item (EditorGridDivisionBase + i, gridDivisionName ((GridDivision) i), {}, s.hasTrack,
+                                   (GridDivision) i == s.gridDivision));
+        return submenu ("Grid Division", std::move (items));
     }
 
     // Enabled and Type need a key (the song's or a picked root); Root is always open.
@@ -150,7 +190,10 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid),
                  snapToKeySubmenu (s),
-                 notePreviewSubmenu (s) } },
+                 notePreviewSubmenu (s),
+                 separator(),
+                 gridLengthSubmenu (s),
+                 gridDivisionSubmenu (s) } },
              { "View", {} } };
 }
 

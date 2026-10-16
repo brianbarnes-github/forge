@@ -94,6 +94,7 @@ add_executable(forge_tests
     GridSnap_tests.cpp
     NoteNavigation_tests.cpp
     PreviewAssignedPanel_tests.cpp
+    GridLength_tests.cpp
     GridSize_tests.cpp
     SplitterComponent_tests.cpp
     ThreePaneSplitter_tests.cpp

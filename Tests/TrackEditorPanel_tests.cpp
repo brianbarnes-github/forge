@@ -303,7 +303,7 @@ TEST_CASE ("TrackEditorPanel: dragging a ruler bracket moves that loop edge, sna
     window.setPlayback (&controller);
     window.setSize (800, 400);
     window.setTrack (track);
-    window.setGridTicks (240);   // the editor's own grid (an eighth at 480 PPQ)
+    window.setGridLength (GridLength::Eighth);   // the editor's own grid (240 ticks at 480 PPQ)
 
     using Access = TrackEditorPanelTestAccess;
     auto& ruler = Access::ruler (window);
@@ -351,7 +351,7 @@ TEST_CASE ("TrackEditorPanel: clicking a ruler bracket clears the loop range; a 
     window.setPlayback (&controller);
     window.setSize (800, 400);
     window.setTrack (track);
-    window.setGridTicks (240);
+    window.setGridLength (GridLength::Eighth);
 
     using Access = TrackEditorPanelTestAccess;
     auto& ruler = Access::ruler (window);
@@ -428,7 +428,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
-    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 3);    // snap to grid, snap to key, note preview
+    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 5);    // snap to grid, snap to key, note preview, grid length, grid division
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
 
@@ -573,7 +573,7 @@ namespace
             panel->setPlayback (controller.get());
             panel->setTrack (track);
             panel->setSize (800, 400);
-            panel->setGridTicks (480);
+            panel->setGridLength (GridLength::Quarter);
         }
         ~MarkerPanelFixture() { panel.reset(); }
 
@@ -633,14 +633,14 @@ TEST_CASE ("TrackEditorPanel: the marker steps are greyed and do nothing with th
 {
     MarkerPanelFixture f;
     f.controller->setMarkerTick (1000.0);
-    f.panel->setGridTicks (0);
+    f.panel->setGridLength (GridLength::Off);
     CHECK_FALSE (f.navigateEnabled (0));
     CHECK_FALSE (f.navigateEnabled (1));
     f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
     CHECK (*f.controller->getMarkerTick() == 1000.0);
     CHECK_FALSE (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::rightKey)));   // left to the roll's scrolling
 
-    f.panel->setGridTicks (480);
+    f.panel->setGridLength (GridLength::Quarter);
     f.panel->clearTrack();
     CHECK_FALSE (f.navigateEnabled (1));
     f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
@@ -680,7 +680,7 @@ TEST_CASE ("TrackEditorPanel: with Snap to Grid on a ruler click sets the marker
     CHECK (*f.controller->getMarkerTick() != 960.0);
 
     f.panel->setSnapToGrid (true);
-    f.panel->setGridTicks (0);   // grid Off: nothing to snap to
+    f.panel->setGridLength (GridLength::Off);   // grid Off: nothing to snap to
     rulerClick (*f.panel, 1100.0);
     CHECK (*f.controller->getMarkerTick() != 960.0);
 }
@@ -725,7 +725,7 @@ TEST_CASE ("TrackEditorPanel: Navigate > Move Up / Down a Semitone step the acti
     CHECK (roll.getActivePitch() == 63);
 
     // Independent of the grid: still steps with the grid Off.
-    f.panel->setGridTicks (0);
+    f.panel->setGridLength (GridLength::Off);
     CHECK (f.navigateEnabled (3));
     CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::upKey)));
     CHECK (roll.getActivePitch() == 64);
@@ -1347,4 +1347,101 @@ TEST_CASE ("TrackEditorPanel: Preview notes when velocity changes toggles and re
     f.panel->invokeMenuCommand (EditorOptionsPreviewOnEdit);
     CHECK (f.panel->getNotePreview() == previewSettings (false, true, true));
     REQUIRE (reported.size() == 2);
+}
+
+namespace
+{
+    // Whether the editor's Options menu ticks `id` (searching its submenus), and whether it is enabled.
+    std::pair<bool, bool> optionsItemState (TrackEditorPanel& panel, int id)
+    {
+        const auto menu = TrackEditorPanelTestAccess::menuBar (panel).getModel()->getMenuForIndex (3, "Options");
+        juce::PopupMenu::MenuItemIterator it (menu, true);
+        while (it.next())
+            if (it.getItem().itemID == id)
+                return { it.getItem().isTicked, it.getItem().isEnabled };
+        FAIL ("no Options item " << id);
+        return {};
+    }
+}
+
+TEST_CASE ("TrackEditorPanel: Options > Grid Length sets the editor's grid and is ticked by it", "[track-editor-window][editor-menu][grid-length]")
+{
+    MarkerPanelFixture f;   // 480 PPQ, 1/4 grid
+    CHECK (f.panel->getGridLength() == GridLength::Quarter);
+    CHECK (optionsItemState (*f.panel, EditorGridLengthBase + (int) GridLength::Quarter) == std::pair { true, true });
+
+    f.panel->invokeMenuCommand (EditorGridLengthBase + (int) GridLength::SixtyFourth);
+    CHECK (f.panel->getGridLength() == GridLength::SixtyFourth);
+    CHECK (f.panel->getGridTicks() == 30);
+    CHECK (optionsItemState (*f.panel, EditorGridLengthBase + (int) GridLength::SixtyFourth).first);
+    CHECK_FALSE (optionsItemState (*f.panel, EditorGridLengthBase + (int) GridLength::Quarter).first);
+
+    f.panel->invokeMenuCommand (EditorGridLengthBase + (int) GridLength::Whole);
+    CHECK (f.panel->getGridTicks() == 1920);
+
+    // Off: no grid, so the marker cannot step by it.
+    f.panel->invokeMenuCommand (EditorGridLengthBase + (int) GridLength::Off);
+    CHECK (f.panel->getGridTicks() == 0);
+    CHECK_FALSE (f.navigateEnabled (0));
+}
+
+TEST_CASE ("TrackEditorPanel: Options > Grid Division sets triplet and dotted spacing on the current length, and a new length keeps it", "[track-editor-window][editor-menu][grid-length]")
+{
+    MarkerPanelFixture f;   // 480 PPQ, 1/4 grid
+    CHECK (f.panel->getGridDivision() == GridDivision::Straight);
+    CHECK (optionsItemState (*f.panel, EditorGridDivisionBase + (int) GridDivision::Straight) == std::pair { true, true });
+
+    f.panel->invokeMenuCommand (EditorGridDivisionBase + (int) GridDivision::Triplet);
+    CHECK (f.panel->getGridDivision() == GridDivision::Triplet);
+    CHECK (f.panel->getGridTicks() == 320);
+    CHECK (optionsItemState (*f.panel, EditorGridDivisionBase + (int) GridDivision::Triplet).first);
+
+    f.panel->invokeMenuCommand (EditorGridLengthBase + (int) GridLength::Eighth);
+    CHECK (f.panel->getGridDivision() == GridDivision::Triplet);
+    CHECK (f.panel->getGridTicks() == 160);
+
+    f.panel->invokeMenuCommand (EditorGridDivisionBase + (int) GridDivision::Dotted);
+    CHECK (f.panel->getGridTicks() == 360);
+
+    f.panel->setGridLength (GridLength::Sixteenth);   // as the main window's Grid Size does
+    CHECK (f.panel->getGridDivision() == GridDivision::Dotted);
+    CHECK (f.panel->getGridTicks() == 180);
+
+    // Swing can be chosen and is ticked; for now it spaces the grid as Straight.
+    f.panel->invokeMenuCommand (EditorGridDivisionBase + (int) GridDivision::Swing);
+    CHECK (f.panel->getGridDivision() == GridDivision::Swing);
+    CHECK (f.panel->getGridTicks() == 120);
+    CHECK (optionsItemState (*f.panel, EditorGridDivisionBase + (int) GridDivision::Swing).first);
+}
+
+TEST_CASE ("TrackEditorPanel: the editor's grid moves the marker by the triplet spacing and snaps a ruler click to it", "[track-editor-window][grid-length][marker]")
+{
+    MarkerPanelFixture f;
+    f.panel->setGridLength (GridLength::Eighth);
+    f.panel->setGridDivision (GridDivision::Triplet);   // 160 ticks
+    f.controller->setMarkerTick (0.0);
+    f.panel->invokeMenuCommand (EditorNavigateMarkerRight);
+    CHECK (*f.controller->getMarkerTick() == 160.0);
+
+    rulerClick (*f.panel, 1100.0);   // nearest triplet line: 1120
+    CHECK (*f.controller->getMarkerTick() == 1120.0);
+}
+
+TEST_CASE ("TrackEditorPanel: the grid follows the song's PPQ when a track is loaded", "[track-editor-window][grid-length]")
+{
+    MarkerPanelFixture f;
+    f.panel->setGridDivision (GridDivision::Triplet);   // 1/4 triplet: 320 at 480 PPQ
+    f.doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, 96, nullptr);
+    f.panel->setTrack (f.track);
+    CHECK (f.panel->getGridLength() == GridLength::Quarter);
+    CHECK (f.panel->getGridTicks() == 64);
+}
+
+TEST_CASE ("TrackEditorPanel: Grid Length and Grid Division are greyed with no track loaded", "[track-editor-window][editor-menu][grid-length]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);
+    CHECK_FALSE (optionsItemState (panel, EditorGridLengthBase + (int) GridLength::Quarter).second);
+    CHECK_FALSE (optionsItemState (panel, EditorGridDivisionBase + (int) GridDivision::Triplet).second);
 }

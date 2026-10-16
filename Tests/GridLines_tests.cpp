@@ -165,3 +165,89 @@ TEST_CASE ("computeGridLines: one meter through the list overload equals the sin
         CHECK (a[i].level == b[i].level);
     }
 }
+
+namespace
+{
+    const std::vector<MeterChange> fourFour { { 0, 4, 4 } };
+
+    std::vector<int> ticksOf (const std::vector<GridLine>& all)
+    {
+        std::vector<int> out;
+        for (const auto& l : all)
+            out.push_back (l.tick);
+        return out;
+    }
+
+    GridLevel levelAt (const std::vector<GridLine>& all, int tick)
+    {
+        for (const auto& l : all)
+            if (l.tick == tick)
+                return l.level;
+        FAIL ("no line at " << tick);
+        return GridLevel::Bar;
+    }
+}
+
+TEST_CASE ("grid lines: an editor grid of a triplet length draws its own lines, and the note values it lands on, nothing finer", "[grid-lines][grid-length]")
+{
+    // 1/8 triplet = 160 ticks. It lands on every quarter (480) but not on the straight eighths (240).
+    const auto lines = computeGridLines (0, 960, 1.0, ppq, fourFour, EditorGridLines { 160, GridLevel::Eighth });
+    CHECK (ticksOf (lines) == std::vector<int> { 0, 160, 320, 480, 640, 800, 960 });
+    CHECK (levelAt (lines, 0) == GridLevel::Bar);
+    CHECK (levelAt (lines, 160) == GridLevel::Eighth);
+    CHECK (levelAt (lines, 480) == GridLevel::Quarter);
+    CHECK (levelAt (lines, 960) == GridLevel::Half);
+    CHECK_FALSE (hasLevel (lines, GridLevel::Sixteenth));
+}
+
+TEST_CASE ("grid lines: a straight editor grid draws the note values down to its length and none finer", "[grid-lines][grid-length]")
+{
+    const auto lines = computeGridLines (0, 1920, 2.5, ppq, fourFour, EditorGridLines { 120, GridLevel::Sixteenth });
+    CHECK (hasLevel (lines, GridLevel::Sixteenth));
+    CHECK (hasLevel (lines, GridLevel::Eighth));
+    CHECK_FALSE (hasLevel (lines, GridLevel::ThirtySecond));
+    CHECK_FALSE (hasLevel (lines, GridLevel::SixtyFourth));
+    CHECK (tickCount (lines, GridLevel::Sixteenth) == 8);   // 120, 360, ... 1800
+}
+
+TEST_CASE ("grid lines: a dotted editor grid keeps the bar lines and drops the note values it does not land on", "[grid-lines][grid-length]")
+{
+    // Dotted quarter = 720 ticks: no straight value from the whole note down is a multiple of it.
+    const auto lines = computeGridLines (0, 3840, 1.0, ppq, fourFour, EditorGridLines { 720, GridLevel::Quarter });
+    CHECK (ticksOf (lines) == std::vector<int> { 0, 720, 1440, 1920, 2160, 2880, 3600, 3840 });
+    CHECK (levelAt (lines, 720) == GridLevel::Quarter);
+    CHECK (levelAt (lines, 1920) == GridLevel::Bar);
+}
+
+TEST_CASE ("grid lines: an editor grid closer than minGridLinePixels is not drawn, while coarser values still are", "[grid-lines][grid-length]")
+{
+    // 1/64 triplet = 20 ticks: 4 px at 0.2 px/tick. The 1/32 (60 ticks, 12 px) is a multiple of it.
+    const auto lines = computeGridLines (0, 480, 0.2, ppq, fourFour, EditorGridLines { 20, GridLevel::SixtyFourth });
+    CHECK_FALSE (hasLevel (lines, GridLevel::SixtyFourth));
+    CHECK (hasLevel (lines, GridLevel::ThirtySecond));
+    const auto ticks = ticksOf (lines);
+    CHECK (std::find (ticks.begin(), ticks.end(), 20) == ticks.end());
+}
+
+TEST_CASE ("grid lines: an editor grid of 0 ticks (grid Off) is the plain zoom-following grid", "[grid-lines][grid-length]")
+{
+    const auto plain = computeGridLines (0, 1920, 2.5, ppq, fourFour);
+    const auto off = computeGridLines (0, 1920, 2.5, ppq, fourFour, EditorGridLines {});
+    REQUIRE (plain.size() == off.size());
+    for (size_t i = 0; i < plain.size(); ++i)
+    {
+        CHECK (plain[i].tick == off[i].tick);
+        CHECK (plain[i].level == off[i].level);
+    }
+}
+
+TEST_CASE ("grid lines: each Grid Length draws at its own note value's level", "[grid-lines][grid-length]")
+{
+    CHECK (gridLevelForLength (GridLength::Whole) == GridLevel::Whole);
+    CHECK (gridLevelForLength (GridLength::Half) == GridLevel::Half);
+    CHECK (gridLevelForLength (GridLength::Quarter) == GridLevel::Quarter);
+    CHECK (gridLevelForLength (GridLength::Eighth) == GridLevel::Eighth);
+    CHECK (gridLevelForLength (GridLength::Sixteenth) == GridLevel::Sixteenth);
+    CHECK (gridLevelForLength (GridLength::ThirtySecond) == GridLevel::ThirtySecond);
+    CHECK (gridLevelForLength (GridLength::SixtyFourth) == GridLevel::SixtyFourth);
+}

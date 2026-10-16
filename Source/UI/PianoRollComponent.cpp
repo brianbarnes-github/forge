@@ -154,6 +154,8 @@ void PianoRollComponent::setNoteSource (PianoRollNoteSource* source, int ticksPe
 
     if (sourceEditor != nullptr)
         sourceEditor->setGeometry (geometry);
+    if (gridLength != GridLength::Off)
+        setGrid (gridLength, gridDivision);   // the spacing at the new PPQ
 
     rebuildContentSize();
     if (role == Role::Source && noteSource != nullptr)
@@ -409,8 +411,19 @@ void PianoRollComponent::setEditableTrack (juce::ValueTree trackNode)
 
 void PianoRollComponent::setGridTicks (int ticks)
 {
+    gridLength = GridLength::Off;
     if (sourceEditor != nullptr)
         sourceEditor->setGridTicks (ticks);
+    canvas.repaint();
+}
+
+void PianoRollComponent::setGrid (GridLength length, GridDivision division)
+{
+    gridLength = length;
+    gridDivision = division;
+    if (sourceEditor != nullptr)
+        sourceEditor->setGridTicks (editorGridTicks (length, division, ticksPerQuarter));
+    canvas.repaint();
 }
 
 void PianoRollComponent::setSnapToGrid (bool on) noexcept
@@ -864,8 +877,10 @@ void PianoRollComponent::drawRangeBand (juce::Graphics& g, juce::Rectangle<int> 
 
 void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const
 {
+    const EditorGridLines editorGrid { gridLength == GridLength::Off ? 0 : getGridTicks(),
+                                       gridLevelForLength (gridLength) };
     paintGridLines (g, clip, geometry.getPixelsPerQuarterNote() / (double) ticksPerQuarter, ticksPerQuarter,
-                    SongDocument::meterChangesOf (meterMap),
+                    SongDocument::meterChangesOf (meterMap), editorGrid,
                     [this] (int tick) { return geometry.xForTick (tick); },
                     [this] (int x) { return geometry.tickForX (x); });
 }

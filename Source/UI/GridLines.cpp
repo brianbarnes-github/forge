@@ -34,6 +34,13 @@ namespace
 std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
                                         int ticksPerQuarter, const std::vector<MeterChange>& meters)
 {
+    return computeGridLines (firstTick, lastTick, pixelsPerTick, ticksPerQuarter, meters, EditorGridLines {});
+}
+
+std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixelsPerTick,
+                                        int ticksPerQuarter, const std::vector<MeterChange>& meters,
+                                        EditorGridLines editorGrid)
+{
     firstTick = std::max (firstTick, 0);
     if (ticksPerQuarter <= 0 || ! (pixelsPerTick > 0.0) || lastTick < firstTick)
         return {};
@@ -56,15 +63,29 @@ std::vector<GridLine> computeGridLines (int firstTick, int lastTick, double pixe
         }
     }
 
+    const double editorSpacing = (double) editorGrid.spacingTicks;
+    const auto landsOnEditorGrid = [editorSpacing] (double spacing)
+    {
+        if (editorSpacing <= 0.0)
+            return true;
+        const double multiple = spacing / editorSpacing;
+        return multiple >= 1.0 - 1e-9 && std::abs (multiple - std::round (multiple)) < 1e-9;
+    };
+
     const double wholeTicks = 4.0 * (double) ticksPerQuarter;
     double spacing = wholeTicks;
     for (const auto level : divisionLevels)
     {
         if (spacing * pixelsPerTick < minGridLinePixels)
             break;   // every finer division is closer still
-        addLines (lines, spacing, level, firstTick, lastTick);
+        if (landsOnEditorGrid (spacing))
+            addLines (lines, spacing, level, firstTick, lastTick);
         spacing /= 2.0;
     }
+
+    // Added last, so a tick a coarser line already holds keeps that line's level.
+    if (editorSpacing > 0.0 && editorSpacing * pixelsPerTick >= minGridLinePixels)
+        addLines (lines, editorSpacing, editorGrid.level, firstTick, lastTick);
 
     std::vector<GridLine> result;
     result.reserve (lines.size());

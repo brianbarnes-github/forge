@@ -1496,6 +1496,48 @@ TEST_CASE ("PianoRollComponent: grid lines run from the bar down to the note val
     CHECK_FALSE (lineAt (60));      // thirty-second: only 5 px
 }
 
+TEST_CASE ("PianoRollComponent: an editor grid of 1/8 triplets draws its lines and none of the straight eighths", "[piano-roll][grid-lines][grid-length]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    SongDocument doc;
+    PianoRollComponent roll (PianoRollComponent::Role::Source, &doc);
+    constexpr int width = 400;
+    constexpr int height = 100;
+    roll.setBounds (0, 0, width, height);
+    roll.setGrid (GridLength::Eighth, GridDivision::Triplet);
+    CHECK (roll.getGridTicks() == 160);
+    CHECK (roll.getGridLength() == GridLength::Eighth);
+    CHECK (roll.getGridDivision() == GridDivision::Triplet);
+
+    // Default geometry: 40 px per quarter, so a 1/8 triplet (160 ticks) is 13.3 px.
+    PianoRollGeometry geometry;
+    juce::Image image (juce::Image::ARGB, width, height, true, juce::SoftwareImageType());
+    juce::Graphics g (image);
+    Access::paintCanvas (roll, g, { 0, 0, width, height });
+
+    auto lineAt = [&] (int tick)
+    {
+        const int x = geometry.xForTick (tick);
+        return image.getPixelAt (x, 5) != image.getPixelAt (x + 1, 5);
+    };
+
+    CHECK (lineAt (160));
+    CHECK (lineAt (320));
+    CHECK (lineAt (480));           // the quarter it lands on
+    CHECK_FALSE (lineAt (240));     // a straight eighth
+    CHECK_FALSE (lineAt (120));     // a straight sixteenth
+
+    // A raw tick grid (no length) draws the zoom-following grid again.
+    roll.setGridTicks (160);
+    CHECK (roll.getGridLength() == GridLength::Off);
+    juce::Image plain (juce::Image::ARGB, width, height, true, juce::SoftwareImageType());
+    juce::Graphics g2 (plain);
+    Access::paintCanvas (roll, g2, { 0, 0, width, height });
+    const int x = geometry.xForTick (240);
+    CHECK (plain.getPixelAt (x, 5) != plain.getPixelAt (x + 1, 5));
+}
+
 namespace
 {
     // Paints the canvas rows from `topPitch` down to `bottomPitch` into an image

@@ -115,6 +115,7 @@ namespace lotro
         {
             return c.trackEditor->getGridTicks();
         }
+        static TrackEditorPanel& trackEditor (SongsmithMainComponent& c) { return *c.trackEditor; }
         // A press/release on the editor roll's canvas (canvas pixels), through the same
         // handler the real Canvas::mouseDown/mouseUp call (minus their grabKeyboardFocus).
         static void editorMouseDown (SongsmithMainComponent& c, juce::Point<int> pos, juce::ModifierKeys mods = {})
@@ -1430,4 +1431,52 @@ TEST_CASE ("SongsmithMainComponent: note preview reaches the editor, and the edi
     both.onInsert = true;
     CHECK (Access::editorNotePreview (main) == both);
     CHECK (reported == std::vector<NotePreviewSettings> { both });
+}
+
+TEST_CASE ("SongsmithMainComponent: the main window's Grid Size sets the editor's length and keeps its division", "[track-editor][grid-length]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, 480, nullptr);
+
+    SongsmithMainComponent main (doc);
+    Access::trackDoubleClicked (main, trackId);
+    auto& editor = Access::trackEditor (main);
+    editor.invokeMenuCommand (EditorGridDivisionBase + (int) GridDivision::Triplet);
+
+    main.setActiveEditorGridSize (GridSize::Eighth);
+    CHECK (editor.getGridLength() == GridLength::Eighth);
+    CHECK (editor.getGridDivision() == GridDivision::Triplet);
+    CHECK (Access::activeEditorGridTicks (main) == 160);
+}
+
+TEST_CASE ("SongsmithMainComponent: a newly opened editor starts on the default length, Straight; an open one keeps both", "[track-editor][grid-length]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto other = doc.addTrack ("Track B", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    const auto otherId = (juce::int64) other.getProperty (SongIDs::trackId);
+    doc.getSourceMidiNode().setProperty (SongIDs::ticksPerQuarter, 480, nullptr);
+
+    SongsmithMainComponent main (doc);
+    main.setSize (1000, 700);
+    main.setDefaultGridSize (GridSize::Quarter);
+    Access::trackDoubleClicked (main, trackId);
+    auto& editor = Access::trackEditor (main);
+    editor.invokeMenuCommand (EditorGridLengthBase + (int) GridLength::ThirtySecond);
+    editor.invokeMenuCommand (EditorGridDivisionBase + (int) GridDivision::Dotted);
+
+    Access::trackDoubleClicked (main, otherId);   // switching tracks keeps the editor's grid
+    CHECK (editor.getGridLength() == GridLength::ThirtySecond);
+    CHECK (editor.getGridDivision() == GridDivision::Dotted);
+
+    main.documentReplaced();                      // emptied: the next track starts afresh
+    Access::trackDoubleClicked (main, trackId);
+    CHECK (editor.getGridLength() == GridLength::Quarter);
+    CHECK (editor.getGridDivision() == GridDivision::Straight);
+    CHECK (Access::activeEditorGridTicks (main) == 480);
 }

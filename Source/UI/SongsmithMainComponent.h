@@ -239,6 +239,7 @@ public:
     bool isTrackEditorOpen() const noexcept { return dockHost.isVisible ("midiEditor"); }
     // True when the editor is showing a track (visible and loaded); Edit > Quantize / Grid need this.
     bool isTrackEditorLoaded() const noexcept { return isTrackEditorOpen() && trackEditor->getTrackId() != -1; }
+    // Edit > Grid Size: the editor's Grid Length (its Grid Division is kept).
     void setActiveEditorGridSize (GridSize size);
     void setFollowPlayhead (bool follow);
     // Pushed from the setting to the MIDI editor; its Options > Snap to Grid toggle reports

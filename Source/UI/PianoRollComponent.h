@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GridLength.h"
 #include "PianoRollGeometry.h"
 #include "PianoRollNoteSource.h"
 #include "Playback/PlaybackController.h"
@@ -93,7 +94,7 @@ public:
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
     // Whether a click that drops the start marker lands on the nearest grid line
-    // (the grid from setGridTicks; none when it is 0), and whether note moves,
+    // (the grid from setGrid or setGridTicks; none when it is 0), and whether note moves,
     // resizes and double-click inserts snap too (SourceRollEditor::setSnapToGrid).
     // Off by default.
     void setSnapToGrid (bool on) noexcept;
@@ -169,9 +170,17 @@ public:
     // noteSource->getNote(i), an invariant nothing else enforces.
     void setEditableTrack (juce::ValueTree trackNode);
 
-    // Source role only: pushes the toolbar's current grid-size selection
-    // into the roll's SourceRollEditor.
+    // Source role only: pushes a raw grid spacing into the roll's SourceRollEditor.
+    // It has no length, so the roll draws its zoom-following grid (getGridLength()
+    // reads Off); setGrid is the editor's own grid.
     void setGridTicks (int ticks);
+
+    // The MIDI editor's Options > Grid Length / Grid Division: the editor's grid
+    // spacing (editorGridTicks at this roll's PPQ, worked out again when
+    // setNoteSource brings a new PPQ), and its lines drawn in the canvas.
+    void setGrid (GridLength length, GridDivision division);
+    GridLength getGridLength() const noexcept { return gridLength; }
+    GridDivision getGridDivision() const noexcept { return gridDivision; }
 
     // Source role only: Options ▸ Snap to Key's filter on double-click note
     // creation (SourceRollEditor::setPitchFilter); a no-op without an editor.
@@ -180,7 +189,7 @@ public:
     // a no-op without an editor.
     void setNoteChangeListener (NoteChangeListener listener);
 
-    // Reads back what setGridTicks pushed; 0 for a roll with no editor (and
+    // Reads back the spacing setGrid or setGridTicks pushed; 0 for a roll with no editor (and
     // for "grid off", which is the same thing as far as snapping goes).
     int getGridTicks() const;
 
@@ -355,6 +364,8 @@ private:
     juce::Range<int> rangeBand; // Preview role only; empty means "no band".
     bool followEnabled = true;
     bool snapEnabled = false;
+    GridLength gridLength = GridLength::Off;
+    GridDivision gridDivision = GridDivision::Straight;
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     int hoveredPitch = -1;
     int activePitch = -1; // Source role only; see getActivePitch.

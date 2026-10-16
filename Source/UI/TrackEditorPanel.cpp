@@ -72,6 +72,8 @@ namespace lotro
         s.canMoveCursorToSelectionStart = s.canSelectNearestNote && owner.roll.selectionStart().has_value();
         s.snapToKey = owner.snapToKey;
         s.notePreview = owner.notePreview;
+        s.gridLength = owner.getGridLength();
+        s.gridDivision = owner.getGridDivision();
         if (const auto key = owner.currentSnapKey())
         {
             s.snapRootIndex = key->rootIndex;
@@ -178,6 +180,10 @@ namespace lotro
                     if (const auto current = currentSnapKey())
                         pickedSnapKey = SnapKey { current->rootIndex, (SnapScale) (commandId - EditorSnapScaleBase) };
                 }
+                else if (isEditorGridLengthCommand (commandId))
+                    setGridLength ((GridLength) (commandId - EditorGridLengthBase));
+                else if (isEditorGridDivisionCommand (commandId))
+                    setGridDivision ((GridDivision) (commandId - EditorGridDivisionBase));
                 return;
         }
     }
@@ -499,9 +505,14 @@ namespace lotro
             onTitleChanged (title());
     }
 
-    void TrackEditorPanel::setGridTicks (int ticks)
+    void TrackEditorPanel::setGridLength (GridLength length)
     {
-        roll.setGridTicks (ticks);
+        roll.setGrid (length, roll.getGridDivision());
+    }
+
+    void TrackEditorPanel::setGridDivision (GridDivision division)
+    {
+        roll.setGrid (roll.getGridLength(), division);
     }
 
     int TrackEditorPanel::getGridTicks() const

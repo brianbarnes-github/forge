@@ -229,7 +229,10 @@ void SongsmithMainComponent::trackDoubleClicked (juce::int64 trackId)
     trackEditor->setTrack (trackNode);
     dockHost.setVisible ("midiEditor", true);
     if (! keepsGrid)
+    {
+        trackEditor->setGridDivision (GridDivision::Straight);
         setActiveEditorGridSize (defaultGridSize);
+    }
     if (trackEditor->isShowing())
         trackEditor->grabKeyboardFocus();   // now that it is shown, so Space reaches it
     refreshGhostTracksOnEditor();
@@ -311,8 +314,7 @@ void SongsmithMainComponent::setActiveEditorGridSize (GridSize size)
     if (trackEditor->getTrackId() == -1)
         return;
 
-    const int ticksPerQuarter = (int) doc.getSourceMidiNode().getProperty (SongIDs::ticksPerQuarter, 480);
-    trackEditor->setGridTicks (gridSizeToTicks (size, ticksPerQuarter));
+    trackEditor->setGridLength (gridLengthForSize (size));
 }
 
 int SongsmithMainComponent::currentLoopSnapTicks() const

@@ -90,7 +90,14 @@ namespace lotro
         std::optional<SnapKey> currentSnapKey() const;
         bool getSnapToKey() const noexcept { return snapToKey; }
 
-        void setGridTicks (int ticks);
+        // Options > Grid Length / Grid Division (also set by the main window's
+        // Edit > Grid Size, which keeps the division): the editor's grid, drawn in
+        // the roll and used by snapping and Move Marker by Grid. Session-only;
+        // setting either reports nothing. getGridTicks is the spacing (0 = Off).
+        void setGridLength (GridLength length);
+        void setGridDivision (GridDivision division);
+        GridLength getGridLength() const noexcept { return roll.getGridLength(); }
+        GridDivision getGridDivision() const noexcept { return roll.getGridDivision(); }
         int getGridTicks() const;
         void setFollowPlayhead (bool on) { roll.setFollowPlayhead (on); }
         bool getFollowPlayhead() const { return roll.getFollowPlayhead(); }

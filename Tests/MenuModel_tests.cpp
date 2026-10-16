@@ -464,12 +464,13 @@ TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close
     CHECK (menuNamed (editorMenus (s), "File").items[0].enabled);
 }
 
-TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key and Note Preview", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key and Note Preview, then Grid Length and Grid Division", "[menu-model][editor-menu]")
 {
     EditorMenuState s;
     s.snapToGrid = false;
     const auto off = menuNamed (editorMenus (s), "Options");
-    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid", "Snap to Key>", "Note Preview>" });
+    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid", "Snap to Key>", "Note Preview>",
+                                                      "-", "Grid Length>", "Grid Division>" });
     CHECK (off.items[0].id == EditorOptionsSnapToGrid);
     CHECK (off.items[0].enabled);   // no track loaded
     CHECK_FALSE (off.items[0].ticked);
@@ -662,7 +663,7 @@ namespace
     MenuItemDesc snapToKeyMenu (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 3);
+        REQUIRE (options.items.size() == 6);
         return options.items[1];
     }
 
@@ -775,7 +776,7 @@ TEST_CASE ("EditorMenuModel: Note Preview holds three checkboxes, enabled with o
     const auto previewMenu = [] (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 3);
+        REQUIRE (options.items.size() == 6);
         return options.items[2];
     };
 
@@ -809,4 +810,80 @@ TEST_CASE ("EditorMenuModel: Note Preview holds three checkboxes, enabled with o
             CHECK (m.children[i].ticked == (i == on));
         }
     }
+}
+
+TEST_CASE ("EditorMenuModel: Grid Length lists Off then whole to 1/64, ticked by the current length and enabled with a track", "[menu-model][editor-menu][grid-length]")
+{
+    const auto lengthMenu = [] (const EditorMenuState& s)
+    {
+        const auto options = menuNamed (editorMenus (s), "Options");
+        REQUIRE (options.items.size() == 6);
+        return options.items[4];
+    };
+
+    EditorMenuState s;
+    const auto none = lengthMenu (s);
+    CHECK (none.isSubmenu);
+    CHECK (none.label == "Grid Length");
+    REQUIRE (childLabels (none) == V { "Off", "-", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" });
+    for (const auto& c : none.children)
+        if (! c.separator)
+            CHECK_FALSE (c.enabled);   // no track loaded
+
+    s.hasTrack = true;
+    s.gridLength = GridLength::Eighth;
+    const auto menu = lengthMenu (s);
+    const GridLength lengths[] = { GridLength::Off, GridLength::Whole, GridLength::Half, GridLength::Quarter,
+                                   GridLength::Eighth, GridLength::Sixteenth, GridLength::ThirtySecond,
+                                   GridLength::SixtyFourth };
+    std::vector<MenuItemDesc> items;
+    for (const auto& c : menu.children)
+        if (! c.separator)
+            items.push_back (c);
+    REQUIRE (items.size() == 8);
+    for (size_t i = 0; i < 8; ++i)
+    {
+        CAPTURE (i);
+        CHECK (items[i].id == EditorGridLengthBase + (int) lengths[i]);
+        CHECK (isEditorGridLengthCommand (items[i].id));
+        CHECK (items[i].enabled);
+        CHECK (items[i].ticked == (lengths[i] == GridLength::Eighth));
+    }
+    CHECK (EditorGridLengthBase == 1200);
+    CHECK_FALSE (isEditorGridLengthCommand (EditorGridLengthBase + gridLengthCount));
+}
+
+TEST_CASE ("EditorMenuModel: Grid Division lists Straight, Triplet, Dotted and Swing, ticked by the current division and enabled with a track", "[menu-model][editor-menu][grid-length]")
+{
+    const auto divisionMenu = [] (const EditorMenuState& s)
+    {
+        const auto options = menuNamed (editorMenus (s), "Options");
+        REQUIRE (options.items.size() == 6);
+        return options.items[5];
+    };
+
+    EditorMenuState s;
+    const auto none = divisionMenu (s);
+    CHECK (none.isSubmenu);
+    CHECK (none.label == "Grid Division");
+    REQUIRE (childLabels (none) == V { "Straight", "Triplet", "Dotted", "Swing" });
+    CHECK (none.children[0].ticked);   // Straight unless changed
+    for (const auto& c : none.children)
+        CHECK_FALSE (c.enabled);       // no track loaded
+
+    s.hasTrack = true;
+    s.gridDivision = GridDivision::Swing;
+    const auto menu = divisionMenu (s);
+    const GridDivision divisions[] = { GridDivision::Straight, GridDivision::Triplet, GridDivision::Dotted,
+                                       GridDivision::Swing };
+    for (size_t i = 0; i < 4; ++i)
+    {
+        CAPTURE (i);
+        CHECK (menu.children[i].id == EditorGridDivisionBase + (int) divisions[i]);
+        CHECK (isEditorGridDivisionCommand (menu.children[i].id));
+        CHECK (menu.children[i].enabled);
+        CHECK (menu.children[i].ticked == (divisions[i] == GridDivision::Swing));
+    }
+    CHECK (EditorGridDivisionBase == 1300);
+    CHECK_FALSE (isEditorGridDivisionCommand (EditorGridDivisionBase + gridDivisionCount));
 }
