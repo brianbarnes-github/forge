@@ -18,7 +18,7 @@
 - Track `colorArgb` saved in songs is never migrated or rewritten.
 - New UI `.cpp` files are added to **both** `CMakeLists.txt` (`forge_ui` `target_sources`) and `Tests/CMakeLists.txt` (`forge_tests`, `${CMAKE_SOURCE_DIR}/Source/UI/...`).
 - No test is deleted; existing pixel tests change only to use tokens/names instead of literals, or a tolerance where a body is now a gradient. Any other failure is a regression to investigate.
-- Every commit: `cmake --build build && ctest --test-dir build --output-on-failure` green. Conventional-commit messages ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Every commit: `cmake --build build && ctest --test-dir build --output-on-failure` green. Conventional-commit messages ending with the **committing model's** trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` as written in the commit steps below, or `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` when a Sonnet 5.5 subagent commits.
 - Never launch `song-smith` from a subagent.
 - Palette values (verbatim from spec): `background #17191C`, `panelHeader #24272B`, `surfaceTop #2C2F34`, `surfaceBottom #1C1E22`, `edgeHighlight 0x0FFFFFFF`, `border #0E0F11`, `text #DADCE0`, `textMuted #8B8F96`, `accentCopper #E8955A`, `previewNoteNormal/conductorMeter #5CC3DE`, `previewNoteBorder #8FD8EC`, `selectedRow #2E3238`, `markerIvory #E6DFD2`.
 
@@ -226,7 +226,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: Task 1 tokens.
 - Produces (namespace `lotro::ThemePaint`):
-  - `constexpr int noteOverhang = 2;` `constexpr int glowMinHeight = 6;`
+  - `constexpr int noteOverhang = 2;` `constexpr int glowMinHeight = 6;` `constexpr int smallNoteSize = 4;`
   - `struct NoteStyle { bool selected = false; std::optional<juce::Colour> border; };`
   - `void paintPanelGradient (juce::Graphics&, juce::Rectangle<int> bounds);`
   - `void paintNoteBody (juce::Graphics&, juce::Rectangle<int> rect, juce::Colour fill, const NoteStyle& style = {});`
@@ -304,6 +304,14 @@ TEST_CASE ("ThemePaint: a tiny note (1 px wide, 2 px tall) still draws a body", 
     { juce::Graphics g (image); ThemePaint::paintNoteBody (g, { 5, 5, 1, 2 }, fill); }
     CHECK (image.getPixelAt (5, 5) != juce::Colours::black);
     CHECK (image.getPixelAt (5, 3) == juce::Colours::black);
+}
+
+TEST_CASE ("ThemePaint: a small note is a flat fill in its colour", "[theme]")
+{
+    auto image = blank (60, 30);
+    { juce::Graphics g (image); ThemePaint::paintNoteBody (g, { 10, 10, 40, ThemePaint::smallNoteSize - 1 }, fill); }
+    CHECK (image.getPixelAt (10, 10) == fill);   // square corner, exact colour: no rounding or gradient
+    CHECK (image.getPixelAt (49, 12) == fill);
 }
 
 TEST_CASE ("ThemePaint: a selected note has a white edge", "[theme]")
@@ -385,8 +393,10 @@ namespace lotro::ThemePaint
     // How far a note's glow and selection edge reach outside its bounds. Cull
     // and dirty rects for notes must be inflated by this.
     constexpr int noteOverhang = 2;
-    // Notes shorter than this get no glow (track-row mini notes, zoomed-out rolls).
+    // Notes shorter than this get no glow (zoomed-out rolls).
     constexpr int glowMinHeight = 6;
+    // Notes under this in height or width are a flat fillRect (cheap; nothing else would show).
+    constexpr int smallNoteSize = 4;
 
     struct NoteStyle
     {
@@ -439,6 +449,20 @@ void paintNoteBody (juce::Graphics& g, juce::Rectangle<int> rect, juce::Colour f
 {
     if (rect.isEmpty())
         return;
+
+    // Fast path: zoomed-out notes are too small for rounding, gradient or edge to show.
+    if (rect.getHeight() < smallNoteSize || rect.getWidth() < smallNoteSize)
+    {
+        g.setColour (fill);
+        g.fillRect (rect);
+        if (style.selected)
+        {
+            g.setColour (juce::Colours::white);
+            g.drawRect (rect, 1);
+        }
+        return;
+    }
+
     const auto r = rect.toFloat();
     const float radius = juce::jmin (3.0f, r.getHeight() / 3.0f, r.getWidth() / 2.0f);
 
@@ -456,11 +480,8 @@ void paintNoteBody (juce::Graphics& g, juce::Rectangle<int> rect, juce::Colour f
                                              fill.darker (0.15f), 0.0f, r.getBottom(), false));
     g.fillRoundedRectangle (r, radius);
 
-    if (rect.getWidth() >= 3 && rect.getHeight() >= 3)
-    {
-        g.setColour (style.border.value_or (fill.brighter (0.4f)));
-        g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
-    }
+    g.setColour (style.border.value_or (fill.brighter (0.4f)));
+    g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
 
     if (style.selected)
     {
@@ -941,9 +962,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `Source/UI/PianoRollComponent.cpp` (`drawNotes` ~854-930, row bands ~686-700, `paintGutter` ~729-800)
-- Modify: `Source/UI/TrackNotePreview.cpp` (note fill loop — find with `grep -n "colourArgb\|fillRect" Source/UI/TrackNotePreview.cpp`)
-- Modify: `Source/UI/Dock/DockPanel.cpp:88-95`, `Source/UI/SongsmithMainComponent.cpp` (`sourceHeader` background), `Source/UI/TrackRowComponent.cpp` (instrument band fill, if it fills `instrumentBand`)
-- Test: `Tests/PianoRollComponent_tests.cpp`, `Tests/TrackNotePreview_tests.cpp`, `Tests/DockPanel_tests.cpp` (if present; else add to an existing dock test file)
+- Modify: `Source/UI/Dock/DockPanel.cpp:88-95`
+- Test: `Tests/PianoRollComponent_tests.cpp`, plus a dock-panel header test in the existing dock test file (`grep -ln "DockPanel" Tests`)
 
 **Interfaces:**
 - Consumes: `ThemePaint::{paintNoteBody, NoteStyle, noteOverhang, paintPanelGradient}`, `PianoRollPalette::*`.
@@ -973,6 +993,7 @@ TEST_CASE ("PianoRollComponent: a partial repaint covering only a note's glow st
     fixture.track.setProperty (SongIDs::colorArgb, (int) 0xFFE0E0E0, nullptr);   // bright, opaque
     const auto bounds = Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (0));
     REQUIRE (bounds.height >= ThemePaint::glowMinHeight);
+    REQUIRE (bounds.y >= ThemePaint::noteOverhang);   // else the strip above the note is off-canvas
 
     // Clip: the overhang rows directly above the note, running 20 px past its right end.
     const juce::Rectangle<int> glowStrip (bounds.x, bounds.y - ThemePaint::noteOverhang,
@@ -1015,7 +1036,23 @@ TEST_CASE ("PianoRollComponent: white keys shade toward the right edge; black ke
 
 If `SourceTrackNoteSource` caches the track colour at construction (check `SourceTrackNoteSource.cpp`), set `colorArgb` before building the fixture's source instead: add an optional `juce::uint32 colour = 0xFF0000` parameter to `SourceRollFixture`'s constructor (default keeps every existing test unchanged). If the glow test's `band` pixel lands on a grid line (brighter), move it to `+ 7`.
 
-`TrackNotePreview`: track-row notes are shorter than `glowMinHeight`, so they never glow; its change is the shared body (already pinned by `ThemePaint_tests`) plus the inflated cull. No new test there; its existing pixel tests must still pass.
+`TrackNotePreview` is **not** changed: its note bars are fixed 2 px `fillRect`s (`TrackNotePreview.cpp:210`), which `paintNoteBody` would only ever draw via its flat fast path.
+
+Dock header test (append to the dock test file that constructs a `DockPanel`; copy its construction and sizing):
+
+```cpp
+TEST_CASE ("DockPanel: the header is the panel gradient", "[dock][theme]")
+{
+    // `panel`: a DockPanel constructed and sized as in that file's existing tests.
+    juce::Image image (juce::Image::ARGB, panel.getWidth(), panel.getHeight(), true, juce::SoftwareImageType());
+    { juce::Graphics g (image); panel.paint (g); }
+    // Sample at the far right, away from the title text and header buttons' text.
+    CHECK (image.getPixelAt (panel.getWidth() - 3, 2).getBrightness()
+           > image.getPixelAt (panel.getWidth() - 3, DockPanel::headerHeight - 3).getBrightness());
+}
+```
+
+(`DockPanel::headerHeight` is `static constexpr int = 20` in `DockPanel.h:19`.)
 
 - [ ] **Step 2: Run to verify they fail**
 
@@ -1085,11 +1122,9 @@ and the black-key fill with
 
 Hover tints for white keys still fill `whiteKeyHover` (flat) — unchanged logic.
 
-`TrackNotePreview.cpp`: where each note is filled (`g.fillRect` with the track colour), replace with `ThemePaint::paintNoteBody (g, noteRect, colour)` and inflate its cull check by `ThemePaint::noteOverhang` the same way.
-
 `DockPanel::paint`: replace the header `setColour (panelHeader); fillRect (header);` with `ThemePaint::paintPanelGradient (g, header);`.
 
-`SongsmithMainComponent.cpp:110`: `sourceHeader` is a `Label` — set its background to transparent and paint `paintPanelGradient` behind it from `SongsmithMainComponent::paint` (or, if the label fills a region the parent doesn't paint, keep `panelHeader` — a flat midpoint colour is acceptable for a label). Same for the `TrackRowComponent` instrument band: if it is filled with `instrumentBand`, leave it flat (it sits inside a row, not a header).
+`sourceHeader` (a `Label`) and the track rows' instrument band stay flat (`panelHeader` / `instrumentBand`) — no change.
 
 - [ ] **Step 4: Run all tests**
 
@@ -1100,7 +1135,7 @@ Expected: new tests PASS. Existing piano-roll / track-note-preview pixel tests t
 
 ```bash
 git add Source/UI Tests
-git commit -m "feat(ui): glowing rounded notes, glossy keyboard, gradient panel headers
+git commit -m "feat(ui): glowing rounded notes, glossy keyboard, gradient dock headers
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1322,6 +1357,7 @@ void TimelineRuler::playheadMoved()
             g.setColour (juce::Colour (SongsmithColours::accentCopper));
             g.fillPath (triangle);
         }
+        lastCap = playheadCapBounds();   // a full repaint (zoom, scroll) resyncs playheadMoved's bookkeeping
 ```
 
   Also in `paint`: loop shading, brackets and the marker flag use `markerIvory` instead of `accentCopper` (keep alphas). Replace the ruler background `background.brighter (0.1f)` with `ThemePaint::paintPanelGradient (g, getLocalBounds())` and drop the final black line (the gradient's bottom border replaces it) — check existing ruler pixel tests still pass; if one samples the background, switch it to compare against a rendered `paintPanelGradient` reference.
@@ -1329,7 +1365,7 @@ void TimelineRuler::playheadMoved()
   - `TrackListComponent.cpp:143` area: `ruler->setPlayhead ([this] { return playback != nullptr ? std::optional<double> (playback->getPositionTicks()) : std::nullopt; });` and in `TrackListComponent.h` `playbackPositionChanged()` add `if (ruler != nullptr) ruler->playheadMoved();` as its first line.
   - `PianoRollComponent.h`: add `std::function<void()> onPlayheadMoved;` next to `onViewChanged`, and make `playbackPositionChanged` call `if (onPlayheadMoved) onPlayheadMoved();` after `followPlayhead (...)`.
   - `TrackEditorPanel.cpp` (next to `ruler.setMarker`): `ruler.setPlayhead ([&controller] { return std::optional<double> (controller.getPositionTicks()); });` and next to `rollIn.onViewChanged = ...`: `rollIn.onPlayheadMoved = [this] { ruler.playheadMoved(); };`; clear it where `roll.onViewChanged = nullptr;` is (line ~237): `roll.onPlayheadMoved = nullptr;`.
-  - `followPlayhead` scrolls change the tick→x map; `onViewChanged` already repaints the whole ruler then, and `setPlayhead`'s `lastCap` is refreshed in `paint`? No — set `lastCap = playheadCapBounds();` at the end of `paint` so a full repaint resyncs it.
+  - `followPlayhead` scrolls change the tick→x map; `onViewChanged` already repaints the whole ruler then, and the `lastCap = playheadCapBounds();` line at the end of the cap block in `paint` (above) resyncs it.
 
 - [ ] **Step 4: Run all tests**
 
