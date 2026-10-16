@@ -15,12 +15,14 @@ namespace lotro
 enum EditorMenuCommandId : int
 {
     EditorFileExportTrackMidi = 1,
-    EditorFileClose
+    EditorFileClose,
+    EditorOptionsSnapToGrid
 };
 
 struct EditorMenuState
 {
-    bool hasTrack = false;   // a track is loaded in the editor
+    bool hasTrack = false;     // a track is loaded in the editor
+    bool snapToGrid = true;    // Options > Snap to Grid is ticked
 };
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
@@ -30,7 +32,10 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorFileExportTrackMidi, "Export to New MIDI File...", {}, s.hasTrack),
                  separator(),
                  item (EditorFileClose, "Close Editor") } },
-             { "Edit", {} }, { "Navigate", {} }, { "Options", {} }, { "View", {} } };
+             { "Edit", {} }, { "Navigate", {} },
+             { "Options", {
+                 item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
+             { "View", {} } };
 }
 
 // Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)

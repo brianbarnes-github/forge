@@ -183,19 +183,23 @@ TEST_CASE ("AppSettings: the view settings default to today's behaviour and roun
         CHECK (settings.restoreWindowPlacement());
         CHECK (settings.followPlayhead());
         CHECK (settings.defaultGrid() == GridSize::Off);
+        CHECK (settings.snapToGrid());
 
         CHECK (settings.setRestoreWindowPlacement (false));
         CHECK (settings.setFollowPlayhead (false));
         CHECK (settings.setDefaultGrid (GridSize::Eighth));
+        CHECK (settings.setSnapToGrid (false));
     }
     juce::PropertiesFile reopened (file, {});
     AppSettings settings (reopened);
     CHECK_FALSE (settings.restoreWindowPlacement());
     CHECK_FALSE (settings.followPlayhead());
     CHECK (settings.defaultGrid() == GridSize::Eighth);
+    CHECK_FALSE (settings.snapToGrid());
     CHECK (reopened.getValue ("appearance.restoreWindowPlacement") == "0");
     CHECK (reopened.getValue ("editing.followPlayhead") == "0");
     CHECK (reopened.getValue ("editing.defaultGrid") == "eighth");
+    CHECK (reopened.getValue ("editing.snapToGrid") == "0");
 }
 
 TEST_CASE ("AppSettings: every grid size round-trips and an unrecognised stored grid reads Off", "[app-settings]")

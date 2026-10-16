@@ -41,6 +41,7 @@ namespace lotro
     {
         EditorMenuState s;
         s.hasTrack = owner.currentTrackId != -1;
+        s.snapToGrid = owner.snapToGrid;
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -64,6 +65,11 @@ namespace lotro
             case EditorFileClose:
                 if (onCloseRequested)
                     onCloseRequested();
+                return;
+            case EditorOptionsSnapToGrid:
+                snapToGrid = ! snapToGrid;
+                if (onSnapToGridChanged)
+                    onSnapToGridChanged (snapToGrid);
                 return;
             default:
                 return;

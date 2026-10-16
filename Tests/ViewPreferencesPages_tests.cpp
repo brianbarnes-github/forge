@@ -80,6 +80,25 @@ TEST_CASE ("Editing page: choosing a grid and toggling follow write the settings
     CHECK (app.changedCalls == 2);
 }
 
+TEST_CASE ("Editing page: the snap toggle reflects the setting; a click writes it, applies and notifies", "[preferences][editing-page]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    FakeApp app;
+    {
+        EditingPreferencesPage page (app.services);
+        CHECK (page.snapToggleForTesting().getButtonText() == "Snap to grid");
+        CHECK (page.snapToggleForTesting().getToggleState());   // default on
+    }
+    EditingPreferencesPage page (app.services, [&] { ++app.changedCalls; });
+    page.snapToggleForTesting().setToggleState (false, juce::sendNotification);
+    CHECK_FALSE (app.settings.snapToGrid());
+    CHECK (app.applyCalls == 1);
+    CHECK (app.changedCalls == 1);
+
+    EditingPreferencesPage reopened (app.services);
+    CHECK_FALSE (reopened.snapToggleForTesting().getToggleState());
+}
+
 TEST_CASE ("View pages: with an unwritable settings file the change still applies and the notice hook fires", "[preferences][appearance-page][editing-page]")
 {
     auto blocked = juce::File::createTempFile (".settings");

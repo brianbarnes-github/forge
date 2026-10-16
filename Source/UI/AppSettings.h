@@ -85,6 +85,10 @@ public:
     bool followPlayhead() const { return read (keyFollowPlayhead); }
     bool setFollowPlayhead (bool on) { return write (keyFollowPlayhead, on); }
 
+    // The MIDI editor's Options > Snap to Grid, the same value as the Editing page's checkbox.
+    bool snapToGrid() const { return read (keySnapToGrid); }
+    bool setSnapToGrid (bool on) { return write (keySnapToGrid, on); }
+
     // What a newly opened track editor starts on. Absent or unrecognised reads Off.
     GridSize defaultGrid() const
     {
@@ -173,6 +177,7 @@ private:
     static constexpr const char* keyRestorePlacement   = "appearance.restoreWindowPlacement";
     static constexpr const char* keyFollowPlayhead     = "editing.followPlayhead";
     static constexpr const char* keyDefaultGrid        = "editing.defaultGrid";
+    static constexpr const char* keySnapToGrid         = "editing.snapToGrid";
     static constexpr const char* keyMergeScope         = "editing.mergeScope";
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";

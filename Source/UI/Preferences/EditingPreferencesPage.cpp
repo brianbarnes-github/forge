@@ -26,6 +26,16 @@ namespace lotro
         gridNote.setColour (juce::Label::textColourId, juce::Colour (SongsmithColours::textMuted));
         addAndMakeVisible (gridNote);
 
+        // The same setting as the MIDI editor's Options > Snap to Grid.
+        snap.setColour (juce::ToggleButton::textColourId, juce::Colour (SongsmithColours::text));
+        snap.setToggleState (services.settings.snapToGrid(), juce::dontSendNotification);
+        snap.onClick = [this]
+        {
+            services.settings.setSnapToGrid (snap.getToggleState());
+            notify();
+        };
+        addAndMakeVisible (snap);
+
         follow.setColour (juce::ToggleButton::textColourId, juce::Colour (SongsmithColours::text));
         follow.setToggleState (services.settings.followPlayhead(), juce::dontSendNotification);
         follow.onClick = [this]
@@ -76,6 +86,8 @@ namespace lotro
         grid.setBounds (area.removeFromTop (26).removeFromLeft (160));
         area.removeFromTop (6);
         gridNote.setBounds (area.removeFromTop (36));
+        area.removeFromTop (6);
+        snap.setBounds (area.removeFromTop (24));
         area.removeFromTop (12);
         follow.setBounds (area.removeFromTop (24));
         area.removeFromTop (16);

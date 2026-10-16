@@ -168,6 +168,11 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         if (onExportTrackMidi)
             onExportTrackMidi (trackId);
     };
+    trackEditor->onSnapToGridChanged = [this] (bool on)
+    {
+        if (onSnapToGridChanged)
+            onSnapToGridChanged (on);
+    };
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 
@@ -250,6 +255,11 @@ void SongsmithMainComponent::setFollowPlayhead (bool follow)
     previewRoll.setFollowPlayhead (follow); // no effect today (no playback controller); kept for symmetry
     trackList.setFollowPlayhead (follow);
     trackEditor->setFollowPlayhead (follow);
+}
+
+void SongsmithMainComponent::setSnapToGrid (bool on)
+{
+    trackEditor->setSnapToGrid (on);
 }
 
 // Remembered for editors opened later; an editor that is already open keeps its grid.

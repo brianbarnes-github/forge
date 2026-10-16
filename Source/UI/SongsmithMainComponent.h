@@ -241,6 +241,10 @@ public:
     bool isTrackEditorLoaded() const noexcept { return isTrackEditorOpen() && trackEditor->getTrackId() != -1; }
     void setActiveEditorGridSize (GridSize size);
     void setFollowPlayhead (bool follow);
+    // Pushed from the setting to the MIDI editor; its Options > Snap to Grid toggle reports
+    // the new value through onSnapToGridChanged (to be saved).
+    void setSnapToGrid (bool on);
+    std::function<void (bool on)> onSnapToGridChanged;
     void setMergeScope (MergeScope scope);
     // The track list's head-column width (see TrackListComponent::setHeadWidth). A divider
     // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.

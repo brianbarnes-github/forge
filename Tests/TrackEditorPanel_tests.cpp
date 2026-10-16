@@ -384,7 +384,8 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    for (int i = 1; i < 5; ++i)
+    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);   // snap to grid
+    for (int i : { 1, 2, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
 
     // Still there, still on top, once the strip/ruler/roll content is built.
@@ -422,7 +423,7 @@ TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu 
     using Access = TrackEditorPanelTestAccess;
     auto& bar = Access::menuBar (panel);
     REQUIRE (bar.getNumChildComponents() == 5);   // one item component per title
-    for (int i = 1; i < bar.getNumChildComponents(); ++i)   // File has items now; the rest are empty
+    for (int i : { 1, 2, 4 })   // Edit, Navigate, View: File and Options have items now
     {
         const auto centre = bar.getChildComponent (i)->getBounds().getCentre().toFloat();
         // JUCE never opens a popup for an empty menu and never reports it closed, so a
@@ -469,4 +470,40 @@ TEST_CASE ("TrackEditorPanel: File > Export to New MIDI File asks for this track
     CHECK (exports == std::vector<juce::int64> { trackId });
     model->menuItemSelected (EditorFileClose, 0);
     CHECK (closes == 2);
+}
+
+TEST_CASE ("TrackEditorPanel: Options > Snap to Grid is ticked by the snap state and toggling it reports the new value", "[track-editor-window][editor-menu]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);
+    CHECK (panel.getSnapToGrid());   // on until told otherwise, like the setting's default
+
+    std::vector<bool> reported;
+    panel.onSnapToGridChanged = [&] (bool on) { reported.push_back (on); };
+
+    auto* model = TrackEditorPanelTestAccess::menuBar (panel).getModel();
+    const auto ticked = [model]
+    {
+        const auto menu = model->getMenuForIndex (3, "Options");   // the iterator keeps a reference
+        juce::PopupMenu::MenuItemIterator it (menu);
+        REQUIRE (it.next());
+        CHECK (it.getItem().itemID == EditorOptionsSnapToGrid);
+        CHECK (it.getItem().isEnabled);   // no track needed
+        return it.getItem().isTicked;
+    };
+    CHECK (ticked());
+
+    panel.setSnapToGrid (false);   // pushed from the setting: no report back
+    CHECK_FALSE (ticked());
+    CHECK (reported.empty());
+
+    model->menuItemSelected (EditorOptionsSnapToGrid, 3);   // the bar's own dispatch path
+    CHECK (panel.getSnapToGrid());
+    CHECK (ticked());
+    CHECK (reported == std::vector<bool> { true });
+
+    panel.invokeMenuCommand (EditorOptionsSnapToGrid);
+    CHECK_FALSE (panel.getSnapToGrid());
+    CHECK (reported == std::vector<bool> { true, false });
 }

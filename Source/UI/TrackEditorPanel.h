@@ -41,10 +41,16 @@ namespace lotro
 
         // The editor menu bar's commands (EditorMenuCommandId). File > Export to New
         // MIDI File fires onExportTrackMidi with the loaded track (nothing when none
-        // is loaded); File > Close Editor fires onCloseRequested.
+        // is loaded); File > Close Editor fires onCloseRequested; Options > Snap to
+        // Grid flips the snap state and fires onSnapToGridChanged with the new value.
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
+        std::function<void (bool on)> onSnapToGridChanged;
+
+        // Options > Snap to Grid's tick. Setting it does not fire onSnapToGridChanged.
+        void setSnapToGrid (bool on) noexcept { snapToGrid = on; }
+        bool getSnapToGrid() const noexcept { return snapToGrid; }
 
         void setGridTicks (int ticks);
         int getGridTicks() const;
@@ -154,6 +160,7 @@ namespace lotro
         StripButtonsHost* stripButtonsHost = nullptr;
         std::unique_ptr<SourceTrackNoteSource> currentNoteSource;
         juce::int64 currentTrackId = -1;
+        bool snapToGrid = true;
         int appearanceRepaintCount = 0;   // test observability
     };
 }

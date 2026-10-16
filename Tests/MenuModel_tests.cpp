@@ -394,15 +394,17 @@ TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-mode
     CHECK (findMenuItem (menus, 99999) == nullptr);
 }
 
-TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; only File has items", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; only File and Options have items", "[menu-model][editor-menu]")
 {
     const auto menus = editorMenus ({});
     std::vector<std::string> names;
     for (const auto& m : menus)
         names.push_back (m.name);
     CHECK (names == std::vector<std::string> { "File", "Edit", "Navigate", "Options", "View" });
-    for (std::size_t i = 1; i < menus.size(); ++i)
-        CHECK (menus[i].items.empty());
+    CHECK (menus[1].items.empty());
+    CHECK (menus[2].items.empty());
+    CHECK_FALSE (menus[3].items.empty());
+    CHECK (menus[4].items.empty());
 }
 
 TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")
@@ -417,6 +419,20 @@ TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close
 
     s.hasTrack = true;
     CHECK (menuNamed (editorMenus (s), "File").items[0].enabled);
+}
+
+TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track", "[menu-model][editor-menu]")
+{
+    EditorMenuState s;
+    s.snapToGrid = false;
+    const auto off = menuNamed (editorMenus (s), "Options");
+    CHECK (labels (off) == std::vector<std::string> { "Snap to Grid" });
+    CHECK (off.items[0].id == EditorOptionsSnapToGrid);
+    CHECK (off.items[0].enabled);   // no track loaded
+    CHECK_FALSE (off.items[0].ticked);
+
+    s.snapToGrid = true;
+    CHECK (menuNamed (editorMenus (s), "Options").items[0].ticked);
 }
 
 TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")

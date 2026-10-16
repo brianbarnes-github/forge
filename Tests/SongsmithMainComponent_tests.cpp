@@ -103,6 +103,10 @@ namespace lotro
         {
             return c.trackEditor->getFollowPlayhead();
         }
+        static bool editorSnaps (const SongsmithMainComponent& c)
+        {
+            return c.trackEditor->getSnapToGrid();
+        }
         static int activeEditorGridTicks (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getGridTicks();
@@ -1382,4 +1386,23 @@ TEST_CASE ("SongsmithMainComponent: the editor's Close Editor hides the panel an
     Access::invokeEditorMenuCommand (main, EditorFileClose);
     CHECK_FALSE (main.isMidiEditorVisible());
     CHECK (Access::editorTrackId (main) == trackId);   // hidden, not cleared: View > MIDI Editor brings it back as it was
+}
+
+TEST_CASE ("SongsmithMainComponent: snap to grid reaches the editor, and the editor's Options toggle reaches onSnapToGridChanged", "[track-editor][editor-menu][view-settings]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    std::vector<bool> reported;
+    main.onSnapToGridChanged = [&] (bool on) { reported.push_back (on); };
+
+    main.setSnapToGrid (false);
+    CHECK_FALSE (Access::editorSnaps (main));
+    main.setSnapToGrid (true);
+    CHECK (Access::editorSnaps (main));
+    CHECK (reported.empty());   // pushing the setting is not a change to save
+
+    Access::invokeEditorMenuCommand (main, EditorOptionsSnapToGrid);
+    CHECK_FALSE (Access::editorSnaps (main));
+    CHECK (reported == std::vector<bool> { false });
 }
