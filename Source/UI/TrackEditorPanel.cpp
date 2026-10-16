@@ -48,6 +48,7 @@ namespace lotro
         s.canStepMarker = owner.canStepMarker();
         s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
         s.canSelectNearestNote = owner.canSelectNearestNote();
+        s.canAddNearestNote = s.canSelectNearestNote && owner.roll.hasUnselectedNotes();
         const auto menus = editorMenus (s);
         juce::PopupMenu m;
         if (topLevelMenuIndex >= 0 && topLevelMenuIndex < (int) menus.size())
@@ -87,6 +88,10 @@ namespace lotro
             case EditorNavigateSelectNearestNote:
                 if (canSelectNearestNote())
                     roll.selectNoteNearest (cursorTick());
+                return;
+            case EditorNavigateAddNearestNote:
+                if (canSelectNearestNote())
+                    roll.addNoteNearestToSelection (cursorTick());
                 return;
             case EditorOptionsSnapToGrid:
                 setSnapToGrid (! snapToGrid);

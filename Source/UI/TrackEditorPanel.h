@@ -46,7 +46,8 @@ namespace lotro
         // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
         // Navigate > Move Up / Down a Semitone step the roll's active row;
         // Navigate > Select Note Nearest Cursor selects the note starting nearest
-        // the cursor's time (selectNoteNearest).
+        // the cursor's time (selectNoteNearest); Add Note Nearest Cursor to Selection
+        // adds the nearest one not yet selected (addNoteNearestToSelection).
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;

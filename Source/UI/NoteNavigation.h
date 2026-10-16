@@ -17,13 +17,18 @@ struct NoteStart
 
 // The note whose start is nearest `tick`, before or after it, on any pitch
 // (Navigate > Select Note Nearest Cursor). Equal distances go to the pitch
-// nearest `activePitch` (-1 for none), then to the higher pitch. -1 when
-// `notes` is empty.
-inline int nearestNoteIndex (const std::vector<NoteStart>& notes, double tick, int activePitch)
+// nearest `activePitch` (-1 for none), then to the higher pitch. Notes whose
+// `excluded` flag is set are skipped (Add Note Nearest Cursor to Selection
+// skips the selected ones); an empty `excluded` skips none. -1 when no note
+// is left.
+inline int nearestNoteIndex (const std::vector<NoteStart>& notes, double tick, int activePitch,
+                             const std::vector<bool>& excluded = {})
 {
     int best = -1;
     for (int i = 0; i < (int) notes.size(); ++i)
     {
+        if ((std::size_t) i < excluded.size() && excluded[(std::size_t) i])
+            continue;
         if (best < 0)
         {
             best = i;

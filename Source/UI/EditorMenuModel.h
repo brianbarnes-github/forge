@@ -21,7 +21,8 @@ enum EditorMenuCommandId : int
     EditorNavigateMarkerRight,
     EditorNavigatePitchUp,
     EditorNavigatePitchDown,
-    EditorNavigateSelectNearestNote
+    EditorNavigateSelectNearestNote,
+    EditorNavigateAddNearestNote
 };
 
 struct EditorMenuState
@@ -31,6 +32,7 @@ struct EditorMenuState
     bool canStepMarker = false; // a track, playback and a grid (not Off)
     bool canStepPitch = false;  // a track and an active row (a canvas click picks one)
     bool canSelectNearestNote = false; // a track with notes, and playback for the time position
+    bool canAddNearestNote = false;    // as canSelectNearestNote, with a note not yet selected
 };
 
 inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
@@ -48,7 +50,8 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorNavigatePitchUp,   "Move Up a Semitone",   "Up",   s.canStepPitch),
                  item (EditorNavigatePitchDown, "Move Down a Semitone", "Down", s.canStepPitch),
                  separator(),
-                 item (EditorNavigateSelectNearestNote, "Select Note Nearest Cursor", {}, s.canSelectNearestNote) } },
+                 item (EditorNavigateSelectNearestNote, "Select Note Nearest Cursor", {}, s.canSelectNearestNote),
+                 item (EditorNavigateAddNearestNote, "Add Note Nearest Cursor to Selection", {}, s.canAddNearestNote) } },
              { "Options", {
                  item (EditorOptionsSnapToGrid, "Snap to Grid", {}, true, s.snapToGrid) } },
              { "View", {} } };

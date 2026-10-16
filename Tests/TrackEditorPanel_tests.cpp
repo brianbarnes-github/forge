@@ -395,7 +395,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     REQUIRE (model != nullptr);
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
-    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 5);   // marker left, right, semitone up, down, nearest note
+    CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 6);   // marker left, right, semitone up, down, select / add nearest note
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 1);    // snap to grid
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
@@ -742,4 +742,28 @@ TEST_CASE ("TrackEditorPanel: Select Note Nearest Cursor is greyed with no notes
     CHECK (f.navigateEnabled (6));
     f.panel->clearTrack();
     CHECK_FALSE (f.navigateEnabled (6));
+}
+
+TEST_CASE ("TrackEditorPanel: Navigate > Add Note Nearest Cursor to Selection adds the next nearest note until all are selected", "[track-editor-window][editor-menu][note-nav]")
+{
+    MarkerPanelFixture f;   // one long note at 0
+    lotro::playbacktest::addNote (f.track, 72, 2000, 480);
+    f.panel->setTrack (f.track);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    using Access = TrackEditorPanelTestAccess;
+
+    f.controller->setMarkerTick (1900.0);
+    CHECK (f.navigateEnabled (7));
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorNavigateAddNearestNote, 2);
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (1)));
+
+    f.panel->invokeMenuCommand (EditorNavigateAddNearestNote);
+    CHECK (Access::numSelected (*f.panel) == 2);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (0)));
+    CHECK_FALSE (f.navigateEnabled (7));   // nothing left to add
+    CHECK (f.navigateEnabled (6));         // Select Note Nearest Cursor still works
+
+    f.panel->clearTrack();
+    CHECK_FALSE (f.navigateEnabled (7));
 }

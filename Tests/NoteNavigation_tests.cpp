@@ -38,3 +38,12 @@ TEST_CASE ("NoteNavigation: no notes, no nearest note", "[note-nav]")
 {
     CHECK (nearestNoteIndex ({}, 480.0, 60) == -1);
 }
+
+TEST_CASE ("NoteNavigation: excluded notes are skipped, so the next nearest is found; all excluded gives none", "[note-nav]")
+{
+    const std::vector<NoteStart> notes { { 0, 60 }, { 960, 40 }, { 1920, 90 } };
+    CHECK (nearestNoteIndex (notes, 900.0, -1, { false, true, false }) == 0);
+    CHECK (nearestNoteIndex (notes, 1000.0, -1, { true, true, false }) == 2);
+    CHECK (nearestNoteIndex (notes, 1000.0, -1, { true, true, true }) == -1);
+    CHECK (nearestNoteIndex (notes, 1000.0, -1, {}) == 1);   // empty: nothing excluded
+}

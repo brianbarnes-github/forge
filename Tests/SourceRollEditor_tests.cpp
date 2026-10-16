@@ -627,3 +627,30 @@ TEST_CASE ("SourceRollEditor: deleting a note leaves the track's events alone", 
     REQUIRE (f.editor.deleteSelection());
     CHECK (SongDocument::getEventsNode (f.track).getNumChildren() == 1);
 }
+
+TEST_CASE ("SourceRollEditor: addToSelection keeps the selection and adds a note once", "[source-roll-editor][note-nav]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", 0xFF0000, 0, 1);
+    for (int i = 0; i < 3; ++i)
+    {
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, 60 + i, nullptr);
+        note.setProperty (SongIDs::startTick, i * 480, nullptr);
+        note.setProperty (SongIDs::durationTicks, 480, nullptr);
+        SongDocument::getNotesNode (track).addChild (note, -1, nullptr);
+    }
+    SourceRollEditor editor (doc);
+    editor.setTrack (track);
+    const auto notes = SongDocument::getNotesNode (track);
+
+    editor.selectOnly (notes.getChild (0));
+    editor.addToSelection (notes.getChild (2));
+    CHECK (editor.getNumSelected() == 2);
+    CHECK (editor.isSelected (notes.getChild (0)));
+    CHECK (editor.isSelected (notes.getChild (2)));
+    editor.addToSelection (notes.getChild (2));   // already selected: unchanged
+    CHECK (editor.getNumSelected() == 2);
+    editor.addToSelection ({});   // invalid: ignored
+    CHECK (editor.getNumSelected() == 2);
+}

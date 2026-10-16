@@ -568,17 +568,46 @@ bool PianoRollComponent::hasNotes() const
 
 bool PianoRollComponent::selectNoteNearest (double tick)
 {
+    return pickNoteNearest (tick, false);
+}
+
+bool PianoRollComponent::hasUnselectedNotes() const
+{
     if (! hasNotes())
         return false;
+    const auto notes = SongDocument::getNotesNode (sourceEditor->getTrackNode());
+    for (int i = 0; i < notes.getNumChildren(); ++i)
+        if (! sourceEditor->isSelected (notes.getChild (i)))
+            return true;
+    return false;
+}
+
+bool PianoRollComponent::addNoteNearestToSelection (double tick)
+{
+    return pickNoteNearest (tick, true);
+}
+
+bool PianoRollComponent::pickNoteNearest (double tick, bool add)
+{
+    if (! hasNotes())
+        return false;
+    // Note i of the source is child i of the editor's track (see setEditableTrack).
+    const auto notes = SongDocument::getNotesNode (sourceEditor->getTrackNode());
     std::vector<NoteStart> starts;
+    std::vector<bool> selected;
     for (int i = 0; i < noteSource->getNumNotes(); ++i)
     {
         const auto note = noteSource->getNote (i);
         starts.push_back ({ note.startTick, note.pitch });
+        selected.push_back (add && sourceEditor->isSelected (notes.getChild (i)));
     }
-    const int index = nearestNoteIndex (starts, tick, activePitch);
-    // Note i of the source is child i of the editor's track (see setEditableTrack).
-    sourceEditor->selectOnly (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (index));
+    const int index = nearestNoteIndex (starts, tick, activePitch, selected);
+    if (index < 0)
+        return false;
+    if (add)
+        sourceEditor->addToSelection (notes.getChild (index));
+    else
+        sourceEditor->selectOnly (notes.getChild (index));
     const auto bounds = geometry.noteBounds (noteSource->getNote (index));
     scrollIntoView ({ bounds.x, bounds.y, juce::jmax (1, bounds.width), juce::jmax (1, bounds.height) });
     canvas.repaint();

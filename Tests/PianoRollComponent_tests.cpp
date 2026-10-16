@@ -1731,3 +1731,55 @@ TEST_CASE ("PianoRollComponent: selecting a nearest note off screen scrolls just
     CHECK (bounds.x >= viewX + gutterWidth);   // clear of the pinned keyboard
     CHECK (bounds.x + bounds.width <= viewX + viewport.getMaximumVisibleWidth());
 }
+
+TEST_CASE ("PianoRollComponent: addNoteNearestToSelection grows the selection outward from the tick, skipping selected notes", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64, 65 });   // starts 0, 480, 960, 1440
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+    CHECK (fixture.roll.hasUnselectedNotes());
+
+    // Nothing selected: the nearest is added, like a plain select.
+    CHECK (fixture.roll.addNoteNearestToSelection (1000.0));
+    CHECK (editor.getNumSelected() == 1);
+    CHECK (editor.isSelected (noteAt (fixture, 2)));
+
+    CHECK (fixture.roll.addNoteNearestToSelection (1000.0));   // 1440 (440 away) beats 480 (520 away)
+    CHECK (editor.isSelected (noteAt (fixture, 3)));
+    CHECK (fixture.roll.addNoteNearestToSelection (1000.0));
+    CHECK (editor.isSelected (noteAt (fixture, 1)));
+    CHECK (fixture.roll.addNoteNearestToSelection (1000.0));
+    CHECK (editor.getNumSelected() == 4);
+
+    CHECK_FALSE (fixture.roll.hasUnselectedNotes());
+    CHECK_FALSE (fixture.roll.addNoteNearestToSelection (1000.0));   // every note selected
+    CHECK (editor.getNumSelected() == 4);
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+}
+
+TEST_CASE ("PianoRollComponent: addNoteNearestToSelection keeps a selection made by clicking", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 62, 64, 65 });
+    auto& editor = Access::editor (fixture.roll);
+    fixture.roll.selectNoteNearest (0.0);
+    REQUIRE (editor.isSelected (noteAt (fixture, 0)));
+
+    CHECK (fixture.roll.addNoteNearestToSelection (1500.0));
+    CHECK (editor.getNumSelected() == 2);
+    CHECK (editor.isSelected (noteAt (fixture, 0)));
+    CHECK (editor.isSelected (noteAt (fixture, 3)));
+}
+
+TEST_CASE ("PianoRollComponent: addNoteNearestToSelection does nothing with no notes or on a Preview roll", "[piano-roll][note-nav]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture empty ({});
+    CHECK_FALSE (empty.roll.hasUnselectedNotes());
+    CHECK_FALSE (empty.roll.addNoteNearestToSelection (0.0));
+
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    CHECK_FALSE (preview.hasUnselectedNotes());
+    CHECK_FALSE (preview.addNoteNearestToSelection (0.0));
+}

@@ -111,6 +111,12 @@ public:
     // nearestNoteIndex), scrolling just enough to show it. No undo step; the
     // active row stays. False when there is no note.
     bool selectNoteNearest (double tick);
+    // Source role with an editor: some note of the track is not selected.
+    bool hasUnselectedNotes() const;
+    // As selectNoteNearest, but adds the nearest note not yet selected to the
+    // selection, so repeated calls grow it outward from `tick`. False when
+    // every note is selected (or there is none).
+    bool addNoteNearestToSelection (double tick);
     juce::Component& canvasForTesting() noexcept { return canvas; }
 
     // Source role only (no-op otherwise, or if this roll has no editable
@@ -226,6 +232,9 @@ private:
     // Scrolls the Viewport just enough that `area` (canvas space) is in view,
     // clear of the pinned keyboard gutter; its top-left wins when it can't all fit.
     void scrollIntoView (juce::Rectangle<int> area);
+    // Selects (or with `add`, adds) the nearest note to `tick` not yet selected
+    // when `add`, and scrolls to it; false when there is none.
+    bool pickNoteNearest (double tick, bool add);
 
     void rebuildContentSize();
     void fitTimeline();

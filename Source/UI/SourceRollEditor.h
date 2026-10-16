@@ -54,6 +54,8 @@ public:
     bool isSelected (const juce::ValueTree& note) const;
     // Replaces the selection with `note` (an invalid tree clears it), as a click does.
     void selectOnly (const juce::ValueTree& note);
+    // Adds `note` to the selection, keeping the rest; already selected or invalid is a no-op.
+    void addToSelection (const juce::ValueTree& note);
     int getNumSelected() const noexcept { return (int) selection.size(); }
 
     // In-progress rubber-band rect, in the same canvas-pixel space as

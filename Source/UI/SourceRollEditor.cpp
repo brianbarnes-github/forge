@@ -55,6 +55,12 @@ void SourceRollEditor::selectOnly (const juce::ValueTree& note)
         selection.push_back (note);
 }
 
+void SourceRollEditor::addToSelection (const juce::ValueTree& note)
+{
+    if (note.isValid() && ! isSelected (note))
+        selection.push_back (note);
+}
+
 void SourceRollEditor::selectPitch (int pitch, bool addToSelection)
 {
     if (! addToSelection)
