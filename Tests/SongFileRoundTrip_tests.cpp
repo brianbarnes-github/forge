@@ -204,3 +204,65 @@ TEST_CASE ("validateLoaded rejects an out-of-range or non-integer playbackPan", 
         CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
     }
 }
+
+TEST_CASE ("song file: the song key round-trips, absent means none", "[song-file][key]")
+{
+    SongDocument keyed;
+    keyed.setSongKey (21);   // A minor
+    SongDocument reloaded;
+    reloaded.replaceContents (readSongBytes (writeSongBytes (keyed.getTree())));
+    CHECK (reloaded.getSongKey() == std::optional<int> (21));
+
+    SongDocument plain;
+    CHECK_FALSE (plain.getSongKey().has_value());
+    reloaded.replaceContents (readSongBytes (writeSongBytes (plain.getTree())));
+    CHECK_FALSE (reloaded.getSongKey().has_value());
+}
+
+TEST_CASE ("validateLoaded rejects an out-of-range or non-integer song key", "[songdocument][key]")
+{
+    for (const juce::var bad : { juce::var (24), juce::var (-1), juce::var ("A minor"), juce::var (0.5) })
+    {
+        SongDocument doc;
+        doc.getSourceMidiNode().setProperty (SongIDs::songKey, bad, nullptr);
+        const auto error = SongDocument::validateLoaded (doc.getTree());
+        REQUIRE (error.has_value());
+        CHECK (error->kind() == SongFileErrorKind::InvalidStructure);
+    }
+    for (const int good : { 0, 23 })
+    {
+        SongDocument doc;
+        doc.getSourceMidiNode().setProperty (SongIDs::songKey, good, nullptr);
+        CHECK_FALSE (SongDocument::validateLoaded (doc.getTree()).has_value());
+    }
+}
+
+TEST_CASE ("SongDocument: setting the song key is one undo step; the import form is not undoable", "[songdocument][key]")
+{
+    SongDocument doc;
+    doc.setSongKey (7);
+    CHECK (doc.getSongKey() == std::optional<int> (7));
+    doc.setSongKey (16);
+    CHECK (doc.getSongKey() == std::optional<int> (16));
+    doc.undo();
+    CHECK (doc.getSongKey() == std::optional<int> (7));
+    doc.undo();
+    CHECK_FALSE (doc.getSongKey().has_value());
+    doc.redo();
+    CHECK (doc.getSongKey() == std::optional<int> (7));
+
+    doc.setSongKey (std::nullopt);
+    CHECK_FALSE (doc.getSongKey().has_value());
+    CHECK_FALSE (doc.getSourceMidiNode().hasProperty (SongIDs::songKey));
+    doc.undo();
+    CHECK (doc.getSongKey() == std::optional<int> (7));
+
+    SongDocument imported;
+    imported.setSongKey (3, false);
+    CHECK (imported.getSongKey() == std::optional<int> (3));
+    CHECK_FALSE (imported.canUndo());
+
+    imported.resetToEmpty();
+    CHECK_FALSE (imported.getSongKey().has_value());
+}
+

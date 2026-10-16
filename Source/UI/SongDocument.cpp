@@ -1,4 +1,5 @@
 #include "SongDocument.h"
+#include "KeyDetector.h"
 
 #include "UI/TempoMapSync.h"
 
@@ -35,6 +36,7 @@ namespace SongIDs
 
     const juce::Identifier ticksPerQuarter ("ticksPerQuarter");
     const juce::Identifier timeBaseSet ("timeBaseSet");
+    const juce::Identifier songKey ("songKey");
 
     const juce::Identifier trackId ("trackId");
     const juce::Identifier name ("name");
@@ -158,6 +160,26 @@ bool SongDocument::hasTimeBase() const
 void SongDocument::setTimeBase (bool set)
 {
     getSourceMidiNode().setProperty (SongIDs::timeBaseSet, set, nullptr);
+}
+
+std::optional<int> SongDocument::getSongKey() const
+{
+    const auto key = getSourceMidiNode().getProperty (SongIDs::songKey);
+    if (! key.isInt() || (int) key < 0 || (int) key >= keyCount)
+        return std::nullopt;
+    return (int) key;
+}
+
+void SongDocument::setSongKey (std::optional<int> keyIndex, bool undoable)
+{
+    auto sourceMidi = getSourceMidiNode();
+    auto* um = undoable ? &undoManager : nullptr;
+    if (um != nullptr)
+        undoManager.beginNewTransaction();
+    if (keyIndex.has_value())
+        sourceMidi.setProperty (SongIDs::songKey, std::clamp (*keyIndex, 0, keyCount - 1), um);
+    else
+        sourceMidi.removeProperty (SongIDs::songKey, um);
 }
 
 std::vector<MeterChange> SongDocument::meterChangesOf (const juce::ValueTree& meterMapNode)
@@ -350,6 +372,12 @@ std::optional<SongFileError> SongDocument::validateLoaded (const juce::ValueTree
     const auto sourceMidi = t.getChildWithName (SongIDs::SOURCE_MIDI);
     if (sourceMidi.getNumChildren() < 1)
         return bad ("it has no conductor track.");
+    if (sourceMidi.hasProperty (SongIDs::songKey))
+    {
+        const auto key = sourceMidi.getProperty (SongIDs::songKey);
+        if (! key.isInt() || (int) key < 0 || (int) key >= keyCount)
+            return bad ("the song key is out of range.");
+    }
 
     const auto nextTrack = (juce::int64) t.getProperty (SongIDs::nextTrackId);
     const auto nextPart  = (juce::int64) t.getProperty (SongIDs::nextPartId);

@@ -317,7 +317,7 @@ MenuState MainWindow::currentMenuState()
     s.hasSelectedSections = songsmith.hasSelectedSections();
     s.canSplitAtMarker   = songsmith.canSplitAtMarker();
     s.hasTimeBase        = songDocument.hasTimeBase();
-    s.songKeyIndex       = songsmith.getSongKey().value_or (-1);
+    s.songKeyIndex       = songDocument.getSongKey().value_or (-1);
     for (const auto& layout : savedLayouts)
         s.layoutNames.push_back (layout.name);
     return s;
@@ -348,7 +348,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
     }
     if (isSongKeyCommand (menuItemID))
     {
-        body->getSongsmith().setSongKey (menuItemID - SongKeyBase);
+        songDocument.setSongKey (menuItemID - SongKeyBase);
         return;
     }
 
@@ -383,7 +383,7 @@ void MainWindow::menuItemSelected (int menuItemID, int)
         case FilePreferences: preferencesWindow = showPreferencesDialog (preferencesServices, this); return;
         case SongSoundFont:   chooseSoundFont();                                              return;
         case SongDefaultParts: synthesiseDefaultParts (songDocument);                         return;
-        case SongDetectKey:    detectSongKey();                                               return;
+        case SongDetectKey:    detectSongKey (true);                                          return;
         case SongRunConverter:
             runConversion();
             body->setExportPanelVisible (true);
@@ -489,14 +489,14 @@ void MainWindow::importMidiWithOptions (const juce::File& file, const ImportOpti
     auto placed = options;
     placed.startOffsetTicks = importStartOffsetTicks (appSettings, playback.getMarkerTick());
     if (importMidiFile (songDocument, file, songDocument.mintImportBatch(), diags, placed))
-        detectSongKey();
+        detectSongKey (false);   // part of the import, so not an undo step either
     body->getSongsmith().getDiagnostics().setDiagnostics (std::move (diags));
     body->getSongsmith().fitTrackTimelineToDocument();
 }
 
-void MainWindow::detectSongKey()
+void MainWindow::detectSongKey (bool undoable)
 {
-    body->getSongsmith().setSongKey (detectedKeyIndex (songDocument));
+    songDocument.setSongKey (detectedKeyIndex (songDocument), undoable);
 }
 
 void MainWindow::refreshTitle()

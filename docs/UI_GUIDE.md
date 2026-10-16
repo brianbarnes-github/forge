@@ -171,9 +171,10 @@ When you say…       …I'll know you mean
   in force, rounded to a whole BPM; while a timeline marker is set it shows the exact tempo at the playhead while playing, or at the marker when stopped, instead (up to two decimals, e.g. `♩= 93.75`), and returns to the average when the marker is cleared), followed on the same row by the song's
   detected key (`key: G major`, `key: E♭ minor`; Krumhansl-Schmuckler over every non-drum note's
   duration, worked out when a MIDI is imported and again on **Song ▸ Set Key ▸ Detect Key**;
-  the same submenu sets it by hand from all 24 keys, with the current one ticked. It is
-  session-only, so File ▸ New / Open show no key until the next import or Set Key, and note
-  edits do not update it; nothing is detected for a drums-only song). It has no swatch picker, rename, mute / solo or volume. Its note strip shows the song's
+  the same submenu sets it by hand from all 24 keys, with the current one ticked. The key is
+  saved in the `.songsmith` file; setting it from the menu (or Detect Key) is one undo step,
+  while the detection that comes with an import is part of the import. Note edits do not
+  update it; nothing is detected for a drums-only song). It has no swatch picker, rename, mute / solo or volume. Its note strip shows the song's
   tempo (copper, top half) and meter (cyan, bottom half) changes as 1 px lines with labels
   (`120`, `3/4`; labels that would overlap are hidden, the lines stay), and the background
   shade alternates at every tempo change (top half) and every meter change (bottom half). Double-clicking the

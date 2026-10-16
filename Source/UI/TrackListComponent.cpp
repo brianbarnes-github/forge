@@ -1,4 +1,5 @@
 #include "TrackListComponent.h"
+#include "KeyDetector.h"
 #include "InstrumentEdit.h"
 #include "SongsmithColours.h"
 #include "TempoEdit.h"
@@ -319,7 +320,7 @@ void TrackListComponent::rebuild()
         if ((bool) doc.getTrack (i).getProperty (SongIDs::isConductor, false))
         {
             row->setTempoText (conductorTempoText());
-            row->setKeyText (keyText);
+            row->setKeyText (conductorKeyText());
         }
         row->setGhostVisible (isTrackGhosted != nullptr && isTrackGhosted (row->getTrackId()));
         row->onTimelineClicked = [this] (int tick) { if (playback != nullptr) playback->setMarkerTick ((double) tick); };
@@ -448,12 +449,10 @@ juce::String TrackListComponent::conductorTempoText() const
     return juce::String::fromUTF8 (text.c_str());
 }
 
-void TrackListComponent::setKeyText (const juce::String& text)
+juce::String TrackListComponent::conductorKeyText() const
 {
-    keyText = text;
-    for (auto* row : content.rows)
-        if (row->isConductor())
-            row->setKeyText (keyText);
+    const auto key = doc.getSongKey();
+    return key.has_value() ? juce::String::fromUTF8 (formatKeyText (keyAt (*key)).c_str()) : juce::String();
 }
 
 void TrackListComponent::refreshConductorTempo()

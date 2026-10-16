@@ -68,11 +68,6 @@ public:
     void followPlayheadForTesting (bool playing) { followPlayhead (playing); }
     int rebuildCountForTesting() const noexcept { return rebuildCount; }
 
-    // The Conductor head's detected-key text ("key: G major"; empty shows none).
-    // Session state set by MainWindow after a MIDI import, kept across rebuilds.
-    void setKeyText (const juce::String& text);
-    const juce::String& getKeyText() const noexcept { return keyText; }
-
     // Whether a playing playhead scrolls the timeline to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
@@ -237,6 +232,8 @@ private:
     // The Conductor head's text: the tempo at the playhead while playing, else at the marker
     // when one is set, else the song's average.
     juce::String conductorTempoText() const;
+    // The Conductor head's "key: G major" from SongDocument::getSongKey; empty for none.
+    juce::String conductorKeyText() const;
     void refreshConductorTempo();
     void playbackPositionChanged() override
     {
@@ -466,7 +463,6 @@ private:
     bool timelineFitted = false;
 
     int rebuildCount = 0;   // test observability
-    juce::String keyText;   // see setKeyText
 
     // Row height, kept unrounded so touchpad deltas under one pixel accumulate
     // (rowHeight is its rounded value, what layout uses).

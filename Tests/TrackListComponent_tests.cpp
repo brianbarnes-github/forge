@@ -245,28 +245,29 @@ TEST_CASE ("TrackListComponent: a real import populates the row list through the
     CHECK (Access::rows (list)[1]->headForTesting().tempoTextForTesting().isEmpty());
 }
 
-TEST_CASE ("TrackListComponent: the key text lands on the conductor head and survives rebuilds", "[track-list][key]")
+TEST_CASE ("TrackListComponent: the conductor head shows the document's song key and follows undo", "[track-list][key]")
 {
     using Access = TrackListComponentTestAccess;
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     SongDocument doc;
     TrackListComponent list (doc);
-    list.setKeyText ("key: G major");
-    CHECK (Access::rows (list)[0]->headForTesting().keyTextForTesting() == "key: G major");
-
-    // An import rebuilds every row through the async listener chain.
     const auto file = juce::File (__FILE__).getParentDirectory().getParentDirectory()
                            .getChildFile ("midi").getChildFile ("blue.mid");
     Diagnostics diags;
     REQUIRE (importMidiFile (doc, file, 1, diags));
     juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
     REQUIRE (Access::numRows (list) > 1);
+    CHECK (Access::rows (list)[0]->headForTesting().keyTextForTesting().isEmpty());
+
+    // Through the real listener chain: a SOURCE_MIDI property change rebuilds the rows.
+    doc.setSongKey (7);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
     CHECK (Access::rows (list)[0]->headForTesting().keyTextForTesting() == "key: G major");
     CHECK (Access::rows (list)[1]->headForTesting().keyTextForTesting().isEmpty());
 
-    list.setKeyText ({});
-    Access::rebuild (list);
+    doc.undo();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
     CHECK (Access::rows (list)[0]->headForTesting().keyTextForTesting().isEmpty());
 }
 

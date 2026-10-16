@@ -49,6 +49,7 @@ namespace SongIDs
     // SOURCE_MIDI properties
     extern const juce::Identifier ticksPerQuarter;
     extern const juce::Identifier timeBaseSet;   // SOURCE_MIDI: a first import has set the time base
+    extern const juce::Identifier songKey;       // SOURCE_MIDI: the song's key, keyIndex 0..23; absent = none
 
     // MIDI_TRACK properties
     extern const juce::Identifier trackId;
@@ -148,6 +149,13 @@ public:
     // as the first-import test now that the maps are derived. Non-undoable.
     bool hasTimeBase() const;
     void setTimeBase (bool set);
+
+    // The song's key as a keyIndex (KeyDetector.h: C..B major 0..11, C..B minor
+    // 12..23), shown on the Conductor head; nullopt when none is set (or the stored
+    // value is unusable). setSongKey with nullopt removes it. One undo step by
+    // default; undoable = false is for the MIDI import path, which bypasses undo.
+    std::optional<int> getSongKey() const;
+    void setSongKey (std::optional<int> keyIndex, bool undoable = true);
 
     // The METER_MAP as plain values (empty when there is no time base).
     std::vector<MeterChange> getMeterChanges() const;
