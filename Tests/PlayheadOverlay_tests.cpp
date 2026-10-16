@@ -145,7 +145,7 @@ TEST_CASE ("TimelineRuler: the marker's line and triangle are drawn through both
                     [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
     ruler.setMarker ([&] { return marker; });
 
-    const auto amber = juce::Colour (SongsmithColours::accentCopper);
+    const auto ivory = juce::Colour (SongsmithColours::markerIvory);
     auto render = [&]
     {
         juce::Image image (juce::Image::ARGB, 500, TimelineRuler::height, true, juce::SoftwareImageType());
@@ -155,12 +155,12 @@ TEST_CASE ("TimelineRuler: the marker's line and triangle are drawn through both
     };
 
     marker.reset();
-    CHECK (render().getPixelAt (100, 3) != amber);
+    CHECK (render().getPixelAt (100, 3) != ivory);
 
     marker = 1000.0;   // x = 100
     const auto image = render();
-    CHECK (image.getPixelAt (100, 3) == amber);                          // the triangle
-    CHECK (image.getPixelAt (100, TimelineRuler::height - 3) == amber);  // the line, in the clock row
+    CHECK (image.getPixelAt (100, 3) == ivory);                          // the triangle
+    CHECK (image.getPixelAt (100, TimelineRuler::height - 3) == ivory);  // the line, in the clock row
 }
 
 TEST_CASE ("MarkerOverlay: shows nothing until a marker is set", "[playback][overlay][marker]")
@@ -204,10 +204,10 @@ TEST_CASE ("MarkerOverlay: it is only a line and never takes clicks", "[playback
     juce::Image image (juce::Image::ARGB, 500, 100, true, juce::SoftwareImageType());
     juce::Graphics g (image);
     overlay.paintEntireComponent (g, false);
-    const auto amber = juce::Colour (SongsmithColours::accentCopper);
-    CHECK (image.getPixelAt (100, 0) == amber);
-    CHECK (image.getPixelAt (100, 99) == amber);
-    CHECK (image.getPixelAt (110, 50) != amber);
+    const auto ivory = juce::Colour (SongsmithColours::markerIvory);
+    CHECK (image.getPixelAt (100, 0) == ivory);
+    CHECK (image.getPixelAt (100, 99) == ivory);
+    CHECK (image.getPixelAt (110, 50) != ivory);
 }
 
 // ---- Loop range: the canvas overlay and the ruler's edge brackets ----
@@ -576,17 +576,17 @@ TEST_CASE ("TimelineRuler: the loop range is shaded through both rows and its br
     const auto with = renderComponent (ruler);
 
     constexpr int clockRow = TimelineRuler::height - 4;
-    const auto amber = juce::Colour (SongsmithColours::accentCopper);
+    const auto ivory = juce::Colour (SongsmithColours::markerIvory);
     CHECK (with.getPixelAt (150, 4) != without.getPixelAt (150, 4));                   // top row, inside
     CHECK (with.getPixelAt (150, clockRow) != without.getPixelAt (150, clockRow));     // clock row, inside
     CHECK (with.getPixelAt (50, clockRow) == without.getPixelAt (50, clockRow));       // outside, left
     CHECK (with.getPixelAt (350, clockRow) == without.getPixelAt (350, clockRow));     // outside, right
-    CHECK (with.getPixelAt (100, 6) == amber);   // the start bracket's upright, at its edge
-    CHECK (with.getPixelAt (299, 6) == amber);   // the end bracket's upright, just inside its edge
-    CHECK (with.getPixelAt (106, 0) == amber);   // the start bracket's top arm points right...
-    CHECK (with.getPixelAt (293, 0) == amber);   // ...the end bracket's points left
-    CHECK (with.getPixelAt (94, 0) != amber);
-    CHECK (with.getPixelAt (305, 0) != amber);
+    CHECK (with.getPixelAt (100, 6) == ivory);   // the start bracket's upright, at its edge
+    CHECK (with.getPixelAt (299, 6) == ivory);   // the end bracket's upright, just inside its edge
+    CHECK (with.getPixelAt (106, 0) == ivory);   // the start bracket's top arm points right...
+    CHECK (with.getPixelAt (293, 0) == ivory);   // ...the end bracket's points left
+    CHECK (with.getPixelAt (94, 0) != ivory);
+    CHECK (with.getPixelAt (305, 0) != ivory);
 }
 
 // ---- PlayheadDirtyTracker: which x strips need repainting when the playhead moves ----
@@ -689,4 +689,104 @@ TEST_CASE ("PlayheadDirtyTracker: several one-row repaints at different x leave 
     CHECK (containsStrip (dirty, 110));
     CHECK (containsStrip (dirty, 120));
     CHECK (containsStrip (dirty, 130));
+}
+
+TEST_CASE ("PlayheadDirtyTracker: the repaint strip spans the glow", "[playback][overlay][theme]")
+{
+    const auto strip = PlayheadDirtyTracker::dirtyStrip (100, 50);
+    CHECK (strip.getX() <= 100 - PlayheadDirtyTracker::paintHalfWidth);
+    CHECK (strip.getRight() >= 100 + PlayheadDirtyTracker::lineWidth + PlayheadDirtyTracker::paintHalfWidth);
+    CHECK (strip.getHeight() == 50);
+}
+
+TEST_CASE ("PlayheadDirtyTracker: a repaint covering the core but not the glow does not count as erased", "[playback][overlay][theme]")
+{
+    PlayheadDirtyTracker t;
+    t.onPositionChanged (100, 500);
+    t.onPaint (100, 500, 50, { 0, 0, 500, 50 });
+    t.onPaint (200, 500, 50, { 99, 0, 4, 50 });   // the core of 100 only
+    CHECK (containsStrip (t.onPositionChanged (200, 500), 100));
+}
+
+namespace
+{
+    juce::Image paintOverlayAt (double tick)
+    {
+        SongDocument doc;
+        RecordingSink sink;
+        PlaybackController controller (doc, sink);
+        addNote (addTrack (doc), 60, 0, 9600);
+        controller.flushRebuild();
+        PlayheadOverlay overlay (controller, [] (double t) { return (int) (t * 0.1); });
+        overlay.setSize (500, 100);
+        controller.seekToTick (tick);
+        juce::Image image (juce::Image::ARGB, 500, 100, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.fillAll (juce::Colours::black);
+        overlay.paint (g);
+        return image;
+    }
+
+    bool nearColour (juce::Colour a, juce::Colour b, int tolerance)
+    {
+        return std::abs (a.getRed() - b.getRed()) <= tolerance && std::abs (a.getGreen() - b.getGreen()) <= tolerance
+               && std::abs (a.getBlue() - b.getBlue()) <= tolerance;
+    }
+}
+
+TEST_CASE ("PlayheadOverlay: a copper core with a glow that fades with distance", "[playback][overlay][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    const auto image = paintOverlayAt (1000.0);   // x = 100
+    CHECK (nearColour (image.getPixelAt (100, 50), juce::Colour (SongsmithColours::accentCopper), 8));
+    CHECK (image.getPixelAt (99, 50).getBrightness() > image.getPixelAt (97, 50).getBrightness());
+    CHECK (image.getPixelAt (97, 50).getBrightness() > 0.0f);
+    CHECK (image.getPixelAt (95, 50) == juce::Colours::black);
+}
+
+TEST_CASE ("PlayheadOverlay: at x = 0 the glow clips cleanly and its strip reaches past the edge", "[playback][overlay][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    const auto image = paintOverlayAt (0.0);
+    CHECK (nearColour (image.getPixelAt (0, 50), juce::Colour (SongsmithColours::accentCopper), 8));
+    CHECK (PlayheadDirtyTracker::dirtyStrip (0, 100).getX() < 0);   // JUCE clips it; the left glow is covered
+}
+
+TEST_CASE ("TimelineRuler: the playhead cap is copper at the playhead x", "[playback][ruler][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    ruler.setSize (300, TimelineRuler::height);
+    ruler.setMarks ([] (double tick) { return (int) (tick / 10.0); }, [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
+    ruler.setPlayhead ([] { return std::optional<double> (1000.0); });   // x = 100
+    const auto cap = ruler.playheadCapBounds();
+    REQUIRE (cap.has_value());
+    CHECK (cap->getCentreX() == 100);
+    juce::Image image (juce::Image::ARGB, 300, TimelineRuler::height, true, juce::SoftwareImageType());
+    { juce::Graphics g (image); ruler.paint (g); }
+    CHECK (nearColour (image.getPixelAt (100, 2), juce::Colour (SongsmithColours::accentCopper), 24));
+}
+
+TEST_CASE ("TimelineRuler: no cap when the playhead is unset or off-screen", "[playback][ruler][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    ruler.setSize (300, TimelineRuler::height);
+    ruler.setMarks ([] (double tick) { return (int) (tick / 10.0); }, [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
+    CHECK (! ruler.playheadCapBounds().has_value());
+    ruler.setPlayhead ([] { return std::optional<double> (99999.0); });   // x = 9999
+    CHECK (! ruler.playheadCapBounds().has_value());
+}
+
+TEST_CASE ("TimelineRuler: playheadMoved repaints only when the cap moves", "[playback][ruler][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    TimelineRuler ruler ([] (int x) { return (double) x * 10.0; });
+    ruler.setSize (300, TimelineRuler::height);
+    ruler.setMarks ([] (double tick) { return (int) (tick / 10.0); }, [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
+    double tick = 1000.0;
+    ruler.setPlayhead ([&tick] { return std::optional<double> (tick); });
+    tick = 1500.0;
+    ruler.playheadMoved();
+    CHECK (ruler.playheadCapBounds()->getCentreX() == 150);
 }

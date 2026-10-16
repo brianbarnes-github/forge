@@ -10,6 +10,7 @@
 #include "MidiTestBytes.h"
 #include "UI/Playback/PlaybackController.h"
 #include "UI/TrackListComponent.h"
+#include "UI/Theme/ThemePaint.h"
 #include "UI/SectionEdit.h"
 #include "UI/SectionViewState.h"
 #include "UI/Playback/PlayheadOverlay.h"
@@ -1333,7 +1334,13 @@ TEST_CASE ("TrackListComponent: the timing bar draws bar lines over the note pre
         ruler->paintEntireComponent (g, false);
     }
 
-    const auto background = juce::Colour (SongsmithColours::background).brighter (0.1f);
+    // The ruler's background is the panel gradient; compare against it rendered alone.
+    const auto background = [&]
+    {
+        juce::Image reference (juce::Image::ARGB, image.getWidth(), image.getHeight(), true, juce::SoftwareImageType());
+        { juce::Graphics rg (reference); ThemePaint::paintPanelGradient (rg, reference.getBounds()); }
+        return reference.getPixelAt (0, TimelineRuler::height - 4);
+    }();
     const int origin = Access::notePreviewOriginX (list);
     const int lowerRow = TimelineRuler::height - 4;
 
@@ -3671,4 +3678,27 @@ TEST_CASE ("TrackListComponent: a plain wheel over the head divider scrolls the 
                                               juce::Time::getCurrentTime(), 1, false),
                             wheel);
     CHECK (Access::timelineView (list).getPixelsPerTick() == Catch::Approx (before));
+}
+
+TEST_CASE ("TrackListComponent: the ruler's playhead cap follows the playhead", "[track-list][playhead][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);
+    lotro::playbacktest::addNote (track, 60, 0, 9600);
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    controller.flushRebuild();
+    TrackListComponent list (doc);
+    list.setPlayback (&controller);
+    list.setSize (800, 300);
+    list.fitTimelineToDocument();
+
+    controller.seekToTick (960.0);
+    const auto first = list.rulerForTesting()->playheadCapBounds();
+    REQUIRE (first.has_value());
+    controller.seekToTick (1920.0);
+    const auto later = list.rulerForTesting()->playheadCapBounds();
+    REQUIRE (later.has_value());
+    CHECK (later->getCentreX() > first->getCentreX());
 }

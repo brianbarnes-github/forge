@@ -1,6 +1,7 @@
 #include "UI/Playback/TimelineRuler.h"
 
 #include "UI/SongsmithColours.h"
+#include "UI/Theme/ThemePaint.h"
 
 namespace lotro
 {
@@ -114,7 +115,7 @@ void TimelineRuler::applyPointer (const juce::MouseEvent& e, bool)
 
 void TimelineRuler::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (SongsmithColours::background).brighter (0.1f));
+    ThemePaint::paintPanelGradient (g, getLocalBounds());
 
     if (xForTick && grid && tickForX)
     {
@@ -134,7 +135,7 @@ void TimelineRuler::paint (juce::Graphics& g)
             const int last = xForTick (range->endTick);   // exclusive
             if (first < last)
             {
-                g.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.14f));
+                g.setColour (juce::Colour (SongsmithColours::markerIvory).withAlpha (0.14f));
                 g.fillRect (first, 0, last - first, getHeight());
             }
         }
@@ -161,7 +162,7 @@ void TimelineRuler::paint (juce::Graphics& g)
         // Each edge: a faint line through both rows (continuing LoopRangeOverlay's
         // below) and a bracket in the top row opening into the range. Drawn before
         // the marker, which stays on top.
-        const auto amber = juce::Colour (SongsmithColours::accentCopper);
+        const auto ivory = juce::Colour (SongsmithColours::markerIvory);
         for (const bool isStart : { true, false })
         {
             const auto bracket = loopHandleBounds (isStart);
@@ -169,10 +170,10 @@ void TimelineRuler::paint (juce::Graphics& g)
                 continue;
             constexpr int stroke = 2;
             const int uprightX = isStart ? bracket->getX() : bracket->getRight() - stroke;
-            g.setColour (amber.withAlpha (0.6f));
+            g.setColour (ivory.withAlpha (0.6f));
             g.fillRect (isStart ? bracket->getX() : bracket->getRight() - 1, bracket->getBottom(),
                         1, getHeight() - bracket->getBottom());
-            g.setColour (amber);
+            g.setColour (ivory);
             g.fillRect (uprightX, bracket->getY(), stroke, bracket->getHeight());
             g.fillRect (bracket->getX(), bracket->getY(), bracket->getWidth(), stroke);
             g.fillRect (bracket->getX(), bracket->getBottom() - stroke, bracket->getWidth(), stroke);
@@ -181,7 +182,7 @@ void TimelineRuler::paint (juce::Graphics& g)
         if (const auto handle = markerHandleBounds())
         {
             const int x = handle->getCentreX();
-            g.setColour (juce::Colour (SongsmithColours::accentCopper));
+            g.setColour (juce::Colour (SongsmithColours::markerIvory));
             g.fillRect (x, handle->getBottom(), 1, getHeight() - handle->getBottom());
             juce::Path flag;
             flag.addTriangle ((float) handle->getX(), 0.0f, (float) handle->getRight(), 0.0f,
@@ -189,11 +190,43 @@ void TimelineRuler::paint (juce::Graphics& g)
             g.fillPath (flag);
         }
 
+        // The playhead's cap, on top of everything else.
+        if (const auto cap = playheadCapBounds())
+        {
+            juce::Path triangle;
+            triangle.addTriangle ((float) cap->getX(), 0.0f, (float) cap->getRight(), 0.0f,
+                                  (float) cap->getCentreX() + 0.5f, (float) cap->getBottom());
+            g.setColour (juce::Colour (SongsmithColours::accentCopper));
+            g.fillPath (triangle);
+        }
+        lastCap = playheadCapBounds();   // a full repaint (zoom, scroll) resyncs playheadMoved's bookkeeping
+
         g.restoreState();
     }
+}
 
-    g.setColour (juce::Colours::black.withAlpha (0.5f));
-    g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
+std::optional<juce::Rectangle<int>> TimelineRuler::playheadCapBounds() const
+{
+    if (! playhead || ! xForTick)
+        return std::nullopt;
+    const auto tick = playhead();
+    if (! tick.has_value())
+        return std::nullopt;
+    const int x = xForTick (*tick);
+    if (x < contentLeft || x >= getWidth())
+        return std::nullopt;
+    constexpr int capWidth = 10, capHeight = 7;
+    return juce::Rectangle<int> (x - capWidth / 2, 0, capWidth, capHeight);
+}
+
+void TimelineRuler::playheadMoved()
+{
+    const auto cap = playheadCapBounds();
+    if (cap == lastCap)
+        return;
+    if (lastCap) repaint (lastCap->expanded (1));
+    if (cap)     repaint (cap->expanded (1));
+    lastCap = cap;
 }
 
 } // namespace lotro

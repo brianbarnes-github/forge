@@ -144,6 +144,8 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
         ruler->onSetMarker = [this] (double tick) { if (playback != nullptr) playback->setMarkerTick (tick); };
         ruler->onClearMarker = [this] { if (playback != nullptr) playback->clearMarker(); };
         ruler->setLoopRange ([this] { return playback != nullptr ? playback->getLoopRange() : std::nullopt; });
+        ruler->setPlayhead ([this] { return playback != nullptr ? std::optional<double> (playback->getPositionTicks())
+                                                               : std::nullopt; });
         ruler->onLoopEdgePressed = [this] (bool isStart)
         {
             loopEdgeAnchor.reset();

@@ -4,6 +4,7 @@
 #include "UI/SongDocument.h"
 #include "UI/EditorMenuModel.h"
 #include "UI/TrackEditorPanel.h"
+#include "UI/Theme/ThemePaint.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -228,7 +229,13 @@ TEST_CASE ("TrackEditorPanel: the timing bar draws bar lines from the keyboard g
         ruler.paintEntireComponent (g, false);
     }
 
-    const auto background = juce::Colour (SongsmithColours::background).brighter (0.1f);
+    // The ruler's background is the panel gradient; compare against it rendered alone.
+    const auto background = [&]
+    {
+        juce::Image reference (juce::Image::ARGB, image.getWidth(), image.getHeight(), true, juce::SoftwareImageType());
+        { juce::Graphics rg (reference); ThemePaint::paintPanelGradient (rg, reference.getBounds()); }
+        return reference.getPixelAt (0, TimelineRuler::height - 4);
+    }();
     const int gutter = Access::roll (window).getGutterWidth();
     const int lowerRow = TimelineRuler::height - 4;
 
@@ -766,4 +773,24 @@ TEST_CASE ("TrackEditorPanel: Navigate > Add Note Nearest Cursor to Selection ad
 
     f.panel->clearTrack();
     CHECK_FALSE (f.navigateEnabled (7));
+}
+
+TEST_CASE ("TrackEditorPanel: the ruler's playhead cap follows the playhead", "[track-editor][playhead][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackEditorPanel window (doc);
+    window.setPlayback (&controller);
+    window.setSize (700, 400);
+
+    using Access = TrackEditorPanelTestAccess;
+    controller.seekToTick (0.0);
+    const auto first = Access::ruler (window).playheadCapBounds();
+    REQUIRE (first.has_value());
+    controller.seekToTick (240.0);
+    const auto later = Access::ruler (window).playheadCapBounds();
+    REQUIRE (later.has_value());
+    CHECK (later->getCentreX() > first->getCentreX());
 }

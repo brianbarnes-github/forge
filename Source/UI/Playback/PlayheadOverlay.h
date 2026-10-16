@@ -26,6 +26,14 @@ class PlayheadDirtyTracker
 {
 public:
     static constexpr int lineWidth = 2;
+    // The copper glow reaches this far either side of the line.
+    static constexpr int paintHalfWidth = 4;
+
+    // The strip to repaint for a line at x: the line plus its glow, with a 1 px margin.
+    static juce::Rectangle<int> dirtyStrip (int x, int overlayHeight)
+    {
+        return { x - paintHalfWidth - 1, 0, lineWidth + 2 * paintHalfWidth + 2, overlayHeight };
+    }
 
     struct Dirty
     {
@@ -47,7 +55,7 @@ private:
     std::vector<Drawn> drawn;   // lines on screen and not since wiped
 };
 
-// A mouse-transparent vertical line at the shared playhead. The owner supplies
+// A mouse-transparent copper line, with a soft glow, at the shared playhead. The owner supplies
 // the tick -> x mapping in this component's own coordinates, because each
 // canvas has independent zoom/scroll.
 // Lifetime: holds a reference to the controller, so it must be destroyed before it.
@@ -68,7 +76,7 @@ private:
     PlayheadDirtyTracker dirtyTracker;
 };
 
-// An amber, mouse-transparent line at the shared start marker, running the
+// An ivory, mouse-transparent line at the shared start marker, running the
 // full height of the canvas. Its triangle handle lives in the TimelineRuler
 // above, which this line continues down from. Draws nothing while no marker is
 // set. Same ownership and mapping contract as PlayheadOverlay; owners repaint()
@@ -89,7 +97,7 @@ private:
     std::function<int (double)> tickToX;
 };
 
-// A translucent amber band over the loop range [start, end), with a faint line
+// A translucent ivory band over the loop range [start, end), with a faint line
 // at each edge, running the full height of the canvas (the ruler above carries
 // the edge handles). Draws nothing while no range is set, and draws whatever
 // range the controller holds, clipped to this component (after an edit shortens

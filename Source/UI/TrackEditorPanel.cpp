@@ -204,6 +204,7 @@ namespace lotro
         };
         ruler.onClearMarker = [&controller] { controller.clearMarker(); };
         ruler.setLoopRange ([&controller] { return controller.getLoopRange(); });
+        ruler.setPlayhead ([&controller] { return std::optional<double> (controller.getPositionTicks()); });
         // The press records the OTHER edge; every drag step is anchored on it, so an edge
         // dragged past the other one flips the pair instead of jumping.
         ruler.onLoopEdgePressed = [this, &controller] (bool isStart)
@@ -227,6 +228,7 @@ namespace lotro
             controller.clearLoopRange();
         };
         rollIn.onViewChanged = [this] { ruler.repaint(); };
+        rollIn.onPlayheadMoved = [this] { ruler.playheadMoved(); };
         addAndMakeVisible (strip);
         addAndMakeVisible (ruler);
         addAndMakeVisible (roll);
@@ -235,6 +237,7 @@ namespace lotro
     TrackEditorPanel::Content::~Content()
     {
         roll.onViewChanged = nullptr;
+        roll.onPlayheadMoved = nullptr;
     }
 
     void TrackEditorPanel::Content::resized()

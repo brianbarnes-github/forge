@@ -38,17 +38,20 @@ PlayheadDirtyTracker::Dirty PlayheadDirtyTracker::onPositionChanged (int x, int 
 
 void PlayheadDirtyTracker::onPaint (int x, int overlayWidth, int overlayHeight, juce::Rectangle<int> clip)
 {
-    // A repaint wipes an old line only if it covers all of it; the overlay is
-    // transparent, so whatever lies beneath is repainted in the same pass.
+    // A repaint wipes an old line only if it covers all of it, glow included;
+    // the overlay is transparent, so whatever lies beneath is repainted in the
+    // same pass.
+    const juce::Rectangle<int> overlay (0, 0, overlayWidth, overlayHeight);
     drawn.erase (std::remove_if (drawn.begin(), drawn.end(), [&] (const Drawn& d)
     {
-        return d.x != x && clip.contains (juce::Rectangle<int> (d.x, 0, lineWidth, overlayHeight));
+        return d.x != x && clip.contains (dirtyStrip (d.x, overlayHeight).getIntersection (overlay));
     }), drawn.end());
 
-    const juce::Rectangle<int> line (x, 0, lineWidth, overlayHeight);
-    if (x < 0 || x >= overlayWidth || ! clip.intersects (line))
+    // What paint() draws at x, glow included: a clip touching only the glow still leaves pixels behind.
+    const auto painted = dirtyStrip (x, overlayHeight).getIntersection (overlay);
+    if (x < 0 || x >= overlayWidth || ! clip.intersects (painted))
         return;
-    const bool full = clip.contains (line);
+    const bool full = clip.contains (painted);
     if (auto it = std::find_if (drawn.begin(), drawn.end(), [x] (const Drawn& d) { return d.x == x; }); it != drawn.end())
         it->full = it->full || full;
     else
@@ -61,17 +64,23 @@ void PlayheadOverlay::paint (juce::Graphics& g)
     dirtyTracker.onPaint (x, getWidth(), getHeight(), g.getClipBounds());
     if (x < 0 || x >= getWidth())
         return;
-    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    const auto copper = juce::Colour (SongsmithColours::accentCopper);
+    for (int d = PlayheadDirtyTracker::paintHalfWidth - 1; d >= 1; --d)
+    {
+        g.setColour (copper.withAlpha (0.30f * (1.0f - (float) d / (float) PlayheadDirtyTracker::paintHalfWidth)));
+        g.fillRect (x - d, 0, 1, getHeight());
+        g.fillRect (x + PlayheadDirtyTracker::lineWidth - 1 + d, 0, 1, getHeight());
+    }
+    g.setColour (copper);
     g.fillRect (x, 0, PlayheadDirtyTracker::lineWidth, getHeight());
 }
 
 void PlayheadOverlay::playbackPositionChanged()
 {
     const auto dirty = dirtyTracker.onPositionChanged (currentX(), getWidth());
-    // The line covers x..x+1; a 4 px strip from x-1 covers it with a margin.
     // Out-of-range strips are clipped by JUCE, so an off-screen old line is harmless.
     for (const int dirtyX : dirty.xs)
-        repaint (juce::jmax (0, dirtyX - 1), 0, 4, getHeight());
+        repaint (PlayheadDirtyTracker::dirtyStrip (dirtyX, getHeight()));
 }
 
 MarkerOverlay::MarkerOverlay (PlaybackController& controllerIn, std::function<int (double)> tickToXIn)
@@ -99,7 +108,7 @@ void MarkerOverlay::paint (juce::Graphics& g)
     const auto x = currentX();
     if (! x.has_value() || *x < 0 || *x >= getWidth())
         return;
-    g.setColour (juce::Colour (SongsmithColours::accentCopper));
+    g.setColour (juce::Colour (SongsmithColours::markerIvory));
     g.fillRect (*x, 0, 1, getHeight());
 }
 
@@ -133,11 +142,11 @@ void LoopRangeOverlay::paint (juce::Graphics& g)
     if (first >= last)
         return;
 
-    const auto amber = juce::Colour (SongsmithColours::accentCopper);
-    g.setColour (amber.withAlpha (0.14f));
+    const auto ivory = juce::Colour (SongsmithColours::markerIvory);
+    g.setColour (ivory.withAlpha (0.14f));
     g.fillRect (first, 0, last - first, getHeight());
 
-    g.setColour (amber.withAlpha (0.6f));
+    g.setColour (ivory.withAlpha (0.6f));
     if (xs->first >= 0 && xs->first < getWidth())
         g.fillRect (xs->first, 0, 1, getHeight());
     if (xs->second - 1 >= 0 && xs->second - 1 < getWidth())

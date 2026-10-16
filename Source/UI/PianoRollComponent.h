@@ -47,6 +47,8 @@ public:
     // Fired whenever the tick -> x mapping changes (zoom, scroll, resize), so a
     // timing bar above the roll can repaint. Source role with playback only.
     std::function<void()> onViewChanged;
+    // Fired whenever the playhead moves, so that bar can move its playhead cap.
+    std::function<void()> onPlayheadMoved;
 
     bool hasPlayheadForTesting() const noexcept { return playhead != nullptr; }
     bool hasMarkerOverlayForTesting() const noexcept { return markerOverlay != nullptr; }
@@ -258,7 +260,12 @@ private:
     void playbackMarkerChanged() override { if (onViewChanged) onViewChanged(); }
     // The timing bar above draws the loop's shading and brackets but is not a controller listener.
     void playbackLoopChanged() override { if (onViewChanged) onViewChanged(); }
-    void playbackPositionChanged() override { followPlayhead (playback != nullptr && playback->isPlaying()); }
+    void playbackPositionChanged() override
+    {
+        followPlayhead (playback != nullptr && playback->isPlaying());
+        if (onPlayheadMoved)
+            onPlayheadMoved();
+    }
     void followPlayhead (bool playing);
     void layoutPlayhead();
     // The overlay skips repainting when the playhead x is unchanged, so every

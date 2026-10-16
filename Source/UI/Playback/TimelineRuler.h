@@ -86,6 +86,18 @@ public:
     // while no range is set.
     std::optional<juce::Rectangle<int>> loopHandleBounds (bool isStart) const;
 
+    // Where the playhead is, for the copper cap in the top row (none = don't draw).
+    void setPlayhead (std::function<std::optional<double>()> playheadIn)
+    {
+        playhead = std::move (playheadIn);
+        lastCap = playheadCapBounds();
+        repaint();
+    }
+    // The owner calls this when the playhead moves; repaints only the old and new cap.
+    void playheadMoved();
+    // The cap's triangle (10 x 7 px at the top), in ruler coordinates; none when unset or off-screen.
+    std::optional<juce::Rectangle<int>> playheadCapBounds() const;
+
     void paint (juce::Graphics& g) override;
     void mouseDown (const juce::MouseEvent& e) override;
     void mouseDrag (const juce::MouseEvent& e) override;
@@ -99,6 +111,8 @@ private:
     std::function<RulerGrid()> grid;
     std::function<std::optional<double>()> marker;
     std::function<std::optional<LoopRange>()> loopRange;
+    std::function<std::optional<double>()> playhead;
+    std::optional<juce::Rectangle<int>> lastCap;   // the cap as last painted, for playheadMoved
     int contentLeft = 0;
     bool handleWasPressed = false;   // a press that cleared the marker: its drag must not set it again
 

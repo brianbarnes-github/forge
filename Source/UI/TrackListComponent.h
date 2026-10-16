@@ -235,6 +235,8 @@ private:
     void refreshConductorTempo();
     void playbackPositionChanged() override
     {
+        if (ruler != nullptr)
+            ruler->playheadMoved();
         const bool playing = playback != nullptr && playback->isPlaying();
         followPlayhead (playing);
         if (playing)

@@ -1,5 +1,6 @@
 #include "UI/Playback/TimelineRulerMarks.h"
 #include "UI/SongDocument.h"
+#include "UI/Theme/ThemePaint.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -163,7 +164,10 @@ namespace
 
         bool isBackground (int x, int y) const
         {
-            return image.getPixelAt (x, y) == juce::Colour (SongsmithColours::background).brighter (0.1f);
+            // The background is the panel gradient: compare against it rendered alone.
+            juce::Image reference (juce::Image::ARGB, image.getWidth(), image.getHeight(), true, juce::SoftwareImageType());
+            { juce::Graphics g (reference); ThemePaint::paintPanelGradient (g, reference.getBounds()); }
+            return image.getPixelAt (x, y) == reference.getPixelAt (x, y);
         }
     };
 }
