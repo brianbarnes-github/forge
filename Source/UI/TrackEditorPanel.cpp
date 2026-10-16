@@ -28,6 +28,7 @@ namespace lotro
         roll.onUnhandledKey = [this] (const juce::KeyPress& key) { return navigateKeyPressed (key); };
         addAndMakeVisible (menuBar);
         addAndMakeVisible (roll);
+        addAndMakeVisible (bottomBar);
     }
 
     TrackEditorPanel::~TrackEditorPanel()
@@ -39,6 +40,7 @@ namespace lotro
     {
         auto area = getLocalBounds();
         menuBar.setBounds (area.removeFromTop (menuBarHeight));
+        bottomBar.setBounds (area.removeFromBottom (EditorBottomBar::height));
         if (content != nullptr)
             content->setBounds (area);
         else

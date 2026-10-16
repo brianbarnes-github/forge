@@ -19,6 +19,7 @@ namespace lotro
         static juce::Rectangle<int> stripBounds (TrackEditorPanel& w) { return w.content->strip.getBounds(); }
         static juce::Rectangle<int> rulerBounds (TrackEditorPanel& w) { return w.content->ruler.getBounds(); }
         static juce::Rectangle<int> rollBounds (TrackEditorPanel& w) { return w.roll.getBounds(); }
+        static EditorBottomBar& bottomBar (TrackEditorPanel& w) { return w.bottomBar; }
         static TimelineRuler& ruler (TrackEditorPanel& w) { return w.content->ruler; }
         static PianoRollComponent& roll (TrackEditorPanel& w) { return w.roll; }
         static juce::Component& content (TrackEditorPanel& w) { return *w.content; }
@@ -138,6 +139,54 @@ TEST_CASE ("TrackEditorPanel: with playback set, the window hosts the transport 
     CHECK (ruler.getWidth() == roll.getWidth());
 }
 
+TEST_CASE ("TrackEditorPanel: a bottom bar strip-high is pinned under the roll, with or without playback", "[track-editor][bottom-bar]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    lotro::playbacktest::RecordingSink sink;
+    PlaybackController controller (doc, sink);
+    TrackEditorPanel window (doc);
+    using Access = TrackEditorPanelTestAccess;
+
+    window.setSize (700, 400);
+    {
+        auto& bar = Access::bottomBar (window);
+        CHECK (bar.getParentComponent() == &window);
+        CHECK (bar.isVisible());
+        CHECK (bar.getHeight() == TransportStrip::height);
+        CHECK (bar.getBottom() == window.getHeight());
+        CHECK (bar.getWidth() == window.getWidth());
+        CHECK (Access::rollBounds (window).getBottom() == bar.getY());   // no playback: the roll sits on the bar
+    }
+
+    window.setPlayback (&controller);
+    {
+        auto& bar = Access::bottomBar (window);
+        CHECK (bar.isVisible());
+        CHECK (bar.getHeight() == TransportStrip::height);
+        CHECK (bar.getBottom() == window.getHeight());
+        CHECK (Access::content (window).getBottom() == bar.getY());
+        CHECK (Access::rollBounds (window).getBottom() == Access::content (window).getHeight());
+    }
+}
+
+TEST_CASE ("TrackEditorPanel: the bottom bar paints the panel gradient, like the transport strip", "[track-editor][bottom-bar][theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel window (doc);
+    window.setSize (700, 400);
+
+    auto& bar = TrackEditorPanelTestAccess::bottomBar (window);
+    juce::Image image (juce::Image::ARGB, bar.getWidth(), bar.getHeight(), true, juce::SoftwareImageType());
+    { juce::Graphics g (image); bar.paintEntireComponent (g, false); }
+    juce::Image reference (juce::Image::ARGB, bar.getWidth(), bar.getHeight(), true, juce::SoftwareImageType());
+    { juce::Graphics rg (reference); ThemePaint::paintPanelGradient (rg, reference.getBounds()); }
+
+    for (int y = 0; y < bar.getHeight(); ++y)
+        CHECK (image.getPixelAt (bar.getWidth() / 2, y) == reference.getPixelAt (bar.getWidth() / 2, y));
+}
+
 TEST_CASE ("TrackEditorPanel: a fresh panel is empty, titled MIDI Editor, and clearTrack goes back to that", "[track-editor-window]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -172,7 +221,7 @@ TEST_CASE ("TrackEditorPanel: setPlayback fills the panel with strip, ruler and 
 
     using Access = TrackEditorPanelTestAccess;
     // Everything under the 24 px menu bar.
-    CHECK (Access::content (panel).getBounds() == juce::Rectangle<int> (0, TrackEditorPanel::menuBarHeight, 700, 400 - TrackEditorPanel::menuBarHeight));
+    CHECK (Access::content (panel).getBounds() == juce::Rectangle<int> (0, TrackEditorPanel::menuBarHeight, 700, 400 - TrackEditorPanel::menuBarHeight - EditorBottomBar::height));
     CHECK (Access::stripBounds (panel).getBottom() == Access::rulerBounds (panel).getY());
     CHECK (Access::rollBounds (panel).getBottom() == Access::content (panel).getHeight());
 }
@@ -421,7 +470,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (bar.getBounds() == juce::Rectangle<int> (0, 0, 700, TrackEditorPanel::menuBarHeight));
 
     // Before playback (the empty state) the roll fills the rest.
-    CHECK (Access::rollBounds (panel) == juce::Rectangle<int> (0, TrackEditorPanel::menuBarHeight, 700, 400 - TrackEditorPanel::menuBarHeight));
+    CHECK (Access::rollBounds (panel) == juce::Rectangle<int> (0, TrackEditorPanel::menuBarHeight, 700, 400 - TrackEditorPanel::menuBarHeight - EditorBottomBar::height));
 
     auto* model = bar.getModel();
     REQUIRE (model != nullptr);

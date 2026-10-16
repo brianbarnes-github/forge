@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "EditorBottomBar.h"
 #include "PianoRollComponent.h"
 #include "Playback/PlaybackController.h"
 #include "Playback/TimelineRuler.h"
@@ -224,6 +225,7 @@ namespace lotro
         MenuModel menuModel { *this };
         MenuBar menuBar { &menuModel };
         PianoRollComponent roll;
+        EditorBottomBar bottomBar;
         // After `roll` (it holds a reference) and destroyed before it. Its strip and
         // the roll's playhead are destroyed before the controller, which the owner
         // keeps alive for longer than this panel.
