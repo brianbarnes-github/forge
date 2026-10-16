@@ -53,7 +53,8 @@ public:
         repaint();
     }
 
-    std::function<void (double tick)> onSetMarker;
+    // unsnapped: Alt was held, so a host that snaps the marker should not.
+    std::function<void (double tick, bool unsnapped)> onSetMarker;
     std::function<void()> onClearMarker;
 
     // Where the start marker is (none = not set). Needs setMarks' xForTick to draw.

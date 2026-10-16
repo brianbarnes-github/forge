@@ -268,7 +268,7 @@ private:
 
     bool handleEditorMouseDown (juce::Point<int> pos, juce::ModifierKeys mods, bool isDoubleClick);
     bool handleEditorMouseDrag (juce::Point<int> pos, juce::ModifierKeys mods = {});
-    bool handleEditorMouseUp (juce::Point<int> pos);
+    bool handleEditorMouseUp (juce::Point<int> pos, juce::ModifierKeys mods = {});
     bool handleEditorKeyPressed (const juce::KeyPress& key);
     void afterEditorGesture (bool changed);
 

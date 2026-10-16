@@ -285,10 +285,11 @@ namespace lotro
                         [&controller] { return rulerGridFromDocument (controller.document()); });
         ruler.setContentLeft (rollIn.getGutterWidth());
         ruler.setMarker ([&controller] { return controller.getMarkerTick(); });
-        // The roll holds the panel's Snap to Grid state, so a ruler click snaps as a roll click does.
-        ruler.onSetMarker = [&controller, &rollIn] (double tick)
+        // The roll holds the panel's Snap to Grid state, so a ruler click snaps as a roll click does
+        // (and Alt frees it the same way).
+        ruler.onSetMarker = [&controller, &rollIn] (double tick, bool unsnapped)
         {
-            controller.setMarkerTick (rollIn.getSnapToGrid() ? snapTickToGrid (tick, rollIn.getGridTicks()) : tick);
+            controller.setMarkerTick (rollIn.getSnapToGrid() && ! unsnapped ? snapTickToGrid (tick, rollIn.getGridTicks()) : tick);
         };
         ruler.onClearMarker = [&controller] { controller.clearMarker(); };
         ruler.setLoopRange ([&controller] { return controller.getLoopRange(); });

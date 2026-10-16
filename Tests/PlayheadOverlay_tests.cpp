@@ -66,7 +66,7 @@ TEST_CASE ("TimelineRuler: left click and drag set the marker to the tick under 
     ruler.setSize (500, TimelineRuler::height);
     double markerTick = -1.0;
     bool seeked = false;
-    ruler.onSetMarker = [&] (double t) { markerTick = t; };
+    ruler.onSetMarker = [&] (double t, bool) { markerTick = t; };
     ruler.onSeek = [&] (double) { seeked = true; };
 
     ruler.mouseDown (mouseAt (ruler, 25, 20));
@@ -86,7 +86,7 @@ TEST_CASE ("TimelineRuler: right click and drag move the playhead instead", "[pl
     double seekTick = -1.0;
     bool markerSet = false;
     ruler.onSeek = [&] (double t) { seekTick = t; };
-    ruler.onSetMarker = [&] (double) { markerSet = true; };
+    ruler.onSetMarker = [&] (double, bool) { markerSet = true; };
 
     ruler.mouseDown (mouseAt (ruler, 25, 20, rightButton));
     CHECK (seekTick == Catch::Approx (250.0));
@@ -106,7 +106,7 @@ TEST_CASE ("TimelineRuler: the marker's triangle sits in the bar; pressing it cl
     ruler.setMarks ([] (double tick) { return (int) (tick / 10.0); },
                     [] { return RulerGrid { TempoMap ({}, 480), { 4, 4 } }; });
     ruler.setMarker ([&] { return marker; });
-    ruler.onSetMarker = [&] (double t) { marker = t; };
+    ruler.onSetMarker = [&] (double t, bool) { marker = t; };
     ruler.onClearMarker = [&] { marker.reset(); };
 
     // No marker yet: the same spot just sets one.
@@ -361,7 +361,7 @@ TEST_CASE ("TimelineRuler: dragging a loop bracket moves that edge and never set
     int markerSets = 0;
     ruler.onLoopEdgeDragged = [&] (bool isStart, double tick) { drags.push_back ({ isStart, tick }); };
     ruler.onClearLoop = [&] { ++clears; };
-    ruler.onSetMarker = [&] (double) { ++markerSets; };
+    ruler.onSetMarker = [&] (double, bool) { ++markerSets; };
 
     ruler.mouseDown (mouseAt (ruler, 102, 5));   // the start bracket
     ruler.mouseDrag (mouseAt (ruler, 142, 5));
@@ -420,7 +420,7 @@ TEST_CASE ("TimelineRuler: a loop bracket's part under the info column cannot be
     ruler.onLoopEdgePressed = [&] (bool isStart) { pressed.push_back (isStart); };
     ruler.onClearLoop = [&] { ++clears; };
     std::vector<double> markerSets;   // not stored: a marker triangle here would win over the bracket
-    ruler.onSetMarker = [&] (double tick) { markerSets.push_back (tick); };
+    ruler.onSetMarker = [&] (double tick, bool) { markerSets.push_back (tick); };
 
     ruler.mouseDown (mouseAt (ruler, 102, 5));   // the hidden half: an ordinary press
     ruler.mouseUp (mouseAt (ruler, 102, 5));
@@ -445,7 +445,7 @@ TEST_CASE ("TimelineRuler: the marker triangle's part under the info column cann
     int clears = 0;
     ruler.onClearMarker = [&] { ++clears; };
     std::vector<double> markerSets;
-    ruler.onSetMarker = [&] (double tick) { markerSets.push_back (tick); };
+    ruler.onSetMarker = [&] (double tick, bool) { markerSets.push_back (tick); };
 
     ruler.mouseDown (mouseAt (ruler, 96, 5));   // the hidden part: an ordinary press
     ruler.mouseUp (mouseAt (ruler, 96, 5));
@@ -469,7 +469,7 @@ TEST_CASE ("TimelineRuler: clicking a loop bracket without moving clears the ran
     int markerSets = 0;
     ruler.onLoopEdgeDragged = [&] (bool, double) { ++drags; };
     ruler.onClearLoop = [&] { ++clears; };
-    ruler.onSetMarker = [&] (double) { ++markerSets; };
+    ruler.onSetMarker = [&] (double, bool) { ++markerSets; };
 
     ruler.mouseDown (mouseAt (ruler, 297, 5));   // end bracket, released in place
     CHECK (clears == 0);                         // clearing waits for the release
@@ -506,7 +506,7 @@ TEST_CASE ("TimelineRuler: with a loop range, presses off the brackets still set
     std::optional<double> seekTick;
     int drags = 0;
     int clears = 0;
-    ruler.onSetMarker = [&] (double t) { marker = t; };
+    ruler.onSetMarker = [&] (double t, bool) { marker = t; };
     ruler.onSeek = [&] (double t) { seekTick = t; };
     ruler.onLoopEdgeDragged = [&] (bool, double) { ++drags; };
     ruler.onClearLoop = [&] { ++clears; };
@@ -542,7 +542,7 @@ TEST_CASE ("TimelineRuler: a loop bracket wins over the marker's triangle where 
     int drags = 0;
     int clears = 0;
     ruler.onClearMarker = [&] { marker.reset(); };
-    ruler.onSetMarker = [&] (double t) { marker = t; };
+    ruler.onSetMarker = [&] (double t, bool) { marker = t; };
     ruler.onLoopEdgePressed = [&] (bool) { ++pressed; };
     ruler.onLoopEdgeDragged = [&] (bool, double) { ++drags; };
     ruler.onClearLoop = [&] { ++clears; };

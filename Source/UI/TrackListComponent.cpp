@@ -142,7 +142,7 @@ void TrackListComponent::setPlayback (PlaybackController* controller)
                          [this] { return rulerGridFromDocument (doc); });
         ruler->setContentLeft (notePreviewOriginX());
         ruler->setMarker ([this] { return playback != nullptr ? playback->getMarkerTick() : std::nullopt; });
-        ruler->onSetMarker = [this] (double tick) { if (playback != nullptr) playback->setMarkerTick (tick); };
+        ruler->onSetMarker = [this] (double tick, bool) { if (playback != nullptr) playback->setMarkerTick (tick); };
         ruler->onClearMarker = [this] { if (playback != nullptr) playback->clearMarker(); };
         ruler->setLoopRange ([this] { return playback != nullptr ? playback->getLoopRange() : std::nullopt; });
         ruler->setPlayhead ([this] { return playback != nullptr ? std::optional<double> (playback->getPositionTicks())

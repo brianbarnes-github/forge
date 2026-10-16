@@ -109,7 +109,7 @@ void TimelineRuler::applyPointer (const juce::MouseEvent& e, bool)
     }
     else if (onSetMarker)
     {
-        onSetMarker (tick);
+        onSetMarker (tick, e.mods.isAltDown());
     }
 }
 

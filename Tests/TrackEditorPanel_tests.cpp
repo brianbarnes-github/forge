@@ -587,13 +587,13 @@ namespace
         }
     };
 
-    void rulerClick (TrackEditorPanel& panel, double tick)
+    void rulerClick (TrackEditorPanel& panel, double tick, juce::ModifierKeys mods = {})
     {
         auto& ruler = TrackEditorPanelTestAccess::ruler (panel);
         auto* source = juce::Desktop::getInstance().getMouseSource (0);
         const auto now = juce::Time::getCurrentTime();
         const juce::Point<float> pos ((float) TrackEditorPanelTestAccess::roll (panel).xForTickInComponent (tick), 20.0f);
-        ruler.mouseDown (juce::MouseEvent (*source, pos, juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        ruler.mouseDown (juce::MouseEvent (*source, pos, mods, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                            &ruler, &ruler, now, pos, now, 1, false));
     }
 }
@@ -682,6 +682,16 @@ TEST_CASE ("TrackEditorPanel: with Snap to Grid on a ruler click sets the marker
     f.panel->setSnapToGrid (true);
     f.panel->setGridTicks (0);   // grid Off: nothing to snap to
     rulerClick (*f.panel, 1100.0);
+    CHECK (*f.controller->getMarkerTick() != 960.0);
+}
+
+TEST_CASE ("TrackEditorPanel: Alt on a ruler click sets the marker exactly where clicked even with Snap to Grid on", "[track-editor-window][marker][grid-snap]")
+{
+    MarkerPanelFixture f;
+    REQUIRE (f.panel->getSnapToGrid());
+    rulerClick (*f.panel, 1100.0, juce::ModifierKeys (juce::ModifierKeys::altModifier));
+    REQUIRE (f.controller->getMarkerTick().has_value());
+    CHECK (*f.controller->getMarkerTick() == Catch::Approx (1100.0).margin (30.0));
     CHECK (*f.controller->getMarkerTick() != 960.0);
 }
 

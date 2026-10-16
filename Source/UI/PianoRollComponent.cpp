@@ -490,12 +490,13 @@ bool PianoRollComponent::handleEditorMouseDrag (juce::Point<int> pos, juce::Modi
     return changed;
 }
 
-bool PianoRollComponent::handleEditorMouseUp (juce::Point<int> pos)
+bool PianoRollComponent::handleEditorMouseUp (juce::Point<int> pos, juce::ModifierKeys mods)
 {
     if (markerClickCandidate && playback != nullptr && pos.getDistanceFrom (markerPressPos) < 4)
     {
+        // Alt on the release places the marker freely, as Alt does for a note drag.
         const double tick = geometry.tickForX (pos.x);
-        playback->setMarkerTick (snapEnabled ? snapTickToGrid (tick, getGridTicks()) : tick);
+        playback->setMarkerTick (snapEnabled && ! mods.isAltDown() ? snapTickToGrid (tick, getGridTicks()) : tick);
     }
     markerClickCandidate = false;
     if (sourceEditor == nullptr)
@@ -791,7 +792,7 @@ void PianoRollComponent::scrollIntoView (juce::Rectangle<int> area)
 
 void PianoRollComponent::Canvas::mouseUp (const juce::MouseEvent& e)
 {
-    owner.handleEditorMouseUp (e.getPosition());
+    owner.handleEditorMouseUp (e.getPosition(), e.mods);
 }
 
 bool PianoRollComponent::Canvas::keyPressed (const juce::KeyPress& key)

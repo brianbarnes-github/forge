@@ -40,7 +40,10 @@ namespace lotro
         {
             return c.handleEditorMouseDrag (pos, mods);
         }
-        static bool mouseUp (PianoRollComponent& c, juce::Point<int> pos) { return c.handleEditorMouseUp (pos); }
+        static bool mouseUp (PianoRollComponent& c, juce::Point<int> pos, juce::ModifierKeys mods = {})
+        {
+            return c.handleEditorMouseUp (pos, mods);
+        }
 
         // Exposes the private Canvas member itself so tests can drive its
         // real JUCE mouseDown/mouseDoubleClick/mouseDrag/mouseUp/keyPressed
@@ -1063,6 +1066,29 @@ TEST_CASE ("PianoRollComponent: with snap on a click on empty canvas sets the ma
     Access::mouseDown (f.roll, empty, {}, false);
     Access::mouseUp (f.roll, empty);
     CHECK (*f.controller.getMarkerTick() == exact);
+}
+
+TEST_CASE ("PianoRollComponent: Alt on a click on empty canvas sets the marker exactly where clicked even with snap on", "[piano-roll][marker][grid-snap]")
+{
+    PlayheadRollFixture f;
+    f.roll.setEditableTrack (f.track);
+    f.roll.setPlayback (&f.controller);
+    f.roll.setGridTicks (480);
+    f.roll.setSnapToGrid (true);
+    const auto& geometry = Access::geometry (f.roll);
+    const juce::Point<int> empty { geometry.xForTick (1100), geometry.yForPitch (40) + geometry.getRowHeight() / 2 };
+    const double exact = (double) geometry.tickForX (empty.x);
+    REQUIRE (exact != 960.0);
+    const juce::ModifierKeys alt (juce::ModifierKeys::altModifier);
+
+    // Alt is read on the release that sets the marker.
+    Access::mouseDown (f.roll, empty, alt, false);
+    Access::mouseUp (f.roll, empty, alt);
+    CHECK (*f.controller.getMarkerTick() == exact);
+
+    Access::mouseDown (f.roll, empty, alt, false);
+    Access::mouseUp (f.roll, empty);
+    CHECK (*f.controller.getMarkerTick() == 960.0);
 }
 
 TEST_CASE ("PianoRollComponent: Snap to Grid reaches the note editor, and Alt on a drag moves freely", "[piano-roll][grid-snap]")
