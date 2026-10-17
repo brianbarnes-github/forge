@@ -32,6 +32,9 @@ PianoRollNote SourceTrackNoteSource::getNote (int index) const
     note.durationTicks = (int) noteNode.getProperty (SongIDs::durationTicks);
     // Track colour, not per-note — read verbatim per A-R5, never recomputed.
     note.colourArgb    = (juce::uint32) (int) track.getProperty (SongIDs::colorArgb);
+    // Absent reads playback's defaults.
+    note.velocity      = (int) noteNode.getProperty (SongIDs::velocity, 64);
+    note.channel       = (int) noteNode.getProperty (SongIDs::channel, 1);
     note.sourceTrackIndex = (int) noteNode.getProperty (SongIDs::sourceTrackIndex);
     note.sourceEventIndex = (int) noteNode.getProperty (SongIDs::sourceEventIndex);
     return note;

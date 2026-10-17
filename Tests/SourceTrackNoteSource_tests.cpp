@@ -146,3 +146,26 @@ TEST_CASE ("SourceTrackNoteSource: reads live off the tree, no cache", "[piano-r
     CHECK (source.getNumNotes() == 1);
     CHECK (source.getNote (0).pitch == 64);
 }
+
+TEST_CASE ("SourceTrackNoteSource: a note carries its velocity and channel, 64 and 1 when absent", "[piano-roll][note-display]")
+{
+    juce::ValueTree parent (SongIDs::SOURCE_MIDI);
+    auto track = makeTrack (1, (int) 0xFF7FA8D0);
+    auto withBoth = makeNote (60, 0, 240);
+    withBoth.setProperty (SongIDs::velocity, 127, nullptr);
+    withBoth.setProperty (SongIDs::channel, 10, nullptr);
+    juce::ValueTree bare (SongIDs::NOTE);
+    bare.setProperty (SongIDs::pitch, 62, nullptr);
+    bare.setProperty (SongIDs::startTick, 240, nullptr);
+    bare.setProperty (SongIDs::durationTicks, 240, nullptr);
+    SongDocument::getNotesNode (track).addChild (withBoth, -1, nullptr);
+    SongDocument::getNotesNode (track).addChild (bare, -1, nullptr);
+    parent.addChild (track, -1, nullptr);
+    SourceTrackNoteSource source (track);
+
+    CHECK (source.getNote (0).velocity == 127);
+    CHECK (source.getNote (0).channel == 10);
+    CHECK (source.getNote (1).velocity == 64);
+    CHECK (source.getNote (1).channel == 1);
+    CHECK (source.getNote (1).colourArgb == 0xFF7FA8D0u);
+}

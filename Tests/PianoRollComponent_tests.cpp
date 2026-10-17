@@ -5,6 +5,7 @@
 
 #include "PlaybackTestSupport.h"
 #include "UI/EditorGrid.h"
+#include "UI/NoteColours.h"
 #include "UI/PianoRollComponent.h"
 #include "UI/Theme/PianoRollPalette.h"
 #include "UI/Theme/ThemePaint.h"
@@ -2507,4 +2508,75 @@ TEST_CASE ("PianoRollComponent: setSwing clamps and reads back", "[piano-roll][s
     CHECK (roll.getSwing() == 100);
     roll.setSwing (-150);
     CHECK (roll.getSwing() == -100);
+}
+
+namespace
+{
+    bool isNearColour (juce::Colour a, juce::Colour b, int tolerance)
+    {
+        return std::abs (a.getRed() - b.getRed()) <= tolerance
+            && std::abs (a.getGreen() - b.getGreen()) <= tolerance
+            && std::abs (a.getBlue() - b.getBlue()) <= tolerance;
+    }
+
+    // The whole canvas, painted the way the viewport would.
+    juce::Image paintWholeCanvas (PianoRollComponent& roll)
+    {
+        auto& canvas = Access::canvas (roll);
+        juce::Image image (juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        Access::paintCanvas (roll, g, canvas.getLocalBounds());
+        return image;
+    }
+
+    juce::Point<int> noteCentre (const PianoRollComponent& roll, const PianoRollNote& note)
+    {
+        const auto bounds = Access::geometry (roll).noteBounds (note);
+        return { bounds.x + bounds.width / 2, bounds.y + bounds.height / 2 };
+    }
+}
+
+TEST_CASE ("PianoRollComponent: Color Note by recolours Source notes; the Preview roll keeps its colours", "[piano-roll][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 61 });
+    constexpr juce::uint32 trackArgb = 0xFF3366CCu;
+    fixture.track.setProperty (SongIDs::colorArgb, (int) trackArgb, nullptr);
+    auto noteNode = SongDocument::getNotesNode (fixture.track).getChild (0);
+    noteNode.setProperty (SongIDs::velocity, 127, nullptr);
+    noteNode.setProperty (SongIDs::channel, 10, nullptr);
+
+    CHECK (fixture.roll.getNoteColourMode() == NoteColourMode::track);
+    const auto centre = noteCentre (fixture.roll, fixture.source->getNote (0));
+
+    for (auto mode : { NoteColourMode::track, NoteColourMode::velocity, NoteColourMode::channel, NoteColourMode::pitch })
+    {
+        CAPTURE ((int) mode);
+        fixture.roll.setNoteColourMode (mode);
+        CHECK (fixture.roll.getNoteColourMode() == mode);
+        const auto expected = juce::Colour (noteColourFor (mode, 61, 127, 10, trackArgb));
+        CHECK (isNearColour (paintWholeCanvas (fixture.roll).getPixelAt (centre.x, centre.y), expected, 16));
+    }
+    CHECK (isNearColour (juce::Colour (noteColourFor (NoteColourMode::track, 61, 127, 10, trackArgb)),
+                         juce::Colour (trackArgb), 0));
+
+    // A live edit recolours at the next paint.
+    fixture.roll.setNoteColourMode (NoteColourMode::velocity);
+    noteNode.setProperty (SongIDs::velocity, 0, nullptr);
+    CHECK (isNearColour (paintWholeCanvas (fixture.roll).getPixelAt (centre.x, centre.y), juce::Colour (0xFF2F5BD8u), 16));
+
+    PreviewNote previewNote;
+    previewNote.prePitch = 61;
+    previewNote.startTick = 0;
+    previewNote.durationTicks = ticksPerQuarter;
+    previewNote.state = NoteState::Normal;
+    PreviewNoteSource previewSource ({ previewNote });
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    preview.setBounds (0, 0, viewportWidth, viewportHeight);
+    preview.setNoteSource (&previewSource, ticksPerQuarter, {});
+    preview.setNoteColourMode (NoteColourMode::pitch);
+
+    const auto previewCentre = noteCentre (preview, previewSource.getNote (0));
+    CHECK (isNearColour (paintWholeCanvas (preview).getPixelAt (previewCentre.x, previewCentre.y),
+                         juce::Colour (previewSource.getNote (0).colourArgb), 16));
 }

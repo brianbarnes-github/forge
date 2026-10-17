@@ -26,6 +26,10 @@ struct PianoRollNote
     int startTick = 0;
     int durationTicks = 0;
     juce::uint32 colourArgb = 0;
+    // Note-on velocity and MIDI channel 1..16, for View > Color Note by; a source
+    // without them (the LOTRO preview) leaves playback's defaults.
+    int velocity = 64;
+    int channel = 1;
 
     // Provenance — mirrors lotro::Note's field names exactly; the join key
     // for PreviewNoteDiff and for mapping a clicked rectangle back to a

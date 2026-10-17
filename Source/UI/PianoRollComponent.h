@@ -3,6 +3,7 @@
 #include "EditorGrid.h"
 #include "GridLength.h"
 #include "KeyboardLabels.h"
+#include "NoteDisplay.h"
 #include "PianoRollGeometry.h"
 #include "PianoRollNoteSource.h"
 #include "Playback/PlaybackController.h"
@@ -100,6 +101,10 @@ public:
     // note number over the roll's row bands. Only the MIDI editor's roll sets it.
     void setKeyboardLabels (KeyboardLabels labels);
     KeyboardLabels getKeyboardLabels() const noexcept { return keyboardLabels; }
+    // What a Source note's colour shows (View > Color Note by); the Preview roll
+    // keeps each note's own colour whatever this says.
+    void setNoteColourMode (NoteColourMode mode);
+    NoteColourMode getNoteColourMode() const noexcept { return noteColourMode; }
     // Whether a playing playhead scrolls the view to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
@@ -396,6 +401,7 @@ private:
     int rawGridTicks = 0;   // setGridTicks's spacing, read while gridLength is Off
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes;
+    NoteColourMode noteColourMode = NoteColourMode::track;
     int hoveredPitch = -1;
     int activePitch = -1; // Source role only; see getActivePitch.
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded

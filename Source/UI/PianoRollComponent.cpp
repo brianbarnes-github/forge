@@ -1,4 +1,5 @@
 #include "PianoRollComponent.h"
+#include "NoteColours.h"
 #include "NoteNavigation.h"
 #include "GridLinePaint.h"
 #include "SongDocument.h"
@@ -922,6 +923,12 @@ void PianoRollComponent::setKeyboardLabels (KeyboardLabels labels)
     gutter.repaint();
 }
 
+void PianoRollComponent::setNoteColourMode (NoteColourMode mode)
+{
+    noteColourMode = mode;
+    canvas.repaint();
+}
+
 void PianoRollComponent::paintGutter (juce::Graphics& g) const
 {
     if (keyboardLabels == KeyboardLabels::midiNumbers)
@@ -1143,7 +1150,9 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         if (! (hasGhost ? paintedRect.getUnion (ghostRect) : paintedRect).intersects (clip))
             continue;
 
-        const auto fill = juce::Colour (note.colourArgb);
+        const auto fill = role == Role::Source
+            ? juce::Colour (noteColourFor (noteColourMode, note.pitch, note.velocity, note.channel, note.colourArgb))
+            : juce::Colour (note.colourArgb);
         ThemePaint::NoteStyle style;
         if (role == Role::Preview)
             style.border = juce::Colour (note.state == NoteState::Normal ? SongsmithColours::previewNoteBorder
