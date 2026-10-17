@@ -119,6 +119,18 @@ juce::ValueTree SourceRollEditor::hitTestNote (juce::Point<int> pos) const
     return {};
 }
 
+bool SourceRollEditor::isWithinNoteLength (juce::Point<int> pos) const
+{
+    if (! track.isValid())
+        return false;
+
+    auto notes = SongDocument::getNotesNode (track);
+    for (int i = 0; i < notes.getNumChildren(); ++i)
+        if (toRect (geometry.noteBounds (toPianoRollNote (notes.getChild (i)))).contains (pos))
+            return true;
+    return false;
+}
+
 int SourceRollEditor::hitTestEdgeZone (const juce::ValueTree& note, juce::Point<int> pos) const
 {
     const auto noteBounds = geometry.noteBounds (toPianoRollNote (note));
@@ -172,7 +184,7 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
 
     if (isDoubleClick)
     {
-        if (hitTestNote (pos).isValid())
+        if (hitTestNote (pos).isValid() || isWithinNoteLength (pos))
             return false;
         if (pitchAllowed && ! pitchAllowed (geometry.pitchForY (pos.y)))
             return false;

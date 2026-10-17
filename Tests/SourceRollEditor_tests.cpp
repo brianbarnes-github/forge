@@ -1372,6 +1372,22 @@ TEST_CASE ("SourceRollEditor: with Diamond a press on the diamond selects the no
     CHECK_FALSE (f.editor.isSelected (f.noteB));
 }
 
+TEST_CASE ("SourceRollEditor: with Diamond a double-click on the undrawn rest of a note's length creates nothing; past its end it creates a note", "[source-roll-editor][note-display]")
+{
+    ShapeFixture f (NoteShape::diamond);
+    const auto b = f.boundsOf (f.noteB);
+    REQUIRE (b.width > f.rowHeight());
+    f.doc.getUndoManager().clearUndoHistory();
+
+    CHECK_FALSE (f.editor.mouseDown ({ b.x + f.rowHeight() / 2 + 4, f.rowCentreY (f.noteB) }, {}, true));
+    CHECK_FALSE (f.editor.mouseDown ({ b.x + b.width - 1, f.rowCentreY (f.noteB) }, {}, true));
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    CHECK_FALSE (f.doc.canUndo());
+
+    CHECK (f.editor.mouseDown ({ b.x + b.width + f.rowHeight(), f.rowCentreY (f.noteB) }, {}, true));
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 3);
+}
+
 TEST_CASE ("SourceRollEditor: with Diamond a drag from the diamond's edge moves the note, never resizes it", "[source-roll-editor][note-display]")
 {
     ShapeFixture f (NoteShape::diamond);

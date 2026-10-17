@@ -168,6 +168,9 @@ private:
     };
 
     juce::ValueTree hitTestNote (juce::Point<int> pos) const;
+    // Whether `pos` falls inside any note's start-to-end span on its row, drawn
+    // or not (Diamond hides the length), so a double-click there adds nothing.
+    bool isWithinNoteLength (juce::Point<int> pos) const;
     int hitTestEdgeZone (const juce::ValueTree& note, juce::Point<int> pos) const;
     void toggleSelection (const juce::ValueTree& note);
     void pruneSelection();
