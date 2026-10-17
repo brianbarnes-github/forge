@@ -1365,6 +1365,33 @@ TEST_CASE ("TrackEditorPanel: View Notes In Key / Out of Key select the notes in
     CHECK (Access::numSelected (*f.panel) == 4);
 }
 
+TEST_CASE ("TrackEditorPanel: Delete / Backspace on the panel itself delete the selected notes and never fall through", "[track-editor][select-by-key]")
+{
+    MarkerPanelFixture f;   // 60 at 0
+    lotro::playbacktest::addNote (f.track, 61, 2000, 480);
+    lotro::playbacktest::addNote (f.track, 66, 4000, 480);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    using Access = TrackEditorPanelTestAccess;
+    f.doc.setSongKey (0);   // C major
+
+    // Focus on the panel, not the roll's canvas (as opening the editor leaves it).
+    f.panel->invokeMenuCommand (EditorViewNotesOutOfKey);
+    REQUIRE (Access::numSelected (*f.panel) == 2);
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+    CHECK (notes.getNumChildren() == 1);
+    CHECK ((int) notes.getChild (0).getProperty (SongIDs::pitch) == 60);
+
+    f.panel->invokeMenuCommand (EditorViewNotesInKey);
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::backspaceKey)));
+    CHECK (notes.getNumChildren() == 0);
+
+    // Nothing selected: still claimed, so the main page's Delete (sections) never sees it.
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));
+
+    f.panel->clearTrack();
+    CHECK (f.panel->keyPressed (juce::KeyPress (juce::KeyPress::deleteKey)));   // no track, no crash
+}
+
 TEST_CASE ("TrackEditorPanel: View Notes In Key / Out of Key grey out and do nothing without a key or a track", "[track-editor][editor-menu][select-by-key]")
 {
     MarkerPanelFixture f;   // 60 at 0, no song key

@@ -98,6 +98,10 @@ namespace lotro
 
     void TrackEditorPanel::MenuModel::menuItemSelected (int menuItemID, int)
     {
+        // A command from the editor's own bar puts the keyboard in the editor, so a
+        // following Delete acts on its notes rather than the main page's sections.
+        if (owner.isShowing())
+            owner.grabKeyboardFocus();
         owner.invokeMenuCommand (menuItemID);
     }
 
@@ -542,6 +546,14 @@ namespace lotro
         if (key == juce::KeyPress::spaceKey && playback != nullptr)
         {
             playback->togglePlayPause();
+            return true;
+        }
+        // Focus on the panel rather than the canvas (as opening the editor or using
+        // its menu bar leaves it): Delete still means the editor's notes, and is
+        // claimed even with none selected so the main page never deletes sections.
+        if (key == juce::KeyPress (juce::KeyPress::deleteKey) || key == juce::KeyPress (juce::KeyPress::backspaceKey))
+        {
+            roll.deleteSelectedNotes();
             return true;
         }
         return false;

@@ -762,6 +762,11 @@ bool PianoRollComponent::selectNotesWithPitch (const std::function<bool (int pit
     return true;
 }
 
+bool PianoRollComponent::deleteSelectedNotes()
+{
+    return handleEditorKeyPressed (juce::KeyPress (juce::KeyPress::deleteKey));
+}
+
 bool PianoRollComponent::hasSteppedNote (double tick, int direction) const
 {
     return steppedNote (tick, direction) >= 0;

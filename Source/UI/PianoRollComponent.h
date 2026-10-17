@@ -178,6 +178,9 @@ public:
     // pitch `wanted` accepts (none clears it), without scrolling or moving the
     // active row. No undo step. False (nothing changed) without an editor.
     bool selectNotesWithPitch (const std::function<bool (int pitch)>& wanted);
+    // Source role with an editor: deletes the selected notes as Delete on the
+    // canvas does (one undo step). False when nothing was deleted.
+    bool deleteSelectedNotes();
     // Source role with an editor: there is a note for addSteppedNoteToSelection to add.
     bool hasExtendableNote (int direction) const;
     // Adds the note right after the last selected one (`direction` +1) or right
