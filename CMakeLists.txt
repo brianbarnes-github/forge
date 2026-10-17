@@ -143,6 +143,7 @@ target_sources(forge_ui PRIVATE
     Source/UI/EditorBottomBar.cpp
     Source/UI/MeterSegments.cpp
     Source/UI/KeyDetector.cpp
+    Source/UI/NoteColours.cpp
     Source/UI/KeyDetection.cpp
     Source/UI/ScaleSnap.cpp
     Source/UI/TempoMapSync.cpp
