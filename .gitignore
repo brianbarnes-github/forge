@@ -30,3 +30,4 @@ screenshots/
 
 # Local-only GPL-2 SoundFont (never committed; see docs/BUILD.md)
 resources/soundfonts/
+.superpowers/
