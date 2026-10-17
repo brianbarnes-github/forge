@@ -53,6 +53,18 @@ public:
         repaint();
     }
 
+    // Text for the corner left of the content edge (the editor's hovered row, as
+    // "60 C4"), asked afresh on every paint; empty draws nothing, and so does a
+    // ruler with no content edge. The owner calls cornerLabelChanged when it changes.
+    void setCornerLabel (std::function<juce::String()> labelIn)
+    {
+        cornerLabel = std::move (labelIn);
+        cornerLabelChanged();
+    }
+    juce::String getCornerLabel() const { return cornerLabel && contentLeft > 0 ? cornerLabel() : juce::String(); }
+    // Repaints only the corner.
+    void cornerLabelChanged() { repaint (0, 0, contentLeft, getHeight()); }
+
     // unsnapped: Alt was held, so a host that snaps the marker should not.
     std::function<void (double tick, bool unsnapped)> onSetMarker;
     std::function<void()> onClearMarker;
@@ -115,6 +127,7 @@ private:
     std::function<std::optional<double>()> marker;
     std::function<std::optional<LoopRange>()> loopRange;
     std::function<std::optional<double>()> playhead;
+    std::function<juce::String()> cornerLabel;
     std::optional<juce::Rectangle<int>> lastCap;   // the cap as last painted, for playheadMoved
     int capRepaints = 0;
     int contentLeft = 0;

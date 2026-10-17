@@ -351,7 +351,10 @@ When you say…       …I'll know you mean
   a line where B meets C and E meets F, and each semitone's MIDI note number
   (60 = C4) in every row; the hovered row is tinted and the active row takes
   the roll's copper tint. The choice is saved (`view.keyboardLabels`) and only
-  changes this editor's roll. **Navigate → Move Marker Left by Grid** / **Right by
+  changes this editor's roll. In either mode, the blank corner of the ruler
+  above the keyboard names the row under the pointer as its MIDI number and
+  note (e.g. `60 C4`), and is empty when the pointer is off the roll.
+  **Navigate → Move Marker Left by Grid** / **Right by
   Grid** (`Left` / `Right` while the editor has keyboard focus) move the start
   marker to the previous / next grid line whether snap is on or off (from between
   two lines, to the nearer one on that side; Left stops at the song start; with no

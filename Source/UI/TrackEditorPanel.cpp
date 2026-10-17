@@ -346,6 +346,13 @@ namespace lotro
         };
         rollIn.onViewChanged = [this] { ruler.repaint(); };
         rollIn.onPlayheadMoved = [this] { ruler.playheadMoved(); };
+        // The blank corner over the keyboard gutter names the hovered row, in either label mode.
+        ruler.setCornerLabel ([&rollIn]
+        {
+            const int pitch = rollIn.getHoveredPitch();
+            return pitch < 0 ? juce::String() : juce::String (pitch) + " " + PianoRollGeometry::noteName (pitch);
+        });
+        rollIn.onHoveredPitchChanged = [this] { ruler.cornerLabelChanged(); };
         addAndMakeVisible (strip);
         addAndMakeVisible (ruler);
         addAndMakeVisible (roll);
@@ -355,6 +362,7 @@ namespace lotro
     {
         roll.onViewChanged = nullptr;
         roll.onPlayheadMoved = nullptr;
+        roll.onHoveredPitchChanged = nullptr;
     }
 
     void TrackEditorPanel::Content::resized()

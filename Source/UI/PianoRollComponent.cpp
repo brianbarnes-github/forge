@@ -599,6 +599,8 @@ void PianoRollComponent::setHoveredPitch (int pitch)
         return;
     hoveredPitch = pitch;
     gutter.repaint();
+    if (onHoveredPitchChanged)
+        onHoveredPitchChanged();
 }
 
 void PianoRollComponent::setActivePitch (int pitch)

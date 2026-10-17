@@ -54,6 +54,10 @@ public:
     std::function<void()> onViewChanged;
     // Fired whenever the playhead moves, so that bar can move its playhead cap.
     std::function<void()> onPlayheadMoved;
+    // Fired whenever the hovered row changes, so that bar can name it in its corner.
+    std::function<void()> onHoveredPitchChanged;
+    // Pitch of the row under the mouse; -1 for none.
+    int getHoveredPitch() const noexcept { return hoveredPitch; }
 
     bool hasPlayheadForTesting() const noexcept { return playhead != nullptr; }
     bool hasMarkerOverlayForTesting() const noexcept { return markerOverlay != nullptr; }

@@ -43,6 +43,8 @@ namespace lotro
             w.roll.handleEditorMouseDown (pos, {}, true);
             w.roll.handleEditorMouseUp (pos);
         }
+        // The pointer moving over `pitch`'s row of the canvas (-1: leaving it).
+        static void hoverRow (TrackEditorPanel& w, int pitch) { w.roll.setHoveredPitch (pitch); }
         static bool isSelected (TrackEditorPanel& w, const juce::ValueTree& note) { return w.roll.sourceEditor->isSelected (note); }
         static int numSelected (TrackEditorPanel& w) { return w.roll.sourceEditor->getNumSelected(); }
         static void addToSelection (TrackEditorPanel& w, const juce::ValueTree& note) { w.roll.sourceEditor->addToSelection (note); }
@@ -677,6 +679,23 @@ namespace
         ruler.mouseDown (juce::MouseEvent (*source, pos, mods, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                            &ruler, &ruler, now, pos, now, 1, false));
     }
+}
+
+TEST_CASE ("TrackEditorPanel: the ruler's corner names the hovered row, in either keyboard-label mode", "[track-editor][corner-label]")
+{
+    MarkerPanelFixture f;
+    using Access = TrackEditorPanelTestAccess;
+    auto& ruler = Access::ruler (*f.panel);
+    CHECK (ruler.getContentLeft() == Access::roll (*f.panel).getGutterWidth());
+    CHECK (ruler.getCornerLabel().isEmpty());
+
+    Access::hoverRow (*f.panel, 60);
+    CHECK (ruler.getCornerLabel() == "60 C4");
+    f.panel->setKeyboardLabels (KeyboardLabels::midiNumbers);
+    Access::hoverRow (*f.panel, 61);
+    CHECK (ruler.getCornerLabel() == "61 C#4");
+    Access::hoverRow (*f.panel, -1);
+    CHECK (ruler.getCornerLabel().isEmpty());
 }
 
 TEST_CASE ("TrackEditorPanel: Navigate > Move Marker Left / Right by Grid step the start marker along the grid", "[track-editor-window][editor-menu][marker]")

@@ -117,6 +117,13 @@ void TimelineRuler::paint (juce::Graphics& g)
 {
     ThemePaint::paintPanelGradient (g, getLocalBounds());
 
+    if (const auto label = getCornerLabel(); label.isNotEmpty())
+    {
+        g.setColour (juce::Colour (SongsmithColours::text));
+        g.setFont (juce::Font (juce::FontOptions (11.0f)));
+        g.drawFittedText (label, 0, 0, contentLeft, getHeight(), juce::Justification::centred, 1);
+    }
+
     if (xForTick && grid && tickForX)
     {
         const double firstTick = tickForX (contentLeft);

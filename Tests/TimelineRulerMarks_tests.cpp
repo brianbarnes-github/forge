@@ -202,6 +202,40 @@ TEST_CASE ("TimelineRuler: marks left of the content edge are not drawn", "[rule
     CHECK_FALSE (f.isBackground (192, 10));           // bar 2 is inside
 }
 
+TEST_CASE ("TimelineRuler: the corner label is drawn left of the content edge, and nothing when empty", "[ruler][corner-label]")
+{
+    RulerFixture f;
+    f.ruler.setContentLeft (60);
+    juce::String label;
+    f.ruler.setCornerLabel ([&label] { return label; });
+
+    const auto cornerIsBlank = [&f]
+    {
+        for (int y = 0; y < TimelineRuler::height; ++y)
+            for (int x = 0; x < 60; ++x)
+                if (! f.isBackground (x, y))
+                    return false;
+        return true;
+    };
+
+    f.paint();
+    CHECK (f.ruler.getCornerLabel().isEmpty());
+    CHECK (cornerIsBlank());
+
+    label = "60 C4";
+    f.image.clear (f.image.getBounds());
+    f.paint();
+    CHECK (f.ruler.getCornerLabel() == "60 C4");
+    CHECK_FALSE (cornerIsBlank());
+}
+
+TEST_CASE ("TimelineRuler: without a content edge there is no corner to label", "[ruler][corner-label]")
+{
+    RulerFixture f;
+    f.ruler.setCornerLabel ([] { return juce::String ("60 C4"); });
+    CHECK (f.ruler.getCornerLabel().isEmpty());
+}
+
 TEST_CASE ("TimelineRuler: without marks configured it just paints its background", "[ruler]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
