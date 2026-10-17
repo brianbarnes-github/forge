@@ -211,6 +211,8 @@ MainWindow::MainWindow()
     songsmith.onSnapToGridChanged = [this] (bool on) { appSettings.setSnapToGrid (on); };
     songsmith.onNotePreviewChanged = [this] (const NotePreviewSettings& s) { appSettings.setNotePreview (s); };
     songsmith.onKeyboardLabelsChanged = [this] (KeyboardLabels labels) { appSettings.setKeyboardLabels (labels); };
+    songsmith.onNoteShapeChanged = [this] (NoteShape shape) { appSettings.setNoteShape (shape); };
+    songsmith.onNoteColourModeChanged = [this] (NoteColourMode mode) { appSettings.setNoteColourMode (mode); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
         const juce::String json (dock::toJson (layout));
@@ -719,6 +721,8 @@ void MainWindow::applyViewSettings()
     songsmith.setSnapToGrid (appSettings.snapToGrid());
     songsmith.setNotePreview (appSettings.notePreview());
     songsmith.setKeyboardLabels (appSettings.keyboardLabels());
+    songsmith.setNoteShape (appSettings.noteShape());
+    songsmith.setNoteColourMode (appSettings.noteColourMode());
     songsmith.setMergeScope (appSettings.mergeScope());
     songsmith.setDefaultGridSize (appSettings.defaultGrid());
 }

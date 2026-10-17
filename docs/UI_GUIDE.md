@@ -353,7 +353,22 @@ When you say…       …I'll know you mean
   the roll's copper tint. The choice is saved (`view.keyboardLabels`) and only
   changes this editor's roll. In either mode, the blank corner of the ruler
   above the keyboard names the row under the pointer as its MIDI number and
-  note (e.g. `60 C4`), and is empty when the pointer is off the roll.
+  note (e.g. `60 C4`), and is empty when the pointer is off the roll. Below a
+  separator, **View → Piano Roll Notes ▸** Rectangle / Diamond / Diamond +
+  Length chooses how the editor's roll draws notes: Rectangle is the usual bar;
+  Diamond is a row-sized diamond centred on the note's start, with the length
+  not shown (no resize handle; pressing the diamond grabs the note); Diamond +
+  Length adds a thin line out to the note's end, whose far end resizes as the
+  right edge does (no left resize; when the line ends inside the diamond the
+  press moves the note). The rubber band tests the diamond (plus the line for
+  Diamond + Length). **View → Color Note by ▸** Track / Velocity / Channel /
+  Pitch colours notes in the editor's roll and the main page's note bars: the
+  track's colour, a blue-to-red heat map over velocity 0–127, a fixed colour per
+  MIDI channel (10 grey), or one per pitch class (sharps halfway between their
+  naturals); a note with no velocity or channel reads 64 / channel 1. Both are
+  always enabled, ticked, saved (`view.noteShape`, `view.noteColour`) and
+  display-only; the LOTRO preview roll keeps its rectangles and colours, and the
+  track swatch and selected-row accent keep the track's colour.
   **Navigate → Move Marker Left by Grid** / **Right by
   Grid** (`Left` / `Right` while the editor has keyboard focus) move the start
   marker to the previous / next grid line whether snap is on or off (from between

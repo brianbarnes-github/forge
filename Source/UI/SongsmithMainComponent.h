@@ -260,6 +260,12 @@ public:
     // And for its View > Piano Notes / MIDI Numbers.
     void setKeyboardLabels (KeyboardLabels labels);
     std::function<void (KeyboardLabels)> onKeyboardLabelsChanged;
+    // And its View > Piano Roll Notes (the editor only) and Color Note by (the editor
+    // and the track list's note bars).
+    void setNoteShape (NoteShape shape);
+    std::function<void (NoteShape)> onNoteShapeChanged;
+    void setNoteColourMode (NoteColourMode mode);
+    std::function<void (NoteColourMode)> onNoteColourModeChanged;
     void setMergeScope (MergeScope scope);
     // The track list's head-column width (see TrackListComponent::setHeadWidth). A divider
     // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.

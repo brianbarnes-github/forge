@@ -2,6 +2,7 @@
 
 #include "GridLength.h"
 #include "KeyboardLabels.h"
+#include "NoteDisplay.h"
 #include "MenuModel.h"
 #include "NotePreview.h"
 #include "ScaleSnap.h"
@@ -41,6 +42,13 @@ enum EditorMenuCommandId : int
     EditorOptionsPreviewOnVelocity,
     EditorViewPianoNotes,
     EditorViewMidiNumbers,
+    EditorViewNoteRectangle,
+    EditorViewNoteDiamond,
+    EditorViewNoteDiamondLength,
+    EditorViewColourTrack,
+    EditorViewColourVelocity,
+    EditorViewColourChannel,
+    EditorViewColourPitch,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -111,6 +119,8 @@ struct EditorMenuState
     GridLength noteLength = GridLength::Off;              // Options > Note Length's tick
     GridDivision noteDivision = GridDivision::Straight;   // Options > Note Division's tick
     KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes; // View's tick
+    NoteShape noteShape = NoteShape::rectangle;                 // View > Piano Roll Notes' tick
+    NoteColourMode noteColourMode = NoteColourMode::track;      // View > Color Note by's tick
 };
 
 namespace menu_detail
@@ -223,7 +233,18 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
              { "View", {
                  item (EditorViewPianoNotes, "Piano Notes", {}, true, s.keyboardLabels == KeyboardLabels::pianoNotes),
                  item (EditorViewMidiNumbers, "MIDI Numbers", {}, true,
-                       s.keyboardLabels == KeyboardLabels::midiNumbers) } } };
+                       s.keyboardLabels == KeyboardLabels::midiNumbers),
+                 separator(),
+                 submenu ("Piano Roll Notes", {
+                     item (EditorViewNoteRectangle, "Rectangle", {}, true, s.noteShape == NoteShape::rectangle),
+                     item (EditorViewNoteDiamond, "Diamond", {}, true, s.noteShape == NoteShape::diamond),
+                     item (EditorViewNoteDiamondLength, "Diamond + Length", {}, true,
+                           s.noteShape == NoteShape::diamondLength) }),
+                 submenu ("Color Note by", {
+                     item (EditorViewColourTrack, "Track", {}, true, s.noteColourMode == NoteColourMode::track),
+                     item (EditorViewColourVelocity, "Velocity", {}, true, s.noteColourMode == NoteColourMode::velocity),
+                     item (EditorViewColourChannel, "Channel", {}, true, s.noteColourMode == NoteColourMode::channel),
+                     item (EditorViewColourPitch, "Pitch", {}, true, s.noteColourMode == NoteColourMode::pitch) }) } } };
 }
 
 // Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)

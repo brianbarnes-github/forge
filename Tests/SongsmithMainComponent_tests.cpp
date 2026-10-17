@@ -104,6 +104,8 @@ namespace lotro
             return c.trackEditor->getFollowPlayhead();
         }
         static KeyboardLabels editorKeyboardLabels (const SongsmithMainComponent& c) { return c.trackEditor->getKeyboardLabels(); }
+        static NoteShape editorNoteShape (const SongsmithMainComponent& c) { return c.trackEditor->getNoteShape(); }
+        static NoteColourMode editorNoteColourMode (const SongsmithMainComponent& c) { return c.trackEditor->getNoteColourMode(); }
         static NotePreviewSettings editorNotePreview (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getNotePreview();
@@ -1457,6 +1459,32 @@ TEST_CASE ("SongsmithMainComponent: keyboard labels reach the editor, and the ed
     Access::invokeEditorMenuCommand (main, EditorViewPianoNotes);
     CHECK (Access::editorKeyboardLabels (main) == KeyboardLabels::pianoNotes);
     CHECK (reported == std::vector<KeyboardLabels> { KeyboardLabels::pianoNotes });
+}
+
+TEST_CASE ("SongsmithMainComponent: note shape and colour reach the editor and the track list, and the editor's View items reach the callbacks", "[track-editor][editor-menu][view-settings][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    std::vector<NoteShape> shapes;
+    std::vector<NoteColourMode> modes;
+    main.onNoteShapeChanged = [&] (NoteShape shape) { shapes.push_back (shape); };
+    main.onNoteColourModeChanged = [&] (NoteColourMode mode) { modes.push_back (mode); };
+
+    main.setNoteShape (NoteShape::diamond);
+    main.setNoteColourMode (NoteColourMode::velocity);
+    CHECK (Access::editorNoteShape (main) == NoteShape::diamond);
+    CHECK (Access::editorNoteColourMode (main) == NoteColourMode::velocity);
+    CHECK (Access::trackList (main).getNoteColourMode() == NoteColourMode::velocity);
+    CHECK (shapes.empty());   // pushing the settings is not a change to save
+    CHECK (modes.empty());
+
+    Access::invokeEditorMenuCommand (main, EditorViewNoteDiamondLength);
+    Access::invokeEditorMenuCommand (main, EditorViewColourPitch);
+    CHECK (Access::editorNoteShape (main) == NoteShape::diamondLength);
+    CHECK (Access::trackList (main).getNoteColourMode() == NoteColourMode::pitch);
+    CHECK (shapes == std::vector<NoteShape> { NoteShape::diamondLength });
+    CHECK (modes == std::vector<NoteColourMode> { NoteColourMode::pitch });
 }
 
 TEST_CASE ("SongsmithMainComponent: the main window's Grid Size sets the editor's length and keeps its division", "[track-editor][grid-length]")

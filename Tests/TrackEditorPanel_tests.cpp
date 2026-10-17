@@ -11,6 +11,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <map>
+
 using namespace lotro;
 
 namespace lotro
@@ -512,7 +514,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
-    CHECK (model->getMenuForIndex (4, "View").getNumItems() == 2);   // piano notes, MIDI numbers
+    CHECK (model->getMenuForIndex (4, "View").getNumItems() == 4);   // piano notes, MIDI numbers, two submenus (separators not counted)
     CHECK (model->getMenuForIndex (1, {}).getNumItems() == 0);
 
     // Still there, still on top, once the strip/ruler/roll content is built.
@@ -1722,4 +1724,62 @@ TEST_CASE ("TrackEditorPanel: Note Length and Note Division are greyed with no t
     TrackEditorPanel panel (doc);
     CHECK_FALSE (optionsItemState (panel, EditorNoteLengthBase + (int) GridLength::Quarter).second);
     CHECK_FALSE (optionsItemState (panel, EditorNoteDivisionBase + (int) GridDivision::Triplet).second);
+}
+
+TEST_CASE ("TrackEditorPanel: View > Piano Roll Notes and Color Note by set the roll and report only changes", "[track-editor][editor-menu][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);   // no track: saved settings, open without one
+    auto& roll = TrackEditorPanelTestAccess::roll (panel);
+    std::vector<NoteShape> shapes;
+    std::vector<NoteColourMode> modes;
+    panel.onNoteShapeChanged = [&] (NoteShape shape) { shapes.push_back (shape); };
+    panel.onNoteColourModeChanged = [&] (NoteColourMode mode) { modes.push_back (mode); };
+
+    CHECK (panel.getNoteShape() == NoteShape::rectangle);
+    CHECK (panel.getNoteColourMode() == NoteColourMode::track);
+
+    auto* model = TrackEditorPanelTestAccess::menuBar (panel).getModel();
+    model->menuItemSelected (EditorViewNoteDiamond, 4);
+    CHECK (panel.getNoteShape() == NoteShape::diamond);
+    CHECK (roll.getNoteShape() == NoteShape::diamond);
+    CHECK (shapes == std::vector<NoteShape> { NoteShape::diamond });
+
+    panel.invokeMenuCommand (EditorViewNoteDiamond);   // already on: nothing to save
+    CHECK (shapes.size() == 1);
+    panel.invokeMenuCommand (EditorViewNoteDiamondLength);
+    panel.invokeMenuCommand (EditorViewNoteRectangle);
+    CHECK (roll.getNoteShape() == NoteShape::rectangle);
+    CHECK (shapes == std::vector<NoteShape> { NoteShape::diamond, NoteShape::diamondLength, NoteShape::rectangle });
+
+    model->menuItemSelected (EditorViewColourVelocity, 4);
+    CHECK (roll.getNoteColourMode() == NoteColourMode::velocity);
+    panel.invokeMenuCommand (EditorViewColourVelocity);
+    panel.invokeMenuCommand (EditorViewColourChannel);
+    panel.invokeMenuCommand (EditorViewColourPitch);
+    panel.invokeMenuCommand (EditorViewColourTrack);
+    CHECK (panel.getNoteColourMode() == NoteColourMode::track);
+    CHECK (modes == std::vector<NoteColourMode> { NoteColourMode::velocity, NoteColourMode::channel,
+                                                  NoteColourMode::pitch, NoteColourMode::track });
+
+    // Pushing the settings reports nothing.
+    panel.setNoteShape (NoteShape::diamondLength);
+    panel.setNoteColourMode (NoteColourMode::pitch);
+    CHECK (roll.getNoteShape() == NoteShape::diamondLength);
+    CHECK (roll.getNoteColourMode() == NoteColourMode::pitch);
+    CHECK (shapes.size() == 3);
+    CHECK (modes.size() == 4);
+
+    // The View menu ticks what the roll shows.
+    const auto view = model->getMenuForIndex (4, "View");
+    juce::PopupMenu::MenuItemIterator it (view, true);
+    std::map<int, bool> ticks;
+    while (it.next())
+        if (it.getItem().itemID != 0)
+            ticks[it.getItem().itemID] = it.getItem().isTicked;
+    CHECK (ticks[EditorViewNoteDiamondLength]);
+    CHECK_FALSE (ticks[EditorViewNoteRectangle]);
+    CHECK (ticks[EditorViewColourPitch]);
+    CHECK_FALSE (ticks[EditorViewColourTrack]);
 }

@@ -477,7 +477,7 @@ TEST_CASE ("EditorMenuModel: View is Piano Notes and MIDI Numbers, enabled with 
 {
     EditorMenuState s;
     const auto piano = menuNamed (editorMenus (s), "View");
-    CHECK (labels (piano) == V { "Piano Notes", "MIDI Numbers" });
+    CHECK (labels (piano) == V { "Piano Notes", "MIDI Numbers", "-", "Piano Roll Notes>", "Color Note by>" });
     CHECK (piano.items[0].id == EditorViewPianoNotes);
     CHECK (piano.items[1].id == EditorViewMidiNumbers);
     CHECK (piano.items[0].enabled);   // no track loaded
@@ -489,6 +489,65 @@ TEST_CASE ("EditorMenuModel: View is Piano Notes and MIDI Numbers, enabled with 
     const auto midi = menuNamed (editorMenus (s), "View");
     CHECK_FALSE (midi.items[0].ticked);
     CHECK (midi.items[1].ticked);
+}
+
+TEST_CASE ("EditorMenuModel: View > Piano Roll Notes and Color Note by list their choices, enabled without a track, the current one ticked", "[menu-model][editor-menu][note-display]")
+{
+    const auto submenuNamed = [] (const MenuDesc& menu, const std::string& label)
+    {
+        for (const auto& i : menu.items)
+            if (i.isSubmenu && i.label == label)
+                return i;
+        FAIL ("no submenu " << label);
+        return MenuItemDesc {};
+    };
+
+    const std::vector<int> shapeIds { EditorViewNoteRectangle, EditorViewNoteDiamond, EditorViewNoteDiamondLength };
+    const std::vector<int> colourIds { EditorViewColourTrack, EditorViewColourVelocity, EditorViewColourChannel,
+                                       EditorViewColourPitch };
+
+    const std::vector<NoteShape> shapes { NoteShape::rectangle, NoteShape::diamond, NoteShape::diamondLength };
+    for (size_t current = 0; current < shapes.size(); ++current)
+    {
+        EditorMenuState s;   // no track loaded
+        s.noteShape = shapes[current];
+        const auto sub = submenuNamed (menuNamed (editorMenus (s), "View"), "Piano Roll Notes");
+        CHECK (sub.enabled);
+        REQUIRE (sub.children.size() == 3);
+        const std::vector<std::string> names { "Rectangle", "Diamond", "Diamond + Length" };
+        for (size_t i = 0; i < 3; ++i)
+        {
+            CAPTURE (current, i);
+            CHECK (sub.children[i].label == names[i]);
+            CHECK (sub.children[i].id == shapeIds[i]);
+            CHECK (sub.children[i].enabled);
+            CHECK (sub.children[i].ticked == (i == current));
+        }
+    }
+
+    const std::vector<NoteColourMode> modes { NoteColourMode::track, NoteColourMode::velocity, NoteColourMode::channel,
+                                              NoteColourMode::pitch };
+    for (size_t current = 0; current < modes.size(); ++current)
+    {
+        EditorMenuState s;
+        s.noteColourMode = modes[current];
+        const auto sub = submenuNamed (menuNamed (editorMenus (s), "View"), "Color Note by");
+        CHECK (sub.enabled);
+        REQUIRE (sub.children.size() == 4);
+        const std::vector<std::string> names { "Track", "Velocity", "Channel", "Pitch" };
+        for (size_t i = 0; i < 4; ++i)
+        {
+            CAPTURE (current, i);
+            CHECK (sub.children[i].label == names[i]);
+            CHECK (sub.children[i].id == colourIds[i]);
+            CHECK (sub.children[i].enabled);
+            CHECK (sub.children[i].ticked == (i == current));
+        }
+    }
+
+    // Appended after the existing ids, below the submenu bases.
+    CHECK (EditorViewNoteRectangle == EditorViewMidiNumbers + 1);
+    CHECK (EditorViewColourPitch < EditorSnapRootBase);
 }
 
 TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")

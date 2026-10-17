@@ -80,6 +80,8 @@ namespace lotro
         s.noteLength = owner.getNoteLength();
         s.noteDivision = owner.getNoteDivision();
         s.keyboardLabels = owner.getKeyboardLabels();
+        s.noteShape = owner.getNoteShape();
+        s.noteColourMode = owner.getNoteColourMode();
         if (const auto key = owner.currentSnapKey())
         {
             s.snapRootIndex = key->rootIndex;
@@ -181,6 +183,36 @@ namespace lotro
                 setKeyboardLabels (labels);
                 if (onKeyboardLabelsChanged)
                     onKeyboardLabelsChanged (labels);
+                return;
+            }
+            case EditorViewNoteRectangle:
+            case EditorViewNoteDiamond:
+            case EditorViewNoteDiamondLength:
+            {
+                const auto shape = commandId == EditorViewNoteDiamond       ? NoteShape::diamond
+                                 : commandId == EditorViewNoteDiamondLength ? NoteShape::diamondLength
+                                                                            : NoteShape::rectangle;
+                if (shape == getNoteShape())
+                    return;
+                setNoteShape (shape);
+                if (onNoteShapeChanged)
+                    onNoteShapeChanged (shape);
+                return;
+            }
+            case EditorViewColourTrack:
+            case EditorViewColourVelocity:
+            case EditorViewColourChannel:
+            case EditorViewColourPitch:
+            {
+                const auto mode = commandId == EditorViewColourVelocity ? NoteColourMode::velocity
+                                : commandId == EditorViewColourChannel  ? NoteColourMode::channel
+                                : commandId == EditorViewColourPitch    ? NoteColourMode::pitch
+                                                                        : NoteColourMode::track;
+                if (mode == getNoteColourMode())
+                    return;
+                setNoteColourMode (mode);
+                if (onNoteColourModeChanged)
+                    onNoteColourModeChanged (mode);
                 return;
             }
             case EditorOptionsSnapToKeyEnabled:

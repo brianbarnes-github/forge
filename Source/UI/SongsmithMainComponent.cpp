@@ -183,6 +183,17 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         if (onKeyboardLabelsChanged)
             onKeyboardLabelsChanged (labels);
     };
+    trackEditor->onNoteShapeChanged = [this] (NoteShape shape)
+    {
+        if (onNoteShapeChanged)
+            onNoteShapeChanged (shape);
+    };
+    trackEditor->onNoteColourModeChanged = [this] (NoteColourMode mode)
+    {
+        trackList.setNoteColourMode (mode);
+        if (onNoteColourModeChanged)
+            onNoteColourModeChanged (mode);
+    };
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 
@@ -286,6 +297,17 @@ void SongsmithMainComponent::setNotePreview (const NotePreviewSettings& settings
 void SongsmithMainComponent::setKeyboardLabels (KeyboardLabels labels)
 {
     trackEditor->setKeyboardLabels (labels);
+}
+
+void SongsmithMainComponent::setNoteShape (NoteShape shape)
+{
+    trackEditor->setNoteShape (shape);
+}
+
+void SongsmithMainComponent::setNoteColourMode (NoteColourMode mode)
+{
+    trackEditor->setNoteColourMode (mode);
+    trackList.setNoteColourMode (mode);
 }
 
 // Remembered for editors opened later; an editor that is already open keeps its grid.
