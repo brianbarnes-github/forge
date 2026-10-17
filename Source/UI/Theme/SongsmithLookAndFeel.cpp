@@ -131,7 +131,13 @@ void SongsmithLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, in
         g.setColour (shade (c (border)));
         g.fillRoundedRectangle (track, trackThickness / 2);
 
-        const auto filled = horizontal ? track.withRight (sliderPos) : track.withTop (sliderPos);
+        // A range that spans zero (e.g. Swing, −100..+100) fills from zero, so 0 shows no fill.
+        const bool fromZero = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
+        const float origin = fromZero ? (float) slider.getPositionOfValue (0.0)
+                                      : (horizontal ? track.getX() : track.getBottom());
+        const auto filled = horizontal
+            ? track.withLeft (juce::jmin (origin, sliderPos)).withRight (juce::jmax (origin, sliderPos))
+            : track.withTop (juce::jmin (origin, sliderPos)).withBottom (juce::jmax (origin, sliderPos));
         g.setColour (shade (slider.findColour (juce::Slider::trackColourId)));
         g.fillRoundedRectangle (filled, trackThickness / 2);
 

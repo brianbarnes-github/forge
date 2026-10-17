@@ -84,6 +84,30 @@ TEST_CASE ("SongsmithLookAndFeel: a linear slider fills copper up to its thumb",
     CHECK (! hasCopperPixel (image.getClippedImage ({ 120, 0, 80, 24 })));
 }
 
+TEST_CASE ("SongsmithLookAndFeel: a linear slider whose range spans zero fills from zero to its thumb", "[theme]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ScopedSongsmithLookAndFeel installed;
+    juce::Slider slider (juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+    slider.setRange (-100.0, 100.0, 1.0);
+    slider.setSize (200, 24);
+
+    slider.setValue (0.0);
+    auto image = paintComponent (slider);
+    CHECK (! hasCopperPixel (image.getClippedImage ({ 0, 0, 85, 24 })));
+    CHECK (! hasCopperPixel (image.getClippedImage ({ 115, 0, 85, 24 })));
+
+    slider.setValue (60.0);
+    image = paintComponent (slider);
+    CHECK (! hasCopperPixel (image.getClippedImage ({ 0, 0, 90, 24 })));
+    CHECK (hasCopperPixel (image.getClippedImage ({ 105, 0, 30, 24 })));
+
+    slider.setValue (-60.0);
+    image = paintComponent (slider);
+    CHECK (hasCopperPixel (image.getClippedImage ({ 65, 0, 30, 24 })));
+    CHECK (! hasCopperPixel (image.getClippedImage ({ 110, 0, 90, 24 })));
+}
+
 namespace
 {
     // Rec. 709 luma, 0..255: enough to tell readable text from its background.
