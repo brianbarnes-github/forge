@@ -21,6 +21,11 @@ struct MergeResult
     bool changed = false;
 };
 
+// A detached copy of the NOTE `src` as new material for `target`, spanning
+// [start, end): the target's default channel (isDrum on 10), no provenance
+// (-1/-1), no raw event order, and the target's stored section that holds it.
+juce::ValueTree newNoteForTrack (const juce::ValueTree& src, int start, int end, const juce::ValueTree& target);
+
 // True when `targetTrackId` is a non-conductor MIDI track and at least one ref
 // names a different non-conductor track.
 bool canMergeInto (const SongDocument& doc, const std::vector<SectionRef>& refs, juce::int64 targetTrackId);

@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "EditorBottomBar.h"
+#include "NoteClipboard.h"
 #include "PianoRollComponent.h"
 #include "Playback/PlaybackController.h"
 #include "Playback/TimelineRuler.h"
@@ -67,6 +68,13 @@ namespace lotro
         // Add Previous / Next Note to Selection add the note before / after the
         // selection and move the marker to its start (addSteppedNote); Move Cursor
         // to Start of Selection moves it to the earliest selected start.
+        // Edit > Undo / Redo are the whole document's (with or without a track);
+        // Cut / Copy put the selected notes on the panel's clipboard (Cut then deletes
+        // them, one undo step); Paste adds the clipboard's notes with the earliest at
+        // the cursor (needs playback), Paste at Origin at the ticks they were copied
+        // from, each one undo step leaving the copy selected; Select All selects the
+        // track's notes; Delete deletes the selection. The clipboard survives setTrack
+        // (to paste onto another track) and clearTrack empties it.
         void invokeMenuCommand (int commandId);
         std::function<void (juce::int64 trackId)> onExportTrackMidi;
         std::function<void()> onCloseRequested;
@@ -197,32 +205,9 @@ namespace lotro
             juce::StringArray getMenuBarNames() override;
             juce::PopupMenu getMenuForIndex (int topLevelMenuIndex, const juce::String& menuName) override;
             void menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
-            void menuBarActivated (bool isActive) override;
-            int activationsForTesting() const noexcept { return activations; }
 
         private:
             TrackEditorPanel& owner;
-            int activations = 0;   // test observability: times the bar was armed
-        };
-
-        // JUCE opens no popup for an empty menu and never reports it closed, which
-        // leaves the bar armed (title lit, hover switching titles) and its open-menu
-        // count off for the session. So presses, drags and hovers over a title with
-        // no items, and Left/Right onto one, never reach the base class.
-        class MenuBar : public juce::MenuBarComponent
-        {
-        public:
-            using juce::MenuBarComponent::MenuBarComponent;
-            void mouseDown (const juce::MouseEvent&) override;
-            void mouseDrag (const juce::MouseEvent&) override;
-            void mouseMove (const juce::MouseEvent&) override;
-            bool keyPressed (const juce::KeyPress&) override;
-
-        private:
-            int titleAt (const juce::MouseEvent&);   // -1 off every title
-            bool hasItems (int index);
-            bool letThrough (const juce::MouseEvent&);    // false over an empty title
-            int openIndex = -1;                            // the last title let through
         };
 
         void titleChanged();
@@ -250,6 +235,11 @@ namespace lotro
         // Moves the start marker to the earliest selected note's exact start and
         // scrolls it into view. Returns whether anything was selected.
         bool moveCursorToSelectionStart();
+        // Edit > Copy (and Cut's first half): the selected notes onto the clipboard.
+        // False, leaving the clipboard alone, with nothing selected.
+        bool copySelection();
+        // A track, playback for the cursor, and something on the clipboard.
+        bool canPaste() const;
         // Plain Left/Right (marker) and Up/Down (active row), from the panel or ahead
         // of the roll's Viewport scrolling; unclaimed when the step can't happen.
         bool navigateKeyPressed (const juce::KeyPress& key);
@@ -259,7 +249,7 @@ namespace lotro
 
         SongDocument& doc;
         MenuModel menuModel { *this };
-        MenuBar menuBar { &menuModel };
+        juce::MenuBarComponent menuBar { &menuModel };
         PianoRollComponent roll;
         EditorBottomBar bottomBar;
         // After `roll` (it holds a reference) and destroyed before it. Its strip and
@@ -274,6 +264,7 @@ namespace lotro
         bool snapToKey = false;
         NotePreviewSettings notePreview;
         std::optional<SnapKey> pickedSnapKey;   // nullopt: follow the song key
+        NoteClipboard clipboard;                // Edit > Cut / Copy / Paste
         int appearanceRepaintCount = 0;   // test observability
     };
 }

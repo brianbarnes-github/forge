@@ -390,20 +390,45 @@ bool SourceRollEditor::keyPressed (const juce::KeyPress& key)
 
     if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
     {
-        doc.undo();
-        pruneSelection();
+        undo();
         return true;
     }
 
     if (key == juce::KeyPress ('z', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier | juce::ModifierKeys::shiftModifier), 0)
         || key == juce::KeyPress ('y', juce::ModifierKeys (juce::ModifierKeys::ctrlModifier), 0))
     {
-        doc.redo();
-        pruneSelection();
+        redo();
         return true;
     }
 
     return false;
+}
+
+void SourceRollEditor::undo()
+{
+    doc.undo();
+    pruneSelection();
+}
+
+void SourceRollEditor::redo()
+{
+    doc.redo();
+    pruneSelection();
+}
+
+std::vector<juce::ValueTree> SourceRollEditor::getSelectedNotes()
+{
+    pruneSelection();
+    return selection;
+}
+
+bool SourceRollEditor::paste (const NoteClipboard& clipboard, int startTick)
+{
+    auto added = pasteNotes (doc, track, clipboard, startTick);
+    if (added.empty())
+        return false;
+    selection = std::move (added);
+    return true;
 }
 bool SourceRollEditor::deleteSelection()
 {

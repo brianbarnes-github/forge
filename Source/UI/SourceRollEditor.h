@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EditorGrid.h"
+#include "NoteClipboard.h"
 #include "NoteDisplay.h"
 #include "NotePreview.h"
 #include "PianoRollGeometry.h"
@@ -105,6 +106,8 @@ public:
     // Replaces the selection with every note whose pitch `wanted` accepts.
     void selectPitches (const std::function<bool (int pitch)>& wanted);
     int getNumSelected() const noexcept { return (int) selection.size(); }
+    // The selected notes still in the track (the selection is pruned first).
+    std::vector<juce::ValueTree> getSelectedNotes();
 
     // In-progress rubber-band rect, in the same canvas-pixel space as
     // PianoRollGeometry::noteBounds; empty when no rubber-band drag is
@@ -136,6 +139,17 @@ public:
     // Public so both keyPressed and (a future) right-click context menu
     // (see the plan's scope decisions) can trigger it directly.
     bool deleteSelection();
+
+    // Edit > Paste / Paste at Origin: adds the clipboard's notes to the track with
+    // the earliest at `startTick` (see pasteNotes, one undo transaction) and makes
+    // them the selection. Reports no NoteChange (no preview). False when nothing
+    // was added (an empty clipboard or no track).
+    bool paste (const NoteClipboard& clipboard, int startTick);
+
+    // The whole document's undo / redo (as Ctrl+Z / Ctrl+Y), then drops any
+    // selected note it took away.
+    void undo();
+    void redo();
 
     // Grid-snaps every selected note's startTick to the grid's lines (swung
     // under Swing) and its durationTicks to the grid's spacing, one undo

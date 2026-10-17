@@ -181,6 +181,19 @@ public:
     // Source role with an editor: deletes the selected notes as Delete on the
     // canvas does (one undo step). False when nothing was deleted.
     bool deleteSelectedNotes();
+    // Source role with an editor: the selected notes (for Edit > Copy / Cut);
+    // empty without an editor.
+    std::vector<juce::ValueTree> selectedNotes();
+    // Source role with an editor: selects every note of the track (Edit > Select
+    // All). No undo step. False when the track has no notes.
+    bool selectAllNotes();
+    // Source role with an editor: pastes the clipboard with its earliest note at
+    // `startTick` and selects the copy (see SourceRollEditor::paste).
+    bool pasteNotes (const NoteClipboard& clipboard, int startTick);
+    // Source role with an editor: the whole document's undo / redo, dropping any
+    // selected note it took away. False (nothing done) without an editor.
+    bool undo();
+    bool redo();
     // Source role with an editor: there is a note for addSteppedNoteToSelection to add.
     bool hasExtendableNote (int direction) const;
     // Adds the note right after the last selected one (`direction` +1) or right

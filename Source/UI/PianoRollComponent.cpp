@@ -784,6 +784,45 @@ bool PianoRollComponent::deleteSelectedNotes()
     return handleEditorKeyPressed (juce::KeyPress (juce::KeyPress::deleteKey));
 }
 
+std::vector<juce::ValueTree> PianoRollComponent::selectedNotes()
+{
+    return sourceEditor != nullptr ? sourceEditor->getSelectedNotes() : std::vector<juce::ValueTree> {};
+}
+
+bool PianoRollComponent::selectAllNotes()
+{
+    if (! hasNotes())
+        return false;
+    return selectNotesWithPitch ([] (int) { return true; });
+}
+
+bool PianoRollComponent::pasteNotes (const NoteClipboard& clipboard, int startTick)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->paste (clipboard, startTick);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::undo()
+{
+    if (sourceEditor == nullptr)
+        return false;
+    sourceEditor->undo();
+    afterEditorGesture (true);
+    return true;
+}
+
+bool PianoRollComponent::redo()
+{
+    if (sourceEditor == nullptr)
+        return false;
+    sourceEditor->redo();
+    afterEditorGesture (true);
+    return true;
+}
+
 bool PianoRollComponent::hasSteppedNote (double tick, int direction) const
 {
     return steppedNote (tick, direction) >= 0;

@@ -460,14 +460,15 @@ TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-mode
     CHECK (findMenuItem (menus, 99999) == nullptr);
 }
 
-TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; Edit has no items yet", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View, each with items", "[menu-model][editor-menu]")
 {
     const auto menus = editorMenus ({});
     std::vector<std::string> names;
     for (const auto& m : menus)
         names.push_back (m.name);
     CHECK (names == std::vector<std::string> { "File", "Edit", "Navigate", "Options", "View" });
-    CHECK (menus[1].items.empty());
+    CHECK_FALSE (menus[0].items.empty());
+    CHECK_FALSE (menus[1].items.empty());
     CHECK_FALSE (menus[2].items.empty());
     CHECK_FALSE (menus[3].items.empty());
     CHECK_FALSE (menus[4].items.empty());
@@ -606,6 +607,45 @@ TEST_CASE ("EditorMenuModel: View ends with a separator and View Notes In Key / 
     CHECK (EditorViewNotesInKey == EditorViewNoteVelocities + 1);
     CHECK (EditorViewNotesOutOfKey == EditorViewNotesInKey + 1);
     CHECK (EditorViewNotesOutOfKey < EditorSnapRootBase);
+}
+
+TEST_CASE ("EditorMenuModel: Edit is Undo, Redo | Cut, Copy, Paste, Paste at Origin | Select All, Delete with their shortcuts", "[menu-model][editor-menu][editor-edit]")
+{
+    using V = std::vector<std::string>;
+    EditorMenuState s;
+    const auto edit = menuNamed (editorMenus (s), "Edit");
+    CHECK (labels (edit) == V { "Undo", "Redo", "-", "Cut", "Copy", "Paste", "Paste at Origin", "-", "Select All", "Delete" });
+    CHECK (itemWith (edit, EditorEditUndo).shortcut == "Ctrl+Z");
+    CHECK (itemWith (edit, EditorEditRedo).shortcut == "Ctrl+Y");
+    CHECK (itemWith (edit, EditorEditCut).shortcut == "Ctrl+X");
+    CHECK (itemWith (edit, EditorEditCopy).shortcut == "Ctrl+C");
+    CHECK (itemWith (edit, EditorEditPaste).shortcut == "Ctrl+V");
+    CHECK (itemWith (edit, EditorEditPasteAtOrigin).shortcut == "Ctrl+Shift+V");
+    CHECK (itemWith (edit, EditorEditSelectAll).shortcut == "Ctrl+A");
+    CHECK (itemWith (edit, EditorEditDelete).shortcut == "Del");
+    for (const auto& item : edit.items)
+        if (! item.separator)
+            CHECK_FALSE (item.enabled);   // nothing to undo, no track, no selection, empty clipboard
+}
+
+TEST_CASE ("EditorMenuModel: each Edit item follows its own state flag", "[menu-model][editor-menu][editor-edit]")
+{
+    const auto enabledWith = [] (int id, bool EditorMenuState::* flag)
+    {
+        EditorMenuState s;
+        s.*flag = true;
+        return itemWith (menuNamed (editorMenus (s), "Edit"), id).enabled;
+    };
+    CHECK (enabledWith (EditorEditUndo, &EditorMenuState::canUndo));
+    CHECK (enabledWith (EditorEditRedo, &EditorMenuState::canRedo));
+    CHECK (enabledWith (EditorEditCut, &EditorMenuState::hasSelection));
+    CHECK (enabledWith (EditorEditCopy, &EditorMenuState::hasSelection));
+    CHECK (enabledWith (EditorEditDelete, &EditorMenuState::hasSelection));
+    CHECK (enabledWith (EditorEditPaste, &EditorMenuState::canPaste));
+    CHECK (enabledWith (EditorEditPasteAtOrigin, &EditorMenuState::canPasteAtOrigin));
+    CHECK (enabledWith (EditorEditSelectAll, &EditorMenuState::hasNotes));
+    CHECK_FALSE (enabledWith (EditorEditUndo, &EditorMenuState::canRedo));
+    CHECK_FALSE (enabledWith (EditorEditPaste, &EditorMenuState::canPasteAtOrigin));
 }
 
 TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")
@@ -804,17 +844,6 @@ TEST_CASE ("EditorMenuModel: Navigate's Add Previous / Next Note and Move Cursor
     CHECK_FALSE (cursor.items[16].enabled);
     CHECK_FALSE (cursor.items[17].enabled);
     CHECK (cursor.items[18].enabled);
-}
-
-TEST_CASE ("EditorMenuModel: arrow keys step to the next menu that has items, wrapping, or stay put", "[menu-model][editor-menu]")
-{
-    const std::vector<bool> hasItems { true, false, false, true, false };
-    CHECK (nextOpenableMenu (hasItems, 0, +1) == 3);
-    CHECK (nextOpenableMenu (hasItems, 0, -1) == 3);   // wraps left past the empty View
-    CHECK (nextOpenableMenu (hasItems, 3, +1) == 0);   // wraps right
-    CHECK (nextOpenableMenu ({ false, true, false }, 1, +1) == -1);   // only the open one has items
-    CHECK (nextOpenableMenu ({ false, false, false }, 0, +1) == -1);
-    CHECK (nextOpenableMenu ({}, 0, +1) == -1);
 }
 
 namespace

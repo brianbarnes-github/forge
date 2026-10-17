@@ -11,6 +11,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <map>
 
 using namespace lotro;
@@ -27,7 +28,6 @@ namespace lotro
         static PianoRollComponent& roll (TrackEditorPanel& w) { return w.roll; }
         static juce::Component& content (TrackEditorPanel& w) { return *w.content; }
         static juce::MenuBarComponent& menuBar (TrackEditorPanel& w) { return w.menuBar; }
-        static int menuActivations (TrackEditorPanel& w) { return w.menuModel.activationsForTesting(); }
         static juce::Component& rollCanvas (TrackEditorPanel& w) { return w.roll.canvasForTesting(); }
         // A plain left press on the roll's canvas in the middle of `pitch`'s row, past the notes.
         static void clickRow (TrackEditorPanel& w, int pitch)
@@ -515,7 +515,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
     CHECK (model->getMenuForIndex (4, "View").getNumItems() == 6);   // piano notes, MIDI numbers, two submenus, notes in / out of key (separators not counted)
-    CHECK (model->getMenuForIndex (1, {}).getNumItems() == 0);
+    CHECK (model->getMenuForIndex (1, "Edit").getNumItems() == 8);   // undo, redo, cut, copy, paste, paste at origin, select all, delete
 
     // Still there, still on top, once the strip/ruler/roll content is built.
     lotro::playbacktest::RecordingSink sink;
@@ -524,46 +524,6 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (bar.getParentComponent() == &panel);
     CHECK (bar.getBounds() == juce::Rectangle<int> (0, 0, 700, TrackEditorPanel::menuBarHeight));
     CHECK (Access::content (panel).getY() == bar.getBottom());
-}
-
-namespace
-{
-    juce::MouseEvent leftMouseAt (juce::Component& c, juce::Point<float> p)
-    {
-        const auto t = juce::Time::getCurrentTime();
-        return { juce::Desktop::getInstance().getMainMouseSource(), p,
-                 juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
-                 juce::MouseInputSource::defaultPressure, juce::MouseInputSource::defaultOrientation,
-                 juce::MouseInputSource::defaultRotation, juce::MouseInputSource::defaultTiltX,
-                 juce::MouseInputSource::defaultTiltY, &c, &c, t, p, t, 1, false };
-    }
-}
-
-TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu title leaves the menu bar unarmed", "[track-editor-window][editor-menu]")
-{
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    SongDocument doc;
-    TrackEditorPanel panel (doc);
-    panel.setSize (700, 400);
-    // The bar's hit-test (reallyContains -> contains) needs a peer, so the panel goes on the desktop.
-    panel.addToDesktop (0);
-    panel.setVisible (true);
-
-    using Access = TrackEditorPanelTestAccess;
-    auto& bar = Access::menuBar (panel);
-    REQUIRE (bar.getNumChildComponents() == 5);   // one item component per title
-    for (int i : { 1 })   // Edit: File, Navigate, Options and View have items now
-    {
-        const auto centre = bar.getChildComponent (i)->getBounds().getCentre().toFloat();
-        // JUCE never opens a popup for an empty menu and never reports it closed, so a
-        // forwarded press would leave the bar armed (title lit, hover switching titles).
-        bar.mouseDown (leftMouseAt (bar, centre));
-        bar.mouseUp (leftMouseAt (bar, centre));
-        bar.mouseDrag (leftMouseAt (bar, centre));
-        bar.mouseMove (leftMouseAt (bar, centre));
-        CHECK (Access::menuActivations (panel) == 0);
-    }
-    panel.removeFromDesktop();
 }
 
 TEST_CASE ("TrackEditorPanel: File > Export to New MIDI File asks for this track; Close Editor asks to close", "[track-editor-window][editor-menu]")
@@ -1914,4 +1874,174 @@ TEST_CASE ("TrackEditorPanel: View > Show Note Names / Velocity Numbers toggle t
             ticks[it.getItem().itemID] = it.getItem().isTicked;
     CHECK (ticks[EditorViewNoteNames]);
     CHECK_FALSE (ticks[EditorViewNoteVelocities]);
+}
+
+namespace
+{
+    // Whether the editor bar's Edit item `id` is enabled right now.
+    bool editEnabled (TrackEditorPanel& panel, int id)
+    {
+        const auto menu = TrackEditorPanelTestAccess::menuBar (panel).getModel()->getMenuForIndex (1, "Edit");
+        for (juce::PopupMenu::MenuItemIterator it (menu); it.next();)
+            if (it.getItem().itemID == id)
+                return it.getItem().isEnabled;
+        FAIL ("no Edit item " << id);
+        return false;
+    }
+
+    std::vector<int> startsOf (const juce::ValueTree& track)
+    {
+        std::vector<int> out;
+        const auto notes = SongDocument::getNotesNode (track);
+        for (int i = 0; i < notes.getNumChildren(); ++i)
+            out.push_back ((int) notes.getChild (i).getProperty (SongIDs::startTick));
+        std::sort (out.begin(), out.end());
+        return out;
+    }
+
+    const auto cmd = juce::ModifierKeys::commandModifier;
+    const auto cmdShift = juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
+}
+
+TEST_CASE ("TrackEditorPanel: Edit > Copy then Paste puts the notes at the cursor and selects them; Undo takes them back", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    using Access = TrackEditorPanelTestAccess;
+    const auto original = SongDocument::getNotesNode (f.track).getChild (0);
+
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditCopy));   // nothing selected
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditPaste));  // empty clipboard
+    Access::addToSelection (*f.panel, original);
+    REQUIRE (editEnabled (*f.panel, EditorEditCopy));
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorEditCopy, 1);
+    CHECK (startsOf (f.track) == std::vector<int> { 0 });   // a copy changes nothing
+
+    f.controller->setMarkerTick (4800.0);
+    REQUIRE (editEnabled (*f.panel, EditorEditPaste));
+    f.panel->invokeMenuCommand (EditorEditPaste);
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 4800 });
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK_FALSE (Access::isSelected (*f.panel, original));   // the pasted note is the selection
+
+    REQUIRE (editEnabled (*f.panel, EditorEditUndo));
+    f.panel->invokeMenuCommand (EditorEditUndo);
+    CHECK (startsOf (f.track) == std::vector<int> { 0 });
+    CHECK (Access::numSelected (*f.panel) == 0);   // the undone note left the selection
+    REQUIRE (editEnabled (*f.panel, EditorEditRedo));
+    f.panel->invokeMenuCommand (EditorEditRedo);
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 4800 });
+}
+
+TEST_CASE ("TrackEditorPanel: Edit > Paste at Origin puts the copy at its own ticks on another track; the clipboard lasts until the Song is replaced", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60) on A
+    lotro::playbacktest::addNote (f.track, 64, 1920, 480);
+    auto other = f.doc.addTrack ("B", (int) 0xFFDDEEFF, 1, 0);
+    using Access = TrackEditorPanelTestAccess;
+
+    Access::addToSelection (*f.panel, SongDocument::getNotesNode (f.track).getChild (1));
+    f.panel->invokeMenuCommand (EditorEditCopy);
+    f.controller->setMarkerTick (4800.0);   // Paste at Origin ignores the cursor
+
+    f.panel->setTrack (other);
+    REQUIRE (editEnabled (*f.panel, EditorEditPasteAtOrigin));
+    f.panel->invokeMenuCommand (EditorEditPasteAtOrigin);
+    CHECK (startsOf (other) == std::vector<int> { 1920 });
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 1920 });
+    CHECK (Access::numSelected (*f.panel) == 1);
+
+    f.panel->clearTrack();   // the Song was replaced
+    f.panel->setTrack (other);
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditPaste));
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditPasteAtOrigin));
+}
+
+TEST_CASE ("TrackEditorPanel: Edit > Cut copies and removes the selection in one undo step; Delete removes it", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 64, 1920, 480);
+    using Access = TrackEditorPanelTestAccess;
+
+    Access::addToSelection (*f.panel, SongDocument::getNotesNode (f.track).getChild (1));
+    REQUIRE (editEnabled (*f.panel, EditorEditCut));
+    f.panel->invokeMenuCommand (EditorEditCut);
+    CHECK (startsOf (f.track) == std::vector<int> { 0 });
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditCut));
+
+    f.controller->setMarkerTick (960.0);
+    f.panel->invokeMenuCommand (EditorEditPaste);
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 960 });
+    f.panel->invokeMenuCommand (EditorEditUndo);   // the paste
+    f.panel->invokeMenuCommand (EditorEditUndo);   // the whole cut
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 1920 });
+
+    Access::addToSelection (*f.panel, SongDocument::getNotesNode (f.track).getChild (0));
+    REQUIRE (editEnabled (*f.panel, EditorEditDelete));
+    f.panel->invokeMenuCommand (EditorEditDelete);
+    CHECK (startsOf (f.track) == std::vector<int> { 1920 });
+}
+
+TEST_CASE ("TrackEditorPanel: Edit > Select All selects every note of the track", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 64, 1920, 480);
+    lotro::playbacktest::addNote (f.track, 72, 3840, 480);
+    using Access = TrackEditorPanelTestAccess;
+
+    REQUIRE (editEnabled (*f.panel, EditorEditSelectAll));
+    f.panel->invokeMenuCommand (EditorEditSelectAll);
+    CHECK (Access::numSelected (*f.panel) == 3);
+
+    f.panel->clearTrack();
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditSelectAll));
+}
+
+TEST_CASE ("TrackEditorPanel: Undo and Redo are the whole document's, enabled without a track", "[track-editor-window][editor-menu][editor-edit]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);
+    CHECK_FALSE (editEnabled (panel, EditorEditUndo));
+
+    const int before = doc.getNumTracks();
+    doc.addTrack ("A", (int) 0xFFAABBCC, 0, 0);   // an undoable edit made elsewhere
+    REQUIRE (editEnabled (panel, EditorEditUndo));
+    panel.invokeMenuCommand (EditorEditUndo);
+    CHECK (doc.getNumTracks() == before);
+    REQUIRE (editEnabled (panel, EditorEditRedo));
+    panel.invokeMenuCommand (EditorEditRedo);
+    CHECK (doc.getNumTracks() == before + 1);
+}
+
+TEST_CASE ("TrackEditorPanel: with the keyboard on the panel, Ctrl+A/C/X/V, Ctrl+Shift+V and Ctrl+Z/Y are the editor's Edit commands", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0 (pitch 60)
+    lotro::playbacktest::addNote (f.track, 64, 1920, 480);
+    using Access = TrackEditorPanelTestAccess;
+
+    // Claimed even with nothing to do, so the main page never sees them.
+    CHECK (f.panel->keyPressed (juce::KeyPress ('c', cmd, 0)));
+    CHECK (f.panel->keyPressed (juce::KeyPress ('v', cmd, 0)));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 1920 });
+
+    // Ctrl+A selects the editor's notes, not the main page's sections.
+    CHECK (f.panel->keyPressed (juce::KeyPress ('a', cmd, 0)));
+    CHECK (Access::numSelected (*f.panel) == 2);
+    CHECK (f.panel->keyPressed (juce::KeyPress ('c', cmd, 0)));
+
+    f.controller->setMarkerTick (960.0);
+    CHECK (f.panel->keyPressed (juce::KeyPress ('v', cmd, 0)));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 960, 1920, 2880 });
+    CHECK (f.panel->keyPressed (juce::KeyPress ('z', cmd, 0)));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 1920 });
+    CHECK (Access::numSelected (*f.panel) == 0);   // pruned: the selection was the undone paste
+    CHECK (f.panel->keyPressed (juce::KeyPress ('y', cmd, 0)));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 960, 1920, 2880 });
+    CHECK (f.panel->keyPressed (juce::KeyPress ('z', cmdShift, 0)));   // Ctrl+Shift+Z is Redo too: nothing left
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 960, 1920, 2880 });
+
+    CHECK (f.panel->keyPressed (juce::KeyPress ('v', cmdShift, 0)));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 0, 960, 1920, 1920, 2880 });
+    CHECK (f.panel->keyPressed (juce::KeyPress ('x', cmd, 0)));   // the pasted pair is the selection
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 960, 1920, 2880 });
 }

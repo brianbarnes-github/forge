@@ -6,6 +6,29 @@
 
 namespace lotro
 {
+    namespace
+    {
+        // The editor Edit item a Ctrl/Cmd shortcut stands for; 0 for any other key.
+        int editCommandForKey (const juce::KeyPress& key)
+        {
+            const auto cmd = juce::ModifierKeys::commandModifier;
+            const auto cmdShift = juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
+            const std::pair<juce::KeyPress, int> shortcuts[] {
+                { juce::KeyPress ('z', cmd, 0), EditorEditUndo },
+                { juce::KeyPress ('y', cmd, 0), EditorEditRedo },
+                { juce::KeyPress ('z', cmdShift, 0), EditorEditRedo },
+                { juce::KeyPress ('x', cmd, 0), EditorEditCut },
+                { juce::KeyPress ('c', cmd, 0), EditorEditCopy },
+                { juce::KeyPress ('v', cmd, 0), EditorEditPaste },
+                { juce::KeyPress ('v', cmdShift, 0), EditorEditPasteAtOrigin },
+                { juce::KeyPress ('a', cmd, 0), EditorEditSelectAll } };
+            for (const auto& [shortcut, command] : shortcuts)
+                if (key == shortcut)
+                    return command;
+            return 0;
+        }
+    }
+
     TrackEditorPanel::TrackEditorPanel (SongDocument& document)
         : doc (document),
           roll (PianoRollComponent::Role::Source, &doc)
@@ -60,6 +83,12 @@ namespace lotro
     {
         EditorMenuState s;
         s.hasTrack = owner.currentTrackId != -1;
+        s.canUndo = owner.doc.canUndo();
+        s.canRedo = owner.doc.canRedo();
+        s.hasSelection = s.hasTrack && ! owner.roll.selectedNotes().empty();
+        s.hasNotes = s.hasTrack && owner.roll.hasNotes();
+        s.canPaste = owner.canPaste();
+        s.canPasteAtOrigin = s.hasTrack && ! owner.clipboard.empty();
         s.snapToGrid = owner.snapToGrid;
         s.canStepMarker = owner.canStepMarker();
         s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
@@ -116,6 +145,34 @@ namespace lotro
             case EditorFileClose:
                 if (onCloseRequested)
                     onCloseRequested();
+                return;
+            case EditorEditUndo:
+                roll.undo();
+                return;
+            case EditorEditRedo:
+                roll.redo();
+                return;
+            case EditorEditCut:
+                if (copySelection())
+                    roll.deleteSelectedNotes();
+                return;
+            case EditorEditCopy:
+                copySelection();
+                return;
+            case EditorEditPaste:
+                if (canPaste())
+                    roll.pasteNotes (clipboard, std::max (0, juce::roundToInt (cursorTick())));
+                return;
+            case EditorEditPasteAtOrigin:
+                if (currentTrackId != -1)
+                    roll.pasteNotes (clipboard, clipboard.originTick());
+                return;
+            case EditorEditSelectAll:
+                if (currentTrackId != -1)
+                    roll.selectAllNotes();
+                return;
+            case EditorEditDelete:
+                roll.deleteSelectedNotes();
                 return;
             case EditorNavigateMarkerLeft:
                 stepMarker (-1);
@@ -276,77 +333,6 @@ namespace lotro
         if (const auto songKey = doc.getSongKey())
             return snapKeyForSongKey (*songKey);
         return std::nullopt;
-    }
-
-    void TrackEditorPanel::MenuModel::menuBarActivated (bool isActive)
-    {
-        if (isActive)
-            ++activations;
-    }
-
-    int TrackEditorPanel::MenuBar::titleAt (const juce::MouseEvent& e)
-    {
-        // The bar's only children are its title components, in menu order.
-        const auto p = e.getEventRelativeTo (this).getPosition();
-        for (int i = 0; i < getNumChildComponents(); ++i)
-            if (getChildComponent (i)->getBounds().contains (p))
-                return i;
-        return -1;
-    }
-
-    bool TrackEditorPanel::MenuBar::hasItems (int index)
-    {
-        auto* model = getModel();
-        if (model == nullptr)
-            return false;
-        const auto names = model->getMenuBarNames();
-        return model->getMenuForIndex (index, names[index]).getNumItems() > 0;
-    }
-
-    bool TrackEditorPanel::MenuBar::letThrough (const juce::MouseEvent& e)
-    {
-        const int title = titleAt (e);
-        if (title >= 0 && ! hasItems (title))
-            return false;
-        if (title >= 0)
-            openIndex = title;
-        return true;
-    }
-
-    void TrackEditorPanel::MenuBar::mouseDown (const juce::MouseEvent& e)
-    {
-        if (letThrough (e))
-            juce::MenuBarComponent::mouseDown (e);
-    }
-
-    void TrackEditorPanel::MenuBar::mouseDrag (const juce::MouseEvent& e)
-    {
-        if (letThrough (e))
-            juce::MenuBarComponent::mouseDrag (e);
-    }
-
-    void TrackEditorPanel::MenuBar::mouseMove (const juce::MouseEvent& e)
-    {
-        if (letThrough (e))
-            juce::MenuBarComponent::mouseMove (e);
-    }
-
-    bool TrackEditorPanel::MenuBar::keyPressed (const juce::KeyPress& key)
-    {
-        const bool left = key.isKeyCode (juce::KeyPress::leftKey);
-        if (! left && ! key.isKeyCode (juce::KeyPress::rightKey))
-            return juce::MenuBarComponent::keyPressed (key);
-
-        std::vector<bool> flags;
-        for (int i = 0; i < getNumChildComponents(); ++i)
-            flags.push_back (hasItems (i));
-        const int target = nextOpenableMenu (flags, juce::jmax (0, openIndex), left ? -1 : +1);
-        if (target >= 0)
-        {
-            openIndex = target;
-            showMenu (target);
-        }
-        return true;
     }
 
     void TrackEditorPanel::paintOverChildren (juce::Graphics& g)
@@ -537,10 +523,32 @@ namespace lotro
         return false;
     }
 
+    bool TrackEditorPanel::copySelection()
+    {
+        const auto selected = roll.selectedNotes();
+        if (currentTrackId == -1 || selected.empty())
+            return false;
+        clipboard = copyNotes (selected);
+        return true;
+    }
+
+    bool TrackEditorPanel::canPaste() const
+    {
+        return currentTrackId != -1 && playback != nullptr && ! clipboard.empty();
+    }
+
     bool TrackEditorPanel::keyPressed (const juce::KeyPress& key)
     {
         if (navigateKeyPressed (key))
             return true;
+        // The Edit menu's shortcuts, claimed even when they do nothing so the main
+        // page never selects or undoes behind the editor (a focused canvas has
+        // already taken Ctrl+Z / Ctrl+Y itself).
+        if (const int command = editCommandForKey (key); command != 0)
+        {
+            invokeMenuCommand (command);
+            return true;
+        }
         // The roll's SourceRollEditor only claims Delete/Backspace, so Space
         // reaches the panel.
         if (key == juce::KeyPress::spaceKey && playback != nullptr)
@@ -585,6 +593,7 @@ namespace lotro
         currentNoteSource.reset();
         currentTrackId = -1;
         pickedSnapKey.reset();
+        clipboard = {};
         refreshSwingControl();
         titleChanged();
         repaint();

@@ -53,6 +53,14 @@ enum EditorMenuCommandId : int
     EditorViewNoteVelocities,
     EditorViewNotesInKey,
     EditorViewNotesOutOfKey,
+    EditorEditUndo,
+    EditorEditRedo,
+    EditorEditCut,
+    EditorEditCopy,
+    EditorEditPaste,
+    EditorEditPasteAtOrigin,
+    EditorEditSelectAll,
+    EditorEditDelete,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -101,6 +109,12 @@ constexpr bool isEditorNoteDivisionCommand (int id) noexcept
 struct EditorMenuState
 {
     bool hasTrack = false;     // a track is loaded in the editor
+    bool canUndo = false;      // the whole document has an edit to undo
+    bool canRedo = false;      // ... or to redo
+    bool hasSelection = false; // a track with notes selected (Cut, Copy, Delete)
+    bool hasNotes = false;     // a track with notes (Select All)
+    bool canPaste = false;         // a track, playback for the cursor, and a non-empty clipboard
+    bool canPasteAtOrigin = false; // a track and a non-empty clipboard
     bool snapToGrid = true;    // Options > Snap to Grid is ticked
     bool canStepMarker = false; // a track, playback and a grid (not Off)
     bool canStepPitch = false;  // a track and an active row (a canvas click picks one)
@@ -199,7 +213,17 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorFileExportTrackMidi, "Export to New MIDI File...", {}, s.hasTrack),
                  separator(),
                  item (EditorFileClose, "Close Editor") } },
-             { "Edit", {} },
+             { "Edit", {
+                 item (EditorEditUndo, "Undo", "Ctrl+Z", s.canUndo),
+                 item (EditorEditRedo, "Redo", "Ctrl+Y", s.canRedo),
+                 separator(),
+                 item (EditorEditCut, "Cut", "Ctrl+X", s.hasSelection),
+                 item (EditorEditCopy, "Copy", "Ctrl+C", s.hasSelection),
+                 item (EditorEditPaste, "Paste", "Ctrl+V", s.canPaste),
+                 item (EditorEditPasteAtOrigin, "Paste at Origin", "Ctrl+Shift+V", s.canPasteAtOrigin),
+                 separator(),
+                 item (EditorEditSelectAll, "Select All", "Ctrl+A", s.hasNotes),
+                 item (EditorEditDelete, "Delete", "Del", s.hasSelection) } },
              { "Navigate", {
                  item (EditorNavigateMarkerLeft,  "Move Marker Left by Grid",  "Left",  s.canStepMarker),
                  item (EditorNavigateMarkerRight, "Move Marker Right by Grid", "Right", s.canStepMarker),
@@ -258,21 +282,6 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  separator(),
                  item (EditorViewNotesInKey, "View Notes In Key", {}, s.canSelectByKey),
                  item (EditorViewNotesOutOfKey, "View Notes Out of Key", {}, s.canSelectByKey) } } };
-}
-
-// Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)
-// that has items, skipping empty ones; -1 when no other menu has any. An empty
-// menu must never be opened (see TrackEditorPanel's menu bar).
-inline int nextOpenableMenu (const std::vector<bool>& hasItems, int current, int step)
-{
-    const int n = (int) hasItems.size();
-    for (int i = 1; i < n; ++i)
-    {
-        const int index = ((current + step * i) % n + n) % n;
-        if (hasItems[(std::size_t) index])
-            return index;
-    }
-    return -1;
 }
 
 } // namespace lotro

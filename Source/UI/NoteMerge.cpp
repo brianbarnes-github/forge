@@ -158,31 +158,6 @@ namespace
 
     int startOf (const juce::ValueTree& n) { return (int) n.getProperty (SongIDs::startTick); }
     int endOf (const juce::ValueTree& n) { return startOf (n) + (int) n.getProperty (SongIDs::durationTicks); }
-
-    // A detached copy of `src` as new material for `target`.
-    juce::ValueTree makeNote (const juce::ValueTree& src, int start, int end, const juce::ValueTree& target)
-    {
-        auto n = src.createCopy();
-        for (const auto* id : { &SongIDs::onOrder, &SongIDs::offOrder, &SongIDs::sectionId })
-            n.removeProperty (*id, nullptr);
-        const int channel = (int) target.getProperty (SongIDs::defaultChannel, 1);
-        n.setProperty (SongIDs::startTick, start, nullptr);
-        n.setProperty (SongIDs::durationTicks, end - start, nullptr);
-        n.setProperty (SongIDs::channel, channel, nullptr);
-        n.setProperty (SongIDs::isDrum, channel == 10, nullptr);
-        n.setProperty (SongIDs::sourceTrackIndex, -1, nullptr);
-        n.setProperty (SongIDs::sourceEventIndex, -1, nullptr);
-        n.setProperty (SongIDs::offSynthesized, false, nullptr);
-
-        const auto stored = target.getChildWithName (SongIDs::SECTIONS);
-        if (stored.getNumChildren() > 0)
-        {
-            const auto id = sectionIdOfNote (n, sectionsOf (target));
-            if (id != 0)
-                n.setProperty (SongIDs::sectionId, id, nullptr);
-        }
-        return n;
-    }
 }
 
 bool canMergeInto (const SongDocument& doc, const std::vector<SectionRef>& refs, juce::int64 targetTrackId)
@@ -193,6 +168,30 @@ bool canMergeInto (const SongDocument& doc, const std::vector<SectionRef>& refs,
     {
         return r.trackId != targetTrackId && isMergeTrack (doc.findTrackById (r.trackId));
     });
+}
+
+juce::ValueTree newNoteForTrack (const juce::ValueTree& src, int start, int end, const juce::ValueTree& target)
+{
+    auto n = src.createCopy();
+    for (const auto* id : { &SongIDs::onOrder, &SongIDs::offOrder, &SongIDs::sectionId })
+        n.removeProperty (*id, nullptr);
+    const int channel = (int) target.getProperty (SongIDs::defaultChannel, 1);
+    n.setProperty (SongIDs::startTick, start, nullptr);
+    n.setProperty (SongIDs::durationTicks, end - start, nullptr);
+    n.setProperty (SongIDs::channel, channel, nullptr);
+    n.setProperty (SongIDs::isDrum, channel == 10, nullptr);
+    n.setProperty (SongIDs::sourceTrackIndex, -1, nullptr);
+    n.setProperty (SongIDs::sourceEventIndex, -1, nullptr);
+    n.setProperty (SongIDs::offSynthesized, false, nullptr);
+
+    const auto stored = target.getChildWithName (SongIDs::SECTIONS);
+    if (stored.getNumChildren() > 0)
+    {
+        const auto id = sectionIdOfNote (n, sectionsOf (target));
+        if (id != 0)
+            n.setProperty (SongIDs::sectionId, id, nullptr);
+    }
+    return n;
 }
 
 MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& refs,
@@ -290,7 +289,7 @@ MergeResult mergeSections (SongDocument& doc, const std::vector<SectionRef>& ref
             }
             else if (! item.node.isValid())
             {
-                doc.addChild (targetNotes, makeNote (item.source, item.start, item.end, target), false);
+                doc.addChild (targetNotes, newNoteForTrack (item.source, item.start, item.end, target), false);
             }
             else if (item.grown)
             {
