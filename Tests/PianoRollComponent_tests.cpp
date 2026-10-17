@@ -2690,6 +2690,53 @@ TEST_CASE ("PianoRollComponent: Diamond draws a diamond at the note start; the P
                          juce::Colour (previewSource.getNote (0).colourArgb), 16));
 }
 
+TEST_CASE ("PianoRollComponent: ghost tracks follow the Piano Roll Notes shape", "[piano-roll][note-display][ghost-tracks]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 60, 60, 60 }); // the roll fits these four quarters
+    auto ghost = fixture.doc.addTrack ("Ghost Track", (int) 0xFFAABBCC, 0, 2);
+    juce::ValueTree note (SongIDs::NOTE);
+    note.setProperty (SongIDs::pitch, 62, nullptr);
+    note.setProperty (SongIDs::startTick, ticksPerQuarter, nullptr);
+    note.setProperty (SongIDs::durationTicks, ticksPerQuarter * 2, nullptr);
+    SongDocument::getNotesNode (ghost).appendChild (note, nullptr);
+
+    juce::Colour diamondCentre;
+    for (auto shape : { NoteShape::rectangle, NoteShape::diamond, NoteShape::diamondLength })
+    {
+        CAPTURE ((int) shape);
+        fixture.roll.setNoteShape (shape);
+        fixture.roll.setGhostTracks ({});
+        const auto& geometry = Access::geometry (fixture.roll);
+        const int startX = geometry.xForTick (ticksPerQuarter);
+        const int rowHeight = geometry.getRowHeight();
+        const int centreY = geometry.yForPitch (62) + rowHeight / 2;
+        const int pastDiamondX = startX + rowHeight / 2 + 6;
+        const int lineY = geometry.yForPitch (62) + rowHeight / 2 - 1;
+        REQUIRE (pastDiamondX < geometry.xForTick (ticksPerQuarter * 3) - 2);
+
+        const auto bare = paintWholeCanvas (fixture.roll);
+        fixture.roll.setGhostTracks ({ ghost });
+        const auto ghosted = paintWholeCanvas (fixture.roll);
+
+        // The note start is ghosted in every shape.
+        CHECK (ghosted.getPixelAt (startX, centreY) != bare.getPixelAt (startX, centreY));
+        // Rectangle fills the whole length; Diamond only the diamond; Diamond + Length
+        // adds the centre line but leaves the rest of the row clear.
+        const bool lengthFilled = shape == NoteShape::rectangle;
+        const bool lineFilled = shape != NoteShape::diamond;
+        CHECK ((ghosted.getPixelAt (pastDiamondX, centreY - 3) != bare.getPixelAt (pastDiamondX, centreY - 3)) == lengthFilled);
+        CHECK ((ghosted.getPixelAt (pastDiamondX, lineY) != bare.getPixelAt (pastDiamondX, lineY)) == lineFilled);
+
+        // Diamond + Length's line never doubles the translucent fill inside the diamond.
+        const int insideDiamondX = startX + rowHeight / 4;
+        if (shape == NoteShape::diamond)
+            diamondCentre = ghosted.getPixelAt (insideDiamondX, lineY);
+        if (shape == NoteShape::diamondLength)
+            CHECK (ghosted.getPixelAt (insideDiamondX, lineY) == diamondCentre);
+    }
+}
+
 TEST_CASE ("PianoRollComponent: a diamond at tick 0 clears the keyboard gutter; Rectangle keeps tick 0 at its edge", "[piano-roll][note-display]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

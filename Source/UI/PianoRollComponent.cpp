@@ -1166,15 +1166,20 @@ void PianoRollComponent::drawGhostTracks (juce::Graphics& g, juce::Rectangle<int
             const int startTick = (int) note.getProperty (SongIDs::startTick);
             const int durationTicks = (int) note.getProperty (SongIDs::durationTicks);
 
-            const int x = geometry.xForTick (startTick);
-            const int width = juce::jmax (1, geometry.xForTick (startTick + durationTicks) - x);
-            const int y = geometry.yForPitch (pitch);
-            const juce::Rectangle<int> rect (x, y, width, geometry.getRowHeight());
-
-            if (! rect.intersects (clip))
+            const auto footprint = noteFootprint (geometry.noteBounds ({ pitch, startTick, durationTicks }), noteShape);
+            if (! footprint.hit.intersects (clip))
                 continue;
 
-            g.fillRect (rect);
+            if (noteShape == NoteShape::rectangle)
+            {
+                g.fillRect (footprint.body);
+                continue;
+            }
+
+            // A flat diamond (and Diamond + Length's line) in the ghost colour; the line
+            // starts at the diamond's right point so the translucent fills never overlap.
+            g.fillRect (footprint.lengthLine.withLeft (juce::jmax (footprint.lengthLine.getX(), footprint.body.getRight())));
+            g.fillPath (ThemePaint::diamondPath (footprint.body.toFloat()));
         }
     }
 }

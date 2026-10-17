@@ -83,12 +83,7 @@ void paintDiamondNote (juce::Graphics& g, juce::Rectangle<int> square, juce::Rec
     }
 
     const auto r = square.toFloat();
-    juce::Path diamond;
-    diamond.startNewSubPath (r.getCentreX(), r.getY());
-    diamond.lineTo (r.getRight(), r.getCentreY());
-    diamond.lineTo (r.getCentreX(), r.getBottom());
-    diamond.lineTo (r.getX(), r.getCentreY());
-    diamond.closeSubPath();
+    const auto diamond = diamondPath (r);
 
     // Fast path: zoomed-out notes are too small for the gradient or edge to show.
     if (square.getHeight() < smallNoteSize)
@@ -110,6 +105,17 @@ void paintDiamondNote (juce::Graphics& g, juce::Rectangle<int> square, juce::Rec
         g.setColour (juce::Colours::white);
         g.strokePath (diamond, juce::PathStrokeType (1.0f));
     }
+}
+
+juce::Path diamondPath (juce::Rectangle<float> square)
+{
+    juce::Path diamond;
+    diamond.startNewSubPath (square.getCentreX(), square.getY());
+    diamond.lineTo (square.getRight(), square.getCentreY());
+    diamond.lineTo (square.getCentreX(), square.getBottom());
+    diamond.lineTo (square.getX(), square.getCentreY());
+    diamond.closeSubPath();
+    return diamond;
 }
 
 juce::Path anvilPath()

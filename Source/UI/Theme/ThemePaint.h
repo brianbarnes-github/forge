@@ -34,6 +34,9 @@ namespace lotro::ThemePaint
     void paintDiamondNote (juce::Graphics& g, juce::Rectangle<int> square, juce::Rectangle<int> lengthLine,
                            juce::Colour fill, const NoteStyle& style = {});
 
+    // The diamond inscribed in `square`: its corners at the middle of each edge.
+    juce::Path diamondPath (juce::Rectangle<float> square);
+
     // The anvil mark in unit space (x 0..1, y 0.10..0.70).
     juce::Path anvilPath();
 

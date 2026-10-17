@@ -362,7 +362,8 @@ When you say…       …I'll know you mean
   right edge does (no left resize; when the line ends inside the diamond the
   press moves the note). The rubber band tests the diamond (plus the line for
   Diamond + Length). A double-click anywhere along a note's length adds no
-  note, even where Diamond leaves that length undrawn. In both diamond shapes the timeline starts half a row
+  note, even where Diamond leaves that length undrawn. Ghost tracks take the
+  same shape, as flat translucent diamonds (with the line for Diamond + Length). In both diamond shapes the timeline starts half a row
   right of the keys, so a diamond at the song's start shows whole. Below a separator in the same submenu, **Show Note Names
   on Notes** and **Show Velocity Numbers on Notes** are independent checkboxes
   that write the note's name (`C4`, sharps as `C#4`), its velocity, or both on
