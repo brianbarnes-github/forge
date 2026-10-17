@@ -170,8 +170,22 @@ void PianoRollComponent::fitTimeline()
 {
     const int availableWidth = visibleSizeFor ({ 0, contentHeight() }).x;
     geometry = PianoRollGeometry::fitToContent (noteSource->getTickRange(), effectivePitchRange(),
-                                                 ticksPerQuarter, availableWidth, viewport.getHeight());
+                                                 ticksPerQuarter, availableWidth, viewport.getHeight(),
+                                                 leadInWidth());
     geometry.setRowHeight (rowHeight); // fitToContent knows only the default
+}
+
+int PianoRollComponent::leadInWidth() const noexcept
+{
+    return role == Role::Source && noteShape != NoteShape::rectangle ? rowHeight / 2 : 0;
+}
+
+void PianoRollComponent::applyLeadIn()
+{
+    if (timelineFitted && noteSource != nullptr)
+        fitTimeline();
+    else
+        geometry.setLeadIn (leadInWidth());
 }
 
 void PianoRollComponent::centreOnTrackPitches()
@@ -389,6 +403,7 @@ void PianoRollComponent::resizeRowsBy (double pixels, int pointerY)
 
     rowHeight = newHeight;
     geometry.setRowHeight (rowHeight);
+    applyLeadIn();
     if (sourceEditor != nullptr)
         sourceEditor->setGeometry (geometry);
 
@@ -950,6 +965,15 @@ void PianoRollComponent::setNoteShape (NoteShape shape)
     noteShape = shape;
     if (sourceEditor != nullptr)
         sourceEditor->setNoteShape (shape);
+
+    if (geometry.getLeadIn() != leadInWidth())
+    {
+        applyLeadIn();
+        if (sourceEditor != nullptr)
+            sourceEditor->setGeometry (geometry);
+        rebuildContentSize();
+        refreshPlayhead();
+    }
     canvas.repaint();
 }
 

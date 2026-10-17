@@ -27,8 +27,8 @@ struct PianoRollNoteBounds
 // Actual scroll position lives in PianoRollComponent's juce::Viewport, not
 // here — this class has no notion of "currently visible" ticks. contentOriginTick
 // is set once by fitToContent and is the tick that maps to content-space
-// x == getKeyboardGutterWidth(); everything to its right is positive content
-// x, scrolled by the Viewport like any other content.
+// x == getKeyboardGutterWidth() + getLeadIn(); everything to its right is
+// positive content x, scrolled by the Viewport like any other content.
 class PianoRollGeometry
 {
 public:
@@ -37,6 +37,11 @@ public:
     int getKeyboardGutterWidth() const noexcept { return keyboardGutterWidth; }
     int getRowHeight() const noexcept { return rowHeight; }
     void setRowHeight (int pixels) noexcept { rowHeight = pixels; }
+
+    // Blank pixels between the gutter and the content origin, so a shape drawn
+    // left of its note's start (a Diamond's left half) clears the keys at tick 0.
+    int getLeadIn() const noexcept { return leadIn; }
+    void setLeadIn (int pixels) noexcept { leadIn = pixels; }
 
     void setTopPitch (int pitch) noexcept { topPitch = pitch; }
     int getTopPitch() const noexcept { return topPitch; }
@@ -52,7 +57,7 @@ public:
 
     // Horizontal: tick <-> x, driven by pixelsPerQuarterNote/ticksPerQuarter
     // (zoom) and contentOriginTick (the tick at content-space x ==
-    // getKeyboardGutterWidth()). No clamping is applied here — a negative or
+    // getKeyboardGutterWidth() + getLeadIn()). No clamping is applied here — a negative or
     // out-of-content origin is a valid (if blank) view; callers that want
     // clamping do it when setting the origin.
     int xForTick (int tick) const noexcept;
@@ -83,11 +88,13 @@ public:
     // placing the highest pitch in range at the top of the viewport.
     // ticksPerQuarter is the document's PPQ (for the zoom-factor conversion),
     // independent of this geometry's own pixelsPerQuarterNote zoom value.
+    // leadIn is kept on the result and taken out of the width to fit.
     static PianoRollGeometry fitToContent (juce::Range<int> tickRange,
                                             juce::Range<int> pitchRange,
                                             int ticksPerQuarter,
                                             int viewportWidth,
-                                            int viewportHeight);
+                                            int viewportHeight,
+                                            int leadIn = 0);
 
 private:
     // Pixels per tick, shared by xForTick/tickForX so both are derived from
@@ -95,6 +102,7 @@ private:
     double pixelsPerTick() const noexcept { return pixelsPerQuarterNote / (double) ticksPerQuarter; }
 
     int keyboardGutterWidth = 60;
+    int leadIn = 0;
     int rowHeight = 14;
     int topPitch = 84; // C6, per the mockup's default keyboard-gutter alignment
     int ticksPerQuarter = 480;

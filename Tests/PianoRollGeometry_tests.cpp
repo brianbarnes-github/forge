@@ -45,6 +45,34 @@ TEST_CASE ("PianoRollGeometry: tick 0 maps exactly to the gutter edge when the c
     CHECK (geometry.xForTick (0) == geometry.getKeyboardGutterWidth());
 }
 
+TEST_CASE ("PianoRollGeometry: a lead-in moves tick 0 right of the gutter and tickForX follows", "[piano-roll]")
+{
+    PianoRollGeometry geometry;
+    geometry.setTicksPerQuarter (480);
+    geometry.setPixelsPerQuarterNote (480.0); // 1 px/tick
+    CHECK (geometry.getLeadIn() == 0);
+
+    geometry.setLeadIn (7);
+    CHECK (geometry.getLeadIn() == 7);
+    CHECK (geometry.getKeyboardGutterWidth() == 60); // the gutter itself doesn't move
+    CHECK (geometry.xForTick (0) == geometry.getKeyboardGutterWidth() + 7);
+    CHECK (geometry.xForTick (240) == geometry.getKeyboardGutterWidth() + 7 + 240);
+    CHECK (geometry.tickForX (geometry.getKeyboardGutterWidth() + 7) == 0);
+    CHECK (geometry.tickForX (geometry.getKeyboardGutterWidth()) == -7);
+}
+
+TEST_CASE ("PianoRollGeometry: fitToContent with a lead-in still fits the range inside the viewport", "[piano-roll]")
+{
+    const juce::Range<int> tickRange (0, 3840);
+    const int viewportWidth = 800;
+    auto geometry = PianoRollGeometry::fitToContent (tickRange, { 60, 61 }, 960, viewportWidth, 300, 9);
+
+    CHECK (geometry.getLeadIn() == 9);
+    CHECK (geometry.xForTick (0) == geometry.getKeyboardGutterWidth() + 9);
+    CHECK (geometry.xForTick (tickRange.getEnd()) <= viewportWidth);
+    CHECK (geometry.xForTick (tickRange.getEnd()) >= viewportWidth - 1);
+}
+
 TEST_CASE ("PianoRollGeometry: yForPitch/pitchForY round-trip at several top-pitch values", "[piano-roll]")
 {
     PianoRollGeometry geometry;

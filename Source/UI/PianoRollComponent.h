@@ -355,6 +355,11 @@ private:
 
     void rebuildContentSize();
     void fitTimeline();
+    // Diamond shapes on the Source roll: half a row, so a tick-0 diamond's
+    // left half clears the gutter. Otherwise 0.
+    int leadInWidth() const noexcept;
+    // Puts leadInWidth() into the geometry, refitting a fitted timeline so it still fits.
+    void applyLeadIn();
     void centreOnTrackPitches();
     void layoutGutter();
     void zoom (float wheelDeltaY);

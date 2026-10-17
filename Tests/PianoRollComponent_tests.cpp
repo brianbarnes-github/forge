@@ -55,7 +55,12 @@ namespace lotro
         static PianoRollComponent::Canvas& canvas (PianoRollComponent& c) { return c.canvas; }
 
         static const PianoRollGeometry& geometry (const PianoRollComponent& c) { return c.geometry; }
-        static void setPixelsPerQuarterNote (PianoRollComponent& c, double ppq) { c.geometry.setPixelsPerQuarterNote (ppq); }
+        // Like a zoom, leaves fitted mode so a refit doesn't undo it.
+        static void setPixelsPerQuarterNote (PianoRollComponent& c, double ppq)
+        {
+            c.geometry.setPixelsPerQuarterNote (ppq);
+            c.timelineFitted = false;
+        }
         static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
         static void setActivePitch (PianoRollComponent& c, int pitch) { c.setActivePitch (pitch); }
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
@@ -2631,14 +2636,17 @@ TEST_CASE ("PianoRollComponent: Diamond draws a diamond at the note start; the P
 
     fixture.roll.setNoteShape (NoteShape::diamond);
     CHECK (fixture.roll.getNoteShape() == NoteShape::diamond);
+    // Diamond shapes add a half-row lead-in before tick 0: re-measure.
+    const auto diamondBounds = Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (1));
+    const int pastDiamondInLeadX = diamondBounds.x + diamondBounds.height / 2 + 6;
     auto image = paintWholeCanvas (fixture.roll);
-    const auto diamondPixel = image.getPixelAt (pastDiamondX, centreY);
+    const auto diamondPixel = image.getPixelAt (pastDiamondInLeadX, centreY);
     CHECK_FALSE (isNearColour (diamondPixel, fill, 40));
-    CHECK (isNearColour (image.getPixelAt (bounds.x, centreY), fill, 16));
-    CHECK (isNearColour (image.getPixelAt (bounds.x - bounds.height / 4, centreY), fill, 24));
+    CHECK (isNearColour (image.getPixelAt (diamondBounds.x, centreY), fill, 16));
+    CHECK (isNearColour (image.getPixelAt (diamondBounds.x - diamondBounds.height / 4, centreY), fill, 24));
 
     fixture.roll.setNoteShape (NoteShape::diamondLength);
-    const auto linePixel = paintWholeCanvas (fixture.roll).getPixelAt (pastDiamondX, centreY);
+    const auto linePixel = paintWholeCanvas (fixture.roll).getPixelAt (pastDiamondInLeadX, centreY);
     CHECK (linePixel != diamondPixel);
     CHECK_FALSE (isNearColour (linePixel, diamondPixel, 20));
 
@@ -2656,6 +2664,51 @@ TEST_CASE ("PianoRollComponent: Diamond draws a diamond at the note start; the P
     const auto pb = Access::geometry (preview).noteBounds (previewSource.getNote (0));
     CHECK (isNearColour (paintWholeCanvas (preview).getPixelAt (pb.x + pb.height / 2 + 6, pb.y + pb.height / 2),
                          juce::Colour (previewSource.getNote (0).colourArgb), 16));
+}
+
+TEST_CASE ("PianoRollComponent: a diamond at tick 0 clears the keyboard gutter; Rectangle keeps tick 0 at its edge", "[piano-roll][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    constexpr juce::uint32 trackArgb = 0xFF3366CCu;
+    fixture.track.setProperty (SongIDs::colorArgb, (int) trackArgb, nullptr);
+    auto& viewport = Access::viewport (fixture.roll);
+    const auto& geometry = Access::geometry (fixture.roll);
+    const int gutterWidth = geometry.getKeyboardGutterWidth();
+    REQUIRE (fixture.source->getNote (0).startTick == 0);
+
+    CHECK (geometry.xForTick (0) == gutterWidth);
+
+    for (auto shape : { NoteShape::diamond, NoteShape::diamondLength })
+    {
+        CAPTURE ((int) shape);
+        fixture.roll.setNoteShape (shape);
+        const int half = geometry.getRowHeight() / 2;
+        CHECK (geometry.xForTick (0) == gutterWidth + half);
+        CHECK (fixture.roll.xForTickInComponent (0) == gutterWidth + half);
+        const auto bounds = geometry.noteBounds (fixture.source->getNote (0));
+        CHECK (noteFootprint (bounds, shape).body.getX() >= gutterWidth);
+
+        // The fitted view still fits: no horizontal scrolling summoned by the lead-in.
+        CHECK (Access::canvas (fixture.roll).getWidth() <= viewport.getMaximumVisibleWidth());
+
+        // The left tip is painted and hit-tests to the note.
+        const int tipX = bounds.x - half / 2;
+        const int centreY = bounds.y + bounds.height / 2;
+        CHECK (isNearColour (paintWholeCanvas (fixture.roll).getPixelAt (tipX, centreY), juce::Colour (trackArgb), 40));
+        fixture.roll.selectNotesWithPitch ([] (int) { return false; });
+        Access::mouseDown (fixture.roll, { tipX, centreY }, {}, false);
+        Access::mouseUp (fixture.roll, { tipX, centreY });
+        CHECK (Access::editor (fixture.roll).isSelected (SongDocument::getNotesNode (fixture.track).getChild (0)));
+    }
+
+    // Row height drives the lead-in.
+    Access::handleWheel (fixture.roll, PianoRollComponent::WheelRegion::Canvas, 4.0f, juce::ModifierKeys::ctrlModifier, 100);
+    CHECK (geometry.getRowHeight() != 14);
+    CHECK (geometry.xForTick (0) == gutterWidth + geometry.getRowHeight() / 2);
+
+    fixture.roll.setNoteShape (NoteShape::rectangle);
+    CHECK (geometry.xForTick (0) == gutterWidth);
 }
 
 TEST_CASE ("PianoRollComponent: a repaint covering only a diamond's left half still draws it", "[piano-roll][note-display]")
@@ -2788,12 +2841,12 @@ TEST_CASE ("PianoRollComponent: note labels sit beside a diamond", "[piano-roll]
     juce::ScopedJuceInitialiser_GUI juceInit;
     ShortNoteFixture f;
     auto& roll = f.fixture.roll;
-    const auto b = f.bounds();
 
     for (auto shape : { NoteShape::diamond, NoteShape::diamondLength })
     {
         CAPTURE ((int) shape);
         roll.setNoteShape (shape);
+        const auto b = f.bounds(); // after the shape's lead-in
         roll.setNoteLabels ({});
         const auto off = paintWholeCanvas (roll);
         roll.setNoteLabels ({ true, false });

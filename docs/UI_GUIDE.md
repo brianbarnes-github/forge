@@ -361,7 +361,8 @@ When you say…       …I'll know you mean
   Length adds a thin line out to the note's end, whose far end resizes as the
   right edge does (no left resize; when the line ends inside the diamond the
   press moves the note). The rubber band tests the diamond (plus the line for
-  Diamond + Length). Below a separator in the same submenu, **Show Note Names
+  Diamond + Length). In both diamond shapes the timeline starts half a row
+  right of the keys, so a diamond at the song's start shows whole. Below a separator in the same submenu, **Show Note Names
   on Notes** and **Show Velocity Numbers on Notes** are independent checkboxes
   that write the note's name (`C4`, sharps as `C#4`), its velocity, or both on
   one line (`C4 96`) on every note of the edited track: inside a rectangle from
