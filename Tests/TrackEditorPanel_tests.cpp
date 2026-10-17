@@ -510,8 +510,8 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
-    for (int i : { 1, 4 })
-        CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
+    CHECK (model->getMenuForIndex (4, "View").getNumItems() == 2);   // piano notes, MIDI numbers
+    CHECK (model->getMenuForIndex (1, {}).getNumItems() == 0);
 
     // Still there, still on top, once the strip/ruler/roll content is built.
     lotro::playbacktest::RecordingSink sink;
@@ -548,7 +548,7 @@ TEST_CASE ("TrackEditorPanel: pressing, dragging or hovering over an empty menu 
     using Access = TrackEditorPanelTestAccess;
     auto& bar = Access::menuBar (panel);
     REQUIRE (bar.getNumChildComponents() == 5);   // one item component per title
-    for (int i : { 1, 4 })   // Edit, View: File, Navigate and Options have items now
+    for (int i : { 1 })   // Edit: File, Navigate, Options and View have items now
     {
         const auto centre = bar.getChildComponent (i)->getBounds().getCentre().toFloat();
         // JUCE never opens a popup for an empty menu and never reports it closed, so a
@@ -1434,6 +1434,34 @@ namespace
     }
 
     using Pitches = std::vector<int>;
+}
+
+TEST_CASE ("TrackEditorPanel: View > Piano Notes / MIDI Numbers set the roll's keyboard labels and report a change", "[track-editor][editor-menu][keyboard-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);   // no track: the choice is a saved setting, open without one
+    auto& roll = TrackEditorPanelTestAccess::roll (panel);
+    std::vector<KeyboardLabels> reported;
+    panel.onKeyboardLabelsChanged = [&] (KeyboardLabels labels) { reported.push_back (labels); };
+
+    CHECK (panel.getKeyboardLabels() == KeyboardLabels::pianoNotes);
+    auto* model = TrackEditorPanelTestAccess::menuBar (panel).getModel();
+    model->menuItemSelected (EditorViewMidiNumbers, 4);
+    CHECK (panel.getKeyboardLabels() == KeyboardLabels::midiNumbers);
+    CHECK (roll.getKeyboardLabels() == KeyboardLabels::midiNumbers);
+    CHECK (reported == std::vector<KeyboardLabels> { KeyboardLabels::midiNumbers });
+
+    panel.invokeMenuCommand (EditorViewMidiNumbers);   // already on: nothing to save
+    CHECK (reported.size() == 1);
+
+    panel.invokeMenuCommand (EditorViewPianoNotes);
+    CHECK (roll.getKeyboardLabels() == KeyboardLabels::pianoNotes);
+    CHECK (reported == std::vector<KeyboardLabels> { KeyboardLabels::midiNumbers, KeyboardLabels::pianoNotes });
+
+    panel.setKeyboardLabels (KeyboardLabels::midiNumbers);   // pushing the setting reports nothing
+    CHECK (roll.getKeyboardLabels() == KeyboardLabels::midiNumbers);
+    CHECK (reported.size() == 2);
 }
 
 TEST_CASE ("TrackEditorPanel: Note Preview starts all off, and inserting is silent", "[track-editor][note-preview]")

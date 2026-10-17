@@ -865,6 +865,115 @@ namespace
     };
 }
 
+namespace
+{
+    // Pixels in `pitch`'s row (gutter space, full width, inside a 2 px margin) that
+    // differ from the row's face colour sampled at its left edge -- the number drawn on it.
+    int markedPixelsInNumberRow (const juce::Image& image, PianoRollComponent& roll, int pitch)
+    {
+        const int top = keyTopY (roll, pitch);
+        const int rowHeight = Access::geometry (roll).getRowHeight();
+        const auto face = image.getPixelAt (1, top + rowHeight / 2);
+        int marked = 0;
+        for (int x = 1; x < image.getWidth() - 2; ++x)
+            for (int y = top + 2; y < top + rowHeight - 2; ++y)
+                if (image.getPixelAt (x, y) != face)
+                    ++marked;
+        return marked;
+    }
+}
+
+TEST_CASE ("PianoRollComponent: with MIDI Numbers the gutter shows the roll's row bands instead of piano keys", "[piano-roll][keyboard][keyboard-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    CHECK (fixture.roll.getKeyboardLabels() == KeyboardLabels::pianoNotes);
+    fixture.roll.setKeyboardLabels (KeyboardLabels::midiNumbers);
+    CHECK (fixture.roll.getKeyboardLabels() == KeyboardLabels::midiNumbers);
+
+    const auto image = paintKeyboard (fixture.roll);
+    const int width = Access::gutter (fixture.roll).getWidth();
+    const int rowMiddle = Access::geometry (fixture.roll).getRowHeight() / 2;
+
+    using namespace PianoRollPalette;
+    for (int x : { 3, width - 4 })
+    {
+        CAPTURE (x);
+        CHECK (image.getPixelAt (x, keyTopY (fixture.roll, 62) + 1) == juce::Colour (rowBandLight));   // D4
+        CHECK (image.getPixelAt (x, keyTopY (fixture.roll, 61) + 1) == juce::Colour (rowBandDark));    // C#4
+        CHECK (image.getPixelAt (x, keyTopY (fixture.roll, 58) + rowMiddle) == juce::Colour (rowBandDark)); // A#3
+    }
+}
+
+TEST_CASE ("PianoRollComponent: with MIDI Numbers every row is numbered, down to the smallest row height", "[piano-roll][keyboard][keyboard-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    fixture.roll.setKeyboardLabels (KeyboardLabels::midiNumbers);
+
+    const auto image = paintKeyboard (fixture.roll);
+    const int rowHeight = Access::geometry (fixture.roll).getRowHeight();
+    int rowsSeen = 0;
+    for (int pitch = 0; pitch <= 127; ++pitch)
+    {
+        const int top = keyTopY (fixture.roll, pitch);
+        if (top < 0 || top + rowHeight > image.getHeight())
+            continue;   // scrolled out of view
+        CAPTURE (pitch);
+        CHECK (markedPixelsInNumberRow (image, fixture.roll, pitch) > 0);
+        ++rowsSeen;
+    }
+    CHECK (rowsSeen >= 12);
+
+    Access::wheel (fixture.roll, -1000.0f, juce::ModifierKeys::ctrlModifier);
+    REQUIRE (fixture.roll.getRowHeight() == PianoRollComponent::minRowHeight);
+    const auto small = paintKeyboard (fixture.roll);
+    for (int pitch : { 60, 61, 64 })
+    {
+        CAPTURE (pitch);
+        CHECK (markedPixelsInNumberRow (small, fixture.roll, pitch) > 0);
+    }
+}
+
+TEST_CASE ("PianoRollComponent: with MIDI Numbers a line marks the B/C and E/F boundaries only", "[piano-roll][keyboard][keyboard-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    fixture.roll.setKeyboardLabels (KeyboardLabels::midiNumbers);
+    const auto image = paintKeyboard (fixture.roll);
+
+    // The top pixel of B3 (59) and E4 (64) is the line under C4 and F4.
+    for (int lowerWhite : { 59, 64 })
+    {
+        CAPTURE (lowerWhite);
+        CHECK (image.getPixelAt (3, keyTopY (fixture.roll, lowerWhite)) != juce::Colour (PianoRollPalette::rowBandLight));
+    }
+    // D4 (62) meets D#4 above it with no line.
+    CHECK (image.getPixelAt (3, keyTopY (fixture.roll, 62)) == juce::Colour (PianoRollPalette::rowBandLight));
+}
+
+TEST_CASE ("PianoRollComponent: with MIDI Numbers the hovered row is tinted and still numbered", "[piano-roll][keyboard][keyboard-labels][hover]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    fixture.roll.setKeyboardLabels (KeyboardLabels::midiNumbers);
+    auto& canvas = Access::canvas (fixture.roll);
+    const int rowMiddle = Access::geometry (fixture.roll).getRowHeight() / 2;
+
+    const auto unhovered = paintKeyboard (fixture.roll);
+    for (int pitch : { 62, 66 })   // a natural and a sharp
+    {
+        CAPTURE (pitch);
+        const auto hover = canvasRowPoint (fixture.roll, 5, pitch);
+        canvas.mouseMove (makeMouseEvent (canvas, hover, hover, 0, false));
+        const auto hovered = paintKeyboard (fixture.roll);
+        CHECK (hovered.getPixelAt (1, keyTopY (fixture.roll, pitch) + rowMiddle)
+               != unhovered.getPixelAt (1, keyTopY (fixture.roll, pitch) + rowMiddle));
+        CHECK (isDark (hovered.getPixelAt (1, keyTopY (fixture.roll, pitch) + rowMiddle)));
+        CHECK (markedPixelsInNumberRow (hovered, fixture.roll, pitch) > 0);
+    }
+}
+
 TEST_CASE ("PianoRollComponent: tick<->x mapping is component-local and scroll-aware", "[piano-roll][playhead]")
 {
     PlayheadRollFixture f;

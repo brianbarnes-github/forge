@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GridLength.h"
+#include "KeyboardLabels.h"
 #include "MenuModel.h"
 #include "NotePreview.h"
 #include "ScaleSnap.h"
@@ -38,6 +39,8 @@ enum EditorMenuCommandId : int
     EditorOptionsPreviewOnInsert,
     EditorOptionsPreviewOnEdit,
     EditorOptionsPreviewOnVelocity,
+    EditorViewPianoNotes,
+    EditorViewMidiNumbers,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -107,6 +110,7 @@ struct EditorMenuState
     GridDivision gridDivision = GridDivision::Straight;   // Options > Grid Division's tick
     GridLength noteLength = GridLength::Off;              // Options > Note Length's tick
     GridDivision noteDivision = GridDivision::Straight;   // Options > Note Division's tick
+    KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes; // View's tick
 };
 
 namespace menu_detail
@@ -215,7 +219,11 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  lengthSubmenu ("Note Length", EditorNoteLengthBase, s.noteLength, s.hasTrack),
                  divisionSubmenu ("Note Division", EditorNoteDivisionBase, (int) GridDivision::Swing, s.noteDivision,
                                   s.hasTrack) } },
-             { "View", {} } };
+             // A saved setting, so open with or without a track.
+             { "View", {
+                 item (EditorViewPianoNotes, "Piano Notes", {}, true, s.keyboardLabels == KeyboardLabels::pianoNotes),
+                 item (EditorViewMidiNumbers, "MIDI Numbers", {}, true,
+                       s.keyboardLabels == KeyboardLabels::midiNumbers) } } };
 }
 
 // Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)

@@ -2,6 +2,7 @@
 
 #include "EditorGrid.h"
 #include "GridLength.h"
+#include "KeyboardLabels.h"
 #include "PianoRollGeometry.h"
 #include "PianoRollNoteSource.h"
 #include "Playback/PlaybackController.h"
@@ -91,6 +92,10 @@ public:
     // empty range (the default, and Role::Source's permanent state) means
     // "don't paint a band" — never call this for a Role::Source roll.
     void setPreviewRangeBand (juce::Range<int> midiRange);
+    // What the keyboard gutter shows: piano keys (the default) or each row's MIDI
+    // note number over the roll's row bands. Only the MIDI editor's roll sets it.
+    void setKeyboardLabels (KeyboardLabels labels);
+    KeyboardLabels getKeyboardLabels() const noexcept { return keyboardLabels; }
     // Whether a playing playhead scrolls the view to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
@@ -288,6 +293,7 @@ private:
     void drawRangeBand (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawGridlines (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void paintGutter (juce::Graphics& g) const;
+    void paintNumberGutter (juce::Graphics& g) const;
     void drawGhostTracks (juce::Graphics& g, juce::Rectangle<int> clip) const;
     void drawNotes (juce::Graphics& g, juce::Rectangle<int> clip) const;
 
@@ -385,6 +391,7 @@ private:
     int swingPercent = 0;
     int rawGridTicks = 0;   // setGridTicks's spacing, read while gridLength is Off
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
+    KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes;
     int hoveredPitch = -1;
     int activePitch = -1; // Source role only; see getActivePitch.
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded

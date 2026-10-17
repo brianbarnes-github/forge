@@ -914,8 +914,20 @@ void PianoRollComponent::drawGridlines (juce::Graphics& g, juce::Rectangle<int> 
                     [this] (int x) { return geometry.tickForX (x); });
 }
 
+void PianoRollComponent::setKeyboardLabels (KeyboardLabels labels)
+{
+    keyboardLabels = labels;
+    gutter.repaint();
+}
+
 void PianoRollComponent::paintGutter (juce::Graphics& g) const
 {
+    if (keyboardLabels == KeyboardLabels::midiNumbers)
+    {
+        paintNumberGutter (g);
+        return;
+    }
+
     const int gutterWidth = geometry.getKeyboardGutterWidth();
     const int gutterHeight = gutter.getHeight();
 
@@ -1007,6 +1019,58 @@ void PianoRollComponent::paintGutter (juce::Graphics& g) const
                 g.drawFittedText ("C" + juce::String (octave), 0, y, gutterWidth - 4, rowHeight,
                                    juce::Justification::centredRight, 1);
             }
+        }
+    }
+
+    g.setColour (juce::Colour (SongsmithColours::border));
+    g.drawVerticalLine (gutterWidth - 1, 0.0f, (float) gutterHeight);
+}
+
+// MIDI Numbers: the canvas's row bands carried into the gutter, each row named by its
+// note number. Hover and the active row tint the row as they do on the canvas.
+void PianoRollComponent::paintNumberGutter (juce::Graphics& g) const
+{
+    const int gutterWidth = geometry.getKeyboardGutterWidth();
+    const int gutterHeight = gutter.getHeight();
+
+    g.setColour (juce::Colour (rowBandLight));
+    g.fillRect (0, 0, gutterWidth, gutterHeight);
+
+    const int rowHeight = geometry.getRowHeight();
+    if (rowHeight > 0)
+    {
+        // Placed at the canvas's scroll offset, as paintGutter does.
+        const int scrollY = viewport.getViewPositionY();
+        const int topPitch = geometry.getTopPitch();
+        const int firstRow = scrollY / rowHeight;
+        const int lastRow = (scrollY + gutterHeight) / rowHeight;
+
+        g.setFont (juce::Font (juce::FontOptions (9.0f)));
+
+        for (int row = firstRow; row <= lastRow; ++row)
+        {
+            const int pitch = topPitch - row;
+            if (pitch < 0 || pitch > 127)
+                continue;
+            const int pitchClass = ((pitch % 12) + 12) % 12;
+            const int y = geometry.yForPitch (pitch) - scrollY;
+            const bool hovered = pitch == hoveredPitch;
+
+            g.setColour (hovered                ? juce::Colour (numberHover)
+                         : pitch == activePitch ? juce::Colour (rowBandLight).overlaidWith (juce::Colour (activeRowTint))
+                         : juce::Colour (PianoRollGeometry::isBlackKey (pitch) ? rowBandDark : rowBandLight));
+            g.fillRect (0, y, gutterWidth, rowHeight);
+
+            // B and E meet C and F with no sharp between: a line on their top pixel.
+            if (pitchClass == 11 || pitchClass == 4)
+            {
+                g.setColour (juce::Colour (numberDivider));
+                g.drawHorizontalLine (y, 0.0f, (float) gutterWidth);
+            }
+
+            g.setColour (juce::Colour (hovered || pitch == activePitch ? numberHoverLabel : numberLabel));
+            g.drawFittedText (juce::String (pitch), 0, y, gutterWidth - 4, rowHeight,
+                              juce::Justification::centredRight, 1);
         }
     }
 

@@ -103,6 +103,7 @@ namespace lotro
         {
             return c.trackEditor->getFollowPlayhead();
         }
+        static KeyboardLabels editorKeyboardLabels (const SongsmithMainComponent& c) { return c.trackEditor->getKeyboardLabels(); }
         static NotePreviewSettings editorNotePreview (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getNotePreview();
@@ -1439,6 +1440,23 @@ TEST_CASE ("SongsmithMainComponent: note preview reaches the editor, and the edi
     both.onInsert = true;
     CHECK (Access::editorNotePreview (main) == both);
     CHECK (reported == std::vector<NotePreviewSettings> { both });
+}
+
+TEST_CASE ("SongsmithMainComponent: keyboard labels reach the editor, and the editor's View items reach onKeyboardLabelsChanged", "[track-editor][editor-menu][view-settings][keyboard-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    std::vector<KeyboardLabels> reported;
+    main.onKeyboardLabelsChanged = [&] (KeyboardLabels labels) { reported.push_back (labels); };
+
+    main.setKeyboardLabels (KeyboardLabels::midiNumbers);
+    CHECK (Access::editorKeyboardLabels (main) == KeyboardLabels::midiNumbers);
+    CHECK (reported.empty());   // pushing the setting is not a change to save
+
+    Access::invokeEditorMenuCommand (main, EditorViewPianoNotes);
+    CHECK (Access::editorKeyboardLabels (main) == KeyboardLabels::pianoNotes);
+    CHECK (reported == std::vector<KeyboardLabels> { KeyboardLabels::pianoNotes });
 }
 
 TEST_CASE ("SongsmithMainComponent: the main window's Grid Size sets the editor's length and keeps its division", "[track-editor][grid-length]")

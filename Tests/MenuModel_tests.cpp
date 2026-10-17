@@ -460,7 +460,7 @@ TEST_CASE ("MenuModel: findMenuItem finds an item inside a submenu", "[menu-mode
     CHECK (findMenuItem (menus, 99999) == nullptr);
 }
 
-TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; Edit and View have no items yet", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate, Options, View; Edit has no items yet", "[menu-model][editor-menu]")
 {
     const auto menus = editorMenus ({});
     std::vector<std::string> names;
@@ -470,7 +470,25 @@ TEST_CASE ("EditorMenuModel: the MIDI editor's menu bar is File, Edit, Navigate,
     CHECK (menus[1].items.empty());
     CHECK_FALSE (menus[2].items.empty());
     CHECK_FALSE (menus[3].items.empty());
-    CHECK (menus[4].items.empty());
+    CHECK_FALSE (menus[4].items.empty());
+}
+
+TEST_CASE ("EditorMenuModel: View is Piano Notes and MIDI Numbers, enabled with or without a track, the current one ticked", "[menu-model][editor-menu][keyboard-labels]")
+{
+    EditorMenuState s;
+    const auto piano = menuNamed (editorMenus (s), "View");
+    CHECK (labels (piano) == V { "Piano Notes", "MIDI Numbers" });
+    CHECK (piano.items[0].id == EditorViewPianoNotes);
+    CHECK (piano.items[1].id == EditorViewMidiNumbers);
+    CHECK (piano.items[0].enabled);   // no track loaded
+    CHECK (piano.items[1].enabled);
+    CHECK (piano.items[0].ticked);
+    CHECK_FALSE (piano.items[1].ticked);
+
+    s.keyboardLabels = KeyboardLabels::midiNumbers;
+    const auto midi = menuNamed (editorMenus (s), "View");
+    CHECK_FALSE (midi.items[0].ticked);
+    CHECK (midi.items[1].ticked);
 }
 
 TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")

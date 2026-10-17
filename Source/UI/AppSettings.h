@@ -3,6 +3,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 
 #include "GridSize.h"
+#include "KeyboardLabels.h"
 #include "MergeScope.h"
 #include "NotePreview.h"
 #include "TrackHeadWidth.h"
@@ -108,6 +109,17 @@ public:
         return save();
     }
 
+    // The MIDI editor's View > Piano Notes / MIDI Numbers. Absent or unrecognised reads pianoNotes.
+    KeyboardLabels keyboardLabels() const
+    {
+        return file.getValue (keyKeyboardLabels) == "midi" ? KeyboardLabels::midiNumbers : KeyboardLabels::pianoNotes;
+    }
+    bool setKeyboardLabels (KeyboardLabels labels)
+    {
+        file.setValue (keyKeyboardLabels, labels == KeyboardLabels::midiNumbers ? "midi" : "piano");
+        return save();
+    }
+
     // What a newly opened track editor starts on. Absent or unrecognised reads Off.
     GridSize defaultGrid() const
     {
@@ -201,6 +213,7 @@ private:
     static constexpr const char* keyPreviewOnInsert    = "editing.previewOnInsert";
     static constexpr const char* keyPreviewOnEdit      = "editing.previewOnEdit";
     static constexpr const char* keyPreviewOnVelocity  = "editing.previewOnVelocity";
+    static constexpr const char* keyKeyboardLabels     = "view.keyboardLabels";
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
     static constexpr const char* keyStripButtons       = "strip.buttons";

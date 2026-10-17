@@ -47,7 +47,8 @@ namespace lotro
         // Grid flips the snap state and fires onSnapToGridChanged with the new value;
         // Options > Snap to Key > Enabled toggles it (only with a key) and its Root /
         // Type items set the session pick (see currentSnapKey); Options > Note
-        // Preview's items flip their checkbox (see setNotePreview);
+        // Preview's items flip their checkbox (see setNotePreview); View > Piano Notes /
+        // MIDI Numbers set the keyboard labels and, on a change, fire onKeyboardLabelsChanged;
         // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
         // Navigate > Move Up / Down a Semitone step the roll's active row;
         // Navigate > Select Note Nearest Cursor selects the note starting nearest
@@ -76,6 +77,12 @@ namespace lotro
         // onNotePreviewChanged.
         void setNotePreview (const NotePreviewSettings& settings) noexcept { notePreview = settings; }
         NotePreviewSettings getNotePreview() const noexcept { return notePreview; }
+
+        // View > Piano Notes / MIDI Numbers: what the roll's keyboard gutter shows.
+        // Saved; setting it does not fire onKeyboardLabelsChanged.
+        void setKeyboardLabels (KeyboardLabels labels) { roll.setKeyboardLabels (labels); }
+        KeyboardLabels getKeyboardLabels() const noexcept { return roll.getKeyboardLabels(); }
+        std::function<void (KeyboardLabels)> onKeyboardLabelsChanged;
 
         // Options > Snap to Grid's tick: a click in the roll or the ruler that drops the
         // start marker lands on the nearest grid line. Setting it does not fire

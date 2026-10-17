@@ -406,6 +406,31 @@ TEST_CASE ("AppSettings: note preview defaults all off, round-trips each flag an
     CHECK (reopened.getValue ("editing.previewOnVelocity") == "1");
 }
 
+TEST_CASE ("AppSettings: keyboard labels default to piano notes, round-trip and persist; junk reads piano notes", "[app-settings][keyboard-labels]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.keyboardLabels() == KeyboardLabels::pianoNotes);
+        CHECK (settings.setKeyboardLabels (KeyboardLabels::midiNumbers));
+        CHECK (settings.keyboardLabels() == KeyboardLabels::midiNumbers);
+        CHECK (settings.setKeyboardLabels (KeyboardLabels::pianoNotes));
+        CHECK (settings.keyboardLabels() == KeyboardLabels::pianoNotes);
+        CHECK (settings.setKeyboardLabels (KeyboardLabels::midiNumbers));
+    }
+    {
+        juce::PropertiesFile reopened (file, {});
+        const AppSettings settings (reopened);
+        CHECK (settings.keyboardLabels() == KeyboardLabels::midiNumbers);
+        CHECK (reopened.getValue ("view.keyboardLabels") == "midi");
+    }
+    juce::PropertiesFile junk (file, {});
+    junk.setValue ("view.keyboardLabels", "numbers");
+    CHECK (AppSettings (junk).keyboardLabels() == KeyboardLabels::pianoNotes);
+}
+
 TEST_CASE ("AppSettings: a junk note preview value reads off", "[app-settings][note-preview]")
 {
     auto file = juce::File::createTempFile (".settings");

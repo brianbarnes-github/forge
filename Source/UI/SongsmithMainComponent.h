@@ -257,6 +257,9 @@ public:
     // The same for the MIDI editor's Options > Note Preview checkboxes.
     void setNotePreview (const NotePreviewSettings& settings);
     std::function<void (const NotePreviewSettings&)> onNotePreviewChanged;
+    // And for its View > Piano Notes / MIDI Numbers.
+    void setKeyboardLabels (KeyboardLabels labels);
+    std::function<void (KeyboardLabels)> onKeyboardLabelsChanged;
     void setMergeScope (MergeScope scope);
     // The track list's head-column width (see TrackListComponent::setHeadWidth). A divider
     // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.

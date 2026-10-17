@@ -79,6 +79,7 @@ namespace lotro
         s.gridDivision = owner.getGridDivision();
         s.noteLength = owner.getNoteLength();
         s.noteDivision = owner.getNoteDivision();
+        s.keyboardLabels = owner.getKeyboardLabels();
         if (const auto key = owner.currentSnapKey())
         {
             s.snapRootIndex = key->rootIndex;
@@ -168,6 +169,18 @@ namespace lotro
                 flag = ! flag;
                 if (onNotePreviewChanged)
                     onNotePreviewChanged (notePreview);
+                return;
+            }
+            case EditorViewPianoNotes:
+            case EditorViewMidiNumbers:
+            {
+                const auto labels = commandId == EditorViewMidiNumbers ? KeyboardLabels::midiNumbers
+                                                                       : KeyboardLabels::pianoNotes;
+                if (labels == getKeyboardLabels())
+                    return;
+                setKeyboardLabels (labels);
+                if (onKeyboardLabelsChanged)
+                    onKeyboardLabelsChanged (labels);
                 return;
             }
             case EditorOptionsSnapToKeyEnabled:

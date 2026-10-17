@@ -178,6 +178,11 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         if (onNotePreviewChanged)
             onNotePreviewChanged (settings);
     };
+    trackEditor->onKeyboardLabelsChanged = [this] (KeyboardLabels labels)
+    {
+        if (onKeyboardLabelsChanged)
+            onKeyboardLabelsChanged (labels);
+    };
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 
@@ -276,6 +281,11 @@ void SongsmithMainComponent::setSnapToGrid (bool on)
 void SongsmithMainComponent::setNotePreview (const NotePreviewSettings& settings)
 {
     trackEditor->setNotePreview (settings);
+}
+
+void SongsmithMainComponent::setKeyboardLabels (KeyboardLabels labels)
+{
+    trackEditor->setKeyboardLabels (labels);
 }
 
 // Remembered for editors opened later; an editor that is already open keeps its grid.

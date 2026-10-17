@@ -22,4 +22,10 @@ namespace lotro::PianoRollPalette
     constexpr juce::uint32 whiteKeyHover     = 0xFFD8D3C9;
     constexpr juce::uint32 blackKeyHover     = 0xFF2D2F32;   // still dark (brightness < 0.2)
     constexpr juce::uint32 hoverLabel        = 0xFF8C8880;
+
+    // The gutter in MIDI Numbers mode: the row bands above, with these.
+    constexpr juce::uint32 numberLabel       = 0xFF7A7E85;
+    constexpr juce::uint32 numberHover       = 0xFF2A2D32;   // still dark (brightness < 0.2)
+    constexpr juce::uint32 numberHoverLabel  = 0xFFDADCE0;
+    constexpr juce::uint32 numberDivider     = 0xFF3A3D43;   // under C and F, like the keys' full-width edge
 }

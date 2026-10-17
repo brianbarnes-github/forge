@@ -344,7 +344,14 @@ When you say…       …I'll know you mean
   or one grid spacing (a quarter with no grid) when not snapped. Moving,
   resizing, quantizing and existing notes are unaffected. Session-only like the
   grid: switching tracks keeps them, and an editor opened afresh starts at Off,
-  Straight. **Navigate → Move Marker Left by Grid** / **Right by
+  Straight. **View → Piano Notes** / **MIDI Numbers** (always enabled, the
+  current one ticked) choose what the keyboard down the roll's left edge shows:
+  Piano Notes is the piano keys (C labels, the hovered or active key named);
+  MIDI Numbers replaces the keys with the roll's own row bands (sharps darker),
+  a line where B meets C and E meets F, and each semitone's MIDI note number
+  (60 = C4) in every row; the hovered row is tinted and the active row takes
+  the roll's copper tint. The choice is saved (`view.keyboardLabels`) and only
+  changes this editor's roll. **Navigate → Move Marker Left by Grid** / **Right by
   Grid** (`Left` / `Right` while the editor has keyboard focus) move the start
   marker to the previous / next grid line whether snap is on or off (from between
   two lines, to the nearer one on that side; Left stops at the song start; with no
