@@ -753,6 +753,15 @@ bool PianoRollComponent::selectAllOfSamePitch()
     return true;
 }
 
+bool PianoRollComponent::selectNotesWithPitch (const std::function<bool (int pitch)>& wanted)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    sourceEditor->selectPitches (wanted);
+    canvas.repaint();
+    return true;
+}
+
 bool PianoRollComponent::hasSteppedNote (double tick, int direction) const
 {
     return steppedNote (tick, direction) >= 0;

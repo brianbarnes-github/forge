@@ -52,7 +52,8 @@ namespace lotro
         // View > Piano Roll Notes / Color Note by set the roll's note shape / colour mode
         // and, on a change, fire onNoteShapeChanged / onNoteColourModeChanged;
         // its Show Note Names / Show Velocity Numbers flip the roll's labels and fire
-        // onNoteLabelsChanged;
+        // onNoteLabelsChanged; View > View Notes In Key / Out of Key select the notes
+        // whose pitch is / is not in currentSnapKey (only with a track and a key);
         // Navigate > Move Marker Left / Right by Grid step the start marker (stepMarker);
         // Navigate > Move Up / Down a Semitone step the roll's active row;
         // Navigate > Select Note Nearest Cursor selects the note starting nearest

@@ -102,6 +102,8 @@ public:
     // Selects every note of `pitch`, replacing the selection or adding to it
     // (a right-click on the roll's keyboard key).
     void selectPitch (int pitch, bool addToSelection);
+    // Replaces the selection with every note whose pitch `wanted` accepts.
+    void selectPitches (const std::function<bool (int pitch)>& wanted);
     int getNumSelected() const noexcept { return (int) selection.size(); }
 
     // In-progress rubber-band rect, in the same canvas-pixel space as

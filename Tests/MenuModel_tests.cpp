@@ -477,7 +477,8 @@ TEST_CASE ("EditorMenuModel: View is Piano Notes and MIDI Numbers, enabled with 
 {
     EditorMenuState s;
     const auto piano = menuNamed (editorMenus (s), "View");
-    CHECK (labels (piano) == V { "Piano Notes", "MIDI Numbers", "-", "Piano Roll Notes>", "Color Note by>" });
+    CHECK (labels (piano) == V { "Piano Notes", "MIDI Numbers", "-", "Piano Roll Notes>", "Color Note by>", "-",
+                                 "View Notes In Key", "View Notes Out of Key" });
     CHECK (piano.items[0].id == EditorViewPianoNotes);
     CHECK (piano.items[1].id == EditorViewMidiNumbers);
     CHECK (piano.items[0].enabled);   // no track loaded
@@ -579,6 +580,32 @@ TEST_CASE ("EditorMenuModel: View > Piano Roll Notes ends with a separator and t
         CHECK (velocities.enabled);
         CHECK (velocities.ticked == labels.velocities);
     }
+}
+
+TEST_CASE ("EditorMenuModel: View ends with a separator and View Notes In Key / Out of Key, enabled only with a track and a key", "[menu-model][editor-menu][select-by-key]")
+{
+    EditorMenuState s;   // no track, no key
+    const auto off = menuNamed (editorMenus (s), "View");
+    REQUIRE (off.items.size() == 8);
+    CHECK (off.items[5].separator);
+    CHECK (off.items[6].id == EditorViewNotesInKey);
+    CHECK (off.items[6].label == "View Notes In Key");
+    CHECK (off.items[7].id == EditorViewNotesOutOfKey);
+    CHECK (off.items[7].label == "View Notes Out of Key");
+    CHECK_FALSE (off.items[6].enabled);
+    CHECK_FALSE (off.items[7].enabled);
+    CHECK_FALSE (off.items[6].ticked);
+
+    s.canSelectByKey = true;
+    const auto on = menuNamed (editorMenus (s), "View");
+    CHECK (on.items[6].enabled);
+    CHECK (on.items[7].enabled);
+    CHECK_FALSE (on.items[7].ticked);
+
+    // Appended after the existing ids, below the submenu bases.
+    CHECK (EditorViewNotesInKey == EditorViewNoteVelocities + 1);
+    CHECK (EditorViewNotesOutOfKey == EditorViewNotesInKey + 1);
+    CHECK (EditorViewNotesOutOfKey < EditorSnapRootBase);
 }
 
 TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")

@@ -2244,6 +2244,35 @@ TEST_CASE ("PianoRollComponent: selectAllOfSamePitch selects every note of the s
     CHECK_FALSE (fixture.roll.canSelectAllOfSamePitch());   // many selected now
 }
 
+TEST_CASE ("PianoRollComponent: selectNotesWithPitch replaces the selection with the matching notes and leaves the view alone", "[piano-roll][select-by-key]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 61, 62, 66, 72 });
+    auto& editor = Access::editor (fixture.roll);
+    fixture.doc.getUndoManager().clearUndoHistory();
+
+    editor.selectOnly (noteAt (fixture, 1));
+    Access::setActivePitch (fixture.roll, 70);
+    const auto viewBefore = Access::viewport (fixture.roll).getViewPosition();
+    CHECK (fixture.roll.selectNotesWithPitch ([] (int pitch) { return pitch % 12 == 0 || pitch == 62; }));
+    CHECK (editor.getNumSelected() == 3);
+    CHECK (editor.isSelected (noteAt (fixture, 0)));
+    CHECK_FALSE (editor.isSelected (noteAt (fixture, 1)));   // replaced, not added to
+    CHECK (editor.isSelected (noteAt (fixture, 2)));
+    CHECK_FALSE (editor.isSelected (noteAt (fixture, 3)));
+    CHECK (editor.isSelected (noteAt (fixture, 4)));
+    CHECK (Access::viewport (fixture.roll).getViewPosition() == viewBefore);
+    CHECK (fixture.roll.getActivePitch() == 70);
+    CHECK_FALSE (fixture.doc.getUndoManager().canUndo());
+
+    // No match clears the selection.
+    CHECK (fixture.roll.selectNotesWithPitch ([] (int) { return false; }));
+    CHECK (editor.getNumSelected() == 0);
+
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    CHECK_FALSE (preview.selectNotesWithPitch ([] (int) { return true; }));
+}
+
 TEST_CASE ("PianoRollComponent: addSteppedNoteToSelection grows the selection at either end, moves the active row, and returns each start", "[piano-roll][extend-selection]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

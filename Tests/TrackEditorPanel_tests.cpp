@@ -514,7 +514,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
-    CHECK (model->getMenuForIndex (4, "View").getNumItems() == 4);   // piano notes, MIDI numbers, two submenus (separators not counted)
+    CHECK (model->getMenuForIndex (4, "View").getNumItems() == 6);   // piano notes, MIDI numbers, two submenus, notes in / out of key (separators not counted)
     CHECK (model->getMenuForIndex (1, {}).getNumItems() == 0);
 
     // Still there, still on top, once the strip/ruler/roll content is built.
@@ -1313,6 +1313,75 @@ namespace
     }
 
     void pick (TrackEditorPanel& panel, int commandId) { panel.invokeMenuCommand (commandId); }
+}
+
+namespace
+{
+    // View (menu 4) item `index`'s enabled state, as the bar builds it.
+    bool viewItemEnabled (TrackEditorPanel& panel, int index)
+    {
+        const auto view = TrackEditorPanelTestAccess::menuBar (panel).getModel()->getMenuForIndex (4, "View");
+        juce::PopupMenu::MenuItemIterator it (view);
+        for (int i = 0; i <= index; ++i)
+            REQUIRE (it.next());
+        return it.getItem().isEnabled;
+    }
+
+    constexpr int viewNotesInKeyItem = 6;
+    constexpr int viewNotesOutOfKeyItem = 7;
+}
+
+TEST_CASE ("TrackEditorPanel: View Notes In Key / Out of Key select the notes in or out of the editor's key", "[track-editor][editor-menu][select-by-key]")
+{
+    MarkerPanelFixture f;   // 60 at 0
+    for (int pitch : { 61, 62, 66, 71 })
+        lotro::playbacktest::addNote (f.track, pitch, 2000 + pitch, 480);
+    const auto notes = SongDocument::getNotesNode (f.track);
+    using Access = TrackEditorPanelTestAccess;
+    f.doc.setSongKey (0);   // C major
+    f.controller->setMarkerTick (1000.0);
+
+    CHECK (viewItemEnabled (*f.panel, viewNotesInKeyItem));
+    CHECK (viewItemEnabled (*f.panel, viewNotesOutOfKeyItem));
+
+    Access::menuBar (*f.panel).getModel()->menuItemSelected (EditorViewNotesInKey, 4);
+    CHECK (Access::numSelected (*f.panel) == 3);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (0)));   // 60
+    CHECK (Access::isSelected (*f.panel, notes.getChild (2)));   // 62
+    CHECK (Access::isSelected (*f.panel, notes.getChild (4)));   // 71
+    CHECK (*f.controller->getMarkerTick() == 1000.0);
+
+    f.panel->invokeMenuCommand (EditorViewNotesOutOfKey);   // replaces the selection
+    CHECK (Access::numSelected (*f.panel) == 2);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (1)));   // 61
+    CHECK (Access::isSelected (*f.panel, notes.getChild (3)));   // 66
+
+    // A picked Type counts: C major triad keeps only 60.
+    pick (*f.panel, EditorSnapScaleBase + (int) SnapScale::majorTriad);
+    f.panel->invokeMenuCommand (EditorViewNotesInKey);
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK (Access::isSelected (*f.panel, notes.getChild (0)));
+    f.panel->invokeMenuCommand (EditorViewNotesOutOfKey);
+    CHECK (Access::numSelected (*f.panel) == 4);
+}
+
+TEST_CASE ("TrackEditorPanel: View Notes In Key / Out of Key grey out and do nothing without a key or a track", "[track-editor][editor-menu][select-by-key]")
+{
+    MarkerPanelFixture f;   // 60 at 0, no song key
+    lotro::playbacktest::addNote (f.track, 61, 2000, 480);
+    using Access = TrackEditorPanelTestAccess;
+
+    CHECK_FALSE (viewItemEnabled (*f.panel, viewNotesInKeyItem));
+    CHECK_FALSE (viewItemEnabled (*f.panel, viewNotesOutOfKeyItem));
+    f.panel->invokeMenuCommand (EditorViewNotesInKey);
+    f.panel->invokeMenuCommand (EditorViewNotesOutOfKey);
+    CHECK (Access::numSelected (*f.panel) == 0);
+
+    f.doc.setSongKey (0);
+    f.panel->clearTrack();
+    CHECK_FALSE (viewItemEnabled (*f.panel, viewNotesInKeyItem));
+    CHECK_FALSE (viewItemEnabled (*f.panel, viewNotesOutOfKeyItem));
+    f.panel->invokeMenuCommand (EditorViewNotesInKey);   // no track, no crash
 }
 
 TEST_CASE ("TrackEditorPanel: Snap to Key starts off, so any pitch can be added", "[track-editor][snap-to-key]")

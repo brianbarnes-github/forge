@@ -384,6 +384,12 @@ When you say…       …I'll know you mean
   always enabled, ticked, saved (`view.noteShape`, `view.noteColour`) and
   display-only; the LOTRO preview roll keeps its rectangles and colours, and the
   track swatch and selected-row accent keep the track's colour.
+  Below a separator, **View → View Notes In Key** / **View Notes Out of Key**
+  replace the selection with every note of the edited track whose pitch class
+  is / is not in the editor's key — the one Options ▸ Snap to Key shows (the
+  song key unless a Root or Type was picked this session; a chord type means its
+  chord tones), whether or not Snap to Key ▸ Enabled is ticked. No scroll,
+  marker move or undo step; greyed with no key or no track.
   **Navigate → Move Marker Left by Grid** / **Right by
   Grid** (`Left` / `Right` while the editor has keyboard focus) move the start
   marker to the previous / next grid line whether snap is on or off (from between

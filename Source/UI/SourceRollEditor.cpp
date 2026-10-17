@@ -78,6 +78,21 @@ void SourceRollEditor::selectPitch (int pitch, bool addToSelection)
     }
 }
 
+void SourceRollEditor::selectPitches (const std::function<bool (int pitch)>& wanted)
+{
+    selection.clear();
+    if (! track.isValid())
+        return;
+
+    auto notes = SongDocument::getNotesNode (track);
+    for (int i = 0; i < notes.getNumChildren(); ++i)
+    {
+        auto noteNode = notes.getChild (i);
+        if (wanted ((int) noteNode.getProperty (SongIDs::pitch)))
+            selection.push_back (noteNode);
+    }
+}
+
 void SourceRollEditor::toggleSelection (const juce::ValueTree& note)
 {
     auto it = std::find (selection.begin(), selection.end(), note);

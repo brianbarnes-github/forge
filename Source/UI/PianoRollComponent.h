@@ -174,6 +174,10 @@ public:
     // moving the active row. No undo step. False (nothing changed) unless
     // canSelectAllOfSamePitch.
     bool selectAllOfSamePitch();
+    // Source role with an editor: replaces the selection with every note whose
+    // pitch `wanted` accepts (none clears it), without scrolling or moving the
+    // active row. No undo step. False (nothing changed) without an editor.
+    bool selectNotesWithPitch (const std::function<bool (int pitch)>& wanted);
     // Source role with an editor: there is a note for addSteppedNoteToSelection to add.
     bool hasExtendableNote (int direction) const;
     // Adds the note right after the last selected one (`direction` +1) or right

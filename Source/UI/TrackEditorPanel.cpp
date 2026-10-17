@@ -73,6 +73,7 @@ namespace lotro
         s.canAddPreviousNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (-1);
         s.canAddNextNote = s.canSelectNearestNote && owner.roll.hasExtendableNote (+1);
         s.canMoveCursorToSelectionStart = s.canSelectNearestNote && owner.roll.selectionStart().has_value();
+        s.canSelectByKey = owner.currentTrackId != -1 && owner.currentSnapKey().has_value();
         s.snapToKey = owner.snapToKey;
         s.notePreview = owner.notePreview;
         s.gridLength = owner.getGridLength();
@@ -147,6 +148,14 @@ namespace lotro
             case EditorNavigateSelectAllSamePitch:
                 if (currentTrackId != -1)
                     roll.selectAllOfSamePitch();
+                return;
+            case EditorViewNotesInKey:
+            case EditorViewNotesOutOfKey:
+                if (const auto key = currentSnapKey(); key.has_value() && currentTrackId != -1)
+                {
+                    const bool inKey = commandId == EditorViewNotesInKey;
+                    roll.selectNotesWithPitch ([&] (int pitch) { return isPitchAllowed (*key, pitch) == inKey; });
+                }
                 return;
             case EditorNavigateAddPreviousNote:
                 addSteppedNote (-1);

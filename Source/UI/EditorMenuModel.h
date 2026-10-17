@@ -51,6 +51,8 @@ enum EditorMenuCommandId : int
     EditorViewColourPitch,
     EditorViewNoteNames,
     EditorViewNoteVelocities,
+    EditorViewNotesInKey,
+    EditorViewNotesOutOfKey,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -112,6 +114,7 @@ struct EditorMenuState
     bool canAddPreviousNote = false;         // as canSelectNearestNote, a selection, a note before it
     bool canAddNextNote = false;             // as canSelectNearestNote, a selection, a note after it
     bool canMoveCursorToSelectionStart = false; // a track, playback, and a selection
+    bool canSelectByKey = false; // a track and a key (the song's or a Snap to Key pick)
     bool snapToKey = false;     // Options > Snap to Key > Enabled is ticked
     int snapRootIndex = -1;     // the current root (snapRoots()), -1 with no key
     int snapScaleIndex = -1;    // the current (int) SnapScale, -1 with no key
@@ -232,7 +235,7 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  lengthSubmenu ("Note Length", EditorNoteLengthBase, s.noteLength, s.hasTrack),
                  divisionSubmenu ("Note Division", EditorNoteDivisionBase, (int) GridDivision::Swing, s.noteDivision,
                                   s.hasTrack) } },
-             // A saved setting, so open with or without a track.
+             // The display items are saved settings, so open with or without a track.
              { "View", {
                  item (EditorViewPianoNotes, "Piano Notes", {}, true, s.keyboardLabels == KeyboardLabels::pianoNotes),
                  item (EditorViewMidiNumbers, "MIDI Numbers", {}, true,
@@ -251,7 +254,10 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                      item (EditorViewColourTrack, "Track", {}, true, s.noteColourMode == NoteColourMode::track),
                      item (EditorViewColourVelocity, "Velocity", {}, true, s.noteColourMode == NoteColourMode::velocity),
                      item (EditorViewColourChannel, "Channel", {}, true, s.noteColourMode == NoteColourMode::channel),
-                     item (EditorViewColourPitch, "Pitch", {}, true, s.noteColourMode == NoteColourMode::pitch) }) } } };
+                     item (EditorViewColourPitch, "Pitch", {}, true, s.noteColourMode == NoteColourMode::pitch) }),
+                 separator(),
+                 item (EditorViewNotesInKey, "View Notes In Key", {}, s.canSelectByKey),
+                 item (EditorViewNotesOutOfKey, "View Notes Out of Key", {}, s.canSelectByKey) } } };
 }
 
 // Left/Right from the open menu `current`: the next menu (step +1 or -1, wrapping)
