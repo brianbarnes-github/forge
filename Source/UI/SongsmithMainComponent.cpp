@@ -194,6 +194,11 @@ SongsmithMainComponent::SongsmithMainComponent (SongDocument& document, Playback
         if (onNoteColourModeChanged)
             onNoteColourModeChanged (mode);
     };
+    trackEditor->onNoteLabelsChanged = [this] (NoteLabels labels)
+    {
+        if (onNoteLabelsChanged)
+            onNoteLabelsChanged (labels);
+    };
     dockHost.addPanel (dock::panelDefs()[1], juce::Colour (SongsmithColours::text), *trackEditor);
     dockHost.setTitle ("midiEditor", trackEditor->title());
 
@@ -308,6 +313,11 @@ void SongsmithMainComponent::setNoteColourMode (NoteColourMode mode)
 {
     trackEditor->setNoteColourMode (mode);
     trackList.setNoteColourMode (mode);
+}
+
+void SongsmithMainComponent::setNoteLabels (NoteLabels labels)
+{
+    trackEditor->setNoteLabels (labels);
 }
 
 // Remembered for editors opened later; an editor that is already open keeps its grid.

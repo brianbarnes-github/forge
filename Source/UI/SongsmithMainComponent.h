@@ -266,6 +266,9 @@ public:
     std::function<void (NoteShape)> onNoteShapeChanged;
     void setNoteColourMode (NoteColourMode mode);
     std::function<void (NoteColourMode)> onNoteColourModeChanged;
+    // And its View > Piano Roll Notes' Show Note Names / Velocity Numbers (the editor only).
+    void setNoteLabels (NoteLabels labels);
+    std::function<void (NoteLabels)> onNoteLabelsChanged;
     void setMergeScope (MergeScope scope);
     // The track list's head-column width (see TrackListComponent::setHeadWidth). A divider
     // drag reports its final width through onTrackHeadWidthChanged, so the owner can save it.

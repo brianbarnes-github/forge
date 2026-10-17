@@ -6,6 +6,7 @@
 #include "PlaybackTestSupport.h"
 #include "UI/EditorGrid.h"
 #include "UI/NoteColours.h"
+#include "UI/NoteFootprint.h"
 #include "UI/PianoRollComponent.h"
 #include "UI/Theme/PianoRollPalette.h"
 #include "UI/Theme/ThemePaint.h"
@@ -2649,4 +2650,118 @@ TEST_CASE ("PianoRollComponent: a repaint covering only a diamond's left half st
         Access::paintCanvas (fixture.roll, g, clip);
     }
     CHECK (isNearColour (image.getPixelAt (bounds.x - half / 2 - 1, bounds.y + half), juce::Colour (trackArgb), 40));
+}
+
+namespace
+{
+    // Pixels in `area` that differ between two same-sized images.
+    int differingPixels (const juce::Image& a, const juce::Image& b, juce::Rectangle<int> area)
+    {
+        int count = 0;
+        for (int y = area.getY(); y < area.getBottom(); ++y)
+            for (int x = area.getX(); x < area.getRight(); ++x)
+                if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
+                    ++count;
+        return count;
+    }
+
+    // Canvas painted with only `clip` repainted.
+    juce::Image paintCanvasClip (PianoRollComponent& roll, juce::Rectangle<int> clip)
+    {
+        auto& canvas = Access::canvas (roll);
+        juce::Image image (juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.reduceClipRegion (clip);
+        Access::paintCanvas (roll, g, clip);
+        return image;
+    }
+
+    // A two-note track whose second note is far shorter than any label.
+    struct ShortNoteFixture
+    {
+        ShortNoteFixture()
+        {
+            fixture.track.setProperty (SongIDs::colorArgb, (int) 0xFF3366CCu, nullptr);
+            auto note = SongDocument::getNotesNode (fixture.track).getChild (1);
+            note.setProperty (SongIDs::durationTicks, 8, nullptr);
+            note.setProperty (SongIDs::velocity, 100, nullptr);
+        }
+
+        PianoRollNoteBounds bounds() const
+        {
+            return Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (1));
+        }
+
+        SourceRollFixture fixture { { 60, 64 } };
+    };
+}
+
+TEST_CASE ("PianoRollComponent: note labels draw on a rectangle and spill past a short note", "[piano-roll][note-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ShortNoteFixture f;
+    auto& roll = f.fixture.roll;
+    const auto b = f.bounds();
+    REQUIRE (b.width < 10);
+
+    CHECK (roll.getNoteLabels() == NoteLabels {});
+    const auto off = paintWholeCanvas (roll);
+    // Clear of the note's own glow: only a spilled label can paint here.
+    const juce::Rectangle<int> spill (b.x + b.width + ThemePaint::noteOverhang + 1, b.y, 20, b.height);
+
+    for (auto labels : { NoteLabels { true, false }, NoteLabels { false, true }, NoteLabels { true, true } })
+    {
+        CAPTURE (labels.names, labels.velocities);
+        roll.setNoteLabels (labels);
+        CHECK (roll.getNoteLabels() == labels);
+        CHECK (differingPixels (off, paintWholeCanvas (roll), spill) > 0);
+    }
+
+    // A repaint covering only the spilled text still draws it.
+    roll.setNoteLabels ({});
+    const auto clippedOff = paintCanvasClip (roll, spill);
+    roll.setNoteLabels ({ true, true });
+    CHECK (differingPixels (clippedOff, paintCanvasClip (roll, spill), spill) > 0);
+
+    roll.setNoteLabels ({});
+    CHECK (differingPixels (off, paintWholeCanvas (roll), spill) == 0);
+}
+
+TEST_CASE ("PianoRollComponent: note labels sit beside a diamond", "[piano-roll][note-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ShortNoteFixture f;
+    auto& roll = f.fixture.roll;
+    const auto b = f.bounds();
+
+    for (auto shape : { NoteShape::diamond, NoteShape::diamondLength })
+    {
+        CAPTURE ((int) shape);
+        roll.setNoteShape (shape);
+        roll.setNoteLabels ({});
+        const auto off = paintWholeCanvas (roll);
+        roll.setNoteLabels ({ true, false });
+        const auto diamondRight = noteFootprint (b, shape).body.getRight();
+        const juce::Rectangle<int> beside (diamondRight + ThemePaint::noteOverhang + 1, b.y, 20, b.height);
+        CHECK (differingPixels (off, paintWholeCanvas (roll), beside) > 0);
+    }
+}
+
+TEST_CASE ("PianoRollComponent: the Preview roll draws no note labels", "[piano-roll][note-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    PreviewNote previewNote;
+    previewNote.prePitch = 64;
+    previewNote.startTick = 0;
+    previewNote.durationTicks = 8;
+    previewNote.state = NoteState::Normal;
+    PreviewNoteSource previewSource ({ previewNote });
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    preview.setBounds (0, 0, viewportWidth, viewportHeight);
+    preview.setNoteSource (&previewSource, ticksPerQuarter, {});
+
+    const auto off = paintWholeCanvas (preview);
+    preview.setNoteLabels ({ true, true });
+    const auto& canvas = Access::canvas (preview);
+    CHECK (differingPixels (off, paintWholeCanvas (preview), canvas.getLocalBounds()) == 0);
 }

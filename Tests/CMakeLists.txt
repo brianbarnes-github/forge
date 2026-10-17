@@ -36,6 +36,7 @@ add_executable(forge_tests
     MeterSegments_tests.cpp
     KeyDetector_tests.cpp
     NoteColours_tests.cpp
+    NoteLabel_tests.cpp
     ScaleSnap_tests.cpp
     TempoMapSync_tests.cpp
     ConductorMarkers_tests.cpp

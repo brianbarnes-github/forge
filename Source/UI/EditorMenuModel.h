@@ -49,6 +49,8 @@ enum EditorMenuCommandId : int
     EditorViewColourVelocity,
     EditorViewColourChannel,
     EditorViewColourPitch,
+    EditorViewNoteNames,
+    EditorViewNoteVelocities,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -121,6 +123,7 @@ struct EditorMenuState
     KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes; // View's tick
     NoteShape noteShape = NoteShape::rectangle;                 // View > Piano Roll Notes' tick
     NoteColourMode noteColourMode = NoteColourMode::track;      // View > Color Note by's tick
+    NoteLabels noteLabels;                                      // View > Piano Roll Notes' label checkboxes
 };
 
 namespace menu_detail
@@ -239,7 +242,11 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                      item (EditorViewNoteRectangle, "Rectangle", {}, true, s.noteShape == NoteShape::rectangle),
                      item (EditorViewNoteDiamond, "Diamond", {}, true, s.noteShape == NoteShape::diamond),
                      item (EditorViewNoteDiamondLength, "Diamond + Length", {}, true,
-                           s.noteShape == NoteShape::diamondLength) }),
+                           s.noteShape == NoteShape::diamondLength),
+                     separator(),
+                     item (EditorViewNoteNames, "Show Note Names on Notes", {}, true, s.noteLabels.names),
+                     item (EditorViewNoteVelocities, "Show Velocity Numbers on Notes", {}, true,
+                           s.noteLabels.velocities) }),
                  submenu ("Color Note by", {
                      item (EditorViewColourTrack, "Track", {}, true, s.noteColourMode == NoteColourMode::track),
                      item (EditorViewColourVelocity, "Velocity", {}, true, s.noteColourMode == NoteColourMode::velocity),

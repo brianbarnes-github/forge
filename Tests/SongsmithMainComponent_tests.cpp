@@ -106,6 +106,7 @@ namespace lotro
         static KeyboardLabels editorKeyboardLabels (const SongsmithMainComponent& c) { return c.trackEditor->getKeyboardLabels(); }
         static NoteShape editorNoteShape (const SongsmithMainComponent& c) { return c.trackEditor->getNoteShape(); }
         static NoteColourMode editorNoteColourMode (const SongsmithMainComponent& c) { return c.trackEditor->getNoteColourMode(); }
+        static NoteLabels editorNoteLabels (const SongsmithMainComponent& c) { return c.trackEditor->getNoteLabels(); }
         static NotePreviewSettings editorNotePreview (const SongsmithMainComponent& c)
         {
             return c.trackEditor->getNotePreview();
@@ -1485,6 +1486,23 @@ TEST_CASE ("SongsmithMainComponent: note shape and colour reach the editor and t
     CHECK (Access::trackList (main).getNoteColourMode() == NoteColourMode::pitch);
     CHECK (shapes == std::vector<NoteShape> { NoteShape::diamondLength });
     CHECK (modes == std::vector<NoteColourMode> { NoteColourMode::pitch });
+}
+
+TEST_CASE ("SongsmithMainComponent: the editor's note labels are pushed silently and report a menu change", "[track-editor][note-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    SongsmithMainComponent main (doc);
+    std::vector<NoteLabels> reported;
+    main.onNoteLabelsChanged = [&] (NoteLabels labels) { reported.push_back (labels); };
+
+    main.setNoteLabels ({ false, true });
+    CHECK (Access::editorNoteLabels (main) == NoteLabels { false, true });
+    CHECK (reported.empty());   // pushing the setting is not a change to save
+
+    Access::invokeEditorMenuCommand (main, EditorViewNoteNames);
+    CHECK (Access::editorNoteLabels (main) == NoteLabels { true, true });
+    CHECK (reported == std::vector<NoteLabels> { { true, true } });
 }
 
 TEST_CASE ("SongsmithMainComponent: the main window's Grid Size sets the editor's length and keeps its division", "[track-editor][grid-length]")

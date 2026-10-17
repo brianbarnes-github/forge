@@ -213,6 +213,7 @@ MainWindow::MainWindow()
     songsmith.onKeyboardLabelsChanged = [this] (KeyboardLabels labels) { appSettings.setKeyboardLabels (labels); };
     songsmith.onNoteShapeChanged = [this] (NoteShape shape) { appSettings.setNoteShape (shape); };
     songsmith.onNoteColourModeChanged = [this] (NoteColourMode mode) { appSettings.setNoteColourMode (mode); };
+    songsmith.onNoteLabelsChanged = [this] (NoteLabels labels) { appSettings.setNoteLabels (labels); };
     songsmith.onDockLayoutChanged = [this] (const dock::LayoutState& layout)
     {
         const juce::String json (dock::toJson (layout));
@@ -723,6 +724,7 @@ void MainWindow::applyViewSettings()
     songsmith.setKeyboardLabels (appSettings.keyboardLabels());
     songsmith.setNoteShape (appSettings.noteShape());
     songsmith.setNoteColourMode (appSettings.noteColourMode());
+    songsmith.setNoteLabels (appSettings.noteLabels());
     songsmith.setMergeScope (appSettings.mergeScope());
     songsmith.setDefaultGridSize (appSettings.defaultGrid());
 }

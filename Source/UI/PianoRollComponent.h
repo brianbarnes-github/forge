@@ -109,6 +109,11 @@ public:
     // roll keeps rectangles whatever this says.
     void setNoteShape (NoteShape shape);
     NoteShape getNoteShape() const noexcept { return noteShape; }
+    // The text on each Source note (View > Piano Roll Notes' Show Note Names /
+    // Show Velocity Numbers), spilling past notes too short for it; the Preview
+    // roll draws none whatever this says.
+    void setNoteLabels (NoteLabels labels);
+    NoteLabels getNoteLabels() const noexcept { return noteLabels; }
     // Whether a playing playhead scrolls the view to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
@@ -407,6 +412,7 @@ private:
     KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes;
     NoteColourMode noteColourMode = NoteColourMode::track;
     NoteShape noteShape = NoteShape::rectangle;
+    NoteLabels noteLabels;
     int hoveredPitch = -1;
     int activePitch = -1; // Source role only; see getActivePitch.
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded

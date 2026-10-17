@@ -1,6 +1,7 @@
 #include "PianoRollComponent.h"
 #include "NoteColours.h"
 #include "NoteFootprint.h"
+#include "NoteLabel.h"
 #include "NoteNavigation.h"
 #include "GridLinePaint.h"
 #include "SongDocument.h"
@@ -938,6 +939,12 @@ void PianoRollComponent::setNoteShape (NoteShape shape)
     canvas.repaint();
 }
 
+void PianoRollComponent::setNoteLabels (NoteLabels labels)
+{
+    noteLabels = labels;
+    canvas.repaint();
+}
+
 void PianoRollComponent::paintGutter (juce::Graphics& g) const
 {
     if (keyboardLabels == KeyboardLabels::midiNumbers)
@@ -1137,6 +1144,11 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
     if (noteSource == nullptr)
         return;
 
+    const bool showLabels = role == Role::Source && (noteLabels.names || noteLabels.velocities);
+    const juce::Font labelFont (juce::FontOptions (juce::jlimit (8.0f, 12.0f, (float) geometry.getRowHeight() - 4.0f)));
+    if (showLabels)
+        g.setFont (labelFont);
+
     const int numNotes = noteSource->getNumNotes();
     for (int i = 0; i < numNotes; ++i)
     {
@@ -1159,7 +1171,13 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         // Glow and selection edge reach noteOverhang px beyond the note.
         // A diamond reaches half a row left of the note's start.
         const auto paintedRect = footprint.hit.expanded (ThemePaint::noteOverhang);
-        if (! (hasGhost ? paintedRect.getUnion (ghostRect) : paintedRect).intersects (clip))
+        // A label is never shortened, so it can reach well past its note.
+        const auto label = showLabels ? noteLabelText (noteLabels, note.pitch, note.velocity) : juce::String();
+        const juce::Rectangle<int> labelRect = showLabels
+            ? juce::Rectangle<int> (noteLabelX (footprint), bounds.y,
+                                    juce::GlyphArrangement::getStringWidthInt (labelFont, label) + 2, bounds.height)
+            : juce::Rectangle<int>();
+        if (! (hasGhost ? paintedRect.getUnion (ghostRect) : paintedRect.getUnion (labelRect)).intersects (clip))
             continue;
 
         const auto fill = role == Role::Source
@@ -1175,6 +1193,24 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
             ThemePaint::paintNoteBody (g, rect, fill, style);
         else
             ThemePaint::paintDiamondNote (g, footprint.body, footprint.lengthLine, fill, style);
+
+        if (showLabels)
+        {
+            // Over a rectangle's fill in a contrasting colour; past it, or beside a
+            // diamond, in the roll's text colour.
+            if (shape == NoteShape::rectangle)
+            {
+                juce::Graphics::ScopedSaveState inside (g);
+                g.reduceClipRegion (rect);
+                g.setColour (noteLabelColour (fill));
+                g.drawText (label, labelRect, juce::Justification::centredLeft, false);
+            }
+            juce::Graphics::ScopedSaveState outside (g);
+            if (shape == NoteShape::rectangle)
+                g.excludeClipRegion (rect);
+            g.setColour (juce::Colour (SongsmithColours::text));
+            g.drawText (label, labelRect, juce::Justification::centredLeft, false);
+        }
 
         if (role != Role::Preview)
             continue;

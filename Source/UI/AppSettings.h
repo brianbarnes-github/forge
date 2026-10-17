@@ -155,6 +155,18 @@ public:
         return save();
     }
 
+    // The MIDI editor's View > Piano Roll Notes label checkboxes. Absent or anything but "1" reads off.
+    NoteLabels noteLabels() const
+    {
+        return { file.getValue (keyNoteNames) == "1", file.getValue (keyNoteVelocities) == "1" };
+    }
+    bool setNoteLabels (NoteLabels labels)
+    {
+        file.setValue (keyNoteNames, labels.names ? "1" : "0");
+        file.setValue (keyNoteVelocities, labels.velocities ? "1" : "0");
+        return save();
+    }
+
     // What a newly opened track editor starts on. Absent or unrecognised reads Off.
     GridSize defaultGrid() const
     {
@@ -251,6 +263,8 @@ private:
     static constexpr const char* keyKeyboardLabels     = "view.keyboardLabels";
     static constexpr const char* keyNoteShape          = "view.noteShape";
     static constexpr const char* keyNoteColour         = "view.noteColour";
+    static constexpr const char* keyNoteNames          = "view.noteNames";
+    static constexpr const char* keyNoteVelocities     = "view.noteVelocities";
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
     static constexpr const char* keyStripButtons       = "strip.buttons";

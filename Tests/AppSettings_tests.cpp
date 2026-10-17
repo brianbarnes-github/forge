@@ -490,6 +490,34 @@ TEST_CASE ("AppSettings: note colour mode defaults to track, round-trips and per
     }
 }
 
+TEST_CASE ("AppSettings: note labels default off, round-trip and persist; junk reads off", "[app-settings][note-labels]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.noteLabels() == NoteLabels {});
+        for (auto labels : { NoteLabels { true, false }, NoteLabels { false, true }, NoteLabels { true, true },
+                             NoteLabels {}, NoteLabels { false, true } })
+        {
+            CHECK (settings.setNoteLabels (labels));
+            CHECK (settings.noteLabels() == labels);
+        }
+    }
+    {
+        juce::PropertiesFile reopened (file, {});
+        const AppSettings settings (reopened);
+        CHECK (settings.noteLabels() == NoteLabels { false, true });
+        CHECK (reopened.getValue ("view.noteNames") == "0");
+        CHECK (reopened.getValue ("view.noteVelocities") == "1");
+    }
+    juce::PropertiesFile junk (file, {});
+    junk.setValue ("view.noteNames", "yes");
+    junk.setValue ("view.noteVelocities", "junk");
+    CHECK (AppSettings (junk).noteLabels() == NoteLabels {});
+}
+
 TEST_CASE ("AppSettings: a junk note preview value reads off", "[app-settings][note-preview]")
 {
     auto file = juce::File::createTempFile (".settings");

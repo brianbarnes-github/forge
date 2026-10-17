@@ -361,7 +361,18 @@ When you say…       …I'll know you mean
   Length adds a thin line out to the note's end, whose far end resizes as the
   right edge does (no left resize; when the line ends inside the diamond the
   press moves the note). The rubber band tests the diamond (plus the line for
-  Diamond + Length). **View → Color Note by ▸** Track / Velocity / Channel /
+  Diamond + Length). Below a separator in the same submenu, **Show Note Names
+  on Notes** and **Show Velocity Numbers on Notes** are independent checkboxes
+  that write the note's name (`C4`, sharps as `C#4`), its velocity, or both on
+  one line (`C4 96`) on every note of the edited track: inside a rectangle from
+  its left edge, or just right of a diamond (over a Diamond + Length's line).
+  The text is never hidden or shortened; on a note too short for it, it spills
+  past the note's end, and a later note draws over an earlier note's text. Text
+  over a rectangle's fill picks a dark or light colour for contrast; text past
+  it or beside a diamond uses the roll's text colour. Saved
+  (`view.noteNames`, `view.noteVelocities`, both off by default); ghost tracks,
+  the LOTRO preview roll and the main page's note bars show no text.
+  **View → Color Note by ▸** Track / Velocity / Channel /
   Pitch colours notes in the editor's roll and the main page's note bars: the
   track's colour, a blue-to-red heat map over velocity 0–127, a fixed colour per
   MIDI channel (10 grey), or one per pitch class (sharps halfway between their

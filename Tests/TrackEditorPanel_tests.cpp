@@ -1783,3 +1783,39 @@ TEST_CASE ("TrackEditorPanel: View > Piano Roll Notes and Color Note by set the 
     CHECK (ticks[EditorViewColourPitch]);
     CHECK_FALSE (ticks[EditorViewColourTrack]);
 }
+
+TEST_CASE ("TrackEditorPanel: View > Show Note Names / Velocity Numbers toggle the roll's labels and report each change", "[track-editor][editor-menu][note-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);   // no track: saved settings, open without one
+    auto& roll = TrackEditorPanelTestAccess::roll (panel);
+    std::vector<NoteLabels> reported;
+    panel.onNoteLabelsChanged = [&] (NoteLabels labels) { reported.push_back (labels); };
+
+    CHECK (panel.getNoteLabels() == NoteLabels {});
+
+    auto* model = TrackEditorPanelTestAccess::menuBar (panel).getModel();
+    model->menuItemSelected (EditorViewNoteNames, 4);
+    CHECK (roll.getNoteLabels() == NoteLabels { true, false });
+    panel.invokeMenuCommand (EditorViewNoteVelocities);
+    CHECK (roll.getNoteLabels() == NoteLabels { true, true });
+    panel.invokeMenuCommand (EditorViewNoteNames);
+    CHECK (panel.getNoteLabels() == NoteLabels { false, true });
+    CHECK (reported == std::vector<NoteLabels> { { true, false }, { true, true }, { false, true } });
+
+    // Pushing the setting reports nothing.
+    panel.setNoteLabels ({ true, false });
+    CHECK (roll.getNoteLabels() == NoteLabels { true, false });
+    CHECK (reported.size() == 3);
+
+    // The View menu ticks what the roll shows.
+    const auto view = model->getMenuForIndex (4, "View");
+    juce::PopupMenu::MenuItemIterator it (view, true);
+    std::map<int, bool> ticks;
+    while (it.next())
+        if (it.getItem().itemID != 0)
+            ticks[it.getItem().itemID] = it.getItem().isTicked;
+    CHECK (ticks[EditorViewNoteNames]);
+    CHECK_FALSE (ticks[EditorViewNoteVelocities]);
+}

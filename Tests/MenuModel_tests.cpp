@@ -513,7 +513,7 @@ TEST_CASE ("EditorMenuModel: View > Piano Roll Notes and Color Note by list thei
         s.noteShape = shapes[current];
         const auto sub = submenuNamed (menuNamed (editorMenus (s), "View"), "Piano Roll Notes");
         CHECK (sub.enabled);
-        REQUIRE (sub.children.size() == 3);
+        REQUIRE (sub.children.size() == 6);
         const std::vector<std::string> names { "Rectangle", "Diamond", "Diamond + Length" };
         for (size_t i = 0; i < 3; ++i)
         {
@@ -547,7 +547,38 @@ TEST_CASE ("EditorMenuModel: View > Piano Roll Notes and Color Note by list thei
 
     // Appended after the existing ids, below the submenu bases.
     CHECK (EditorViewNoteRectangle == EditorViewMidiNumbers + 1);
+    CHECK (EditorViewNoteNames == EditorViewColourPitch + 1);
+    CHECK (EditorViewNoteVelocities == EditorViewNoteNames + 1);
+    CHECK (EditorViewNoteVelocities < EditorSnapRootBase);
     CHECK (EditorViewColourPitch < EditorSnapRootBase);
+}
+
+TEST_CASE ("EditorMenuModel: View > Piano Roll Notes ends with a separator and the two label checkboxes, enabled without a track", "[menu-model][editor-menu][note-labels]")
+{
+    for (auto labels : { NoteLabels {}, NoteLabels { true, false }, NoteLabels { false, true }, NoteLabels { true, true } })
+    {
+        CAPTURE (labels.names, labels.velocities);
+        EditorMenuState s;   // no track loaded
+        s.noteLabels = labels;
+        const auto view = menuNamed (editorMenus (s), "View");
+        const MenuItemDesc* sub = nullptr;
+        for (const auto& i : view.items)
+            if (i.isSubmenu && i.label == "Piano Roll Notes")
+                sub = &i;
+        REQUIRE (sub != nullptr);
+        REQUIRE (sub->children.size() == 6);
+        CHECK (sub->children[3].separator);
+        const auto& names = sub->children[4];
+        const auto& velocities = sub->children[5];
+        CHECK (names.id == EditorViewNoteNames);
+        CHECK (names.label == "Show Note Names on Notes");
+        CHECK (names.enabled);
+        CHECK (names.ticked == labels.names);
+        CHECK (velocities.id == EditorViewNoteVelocities);
+        CHECK (velocities.label == "Show Velocity Numbers on Notes");
+        CHECK (velocities.enabled);
+        CHECK (velocities.ticked == labels.velocities);
+    }
 }
 
 TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close Editor; export needs a track", "[menu-model][editor-menu]")

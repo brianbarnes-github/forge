@@ -82,6 +82,7 @@ namespace lotro
         s.keyboardLabels = owner.getKeyboardLabels();
         s.noteShape = owner.getNoteShape();
         s.noteColourMode = owner.getNoteColourMode();
+        s.noteLabels = owner.getNoteLabels();
         if (const auto key = owner.currentSnapKey())
         {
             s.snapRootIndex = key->rootIndex;
@@ -213,6 +214,19 @@ namespace lotro
                 setNoteColourMode (mode);
                 if (onNoteColourModeChanged)
                     onNoteColourModeChanged (mode);
+                return;
+            }
+            case EditorViewNoteNames:
+            case EditorViewNoteVelocities:
+            {
+                auto labels = getNoteLabels();
+                if (commandId == EditorViewNoteNames)
+                    labels.names = ! labels.names;
+                else
+                    labels.velocities = ! labels.velocities;
+                setNoteLabels (labels);
+                if (onNoteLabelsChanged)
+                    onNoteLabelsChanged (labels);
                 return;
             }
             case EditorOptionsSnapToKeyEnabled:
