@@ -2580,3 +2580,73 @@ TEST_CASE ("PianoRollComponent: Color Note by recolours Source notes; the Previe
     CHECK (isNearColour (paintWholeCanvas (preview).getPixelAt (previewCentre.x, previewCentre.y),
                          juce::Colour (previewSource.getNote (0).colourArgb), 16));
 }
+
+TEST_CASE ("PianoRollComponent: Diamond draws a diamond at the note start; the Preview roll keeps rectangles", "[piano-roll][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    constexpr juce::uint32 trackArgb = 0xFF3366CCu;
+    fixture.track.setProperty (SongIDs::colorArgb, (int) trackArgb, nullptr);
+    const auto fill = juce::Colour (trackArgb);
+
+    const auto bounds = Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (1));
+    const int centreY = bounds.y + bounds.height / 2;
+    const int pastDiamondX = bounds.x + bounds.height / 2 + 6;
+    REQUIRE (pastDiamondX < bounds.x + bounds.width - 2);
+
+    CHECK (fixture.roll.getNoteShape() == NoteShape::rectangle);
+    const auto rectPixel = paintWholeCanvas (fixture.roll).getPixelAt (pastDiamondX, centreY);
+    CHECK (isNearColour (rectPixel, fill, 16));
+
+    fixture.roll.setNoteShape (NoteShape::diamond);
+    CHECK (fixture.roll.getNoteShape() == NoteShape::diamond);
+    auto image = paintWholeCanvas (fixture.roll);
+    const auto diamondPixel = image.getPixelAt (pastDiamondX, centreY);
+    CHECK_FALSE (isNearColour (diamondPixel, fill, 40));
+    CHECK (isNearColour (image.getPixelAt (bounds.x, centreY), fill, 16));
+    CHECK (isNearColour (image.getPixelAt (bounds.x - bounds.height / 4, centreY), fill, 24));
+
+    fixture.roll.setNoteShape (NoteShape::diamondLength);
+    const auto linePixel = paintWholeCanvas (fixture.roll).getPixelAt (pastDiamondX, centreY);
+    CHECK (linePixel != diamondPixel);
+    CHECK_FALSE (isNearColour (linePixel, diamondPixel, 20));
+
+    PreviewNote previewNote;
+    previewNote.prePitch = 64;
+    previewNote.startTick = 0;
+    previewNote.durationTicks = ticksPerQuarter;
+    previewNote.state = NoteState::Normal;
+    PreviewNoteSource previewSource ({ previewNote });
+    PianoRollComponent preview (PianoRollComponent::Role::Preview);
+    preview.setBounds (0, 0, viewportWidth, viewportHeight);
+    preview.setNoteSource (&previewSource, ticksPerQuarter, {});
+    preview.setNoteShape (NoteShape::diamond);
+
+    const auto pb = Access::geometry (preview).noteBounds (previewSource.getNote (0));
+    CHECK (isNearColour (paintWholeCanvas (preview).getPixelAt (pb.x + pb.height / 2 + 6, pb.y + pb.height / 2),
+                         juce::Colour (previewSource.getNote (0).colourArgb), 16));
+}
+
+TEST_CASE ("PianoRollComponent: a repaint covering only a diamond's left half still draws it", "[piano-roll][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64 });
+    constexpr juce::uint32 trackArgb = 0xFF3366CCu;
+    fixture.track.setProperty (SongIDs::colorArgb, (int) trackArgb, nullptr);
+    fixture.roll.setNoteShape (NoteShape::diamond);
+
+    const auto bounds = Access::geometry (fixture.roll).noteBounds (fixture.source->getNote (1));
+    const int half = bounds.height / 2;
+    // Ends short of the note's own rect and its overhang.
+    const juce::Rectangle<int> clip (bounds.x - half, 0, half - ThemePaint::noteOverhang - 1,
+                                     Access::canvas (fixture.roll).getHeight());
+
+    auto& canvas = Access::canvas (fixture.roll);
+    juce::Image image (juce::Image::ARGB, canvas.getWidth(), canvas.getHeight(), true, juce::SoftwareImageType());
+    {
+        juce::Graphics g (image);
+        g.reduceClipRegion (clip);
+        Access::paintCanvas (fixture.roll, g, clip);
+    }
+    CHECK (isNearColour (image.getPixelAt (bounds.x - half / 2 - 1, bounds.y + half), juce::Colour (trackArgb), 40));
+}

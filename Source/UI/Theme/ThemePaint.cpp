@@ -65,6 +65,53 @@ void paintNoteBody (juce::Graphics& g, juce::Rectangle<int> rect, juce::Colour f
     }
 }
 
+void paintDiamondNote (juce::Graphics& g, juce::Rectangle<int> square, juce::Rectangle<int> lengthLine,
+                       juce::Colour fill, const NoteStyle& style)
+{
+    if (square.isEmpty())
+        return;
+
+    if (! lengthLine.isEmpty())
+    {
+        g.setColour (fill.withAlpha (0.7f));
+        g.fillRect (lengthLine);
+        if (style.selected)
+        {
+            g.setColour (juce::Colours::white);
+            g.drawRect (lengthLine.expanded (1), 1);
+        }
+    }
+
+    const auto r = square.toFloat();
+    juce::Path diamond;
+    diamond.startNewSubPath (r.getCentreX(), r.getY());
+    diamond.lineTo (r.getRight(), r.getCentreY());
+    diamond.lineTo (r.getCentreX(), r.getBottom());
+    diamond.lineTo (r.getX(), r.getCentreY());
+    diamond.closeSubPath();
+
+    // Fast path: zoomed-out notes are too small for the gradient or edge to show.
+    if (square.getHeight() < smallNoteSize)
+    {
+        g.setColour (fill);
+        g.fillPath (diamond);
+    }
+    else
+    {
+        g.setGradientFill (juce::ColourGradient (fill.brighter (0.15f), 0.0f, r.getY(),
+                                                 fill.darker (0.15f), 0.0f, r.getBottom(), false));
+        g.fillPath (diamond);
+        g.setColour (style.border.value_or (fill.brighter (0.4f)));
+        g.strokePath (diamond, juce::PathStrokeType (1.0f));
+    }
+
+    if (style.selected)
+    {
+        g.setColour (juce::Colours::white);
+        g.strokePath (diamond, juce::PathStrokeType (1.0f));
+    }
+}
+
 juce::Path anvilPath()
 {
     juce::Path p;

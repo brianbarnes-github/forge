@@ -105,6 +105,10 @@ public:
     // keeps each note's own colour whatever this says.
     void setNoteColourMode (NoteColourMode mode);
     NoteColourMode getNoteColourMode() const noexcept { return noteColourMode; }
+    // How a Source note is drawn and hit (View > Piano Roll Notes); the Preview
+    // roll keeps rectangles whatever this says.
+    void setNoteShape (NoteShape shape);
+    NoteShape getNoteShape() const noexcept { return noteShape; }
     // Whether a playing playhead scrolls the view to stay visible.
     void setFollowPlayhead (bool on) noexcept { followEnabled = on; }
     bool getFollowPlayhead() const noexcept { return followEnabled; }
@@ -402,6 +406,7 @@ private:
     std::vector<juce::ValueTree> ghostTracks; // Source role only; see setGhostTracks.
     KeyboardLabels keyboardLabels = KeyboardLabels::pianoNotes;
     NoteColourMode noteColourMode = NoteColourMode::track;
+    NoteShape noteShape = NoteShape::rectangle;
     int hoveredPitch = -1;
     int activePitch = -1; // Source role only; see getActivePitch.
     // Unrounded row height (accumulates fractional wheel deltas) and the rounded

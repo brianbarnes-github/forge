@@ -28,6 +28,12 @@ namespace lotro::ThemePaint
     // A rounded, gradient-filled note with an edge and (if tall enough) a soft glow.
     void paintNoteBody (juce::Graphics& g, juce::Rectangle<int> rect, juce::Colour fill, const NoteStyle& style = {});
 
+    // A gradient-filled diamond inscribed in `square`, with an edge but no glow, and
+    // (when lengthLine is not empty) a flat line out to the note's end under it.
+    // Selected outlines both in white.
+    void paintDiamondNote (juce::Graphics& g, juce::Rectangle<int> square, juce::Rectangle<int> lengthLine,
+                           juce::Colour fill, const NoteStyle& style = {});
+
     // The anvil mark in unit space (x 0..1, y 0.10..0.70).
     juce::Path anvilPath();
 

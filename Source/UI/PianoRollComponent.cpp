@@ -1,5 +1,6 @@
 #include "PianoRollComponent.h"
 #include "NoteColours.h"
+#include "NoteFootprint.h"
 #include "NoteNavigation.h"
 #include "GridLinePaint.h"
 #include "SongDocument.h"
@@ -929,6 +930,14 @@ void PianoRollComponent::setNoteColourMode (NoteColourMode mode)
     canvas.repaint();
 }
 
+void PianoRollComponent::setNoteShape (NoteShape shape)
+{
+    noteShape = shape;
+    if (sourceEditor != nullptr)
+        sourceEditor->setNoteShape (shape);
+    canvas.repaint();
+}
+
 void PianoRollComponent::paintGutter (juce::Graphics& g) const
 {
     if (keyboardLabels == KeyboardLabels::midiNumbers)
@@ -1134,6 +1143,8 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         const auto note = noteSource->getNote (i);
         const auto bounds = geometry.noteBounds (note);
         const juce::Rectangle<int> rect (bounds.x, bounds.y, bounds.width, bounds.height);
+        const auto shape = role == Role::Source ? noteShape : NoteShape::rectangle;
+        const auto footprint = noteFootprint (bounds, shape);
 
         const bool hasGhost = role == Role::Preview && note.state == NoteState::WillFold && note.postPitch.has_value();
         const juce::Rectangle<int> ghostRect = hasGhost
@@ -1146,7 +1157,8 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         // contains the ghost's row but not the solid rect's row still draws
         // the note.
         // Glow and selection edge reach noteOverhang px beyond the note.
-        const auto paintedRect = rect.expanded (ThemePaint::noteOverhang);
+        // A diamond reaches half a row left of the note's start.
+        const auto paintedRect = footprint.hit.expanded (ThemePaint::noteOverhang);
         if (! (hasGhost ? paintedRect.getUnion (ghostRect) : paintedRect).intersects (clip))
             continue;
 
@@ -1159,7 +1171,10 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
                                                                          : SongsmithColours::outOfRangeBorder);
         style.selected = role == Role::Source && sourceEditor != nullptr
             && sourceEditor->isSelected (SongDocument::getNotesNode (sourceEditor->getTrackNode()).getChild (i));
-        ThemePaint::paintNoteBody (g, rect, fill, style);
+        if (shape == NoteShape::rectangle)
+            ThemePaint::paintNoteBody (g, rect, fill, style);
+        else
+            ThemePaint::paintDiamondNote (g, footprint.body, footprint.lengthLine, fill, style);
 
         if (role != Role::Preview)
             continue;

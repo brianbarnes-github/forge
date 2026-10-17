@@ -129,3 +129,60 @@ TEST_CASE ("ThemePaint: the app icon has copper pixels on a transparent ground",
     CHECK (icon.getPixelAt (0, 0).getAlpha() == 0);
     CHECK (isNear (icon.getPixelAt (32, 30), juce::Colour (SongsmithColours::accentCopper), 40));
 }
+
+namespace
+{
+    int countNearWhite (const juce::Image& image)
+    {
+        int count = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+                if (isNear (image.getPixelAt (x, y), juce::Colours::white, 40))
+                    ++count;
+        return count;
+    }
+}
+
+TEST_CASE ("ThemePaint: a diamond note fills its centre and leaves its square's corners clear", "[theme][note-display]")
+{
+    auto image = blank (60, 40);
+    { juce::Graphics g (image); ThemePaint::paintDiamondNote (g, { 20, 10, 14, 14 }, {}, fill); }
+    CHECK (isNear (image.getPixelAt (27, 17), fill, 16));
+    for (auto corner : { juce::Point<int> (20, 10), juce::Point<int> (33, 10), juce::Point<int> (20, 23), juce::Point<int> (33, 23) })
+    {
+        CAPTURE (corner.x, corner.y);
+        CHECK (image.getPixelAt (corner.x, corner.y) == juce::Colours::black);
+    }
+}
+
+TEST_CASE ("ThemePaint: a diamond with a length line paints the line to its end", "[theme][note-display]")
+{
+    auto image = blank (80, 40);
+    { juce::Graphics g (image); ThemePaint::paintDiamondNote (g, { 20, 10, 14, 14 }, { 27, 16, 40, 2 }, fill); }
+    CHECK (image.getPixelAt (50, 16).getBrightness() > 0.2f);
+    CHECK (image.getPixelAt (66, 17).getBrightness() > 0.2f);
+    CHECK (image.getPixelAt (50, 13) == juce::Colours::black);
+    CHECK (image.getPixelAt (70, 16) == juce::Colours::black);
+}
+
+TEST_CASE ("ThemePaint: a selected diamond is outlined in white", "[theme][note-display]")
+{
+    auto plain = blank (80, 40);
+    { juce::Graphics g (plain); ThemePaint::paintDiamondNote (g, { 20, 10, 14, 14 }, { 27, 16, 40, 2 }, fill); }
+    CHECK (countNearWhite (plain) == 0);
+
+    ThemePaint::NoteStyle selected;
+    selected.selected = true;
+    auto image = blank (80, 40);
+    { juce::Graphics g (image); ThemePaint::paintDiamondNote (g, { 20, 10, 14, 14 }, { 27, 16, 40, 2 }, fill, selected); }
+    CHECK (countNearWhite (image) > 20);
+    // The line is outlined too, out past the diamond.
+    CHECK (isNear (image.getPixelAt (50, 15), juce::Colours::white, 40));
+}
+
+TEST_CASE ("ThemePaint: a diamond too small for the gradient still fills", "[theme][note-display]")
+{
+    auto image = blank (20, 20);
+    { juce::Graphics g (image); ThemePaint::paintDiamondNote (g, { 5, 5, 3, 3 }, {}, fill); }
+    CHECK (image.getPixelAt (6, 6).getBrightness() > 0.1f);
+}
