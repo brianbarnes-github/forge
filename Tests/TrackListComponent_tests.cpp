@@ -3739,3 +3739,29 @@ TEST_CASE ("TrackListComponent: the ruler's playhead cap follows the playhead", 
     CHECK (later->getCentreX() > first->getCentreX());
     CHECK (list.rulerForTesting()->capRepaintsForTesting() > repaints);   // the owner told the ruler
 }
+
+TEST_CASE ("TrackListComponent: the colour mode reaches every row and survives a rebuild", "[track-list][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    doc.addTrack ("Track A", (int) 0xFF3366CC, 0, 1);
+    TrackListComponent list (doc);
+    list.setBounds (0, 0, 900, 400);
+    const auto pump = [] { juce::MessageManager::getInstance()->runDispatchLoopUntil (100); };
+    pump();
+    REQUIRE (Access::numRows (list) > 0);
+
+    CHECK (list.getNoteColourMode() == NoteColourMode::track);
+    list.setNoteColourMode (NoteColourMode::pitch);
+    CHECK (list.getNoteColourMode() == NoteColourMode::pitch);
+    for (auto* row : Access::rows (list))
+        CHECK (row->getNoteColourMode() == NoteColourMode::pitch);
+
+    const int before = list.rebuildCountForTesting();
+    doc.addTrack ("Track B", (int) 0xFFCC6633, 0, 2);
+    pump();
+    REQUIRE (list.rebuildCountForTesting() > before);
+    REQUIRE (Access::numRows (list) >= 2);
+    for (auto* row : Access::rows (list))
+        CHECK (row->getNoteColourMode() == NoteColourMode::pitch);
+}

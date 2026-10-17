@@ -93,6 +93,13 @@ void TrackListComponent::HeadDivider::mouseWheelMove (const juce::MouseEvent& e,
     owner.handleWheel (WheelRegion::Heads, e.mods, wheel, e.getEventRelativeTo (&owner).y);
 }
 
+void TrackListComponent::setNoteColourMode (NoteColourMode mode)
+{
+    noteColourMode = mode;
+    for (auto* row : content.rows)
+        row->setNoteColourMode (mode);
+}
+
 void TrackListComponent::setHeadWidth (int width)
 {
     const int clamped = headwidth::clamp (width);
@@ -317,6 +324,7 @@ void TrackListComponent::rebuild()
     {
         auto* row = content.rows.add (new TrackRowComponent (doc.getTrack (i), i, timelineView));
         row->setHeadWidth (headWidth);
+        row->setNoteColourMode (noteColourMode);
         if ((bool) doc.getTrack (i).getProperty (SongIDs::isConductor, false))
         {
             row->setTempoText (conductorTempoText());

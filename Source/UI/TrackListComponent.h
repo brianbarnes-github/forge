@@ -79,6 +79,10 @@ public:
     void setHeadWidth (int width);
     int getHeadWidth() const noexcept { return headWidth; }
 
+    // View > Color Note by for every row's note bars, rows built later included.
+    void setNoteColourMode (NoteColourMode mode);
+    NoteColourMode getNoteColourMode() const noexcept { return noteColourMode; }
+
     // Fired once when a divider drag that changed the width is released, with the new
     // width (not on every drag step: the owner saves it to the settings file).
     std::function<void (int)> onHeadWidthChanged;
@@ -407,6 +411,7 @@ private:
     PlaybackController* playback = nullptr;
     bool                followEnabled = true;
     int                 headWidth = TrackRowComponent::trackInfoWidth;
+    NoteColourMode      noteColourMode = NoteColourMode::track;
     MergeScope          mergeScope = MergeScope::notesOnly;
 
     struct SectionGesture

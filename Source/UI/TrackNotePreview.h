@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "ConductorMarkers.h"
+#include "NoteDisplay.h"
 #include "SectionViewState.h"
 #include "SongDocument.h"
 #include "TimelineViewState.h"
@@ -26,6 +27,11 @@ namespace lotro
 
         void setGhostVisible (bool shouldBeVisible) noexcept { ghostVisible = shouldBeVisible; }
         bool isGhostVisible() const noexcept { return ghostVisible; }
+
+        // View > Color Note by: what each note bar's colour shows (the track's colour
+        // by default).
+        void setNoteColourMode (NoteColourMode mode) noexcept { noteColourMode = mode; repaint(); }
+        NoteColourMode getNoteColourMode() const noexcept { return noteColourMode; }
 
         // Bounds of the eye-icon ghost toggle, in this component's local
         // coordinates (top-right corner).
@@ -105,6 +111,7 @@ namespace lotro
         juce::ValueTree track;
         const TimelineViewState& viewState;
         bool ghostVisible = false;
+        NoteColourMode noteColourMode = NoteColourMode::track;
         const SectionViewState* sectionView = nullptr;
         juce::int64 trackId = 0;
         bool sectionPressActive = false;

@@ -36,6 +36,10 @@ public:
     // recreates this row (see TrackListComponent::isTrackGhosted).
     void setGhostVisible (bool shouldBeVisible);
 
+    // View > Color Note by, for the embedded preview's note bars.
+    void setNoteColourMode (NoteColourMode mode) noexcept { notePreview.setNoteColourMode (mode); }
+    NoteColourMode getNoteColourMode() const noexcept { return notePreview.getNoteColourMode(); }
+
     juce::int64 getTrackId() const;
 
     // Hands the list's shared section state to the embedded preview (see

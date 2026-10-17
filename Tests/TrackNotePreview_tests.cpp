@@ -1,5 +1,6 @@
 // Tests/TrackNotePreview_tests.cpp
 #include "UI/TrackNotePreview.h"
+#include "UI/NoteColours.h"
 #include "UI/SongDocument.h"
 #include "UI/SongsmithColours.h"
 #include "UI/SectionEdit.h"
@@ -10,6 +11,8 @@
 #include "UI/TempoEdit.h"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <tuple>
 
 using namespace lotro;
 
@@ -1066,4 +1069,59 @@ TEST_CASE ("TrackNotePreview: a non-Conductor row never reports a marker click, 
     preview.mouseDown (previewMouseAt (preview, view.xForTick (0), 3));
     CHECK (probe.markers.empty());
     CHECK (probe.timelineTicks.size() == 2);
+}
+
+TEST_CASE ("TrackNotePreview: Color Note by colours each bar", "[track-note-preview][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+
+    constexpr juce::uint32 trackColour = 0xFF80C878;
+    juce::ValueTree track (SongIDs::MIDI_TRACK);
+    track.setProperty (SongIDs::colorArgb, (int) trackColour, nullptr);
+    juce::ValueTree notes (SongIDs::NOTES);
+    for (auto [pitch, start, velocity] : { std::tuple { 60, 0, 0 }, std::tuple { 72, 960, 127 } })
+    {
+        juce::ValueTree note (SongIDs::NOTE);
+        note.setProperty (SongIDs::pitch, pitch, nullptr);
+        note.setProperty (SongIDs::startTick, start, nullptr);
+        note.setProperty (SongIDs::durationTicks, 480, nullptr);
+        note.setProperty (SongIDs::velocity, velocity, nullptr);
+        notes.appendChild (note, nullptr);
+    }
+    // No velocity or channel: reads 64 / channel 1.
+    juce::ValueTree bare (SongIDs::NOTE);
+    bare.setProperty (SongIDs::pitch, 66, nullptr);
+    bare.setProperty (SongIDs::startTick, 1920, nullptr);
+    bare.setProperty (SongIDs::durationTicks, 480, nullptr);
+    notes.appendChild (bare, nullptr);
+    track.appendChild (notes, nullptr);
+
+    TimelineViewState viewState;
+    viewState.setPixelsPerTick (0.1);
+    viewState.setScrollOffsetTicks (0.0);
+
+    TrackNotePreview preview (track, viewState);
+    preview.setBounds (0, 0, previewWidth, previewHeight);
+
+    const auto paintAt = [&] (int tick, int y)
+    {
+        juce::Image image (juce::Image::ARGB, previewWidth, previewHeight, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        preview.paint (g);
+        return image.getPixelAt (viewState.xForTick (tick) + 1, y);
+    };
+    const int bareY = juce::roundToInt ((1.0f - 6.0f / 12.0f) * (float) (previewHeight - 2));
+
+    CHECK (preview.getNoteColourMode() == NoteColourMode::track);
+    CHECK (paintAt (0, previewHeight - 2) == juce::Colour (trackColour));
+    CHECK (paintAt (960, 0) == juce::Colour (trackColour));
+
+    preview.setNoteColourMode (NoteColourMode::velocity);
+    CHECK (preview.getNoteColourMode() == NoteColourMode::velocity);
+    CHECK (paintAt (0, previewHeight - 2) == juce::Colour (0xFF2F5BD8u));
+    CHECK (paintAt (960, 0) == juce::Colour (0xFFE52C32u));
+    CHECK (paintAt (1920, bareY) == juce::Colour (noteColourFor (NoteColourMode::velocity, 66, 64, 1, 0)));
+
+    preview.setNoteColourMode (NoteColourMode::channel);
+    CHECK (paintAt (1920, bareY) == juce::Colour (0xFFE5484Du));
 }

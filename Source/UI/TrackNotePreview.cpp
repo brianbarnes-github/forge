@@ -1,6 +1,7 @@
 #include "TrackNotePreview.h"
 #include "GridLinePaint.h"
 #include "ConductorMarkers.h"
+#include "NoteColours.h"
 #include "SongsmithColours.h"
 #include "TempoEdit.h"
 
@@ -192,11 +193,14 @@ namespace lotro
             const bool moving = sectionView != nullptr && sectionView->drag
                                 && sectionView->drag->kind == SectionDragPreview::Kind::Move;
 
-            g.setColour (juce::Colour ((juce::uint32) (int) track.getProperty (SongIDs::colorArgb)));
+            const auto trackArgb = (juce::uint32) (int) track.getProperty (SongIDs::colorArgb);
             for (int i = 0; i < notes.getNumChildren(); ++i)
             {
                 auto note = notes.getChild (i);
                 const int pitch = (int) note.getProperty (SongIDs::pitch);
+                // Absent velocity / channel read playback's defaults.
+                g.setColour (juce::Colour (noteColourFor (noteColourMode, pitch, (int) note.getProperty (SongIDs::velocity, 64),
+                                                          (int) note.getProperty (SongIDs::channel, 1), trackArgb)));
                 int startTick = (int) note.getProperty (SongIDs::startTick);
                 if (moving && sectionView->selected.count ({ trackId, sectionIdOfNote (note, sections) }) > 0)
                     startTick += sectionView->drag->deltaTicks;
