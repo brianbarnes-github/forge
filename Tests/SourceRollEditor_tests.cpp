@@ -1460,3 +1460,88 @@ TEST_CASE ("SourceRollEditor: with Diamond the rubber band tests the diamond, no
         f.editor.mouseUp (end);
     }
 }
+
+TEST_CASE ("SourceRollEditor: Insert Note adds the note a double-click would, on the given row, and selects it", "[source-roll-editor][editor-edit]")
+{
+    Fixture f;
+    ChangeRecorder rec;
+    f.editor.setNoteChangeListener (rec.listener());
+    f.editor.setGridTicks (eighth);
+    f.editor.setSnapToGrid (true);
+    f.doc.getUndoManager().clearUndoHistory();
+
+    // Snapped: the start of the grid cell, running to the next line.
+    REQUIRE (f.editor.canInsertNote (3 * ticksPerQuarter + 100, 62));
+    REQUIRE (f.editor.insertNote (3 * ticksPerQuarter + 100, 62));
+    auto added = SongDocument::getNotesNode (f.track).getChild (2);
+    CHECK ((int) added.getProperty (SongIDs::pitch) == 62);
+    CHECK ((int) added.getProperty (SongIDs::startTick) == 3 * ticksPerQuarter);
+    CHECK ((int) added.getProperty (SongIDs::durationTicks) == eighth);
+    CHECK (f.editor.getNumSelected() == 1);
+    CHECK (f.editor.isSelected (added));
+    REQUIRE (rec.calls.size() == 1);
+    CHECK (rec.calls[0].change == NoteChange::inserted);
+
+    // A Note Length sets the length; unsnapped the start is the tick itself.
+    f.editor.setSnapToGrid (false);
+    f.editor.setNoteLength (GridLength::Half, GridDivision::Straight);
+    REQUIRE (f.editor.insertNote (5 * ticksPerQuarter + 100, 62));
+    added = SongDocument::getNotesNode (f.track).getChild (3);
+    CHECK ((int) added.getProperty (SongIDs::startTick) == 5 * ticksPerQuarter + 100);
+    CHECK ((int) added.getProperty (SongIDs::durationTicks) == 2 * ticksPerQuarter);
+
+    f.doc.undo();
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 3);
+}
+
+TEST_CASE ("SourceRollEditor: Insert Note refuses a row Snap to Key forbids or a tick inside a note on that row", "[source-roll-editor][editor-edit]")
+{
+    Fixture f;
+    f.editor.selectOnly (f.noteA);
+    f.doc.getUndoManager().clearUndoHistory();
+
+    // noteA covers 0..480 on 60.
+    CHECK_FALSE (f.editor.canInsertNote (200, 60));
+    CHECK_FALSE (f.editor.insertNote (200, 60));
+    CHECK (f.editor.canInsertNote (200, 61));
+    CHECK (f.editor.canInsertNote (ticksPerQuarter, 60));   // the note's end is free
+
+    f.editor.setPitchFilter ([] (int pitch) { return pitch != 61; });
+    CHECK_FALSE (f.editor.canInsertNote (200, 61));
+    CHECK_FALSE (f.editor.insertNote (200, 61));
+    CHECK_FALSE (f.editor.canInsertNote (200, -1));   // no active row
+
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    CHECK (f.editor.isSelected (f.noteA));
+    CHECK_FALSE (f.doc.canUndo());
+}
+
+TEST_CASE ("SourceRollEditor: Split, Join and Legato act on the selection and keep it", "[source-roll-editor][editor-edit]")
+{
+    Fixture f;
+    // noteA 60 at 0..480, noteB 64 at 480..960.
+    f.editor.selectOnly (f.noteA);
+    f.editor.addToSelection (f.noteB);
+
+    CHECK_FALSE (f.editor.canSplitSelection (ticksPerQuarter));
+    CHECK (f.editor.canSplitSelection (240));
+    REQUIRE (f.editor.splitSelection (240));
+    CHECK (f.editor.getNumSelected() == 3);
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 3);
+
+    CHECK (f.editor.canJoinSelection());
+    REQUIRE (f.editor.joinSelection());
+    CHECK (f.editor.getNumSelected() == 2);
+    CHECK (f.editor.isSelected (f.noteA));
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+    CHECK_FALSE (f.editor.canJoinSelection());
+    CHECK_FALSE (f.editor.joinSelection());
+
+    f.noteA.setProperty (SongIDs::durationTicks, 100, nullptr);
+    CHECK (f.editor.canLegatoSelection());
+    REQUIRE (f.editor.legatoSelection());
+    CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+    CHECK (f.editor.getNumSelected() == 2);
+    CHECK_FALSE (f.editor.canLegatoSelection());
+    CHECK_FALSE (f.editor.legatoSelection());
+}

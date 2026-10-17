@@ -146,6 +146,25 @@ public:
     // was added (an empty clipboard or no track).
     bool paste (const NoteClipboard& clipboard, int startTick);
 
+    // Edit > Insert Note: whether insertNote would add a note -- `pitch` is a row
+    // (not -1) the pitch filter allows, and no note on it covers `tick`.
+    bool canInsertNote (int tick, int pitch) const;
+    // Adds the note a double-click at `tick` on `pitch` would (Snap to Grid and Note
+    // Length as set, never Alt), selects only it and reports it inserted. One undo
+    // transaction; false (nothing changed) unless canInsertNote.
+    bool insertNote (int tick, int pitch);
+
+    // Edit > Split Notes / Join Notes / Legato on the selection (see NoteEdit.h,
+    // one undo transaction each, none when nothing changes). Split selects both
+    // halves; Join drops the absorbed notes from the selection; Legato keeps it.
+    // None reports a NoteChange. Each returns false when nothing changed.
+    bool canSplitSelection (int tick);
+    bool splitSelection (int tick);
+    bool canJoinSelection();
+    bool joinSelection();
+    bool canLegatoSelection();
+    bool legatoSelection();
+
     // The whole document's undo / redo (as Ctrl+Z / Ctrl+Y), then drops any
     // selected note it took away.
     void undo();
@@ -189,7 +208,9 @@ private:
     void toggleSelection (const juce::ValueTree& note);
     void pruneSelection();
     void updateRubberBandSelection();
-    void createNoteAt (juce::Point<int> pos, bool snap);
+    // Adds a note on `pitch` starting at `tick` (the grid cell's start when `snap`),
+    // selects only it and reports it inserted.
+    void createNoteAt (int tick, int pitch, bool snap);
     bool snapsWith (juce::ModifierKeys mods) const;
     void markTimingEdited (juce::ValueTree note);
     void reportChange (NoteChange change, const std::vector<juce::ValueTree>& notes) const;

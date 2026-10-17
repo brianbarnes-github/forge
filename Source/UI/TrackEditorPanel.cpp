@@ -21,7 +21,12 @@ namespace lotro
                 { juce::KeyPress ('c', cmd, 0), EditorEditCopy },
                 { juce::KeyPress ('v', cmd, 0), EditorEditPaste },
                 { juce::KeyPress ('v', cmdShift, 0), EditorEditPasteAtOrigin },
-                { juce::KeyPress ('a', cmd, 0), EditorEditSelectAll } };
+                { juce::KeyPress ('a', cmd, 0), EditorEditSelectAll },
+                // Plain letters only; Ctrl/Cmd+S stays the main window's Save.
+                { juce::KeyPress ('i'), EditorEditInsertNote },
+                { juce::KeyPress ('s'), EditorEditSplitNotes },
+                { juce::KeyPress ('j'), EditorEditJoinNotes },
+                { juce::KeyPress ('l'), EditorEditLegato } };
             for (const auto& [shortcut, command] : shortcuts)
                 if (key == shortcut)
                     return command;
@@ -89,6 +94,10 @@ namespace lotro
         s.hasNotes = s.hasTrack && owner.roll.hasNotes();
         s.canPaste = owner.canPaste();
         s.canPasteAtOrigin = s.hasTrack && ! owner.clipboard.empty();
+        s.canInsertNote = owner.canInsertNote();
+        s.canSplitNotes = owner.canSplitNotes();
+        s.canJoinNotes = s.hasTrack && owner.roll.canJoinNotes();
+        s.canLegato = s.hasTrack && owner.roll.canLegatoNotes();
         s.snapToGrid = owner.snapToGrid;
         s.canStepMarker = owner.canStepMarker();
         s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
@@ -161,7 +170,7 @@ namespace lotro
                 return;
             case EditorEditPaste:
                 if (canPaste())
-                    roll.pasteNotes (clipboard, std::max (0, juce::roundToInt (cursorTick())));
+                    roll.pasteNotes (clipboard, cursorTickRounded());
                 return;
             case EditorEditPasteAtOrigin:
                 if (currentTrackId != -1)
@@ -173,6 +182,22 @@ namespace lotro
                 return;
             case EditorEditDelete:
                 roll.deleteSelectedNotes();
+                return;
+            case EditorEditInsertNote:
+                if (canInsertNote())
+                    roll.insertNote (cursorTickRounded());
+                return;
+            case EditorEditSplitNotes:
+                if (canSplitNotes())
+                    roll.splitNotes (cursorTickRounded());
+                return;
+            case EditorEditJoinNotes:
+                if (currentTrackId != -1)
+                    roll.joinNotes();
+                return;
+            case EditorEditLegato:
+                if (currentTrackId != -1)
+                    roll.legatoNotes();
                 return;
             case EditorNavigateMarkerLeft:
                 stepMarker (-1);
@@ -446,6 +471,21 @@ namespace lotro
     double TrackEditorPanel::cursorTick() const
     {
         return playback->getMarkerTick().value_or (playback->getPositionTicks());
+    }
+
+    int TrackEditorPanel::cursorTickRounded() const
+    {
+        return std::max (0, juce::roundToInt (cursorTick()));
+    }
+
+    bool TrackEditorPanel::canInsertNote() const
+    {
+        return currentTrackId != -1 && playback != nullptr && roll.canInsertNote (cursorTickRounded());
+    }
+
+    bool TrackEditorPanel::canSplitNotes() const
+    {
+        return currentTrackId != -1 && playback != nullptr && roll.canSplitNotes (cursorTickRounded());
     }
 
     bool TrackEditorPanel::canSelectNearestNote() const

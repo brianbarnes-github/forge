@@ -215,6 +215,12 @@ namespace lotro
         bool canStepMarker() const;
         // The cursor's time: the start marker, else the playhead. Needs playback.
         double cursorTick() const;
+        // cursorTick rounded to a whole tick, never before 0 (Paste, Insert, Split).
+        int cursorTickRounded() const;
+        // Edit > Insert Note: a track, playback, and the roll would add a note at the cursor.
+        bool canInsertNote() const;
+        // Edit > Split Notes: a track, playback, and the cursor inside a selected note.
+        bool canSplitNotes() const;
         // A track with notes, and playback.
         bool canSelectNearestNote() const;
         // Moves the start marker (or, with none, the playhead's tick) to the previous

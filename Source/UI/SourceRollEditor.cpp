@@ -1,4 +1,5 @@
 #include "SourceRollEditor.h"
+#include "NoteEdit.h"
 #include "NoteFootprint.h"
 #include "SectionEdit.h"
 
@@ -189,7 +190,7 @@ bool SourceRollEditor::mouseDown (juce::Point<int> pos, juce::ModifierKeys mods,
         if (pitchAllowed && ! pitchAllowed (geometry.pitchForY (pos.y)))
             return false;
 
-        createNoteAt (pos, snapsWith (mods));
+        createNoteAt (std::max (0, geometry.tickForX (pos.x)), geometry.pitchForY (pos.y), snapsWith (mods));
         return true;
     }
 
@@ -422,6 +423,68 @@ std::vector<juce::ValueTree> SourceRollEditor::getSelectedNotes()
     return selection;
 }
 
+bool SourceRollEditor::canInsertNote (int tick, int pitch) const
+{
+    if (! track.isValid() || pitch < 0 || pitch > 127 || (pitchAllowed && ! pitchAllowed (pitch)))
+        return false;
+    // As a double-click inside a note's length (drawn or not) adds nothing.
+    const auto notes = SongDocument::getNotesNode (track);
+    for (int i = 0; i < notes.getNumChildren(); ++i)
+    {
+        const auto n = notes.getChild (i);
+        const int start = (int) n.getProperty (SongIDs::startTick);
+        if ((int) n.getProperty (SongIDs::pitch) == pitch && start <= tick
+            && tick < start + (int) n.getProperty (SongIDs::durationTicks))
+            return false;
+    }
+    return true;
+}
+
+bool SourceRollEditor::insertNote (int tick, int pitch)
+{
+    if (! canInsertNote (tick, pitch))
+        return false;
+    createNoteAt (std::max (0, tick), pitch, snapsWith ({}));
+    return true;
+}
+
+bool SourceRollEditor::canSplitSelection (int tick)
+{
+    return canSplitNotes (getSelectedNotes(), tick);
+}
+
+bool SourceRollEditor::splitSelection (int tick)
+{
+    auto split = splitNotes (doc, track, getSelectedNotes(), tick);
+    if (split.empty())
+        return false;
+    selection = std::move (split);
+    return true;
+}
+
+bool SourceRollEditor::canJoinSelection()
+{
+    return canJoinNotes (getSelectedNotes());
+}
+
+bool SourceRollEditor::joinSelection()
+{
+    if (! canJoinSelection())
+        return false;
+    selection = joinNotes (doc, track, selection);
+    return true;
+}
+
+bool SourceRollEditor::canLegatoSelection()
+{
+    return canLegatoNotes (track, getSelectedNotes());
+}
+
+bool SourceRollEditor::legatoSelection()
+{
+    return legatoNotes (doc, track, getSelectedNotes());
+}
+
 bool SourceRollEditor::paste (const NoteClipboard& clipboard, int startTick)
 {
     auto added = pasteNotes (doc, track, clipboard, startTick);
@@ -483,13 +546,12 @@ void SourceRollEditor::markTimingEdited (juce::ValueTree note)
     markNoteTimingEdited (doc, note);
 }
 
-void SourceRollEditor::createNoteAt (juce::Point<int> pos, bool snap)
+void SourceRollEditor::createNoteAt (int tick, int pitch, bool snap)
 {
     if (! track.isValid())
         return;
 
     // Snapped, the note starts at the grid line at or before the click: the cell it is in.
-    const int tick = std::max (0, geometry.tickForX (pos.x));
     const EditorGrid g = grid();
     const int startTick = snap ? (int) editorGridLineAtOrBefore (g, tick) : tick;
     // A Note Length sets it outright. Otherwise, snapped, it runs to the next line; unsnapped it
@@ -500,7 +562,7 @@ void SourceRollEditor::createNoteAt (juce::Point<int> pos, bool snap)
                               : g.spacingTicks > 0 ? g.spacingTicks : geometry.getTicksPerQuarter();
 
     juce::ValueTree note (SongIDs::NOTE);
-    note.setProperty (SongIDs::pitch, geometry.pitchForY (pos.y), nullptr);
+    note.setProperty (SongIDs::pitch, pitch, nullptr);
     note.setProperty (SongIDs::startTick, startTick, nullptr);
     note.setProperty (SongIDs::durationTicks, duration, nullptr);
     note.setProperty (SongIDs::velocity, 100, nullptr);

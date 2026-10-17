@@ -515,7 +515,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
     CHECK (model->getMenuForIndex (4, "View").getNumItems() == 6);   // piano notes, MIDI numbers, two submenus, notes in / out of key (separators not counted)
-    CHECK (model->getMenuForIndex (1, "Edit").getNumItems() == 8);   // undo, redo, cut, copy, paste, paste at origin, select all, delete
+    CHECK (model->getMenuForIndex (1, "Edit").getNumItems() == 12);   // undo, redo, cut, copy, paste, paste at origin, select all, delete, insert, split, join, legato
 
     // Still there, still on top, once the strip/ruler/roll content is built.
     lotro::playbacktest::RecordingSink sink;
@@ -2044,4 +2044,75 @@ TEST_CASE ("TrackEditorPanel: with the keyboard on the panel, Ctrl+A/C/X/V, Ctrl
     CHECK (startsOf (f.track) == std::vector<int> { 0, 0, 960, 1920, 1920, 2880 });
     CHECK (f.panel->keyPressed (juce::KeyPress ('x', cmd, 0)));   // the pasted pair is the selection
     CHECK (startsOf (f.track) == std::vector<int> { 0, 960, 1920, 2880 });
+}
+
+TEST_CASE ("TrackEditorPanel: Edit > Insert Note adds a note at the cursor on the active row and selects it", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0..9600 (pitch 60), a quarter grid, Snap to Grid on
+    using Access = TrackEditorPanelTestAccess;
+    f.controller->setMarkerTick (1920.0 + 100.0);
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditInsertNote));   // no active row yet
+
+    // A canvas click picks the active row (and moves the marker, so it is set after).
+    Access::clickRow (*f.panel, 60);
+    f.controller->setMarkerTick (1920.0 + 100.0);
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditInsertNote));   // inside the note on that row
+    Access::clickRow (*f.panel, 64);
+    f.controller->setMarkerTick (1920.0 + 100.0);
+    REQUIRE (editEnabled (*f.panel, EditorEditInsertNote));
+
+    f.panel->invokeMenuCommand (EditorEditInsertNote);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    const auto added = SongDocument::getNotesNode (f.track).getChild (1);
+    CHECK ((int) added.getProperty (SongIDs::pitch) == 64);
+    CHECK ((int) added.getProperty (SongIDs::startTick) == 1920);       // the grid cell's start
+    CHECK ((int) added.getProperty (SongIDs::durationTicks) == 480);    // to the next line
+    CHECK (Access::numSelected (*f.panel) == 1);
+    CHECK (Access::isSelected (*f.panel, added));
+
+    // I is the shortcut; refused (inside the new note) it is still claimed and adds nothing.
+    CHECK (f.panel->keyPressed (juce::KeyPress ('i')));
+    CHECK (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    f.controller->setMarkerTick (3840.0);
+    CHECK (f.panel->keyPressed (juce::KeyPress ('i')));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 1920, 3840 });
+}
+
+TEST_CASE ("TrackEditorPanel: Edit > Split Notes, Join Notes and Legato edit the selection; S, J and L are their keys", "[track-editor-window][editor-menu][editor-edit]")
+{
+    MarkerPanelFixture f;   // one long note at 0..9600 (pitch 60)
+    using Access = TrackEditorPanelTestAccess;
+    const auto original = SongDocument::getNotesNode (f.track).getChild (0);
+    f.controller->setMarkerTick (4800.0);
+
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditSplitNotes));   // nothing selected
+    CHECK (f.panel->keyPressed (juce::KeyPress ('s')));           // claimed anyway: the main page never splits sections
+    CHECK (startsOf (f.track) == std::vector<int> { 0 });
+    CHECK_FALSE (f.panel->keyPressed (juce::KeyPress ('s', cmd, 0)));   // Ctrl+S is still Save
+
+    Access::addToSelection (*f.panel, original);
+    REQUIRE (editEnabled (*f.panel, EditorEditSplitNotes));
+    f.panel->invokeMenuCommand (EditorEditSplitNotes);
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 4800 });
+    CHECK (Access::numSelected (*f.panel) == 2);
+
+    REQUIRE (editEnabled (*f.panel, EditorEditJoinNotes));
+    CHECK (f.panel->keyPressed (juce::KeyPress ('j')));
+    CHECK (startsOf (f.track) == std::vector<int> { 0 });
+    CHECK ((int) original.getProperty (SongIDs::durationTicks) == 9600);
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditJoinNotes));
+
+    CHECK (f.panel->keyPressed (juce::KeyPress ('s')));
+    CHECK (startsOf (f.track) == std::vector<int> { 0, 4800 });
+    f.panel->invokeMenuCommand (EditorEditUndo);
+    CHECK (startsOf (f.track) == std::vector<int> { 0 });
+
+    // Legato: the selected note ends where the next note on the track starts, selected or not.
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditLegato));   // no later note
+    lotro::playbacktest::addNote (f.track, 64, 1920, 480);
+    REQUIRE (editEnabled (*f.panel, EditorEditLegato));
+    CHECK (f.panel->keyPressed (juce::KeyPress ('l')));
+    CHECK ((int) original.getProperty (SongIDs::durationTicks) == 1920);
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditLegato));
+    CHECK (f.panel->keyPressed (juce::KeyPress ('l')));   // nothing left to do, still claimed
 }

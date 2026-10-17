@@ -50,6 +50,7 @@ add_executable(forge_tests
     SectionEdit_tests.cpp
     NoteMerge_tests.cpp
     NoteClipboard_tests.cpp
+    NoteEdit_tests.cpp
     ProgramChanges_tests.cpp
     InstrumentEdit_tests.cpp
     PlaybackSnapshot_tests.cpp
@@ -170,6 +171,7 @@ add_executable(forge_tests
     ${CMAKE_SOURCE_DIR}/Source/UI/SectionEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/NoteMerge.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/NoteClipboard.cpp
+    ${CMAKE_SOURCE_DIR}/Source/UI/NoteEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/ProgramChanges.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/InstrumentEdit.cpp
     ${CMAKE_SOURCE_DIR}/Source/UI/Playback/PlayheadOverlay.cpp

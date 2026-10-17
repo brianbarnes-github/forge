@@ -61,6 +61,10 @@ enum EditorMenuCommandId : int
     EditorEditPasteAtOrigin,
     EditorEditSelectAll,
     EditorEditDelete,
+    EditorEditInsertNote,
+    EditorEditSplitNotes,
+    EditorEditJoinNotes,
+    EditorEditLegato,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -115,6 +119,10 @@ struct EditorMenuState
     bool hasNotes = false;     // a track with notes (Select All)
     bool canPaste = false;         // a track, playback for the cursor, and a non-empty clipboard
     bool canPasteAtOrigin = false; // a track and a non-empty clipboard
+    bool canInsertNote = false;    // a track, playback for the cursor, an active row Snap to Key allows, no note there
+    bool canSplitNotes = false;    // a track, playback, and the cursor inside a selected note
+    bool canJoinNotes = false;     // a track with two selected notes of one pitch
+    bool canLegato = false;        // a track with a selected note whose length Legato changes
     bool snapToGrid = true;    // Options > Snap to Grid is ticked
     bool canStepMarker = false; // a track, playback and a grid (not Off)
     bool canStepPitch = false;  // a track and an active row (a canvas click picks one)
@@ -223,7 +231,12 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorEditPasteAtOrigin, "Paste at Origin", "Ctrl+Shift+V", s.canPasteAtOrigin),
                  separator(),
                  item (EditorEditSelectAll, "Select All", "Ctrl+A", s.hasNotes),
-                 item (EditorEditDelete, "Delete", "Del", s.hasSelection) } },
+                 item (EditorEditDelete, "Delete", "Del", s.hasSelection),
+                 separator(),
+                 item (EditorEditInsertNote, "Insert Note", "I", s.canInsertNote),
+                 item (EditorEditSplitNotes, "Split Notes", "S", s.canSplitNotes),
+                 item (EditorEditJoinNotes, "Join Notes", "J", s.canJoinNotes),
+                 item (EditorEditLegato, "Legato", "L", s.canLegato) } },
              { "Navigate", {
                  item (EditorNavigateMarkerLeft,  "Move Marker Left by Grid",  "Left",  s.canStepMarker),
                  item (EditorNavigateMarkerRight, "Move Marker Right by Grid", "Right", s.canStepMarker),

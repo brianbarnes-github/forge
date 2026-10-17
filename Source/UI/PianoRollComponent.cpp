@@ -805,6 +805,62 @@ bool PianoRollComponent::pasteNotes (const NoteClipboard& clipboard, int startTi
     return changed;
 }
 
+bool PianoRollComponent::canInsertNote (int tick) const
+{
+    return sourceEditor != nullptr && sourceEditor->canInsertNote (tick, activePitch);
+}
+
+bool PianoRollComponent::insertNote (int tick)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->insertNote (tick, activePitch);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::canSplitNotes (int tick) const
+{
+    return sourceEditor != nullptr && sourceEditor->canSplitSelection (tick);
+}
+
+bool PianoRollComponent::splitNotes (int tick)
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->splitSelection (tick);
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::canJoinNotes() const
+{
+    return sourceEditor != nullptr && sourceEditor->canJoinSelection();
+}
+
+bool PianoRollComponent::joinNotes()
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->joinSelection();
+    afterEditorGesture (changed);
+    return changed;
+}
+
+bool PianoRollComponent::canLegatoNotes() const
+{
+    return sourceEditor != nullptr && sourceEditor->canLegatoSelection();
+}
+
+bool PianoRollComponent::legatoNotes()
+{
+    if (sourceEditor == nullptr)
+        return false;
+    const bool changed = sourceEditor->legatoSelection();
+    afterEditorGesture (changed);
+    return changed;
+}
+
 bool PianoRollComponent::undo()
 {
     if (sourceEditor == nullptr)

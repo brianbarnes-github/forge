@@ -190,6 +190,20 @@ public:
     // Source role with an editor: pastes the clipboard with its earliest note at
     // `startTick` and selects the copy (see SourceRollEditor::paste).
     bool pasteNotes (const NoteClipboard& clipboard, int startTick);
+    // Source role with an editor: Edit > Insert Note adds the note a double-click
+    // at `tick` on the active row would, and selects it (see
+    // SourceRollEditor::insertNote). False (nothing changed) without an active row,
+    // on a row Snap to Key refuses, or inside a note on that row.
+    bool canInsertNote (int tick) const;
+    bool insertNote (int tick);
+    // Source role with an editor: Edit > Split Notes at `tick` / Join Notes /
+    // Legato on the selection (see SourceRollEditor). False when nothing changed.
+    bool canSplitNotes (int tick) const;
+    bool splitNotes (int tick);
+    bool canJoinNotes() const;
+    bool joinNotes();
+    bool canLegatoNotes() const;
+    bool legatoNotes();
     // Source role with an editor: the whole document's undo / redo, dropping any
     // selected note it took away. False (nothing done) without an editor.
     bool undo();
