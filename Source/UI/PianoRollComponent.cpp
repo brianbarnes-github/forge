@@ -1144,7 +1144,8 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
     if (noteSource == nullptr)
         return;
 
-    const bool showLabels = role == Role::Source && (noteLabels.names || noteLabels.velocities);
+    const bool showLabels = role == Role::Source && (noteLabels.names || noteLabels.velocities)
+                         && noteLabelsShownAt (geometry.getPixelsPerQuarterNote());
     const juce::Font labelFont (juce::FontOptions (juce::jlimit (8.0f, 12.0f, (float) geometry.getRowHeight() - 4.0f)));
     if (showLabels)
         g.setFont (labelFont);

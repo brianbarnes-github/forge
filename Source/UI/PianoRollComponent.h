@@ -79,6 +79,7 @@ public:
     static constexpr int minRowHeight = 10;
     static constexpr int maxRowHeight = 40;
     int getRowHeight() const noexcept { return geometry.getRowHeight(); }
+    double getPixelsPerQuarterNote() const noexcept { return geometry.getPixelsPerQuarterNote(); }
 
     // Repoints the roll at a new note source (or nullptr for "no track
     // selected", which paints an empty roll) and refits the geometry/content
@@ -110,8 +111,9 @@ public:
     void setNoteShape (NoteShape shape);
     NoteShape getNoteShape() const noexcept { return noteShape; }
     // The text on each Source note (View > Piano Roll Notes' Show Note Names /
-    // Show Velocity Numbers), spilling past notes too short for it; the Preview
-    // roll draws none whatever this says.
+    // Show Velocity Numbers), spilling past notes too short for it and hidden
+    // below noteLabelMinPixelsPerQuarter; the Preview roll draws none whatever
+    // this says.
     void setNoteLabels (NoteLabels labels);
     NoteLabels getNoteLabels() const noexcept { return noteLabels; }
     // Whether a playing playhead scrolls the view to stay visible.

@@ -14,6 +14,15 @@ TEST_CASE ("noteLabelText: name, velocity, both on one line, or nothing", "[note
     CHECK (noteLabelText ({ true, false }, 0, 64) == "C-1");
 }
 
+TEST_CASE ("noteLabelsShownAt: labels show from 31.6 px per quarter up, hidden when zoomed out further", "[note-labels]")
+{
+    CHECK (noteLabelsShownAt (31.6));
+    CHECK (noteLabelsShownAt (31.7));
+    CHECK (noteLabelsShownAt (400.0));
+    CHECK_FALSE (noteLabelsShownAt (31.5));
+    CHECK_FALSE (noteLabelsShownAt (2.0));
+}
+
 TEST_CASE ("noteLabelX: inside a rectangle's left edge; just right of a diamond", "[note-labels]")
 {
     const PianoRollNoteBounds note { 100, 40, 6, 14 };   // shorter than any label: it spills

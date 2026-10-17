@@ -2,7 +2,8 @@
 
 // The text View > Piano Roll Notes' Show Note Names / Show Velocity Numbers
 // draw on a note: what it says, where it starts and its colour over the fill.
-// Never hidden or shortened: a label longer than its note spills past it.
+// Never shortened: a label longer than its note spills past it. Hidden only
+// when zoomed out below noteLabelMinPixelsPerQuarter.
 
 #include "NoteDisplay.h"
 #include "NoteFootprint.h"
@@ -15,6 +16,15 @@ namespace lotro
 
 // Gap between the label and a rectangle's left edge or a diamond's right point.
 inline constexpr int noteLabelInset = 3;
+
+// Zoomed out past this (pixels per quarter note) the labels hide: a sixteenth
+// is under 8 px and the spills smear together. Picked by eye.
+inline constexpr double noteLabelMinPixelsPerQuarter = 31.6;
+
+inline bool noteLabelsShownAt (double pixelsPerQuarterNote) noexcept
+{
+    return pixelsPerQuarterNote >= noteLabelMinPixelsPerQuarter;
+}
 
 // "C4", "96", "C4 96" with both on, or empty with neither.
 inline juce::String noteLabelText (NoteLabels labels, int pitch, int velocity)

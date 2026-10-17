@@ -55,6 +55,7 @@ namespace lotro
         static PianoRollComponent::Canvas& canvas (PianoRollComponent& c) { return c.canvas; }
 
         static const PianoRollGeometry& geometry (const PianoRollComponent& c) { return c.geometry; }
+        static void setPixelsPerQuarterNote (PianoRollComponent& c, double ppq) { c.geometry.setPixelsPerQuarterNote (ppq); }
         static juce::Viewport& viewport (PianoRollComponent& c) { return c.viewport; }
         static void setActivePitch (PianoRollComponent& c, int pitch) { c.setActivePitch (pitch); }
         static juce::Component& gutter (PianoRollComponent& c) { return c.gutter; }
@@ -2682,6 +2683,7 @@ namespace
         ShortNoteFixture()
         {
             fixture.track.setProperty (SongIDs::colorArgb, (int) 0xFF3366CCu, nullptr);
+            Access::setPixelsPerQuarterNote (fixture.roll, 40.0);   // labels show at this zoom
             auto note = SongDocument::getNotesNode (fixture.track).getChild (1);
             note.setProperty (SongIDs::durationTicks, 8, nullptr);
             note.setProperty (SongIDs::velocity, 100, nullptr);
@@ -2725,6 +2727,31 @@ TEST_CASE ("PianoRollComponent: note labels draw on a rectangle and spill past a
 
     roll.setNoteLabels ({});
     CHECK (differingPixels (off, paintWholeCanvas (roll), spill) == 0);
+}
+
+TEST_CASE ("PianoRollComponent: note labels hide below 31.6 px per quarter", "[piano-roll][note-labels]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    ShortNoteFixture f;
+    auto& roll = f.fixture.roll;
+
+    for (double ppq : { 31.5, 10.0, 2.0 })
+    {
+        CAPTURE (ppq);
+        Access::setPixelsPerQuarterNote (roll, ppq);
+        roll.setNoteLabels ({});
+        const auto off = paintWholeCanvas (roll);
+        roll.setNoteLabels ({ true, true });
+        CHECK (differingPixels (off, paintWholeCanvas (roll), Access::canvas (roll).getLocalBounds()) == 0);
+    }
+
+    Access::setPixelsPerQuarterNote (roll, 31.6);
+    roll.setNoteLabels ({});
+    const auto off = paintWholeCanvas (roll);
+    roll.setNoteLabels ({ true, true });
+    const auto b = f.bounds();
+    const juce::Rectangle<int> spill (b.x + b.width + ThemePaint::noteOverhang + 1, b.y, 20, b.height);
+    CHECK (differingPixels (off, paintWholeCanvas (roll), spill) > 0);
 }
 
 TEST_CASE ("PianoRollComponent: note labels sit beside a diamond", "[piano-roll][note-labels]")

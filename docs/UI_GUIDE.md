@@ -366,13 +366,15 @@ When you say…       …I'll know you mean
   that write the note's name (`C4`, sharps as `C#4`), its velocity, or both on
   one line (`C4 96`) on every note of the edited track: inside a rectangle from
   its left edge, or just right of a diamond (over a Diamond + Length's line).
-  The text is never hidden or shortened; on a note too short for it, it spills
-  past the note's end, where the next note may cover it (notes draw in the
+  The text is never shortened; on a note too short for it, it spills past the
+  note's end, where the next note may cover it (notes draw in the
   track's stored order, not strictly by time, so after edits a spill can also
   sit over a neighbour). Text
   over a rectangle's fill picks a dark or light colour for contrast; text past
   it or beside a diamond uses the roll's text colour. Saved
-  (`view.noteNames`, `view.noteVelocities`, both off by default); ghost tracks,
+  (`view.noteNames`, `view.noteVelocities`, both off by default). Zoomed out
+  below 31.6 px per quarter note the labels hide (the checkboxes stay ticked)
+  and return on zooming back in; ghost tracks,
   the LOTRO preview roll and the main page's note bars show no text.
   **View → Color Note by ▸** Track / Velocity / Channel /
   Pitch colours notes in the editor's roll and the main page's note bars: the
