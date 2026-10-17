@@ -26,7 +26,8 @@ namespace lotro
                 { juce::KeyPress ('i'), EditorEditInsertNote },
                 { juce::KeyPress ('s'), EditorEditSplitNotes },
                 { juce::KeyPress ('j'), EditorEditJoinNotes },
-                { juce::KeyPress ('l'), EditorEditLegato } };
+                { juce::KeyPress ('l'), EditorEditLegato },
+                { juce::KeyPress ('l', juce::ModifierKeys::shiftModifier, 0), EditorEditLegatoToNextNote } };
             for (const auto& [shortcut, command] : shortcuts)
                 if (key == shortcut)
                     return command;
@@ -97,7 +98,8 @@ namespace lotro
         s.canInsertNote = owner.canInsertNote();
         s.canSplitNotes = owner.canSplitNotes();
         s.canJoinNotes = s.hasTrack && owner.roll.canJoinNotes();
-        s.canLegato = s.hasTrack && owner.roll.canLegatoNotes();
+        s.canLegato = s.hasTrack && owner.roll.canLegatoNotes (LegatoTarget::samePitch);
+        s.canLegatoToNextNote = s.hasTrack && owner.roll.canLegatoNotes (LegatoTarget::anyPitch);
         s.snapToGrid = owner.snapToGrid;
         s.canStepMarker = owner.canStepMarker();
         s.canStepPitch = owner.currentTrackId != -1 && owner.roll.getActivePitch() >= 0;
@@ -197,7 +199,11 @@ namespace lotro
                 return;
             case EditorEditLegato:
                 if (currentTrackId != -1)
-                    roll.legatoNotes();
+                    roll.legatoNotes (LegatoTarget::samePitch);
+                return;
+            case EditorEditLegatoToNextNote:
+                if (currentTrackId != -1)
+                    roll.legatoNotes (LegatoTarget::anyPitch);
                 return;
             case EditorNavigateMarkerLeft:
                 stepMarker (-1);

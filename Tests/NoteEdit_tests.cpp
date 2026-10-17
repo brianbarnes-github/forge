@@ -171,30 +171,31 @@ TEST_CASE ("note edit: join with no two selected notes of a pitch does nothing a
     CHECK_FALSE (doc.canUndo());
 }
 
-TEST_CASE ("note edit: legato ends each selected note where the next note on the track starts", "[note-edit]")
+TEST_CASE ("note edit: legato ends each selected note where the next note of its pitch starts", "[note-edit]")
 {
     SongDocument doc;
     auto track = doc.addTrack ("A", (int) 0xFFAABBCCu, 0, 0);
-    addNote (track, 60, 0, 240, 100);     // chord at 0: both run to 960, not to each other
-    addNote (track, 64, 0, 1200, 100);    // overlapping the next note: trimmed
-    addNote (track, 67, 960, 240, 100);   // unselected, but still the "next note"
-    addNote (track, 72, 1440, 240, 100);  // the last note on the track keeps its length
+    addNote (track, 60, 0, 240, 100);      // runs on to the next 60, past the 64 in between
+    addNote (track, 64, 240, 240, 100);
+    addNote (track, 60, 1920, 240, 100);   // unselected, but still the next 60
+    addNote (track, 67, 0, 2400, 100);     // overlapping the next 67: trimmed
+    addNote (track, 67, 960, 240, 100);    // the last 67 keeps its length
     noteAt (track, 0).setProperty (SongIDs::onOrder, 3, nullptr);
-    const std::vector<juce::ValueTree> selected { noteAt (track, 0), noteAt (track, 1), noteAt (track, 3) };
+    const std::vector<juce::ValueTree> selected { noteAt (track, 0), noteAt (track, 3), noteAt (track, 4) };
     doc.getUndoManager().clearUndoHistory();
 
-    CHECK (canLegatoNotes (track, selected));
-    CHECK (legatoNotes (doc, track, selected));
-    CHECK (notesOf (track) == std::vector<Note> { { 60, 0, 960, 100 }, { 64, 0, 960, 100 },
-                                                  { 67, 960, 240, 100 }, { 72, 1440, 240, 100 } });
+    CHECK (canLegatoNotes (track, selected, LegatoTarget::samePitch));
+    CHECK (legatoNotes (doc, track, selected, LegatoTarget::samePitch));
+    CHECK (notesOf (track) == std::vector<Note> { { 60, 0, 1920, 100 }, { 60, 1920, 240, 100 }, { 64, 240, 240, 100 },
+                                                  { 67, 0, 960, 100 }, { 67, 960, 240, 100 } });
     CHECK_FALSE (noteAt (track, 0).hasProperty (SongIDs::onOrder));
 
     // Already legato: nothing left to change.
-    CHECK_FALSE (canLegatoNotes (track, selected));
+    CHECK_FALSE (canLegatoNotes (track, selected, LegatoTarget::samePitch));
 
     doc.undo();
-    CHECK (notesOf (track) == std::vector<Note> { { 60, 0, 240, 100 }, { 64, 0, 1200, 100 },
-                                                  { 67, 960, 240, 100 }, { 72, 1440, 240, 100 } });
+    CHECK (notesOf (track) == std::vector<Note> { { 60, 0, 240, 100 }, { 60, 1920, 240, 100 }, { 64, 240, 240, 100 },
+                                                  { 67, 0, 2400, 100 }, { 67, 960, 240, 100 } });
     CHECK_FALSE (doc.canUndo());
 }
 
@@ -203,16 +204,40 @@ TEST_CASE ("note edit: legato with nothing to change does nothing and opens no u
     SongDocument doc;
     auto track = doc.addTrack ("A", (int) 0xFFAABBCCu, 0, 0);
     addNote (track, 60, 0, 480, 100);
-    addNote (track, 64, 0, 480, 100);
-    addNote (track, 67, 480, 240, 100);
+    addNote (track, 60, 480, 240, 100);
+    addNote (track, 64, 960, 240, 100);
     doc.getUndoManager().clearUndoHistory();
 
-    // The chord already ends at the next note; the last note has no next note.
+    // The first 60 already ends at the next; the other notes have no later note of their pitch.
     for (const auto& selected : { allNotes (track), std::vector<juce::ValueTree> { noteAt (track, 2) },
                                   std::vector<juce::ValueTree> {} })
     {
-        CHECK_FALSE (canLegatoNotes (track, selected));
-        CHECK_FALSE (legatoNotes (doc, track, selected));
+        CHECK_FALSE (canLegatoNotes (track, selected, LegatoTarget::samePitch));
+        CHECK_FALSE (legatoNotes (doc, track, selected, LegatoTarget::samePitch));
     }
     CHECK_FALSE (doc.canUndo());
+}
+
+TEST_CASE ("note edit: legato to the next note ends each selected note where the next note of any pitch starts", "[note-edit]")
+{
+    SongDocument doc;
+    auto track = doc.addTrack ("A", (int) 0xFFAABBCCu, 0, 0);
+    addNote (track, 60, 0, 240, 100);     // chord at 0: both run to 960, not to each other
+    addNote (track, 64, 0, 1200, 100);    // overlapping the next note: trimmed
+    addNote (track, 67, 960, 240, 100);   // unselected, but still the next note
+    addNote (track, 72, 1440, 240, 100);  // the last note on the track keeps its length
+    const std::vector<juce::ValueTree> selected { noteAt (track, 0), noteAt (track, 1), noteAt (track, 3) };
+    doc.getUndoManager().clearUndoHistory();
+
+    // The same-pitch rule finds no later 60, 64 or 72 here.
+    CHECK_FALSE (canLegatoNotes (track, selected, LegatoTarget::samePitch));
+    CHECK (canLegatoNotes (track, selected, LegatoTarget::anyPitch));
+    CHECK (legatoNotes (doc, track, selected, LegatoTarget::anyPitch));
+    CHECK (notesOf (track) == std::vector<Note> { { 60, 0, 960, 100 }, { 64, 0, 960, 100 },
+                                                  { 67, 960, 240, 100 }, { 72, 1440, 240, 100 } });
+    CHECK_FALSE (canLegatoNotes (track, selected, LegatoTarget::anyPitch));
+
+    doc.undo();
+    CHECK (notesOf (track) == std::vector<Note> { { 60, 0, 240, 100 }, { 64, 0, 1200, 100 },
+                                                  { 67, 960, 240, 100 }, { 72, 1440, 240, 100 } });
 }

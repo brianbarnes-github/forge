@@ -1,5 +1,4 @@
 #include "SourceRollEditor.h"
-#include "NoteEdit.h"
 #include "NoteFootprint.h"
 #include "SectionEdit.h"
 
@@ -475,14 +474,14 @@ bool SourceRollEditor::joinSelection()
     return true;
 }
 
-bool SourceRollEditor::canLegatoSelection()
+bool SourceRollEditor::canLegatoSelection (LegatoTarget target)
 {
-    return canLegatoNotes (track, getSelectedNotes());
+    return canLegatoNotes (track, getSelectedNotes(), target);
 }
 
-bool SourceRollEditor::legatoSelection()
+bool SourceRollEditor::legatoSelection (LegatoTarget target)
 {
-    return legatoNotes (doc, track, getSelectedNotes());
+    return legatoNotes (doc, track, getSelectedNotes(), target);
 }
 
 bool SourceRollEditor::paste (const NoteClipboard& clipboard, int startTick)

@@ -58,17 +58,24 @@ namespace
 
     // Each of `notes` whose length legato changes, with that length.
     std::vector<std::pair<juce::ValueTree, int>> legatoChanges (const juce::ValueTree& track,
-                                                                const std::vector<juce::ValueTree>& notes)
+                                                                const std::vector<juce::ValueTree>& notes,
+                                                                LegatoTarget target)
     {
-        std::vector<int> starts;
+        // Every start on the track, sorted, per pitch (samePitch) or all under one key.
+        const auto keyOf = [target] (const juce::ValueTree& n) { return target == LegatoTarget::samePitch ? pitchOf (n) : 0; };
+        std::map<int, std::vector<int>> starts;
         const auto all = SongDocument::getNotesNode (track);
         for (int i = 0; i < all.getNumChildren(); ++i)
-            starts.push_back (startOf (all.getChild (i)));
-        std::sort (starts.begin(), starts.end());
+        {
+            const auto n = all.getChild (i);
+            starts[keyOf (n)].push_back (startOf (n));
+        }
+        for (auto& [key, list] : starts)
+            std::sort (list.begin(), list.end());
 
         std::vector<std::pair<juce::ValueTree, int>> changes;
         for (const auto& n : notes)
-            if (const auto next = nextStartAfter (starts, startOf (n)))
+            if (const auto next = nextStartAfter (starts[keyOf (n)], startOf (n)))
                 if (const int length = *next - startOf (n); length != (int) n.getProperty (SongIDs::durationTicks))
                     changes.emplace_back (n, length);
         return changes;
@@ -146,16 +153,17 @@ std::vector<juce::ValueTree> joinNotes (SongDocument& doc, juce::ValueTree track
     return remaining;
 }
 
-bool canLegatoNotes (const juce::ValueTree& track, const std::vector<juce::ValueTree>& notes)
+bool canLegatoNotes (const juce::ValueTree& track, const std::vector<juce::ValueTree>& notes, LegatoTarget target)
 {
-    return track.isValid() && ! legatoChanges (track, notes).empty();
+    return track.isValid() && ! legatoChanges (track, notes, target).empty();
 }
 
-bool legatoNotes (SongDocument& doc, juce::ValueTree track, const std::vector<juce::ValueTree>& notes)
+bool legatoNotes (SongDocument& doc, juce::ValueTree track, const std::vector<juce::ValueTree>& notes,
+                  LegatoTarget target)
 {
     if (! track.isValid())
         return false;
-    const auto changes = legatoChanges (track, notes);
+    const auto changes = legatoChanges (track, notes, target);
     if (changes.empty())
         return false;
 

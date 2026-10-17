@@ -3,6 +3,7 @@
 #include "EditorGrid.h"
 #include "NoteClipboard.h"
 #include "NoteDisplay.h"
+#include "NoteEdit.h"
 #include "NotePreview.h"
 #include "PianoRollGeometry.h"
 #include "SongDocument.h"
@@ -154,16 +155,17 @@ public:
     // transaction; false (nothing changed) unless canInsertNote.
     bool insertNote (int tick, int pitch);
 
-    // Edit > Split Notes / Join Notes / Legato on the selection (see NoteEdit.h,
-    // one undo transaction each, none when nothing changes). Split selects both
-    // halves; Join drops the absorbed notes from the selection; Legato keeps it.
+    // Edit > Split Notes / Join Notes / Legato / Legato to Next Note on the
+    // selection (see NoteEdit.h, one undo transaction each, none when nothing
+    // changes). Split selects both halves; Join drops the absorbed notes from the
+    // selection; Legato keeps it.
     // None reports a NoteChange. Each returns false when nothing changed.
     bool canSplitSelection (int tick);
     bool splitSelection (int tick);
     bool canJoinSelection();
     bool joinSelection();
-    bool canLegatoSelection();
-    bool legatoSelection();
+    bool canLegatoSelection (LegatoTarget target);
+    bool legatoSelection (LegatoTarget target);
 
     // The whole document's undo / redo (as Ctrl+Z / Ctrl+Y), then drops any
     // selected note it took away.

@@ -609,16 +609,17 @@ TEST_CASE ("EditorMenuModel: View ends with a separator and View Notes In Key / 
     CHECK (EditorViewNotesOutOfKey < EditorSnapRootBase);
     CHECK (EditorEditInsertNote == EditorEditDelete + 1);
     CHECK (EditorEditLegato == EditorEditInsertNote + 3);
-    CHECK (EditorEditLegato < EditorSnapRootBase);
+    CHECK (EditorEditLegatoToNextNote == EditorEditLegato + 1);
+    CHECK (EditorEditLegatoToNextNote < EditorSnapRootBase);
 }
 
-TEST_CASE ("EditorMenuModel: Edit is Undo, Redo | Cut, Copy, Paste, Paste at Origin | Select All, Delete | Insert Note, Split Notes, Join Notes, Legato with their shortcuts", "[menu-model][editor-menu][editor-edit]")
+TEST_CASE ("EditorMenuModel: Edit is Undo, Redo | Cut, Copy, Paste, Paste at Origin | Select All, Delete | Insert Note, Split Notes, Join Notes, Legato, Legato to Next Note with their shortcuts", "[menu-model][editor-menu][editor-edit]")
 {
     using V = std::vector<std::string>;
     EditorMenuState s;
     const auto edit = menuNamed (editorMenus (s), "Edit");
     CHECK (labels (edit) == V { "Undo", "Redo", "-", "Cut", "Copy", "Paste", "Paste at Origin", "-", "Select All", "Delete",
-                                "-", "Insert Note", "Split Notes", "Join Notes", "Legato" });
+                                "-", "Insert Note", "Split Notes", "Join Notes", "Legato", "Legato to Next Note" });
     CHECK (itemWith (edit, EditorEditUndo).shortcut == "Ctrl+Z");
     CHECK (itemWith (edit, EditorEditRedo).shortcut == "Ctrl+Y");
     CHECK (itemWith (edit, EditorEditCut).shortcut == "Ctrl+X");
@@ -631,6 +632,7 @@ TEST_CASE ("EditorMenuModel: Edit is Undo, Redo | Cut, Copy, Paste, Paste at Ori
     CHECK (itemWith (edit, EditorEditSplitNotes).shortcut == "S");
     CHECK (itemWith (edit, EditorEditJoinNotes).shortcut == "J");
     CHECK (itemWith (edit, EditorEditLegato).shortcut == "L");
+    CHECK (itemWith (edit, EditorEditLegatoToNextNote).shortcut == "Shift+L");
     for (const auto& item : edit.items)
         if (! item.separator)
             CHECK_FALSE (item.enabled);   // nothing to undo, no track, no selection, empty clipboard
@@ -656,6 +658,8 @@ TEST_CASE ("EditorMenuModel: each Edit item follows its own state flag", "[menu-
     CHECK (enabledWith (EditorEditSplitNotes, &EditorMenuState::canSplitNotes));
     CHECK (enabledWith (EditorEditJoinNotes, &EditorMenuState::canJoinNotes));
     CHECK (enabledWith (EditorEditLegato, &EditorMenuState::canLegato));
+    CHECK (enabledWith (EditorEditLegatoToNextNote, &EditorMenuState::canLegatoToNextNote));
+    CHECK_FALSE (enabledWith (EditorEditLegatoToNextNote, &EditorMenuState::canLegato));
     CHECK_FALSE (enabledWith (EditorEditUndo, &EditorMenuState::canRedo));
     CHECK_FALSE (enabledWith (EditorEditPaste, &EditorMenuState::canPasteAtOrigin));
 }

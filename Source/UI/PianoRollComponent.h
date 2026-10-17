@@ -197,13 +197,14 @@ public:
     bool canInsertNote (int tick) const;
     bool insertNote (int tick);
     // Source role with an editor: Edit > Split Notes at `tick` / Join Notes /
-    // Legato on the selection (see SourceRollEditor). False when nothing changed.
+    // Legato (to Next Note, by `target`) on the selection (see SourceRollEditor).
+    // False when nothing changed.
     bool canSplitNotes (int tick) const;
     bool splitNotes (int tick);
     bool canJoinNotes() const;
     bool joinNotes();
-    bool canLegatoNotes() const;
-    bool legatoNotes();
+    bool canLegatoNotes (LegatoTarget target) const;
+    bool legatoNotes (LegatoTarget target);
     // Source role with an editor: the whole document's undo / redo, dropping any
     // selected note it took away. False (nothing done) without an editor.
     bool undo();

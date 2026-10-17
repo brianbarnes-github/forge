@@ -847,16 +847,16 @@ bool PianoRollComponent::joinNotes()
     return changed;
 }
 
-bool PianoRollComponent::canLegatoNotes() const
+bool PianoRollComponent::canLegatoNotes (LegatoTarget target) const
 {
-    return sourceEditor != nullptr && sourceEditor->canLegatoSelection();
+    return sourceEditor != nullptr && sourceEditor->canLegatoSelection (target);
 }
 
-bool PianoRollComponent::legatoNotes()
+bool PianoRollComponent::legatoNotes (LegatoTarget target)
 {
     if (sourceEditor == nullptr)
         return false;
-    const bool changed = sourceEditor->legatoSelection();
+    const bool changed = sourceEditor->legatoSelection (target);
     afterEditorGesture (changed);
     return changed;
 }

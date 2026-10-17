@@ -1537,11 +1537,14 @@ TEST_CASE ("SourceRollEditor: Split, Join and Legato act on the selection and ke
     CHECK_FALSE (f.editor.canJoinSelection());
     CHECK_FALSE (f.editor.joinSelection());
 
+    // noteA's next note of any pitch is noteB; it has no later 60.
     f.noteA.setProperty (SongIDs::durationTicks, 100, nullptr);
-    CHECK (f.editor.canLegatoSelection());
-    REQUIRE (f.editor.legatoSelection());
+    CHECK_FALSE (f.editor.canLegatoSelection (LegatoTarget::samePitch));
+    CHECK_FALSE (f.editor.legatoSelection (LegatoTarget::samePitch));
+    CHECK (f.editor.canLegatoSelection (LegatoTarget::anyPitch));
+    REQUIRE (f.editor.legatoSelection (LegatoTarget::anyPitch));
     CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
     CHECK (f.editor.getNumSelected() == 2);
-    CHECK_FALSE (f.editor.canLegatoSelection());
-    CHECK_FALSE (f.editor.legatoSelection());
+    CHECK_FALSE (f.editor.canLegatoSelection (LegatoTarget::anyPitch));
+    CHECK_FALSE (f.editor.legatoSelection (LegatoTarget::anyPitch));
 }

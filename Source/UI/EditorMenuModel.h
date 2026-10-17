@@ -65,6 +65,7 @@ enum EditorMenuCommandId : int
     EditorEditSplitNotes,
     EditorEditJoinNotes,
     EditorEditLegato,
+    EditorEditLegatoToNextNote,
     // Options > Snap to Key > Root: EditorSnapRootBase + the index into snapRoots().
     EditorSnapRootBase = 1000,
     // Options > Snap to Key > Type (and its Chords): EditorSnapScaleBase + (int) SnapScale.
@@ -123,6 +124,7 @@ struct EditorMenuState
     bool canSplitNotes = false;    // a track, playback, and the cursor inside a selected note
     bool canJoinNotes = false;     // a track with two selected notes of one pitch
     bool canLegato = false;        // a track with a selected note whose length Legato changes
+    bool canLegatoToNextNote = false; // ... or Legato to Next Note changes
     bool snapToGrid = true;    // Options > Snap to Grid is ticked
     bool canStepMarker = false; // a track, playback and a grid (not Off)
     bool canStepPitch = false;  // a track and an active row (a canvas click picks one)
@@ -236,7 +238,8 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  item (EditorEditInsertNote, "Insert Note", "I", s.canInsertNote),
                  item (EditorEditSplitNotes, "Split Notes", "S", s.canSplitNotes),
                  item (EditorEditJoinNotes, "Join Notes", "J", s.canJoinNotes),
-                 item (EditorEditLegato, "Legato", "L", s.canLegato) } },
+                 item (EditorEditLegato, "Legato", "L", s.canLegato),
+                 item (EditorEditLegatoToNextNote, "Legato to Next Note", "Shift+L", s.canLegatoToNextNote) } },
              { "Navigate", {
                  item (EditorNavigateMarkerLeft,  "Move Marker Left by Grid",  "Left",  s.canStepMarker),
                  item (EditorNavigateMarkerRight, "Move Marker Right by Grid", "Right", s.canStepMarker),

@@ -515,7 +515,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
     CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
     CHECK (model->getMenuForIndex (4, "View").getNumItems() == 6);   // piano notes, MIDI numbers, two submenus, notes in / out of key (separators not counted)
-    CHECK (model->getMenuForIndex (1, "Edit").getNumItems() == 12);   // undo, redo, cut, copy, paste, paste at origin, select all, delete, insert, split, join, legato
+    CHECK (model->getMenuForIndex (1, "Edit").getNumItems() == 13);   // undo, redo, cut, copy, paste, paste at origin, select all, delete, insert, split, join, legato, legato to next note
 
     // Still there, still on top, once the strip/ruler/roll content is built.
     lotro::playbacktest::RecordingSink sink;
@@ -2078,7 +2078,7 @@ TEST_CASE ("TrackEditorPanel: Edit > Insert Note adds a note at the cursor on th
     CHECK (startsOf (f.track) == std::vector<int> { 0, 1920, 3840 });
 }
 
-TEST_CASE ("TrackEditorPanel: Edit > Split Notes, Join Notes and Legato edit the selection; S, J and L are their keys", "[track-editor-window][editor-menu][editor-edit]")
+TEST_CASE ("TrackEditorPanel: Edit > Split Notes, Join Notes and Legato (to Next Note) edit the selection; S, J, L and Shift+L are their keys", "[track-editor-window][editor-menu][editor-edit]")
 {
     MarkerPanelFixture f;   // one long note at 0..9600 (pitch 60)
     using Access = TrackEditorPanelTestAccess;
@@ -2107,12 +2107,19 @@ TEST_CASE ("TrackEditorPanel: Edit > Split Notes, Join Notes and Legato edit the
     f.panel->invokeMenuCommand (EditorEditUndo);
     CHECK (startsOf (f.track) == std::vector<int> { 0 });
 
-    // Legato: the selected note ends where the next note on the track starts, selected or not.
+    // Legato: the selected note ends where the next note of its pitch starts, selected or
+    // not; Legato to Next Note: where the next note of any pitch starts.
     CHECK_FALSE (editEnabled (*f.panel, EditorEditLegato));   // no later note
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditLegatoToNextNote));
     lotro::playbacktest::addNote (f.track, 64, 1920, 480);
+    lotro::playbacktest::addNote (f.track, 60, 3840, 480);
     REQUIRE (editEnabled (*f.panel, EditorEditLegato));
-    CHECK (f.panel->keyPressed (juce::KeyPress ('l')));
+    REQUIRE (editEnabled (*f.panel, EditorEditLegatoToNextNote));
+    CHECK (f.panel->keyPressed (juce::KeyPress ('l', juce::ModifierKeys::shiftModifier, 0)));
     CHECK ((int) original.getProperty (SongIDs::durationTicks) == 1920);
+    CHECK_FALSE (editEnabled (*f.panel, EditorEditLegatoToNextNote));
+    CHECK (f.panel->keyPressed (juce::KeyPress ('l')));
+    CHECK ((int) original.getProperty (SongIDs::durationTicks) == 3840);
     CHECK_FALSE (editEnabled (*f.panel, EditorEditLegato));
     CHECK (f.panel->keyPressed (juce::KeyPress ('l')));   // nothing left to do, still claimed
 }
