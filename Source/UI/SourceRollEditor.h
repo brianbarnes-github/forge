@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EditorGrid.h"
+#include "NoteDisplay.h"
 #include "NotePreview.h"
 #include "PianoRollGeometry.h"
 #include "SongDocument.h"
@@ -44,6 +45,10 @@ public:
     // this class never mutates it, only reads it for hit-testing/pixel<->
     // tick conversion.
     void setGeometry (const PianoRollGeometry& geometryIn) noexcept { geometry = geometryIn; }
+
+    // View > Piano Roll Notes: what a click or the rubber band hits and which
+    // edges resize (noteFootprint), kept in step with the roll's painting.
+    void setNoteShape (NoteShape shape) noexcept { noteShape = shape; }
 
     // The editor's grid, pulled from `source` on demand and never cached, so a
     // meter edit or a swing change reaches the next gesture step with no hook.
@@ -191,6 +196,7 @@ private:
     std::vector<DragOriginal> dragOriginals; // Move: every selected note. Resize: just the primary note.
     juce::ValueTree grabbedNote;              // Move: the note under the press.
     bool movePitchChanged = false;            // Move: some step of this drag changed a pitch.
+    NoteShape noteShape = NoteShape::rectangle;
 
     static constexpr int edgeThresholdPixels = 6;
     static constexpr int lassoThresholdPixels = 4;   // as the roll's marker click

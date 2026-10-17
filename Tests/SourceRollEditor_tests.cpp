@@ -4,6 +4,7 @@
 // boundaries. No JUCE painting involved.
 
 #include "UI/EditorGrid.h"
+#include "UI/NoteFootprint.h"
 #include "UI/SourceRollEditor.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -1304,4 +1305,142 @@ TEST_CASE ("SourceRollEditor: Note Length Off follows the grid as before, whatev
     const juce::Point<int> cell (f.geometry.xForTick (3 * ticksPerQuarter + 200), f.geometry.yForPitch (72));
     f.editor.mouseDown (cell, {}, true);
     CHECK ((int) SongDocument::getNotesNode (f.track).getChild (2).getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+}
+
+TEST_CASE ("noteFootprint: a rectangle is the note itself, with both resize edges", "[source-roll-editor][note-display]")
+{
+    const PianoRollNoteBounds note { 100, 20, 60, 14 };
+    const auto f = noteFootprint (note, NoteShape::rectangle);
+    CHECK (f.body == juce::Rectangle<int> (100, 20, 60, 14));
+    CHECK (f.lengthLine.isEmpty());
+    CHECK (f.hit == juce::Rectangle<int> (100, 20, 60, 14));
+    CHECK (f.edges == NoteEdges::both);
+}
+
+TEST_CASE ("noteFootprint: a diamond is a row-sized square centred on the start, with no resize edges", "[source-roll-editor][note-display]")
+{
+    const PianoRollNoteBounds note { 100, 20, 60, 14 };
+    const auto f = noteFootprint (note, NoteShape::diamond);
+    CHECK (f.body == juce::Rectangle<int> (93, 20, 14, 14));
+    CHECK (f.lengthLine.isEmpty());
+    CHECK (f.hit == juce::Rectangle<int> (93, 20, 14, 14));
+    CHECK (f.edges == NoteEdges::none);
+}
+
+TEST_CASE ("noteFootprint: a diamond with length adds a 2 px line to the end and resizes on the right only", "[source-roll-editor][note-display]")
+{
+    const PianoRollNoteBounds note { 100, 20, 60, 14 };
+    const auto f = noteFootprint (note, NoteShape::diamondLength);
+    CHECK (f.body == juce::Rectangle<int> (93, 20, 14, 14));
+    CHECK (f.lengthLine == juce::Rectangle<int> (100, 26, 60, 2));
+    CHECK (f.hit == juce::Rectangle<int> (93, 20, 67, 14));
+    CHECK (f.edges == NoteEdges::rightOnly);
+}
+
+namespace
+{
+    struct ShapeFixture : Fixture
+    {
+        explicit ShapeFixture (NoteShape shape) { editor.setNoteShape (shape); }
+
+        PianoRollNoteBounds boundsOf (const juce::ValueTree& note) const { return geometry.noteBounds (toNote (note)); }
+        int rowHeight() const { return geometry.getRowHeight(); }
+        int rowCentreY (const juce::ValueTree& note) const { auto b = boundsOf (note); return b.y + b.height / 2; }
+        int quarterPixels() const { return geometry.xForTick (ticksPerQuarter) - geometry.xForTick (0); }
+
+        void drag (juce::Point<int> from, int dx)
+        {
+            REQUIRE (editor.mouseDown (from, {}, false));
+            editor.mouseDrag (from.translated (dx, 0));
+            editor.mouseUp (from.translated (dx, 0));
+        }
+    };
+}
+
+TEST_CASE ("SourceRollEditor: with Diamond a press on the diamond selects the note and one on the rest of its length does not", "[source-roll-editor][note-display]")
+{
+    ShapeFixture f (NoteShape::diamond);
+    const auto b = f.boundsOf (f.noteB);
+    REQUIRE (f.rowHeight() >= 12);
+    REQUIRE (b.width > f.rowHeight());
+
+    CHECK (f.editor.mouseDown ({ b.x - 5, f.rowCentreY (f.noteB) }, {}, false));
+    CHECK (f.editor.isSelected (f.noteB));
+
+    f.editor.mouseUp ({ b.x - 5, f.rowCentreY (f.noteB) });
+    f.editor.mouseDown ({ b.x + f.rowHeight() / 2 + 4, f.rowCentreY (f.noteB) }, {}, false);
+    CHECK_FALSE (f.editor.isSelected (f.noteB));
+}
+
+TEST_CASE ("SourceRollEditor: with Diamond a drag from the diamond's edge moves the note, never resizes it", "[source-roll-editor][note-display]")
+{
+    ShapeFixture f (NoteShape::diamond);
+    const auto b = f.boundsOf (f.noteB);
+
+    // Rectangle's left-resize zone; for a diamond it is the diamond's right half.
+    f.drag ({ b.x + 1, f.rowCentreY (f.noteB) }, f.quarterPixels());
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter * 2);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+
+    // The diamond's left corner.
+    const auto moved = f.boundsOf (f.noteB);
+    f.drag ({ moved.x - f.rowHeight() / 2 + 1, f.rowCentreY (f.noteB) }, -f.quarterPixels());
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+}
+
+TEST_CASE ("SourceRollEditor: with Diamond + Length the line selects, its end resizes and the start moves", "[source-roll-editor][note-display]")
+{
+    ShapeFixture f (NoteShape::diamondLength);
+    const auto b = f.boundsOf (f.noteB);
+
+    CHECK (f.editor.mouseDown ({ b.x + b.width / 2, f.rowCentreY (f.noteB) }, {}, false));
+    CHECK (f.editor.isSelected (f.noteB));
+    f.editor.mouseUp ({ b.x + b.width / 2, f.rowCentreY (f.noteB) });
+
+    f.drag ({ b.x + b.width - 1, f.rowCentreY (f.noteB) }, f.quarterPixels() / 2);
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == ticksPerQuarter + ticksPerQuarter / 2);
+
+    f.drag ({ b.x + 1, f.rowCentreY (f.noteB) }, f.quarterPixels());
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter * 2);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == ticksPerQuarter + ticksPerQuarter / 2);
+}
+
+TEST_CASE ("SourceRollEditor: with Diamond + Length a note whose end is inside its diamond moves from its end", "[source-roll-editor][note-display]")
+{
+    ShapeFixture f (NoteShape::diamondLength);
+    const int shortTicks = 4;
+    f.noteB.setProperty (SongIDs::durationTicks, shortTicks, nullptr);
+    const auto b = f.boundsOf (f.noteB);
+    REQUIRE (b.x + b.width <= noteFootprint (b, NoteShape::diamondLength).body.getRight());
+
+    f.drag ({ b.x + b.width - 1, f.rowCentreY (f.noteB) }, f.quarterPixels());
+    CHECK ((int) f.noteB.getProperty (SongIDs::startTick) == ticksPerQuarter * 2);
+    CHECK ((int) f.noteB.getProperty (SongIDs::durationTicks) == shortTicks);
+}
+
+TEST_CASE ("SourceRollEditor: with Diamond the rubber band tests the diamond, not the note's length", "[source-roll-editor][note-display][lasso]")
+{
+    const juce::ModifierKeys right (juce::ModifierKeys::rightButtonModifier);
+    {
+        ShapeFixture f (NoteShape::diamond);
+        const auto b = f.boundsOf (f.noteB);
+        const juce::Point<int> start (b.x + b.width / 2, b.y - 2);
+        const juce::Point<int> end (b.x + b.width - 2, b.y + b.height + 2);
+        f.editor.mouseDown (start, right, false);
+        f.editor.mouseDrag (end);
+        CHECK_FALSE (f.editor.isSelected (f.noteB));
+        f.editor.mouseUp (end);
+    }
+    {
+        ShapeFixture f (NoteShape::diamond);
+        const auto b = f.boundsOf (f.noteB);
+        const juce::Point<int> start (b.x - f.rowHeight() / 2 + 1, b.y - 2);
+        const juce::Point<int> end (b.x - 1, b.y + b.height + 2);
+        f.editor.mouseDown (start, right, false);
+        f.editor.mouseDrag (end);
+        CHECK (f.editor.isSelected (f.noteB));
+        f.editor.mouseUp (end);
+    }
 }

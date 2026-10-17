@@ -1,4 +1,5 @@
 #include "SourceRollEditor.h"
+#include "NoteFootprint.h"
 #include "SectionEdit.h"
 
 #include <algorithm>
@@ -97,7 +98,7 @@ juce::ValueTree SourceRollEditor::hitTestNote (juce::Point<int> pos) const
     for (int i = notes.getNumChildren(); --i >= 0; )
     {
         auto noteNode = notes.getChild (i);
-        if (toRect (geometry.noteBounds (toPianoRollNote (noteNode))).contains (pos))
+        if (noteFootprint (geometry.noteBounds (toPianoRollNote (noteNode)), noteShape).hit.contains (pos))
             return noteNode;
     }
     return {};
@@ -105,7 +106,18 @@ juce::ValueTree SourceRollEditor::hitTestNote (juce::Point<int> pos) const
 
 int SourceRollEditor::hitTestEdgeZone (const juce::ValueTree& note, juce::Point<int> pos) const
 {
-    auto bounds = toRect (geometry.noteBounds (toPianoRollNote (note)));
+    const auto noteBounds = geometry.noteBounds (toPianoRollNote (note));
+    const auto footprint = noteFootprint (noteBounds, noteShape);
+    const auto bounds = toRect (noteBounds);
+    if (footprint.edges == NoteEdges::none)
+        return 0;
+    if (footprint.edges == NoteEdges::rightOnly)
+    {
+        // Only the line's end resizes, and only where it reaches past the diamond --
+        // otherwise the diamond wins and the press moves the note.
+        const int zoneStart = bounds.getRight() - edgeThresholdPixels;
+        return pos.x >= zoneStart && zoneStart > footprint.body.getRight() ? 1 : 0;
+    }
     if (bounds.getWidth() < 3 * edgeThresholdPixels)
         return 0; // too narrow for distinct edge zones -- body drag (Move) wins
     if (pos.x <= bounds.getX() + edgeThresholdPixels)
@@ -125,7 +137,7 @@ void SourceRollEditor::updateRubberBandSelection()
     for (int i = 0; i < notes.getNumChildren(); ++i)
     {
         auto noteNode = notes.getChild (i);
-        if (toRect (geometry.noteBounds (toPianoRollNote (noteNode))).intersects (rubberBandRect)
+        if (noteFootprint (geometry.noteBounds (toPianoRollNote (noteNode)), noteShape).hit.intersects (rubberBandRect)
             && ! isSelected (noteNode))
             selection.push_back (noteNode);
     }
