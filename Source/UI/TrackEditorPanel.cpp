@@ -77,6 +77,8 @@ namespace lotro
         s.notePreview = owner.notePreview;
         s.gridLength = owner.getGridLength();
         s.gridDivision = owner.getGridDivision();
+        s.noteLength = owner.getNoteLength();
+        s.noteDivision = owner.getNoteDivision();
         if (const auto key = owner.currentSnapKey())
         {
             s.snapRootIndex = key->rootIndex;
@@ -187,6 +189,10 @@ namespace lotro
                     setGridLength ((GridLength) (commandId - EditorGridLengthBase));
                 else if (isEditorGridDivisionCommand (commandId))
                     setGridDivision ((GridDivision) (commandId - EditorGridDivisionBase));
+                else if (isEditorNoteLengthCommand (commandId))
+                    setNoteLength ((GridLength) (commandId - EditorNoteLengthBase));
+                else if (isEditorNoteDivisionCommand (commandId))
+                    setNoteDivision ((GridDivision) (commandId - EditorNoteDivisionBase));
                 return;
         }
     }
@@ -520,6 +526,16 @@ namespace lotro
     {
         roll.setGrid (roll.getGridLength(), division);
         refreshSwingControl();
+    }
+
+    void TrackEditorPanel::setNoteLength (GridLength length)
+    {
+        roll.setNoteLength (length, roll.getNoteDivision());
+    }
+
+    void TrackEditorPanel::setNoteDivision (GridDivision division)
+    {
+        roll.setNoteLength (roll.getNoteLength(), division);
     }
 
     int TrackEditorPanel::getGridTicks() const

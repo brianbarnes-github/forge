@@ -186,6 +186,11 @@ public:
     // Source role only: Options ▸ Snap to Key's filter on double-click note
     // creation (SourceRollEditor::setPitchFilter); a no-op without an editor.
     void setPitchFilter (std::function<bool (int pitch)> allowed);
+    // Options ▸ Note Length / Note Division: forwards to SourceRollEditor::setNoteLength;
+    // a no-op without an editor (whose getters then read Off, Straight).
+    void setNoteLength (GridLength length, GridDivision division);
+    GridLength getNoteLength() const noexcept;
+    GridDivision getNoteDivision() const noexcept;
     // Options ▸ Note Preview: forwards to SourceRollEditor::setNoteChangeListener;
     // a no-op without an editor.
     void setNoteChangeListener (NoteChangeListener listener);

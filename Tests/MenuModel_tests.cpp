@@ -487,13 +487,14 @@ TEST_CASE ("EditorMenuModel: File is Export to New MIDI File, a separator, Close
     CHECK (menuNamed (editorMenus (s), "File").items[0].enabled);
 }
 
-TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key and Note Preview, then Grid Length and Grid Division", "[menu-model][editor-menu]")
+TEST_CASE ("EditorMenuModel: Options is a Snap to Grid item ticked by the snap state, enabled with or without a track, then Snap to Key and Note Preview, then Grid Length and Grid Division, then Note Length and Note Division", "[menu-model][editor-menu]")
 {
     EditorMenuState s;
     s.snapToGrid = false;
     const auto off = menuNamed (editorMenus (s), "Options");
     CHECK (labels (off) == std::vector<std::string> { "Snap to Grid", "Snap to Key>", "Note Preview>",
-                                                      "-", "Grid Length>", "Grid Division>" });
+                                                      "-", "Grid Length>", "Grid Division>",
+                                                      "-", "Note Length>", "Note Division>" });
     CHECK (off.items[0].id == EditorOptionsSnapToGrid);
     CHECK (off.items[0].enabled);   // no track loaded
     CHECK_FALSE (off.items[0].ticked);
@@ -686,7 +687,7 @@ namespace
     MenuItemDesc snapToKeyMenu (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 6);
+        REQUIRE (options.items.size() == 9);
         return options.items[1];
     }
 
@@ -799,7 +800,7 @@ TEST_CASE ("EditorMenuModel: Note Preview holds three checkboxes, enabled with o
     const auto previewMenu = [] (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 6);
+        REQUIRE (options.items.size() == 9);
         return options.items[2];
     };
 
@@ -840,7 +841,7 @@ TEST_CASE ("EditorMenuModel: Grid Length lists Off then whole to 1/64, ticked by
     const auto lengthMenu = [] (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 6);
+        REQUIRE (options.items.size() == 9);
         return options.items[4];
     };
 
@@ -881,7 +882,7 @@ TEST_CASE ("EditorMenuModel: Grid Division lists Straight, Triplet, Dotted and S
     const auto divisionMenu = [] (const EditorMenuState& s)
     {
         const auto options = menuNamed (editorMenus (s), "Options");
-        REQUIRE (options.items.size() == 6);
+        REQUIRE (options.items.size() == 9);
         return options.items[5];
     };
 
@@ -909,4 +910,77 @@ TEST_CASE ("EditorMenuModel: Grid Division lists Straight, Triplet, Dotted and S
     }
     CHECK (EditorGridDivisionBase == 1300);
     CHECK_FALSE (isEditorGridDivisionCommand (EditorGridDivisionBase + gridDivisionCount));
+}
+
+TEST_CASE ("EditorMenuModel: Note Length lists Off then whole to 1/64, ticked by the current note length and enabled with a track", "[menu-model][editor-menu][note-length]")
+{
+    const auto lengthMenu = [] (const EditorMenuState& s)
+    {
+        const auto options = menuNamed (editorMenus (s), "Options");
+        REQUIRE (options.items.size() == 9);
+        return options.items[7];
+    };
+
+    EditorMenuState s;
+    const auto none = lengthMenu (s);
+    CHECK (none.isSubmenu);
+    CHECK (none.label == "Note Length");
+    REQUIRE (childLabels (none) == V { "Off", "-", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" });
+    CHECK (none.children[0].ticked);   // Off unless changed
+    for (const auto& c : none.children)
+        if (! c.separator)
+            CHECK_FALSE (c.enabled);   // no track loaded
+
+    s.hasTrack = true;
+    s.noteLength = GridLength::Sixteenth;
+    const auto menu = lengthMenu (s);
+    std::vector<MenuItemDesc> items;
+    for (const auto& c : menu.children)
+        if (! c.separator)
+            items.push_back (c);
+    REQUIRE (items.size() == 8);
+    for (size_t i = 0; i < 8; ++i)
+    {
+        CAPTURE (i);
+        CHECK (items[i].id == EditorNoteLengthBase + (int) i);
+        CHECK (isEditorNoteLengthCommand (items[i].id));
+        CHECK_FALSE (isEditorGridLengthCommand (items[i].id));
+        CHECK (items[i].enabled);
+        CHECK (items[i].ticked == ((GridLength) i == GridLength::Sixteenth));
+    }
+    CHECK (EditorNoteLengthBase == 1400);
+    CHECK_FALSE (isEditorNoteLengthCommand (EditorNoteLengthBase + gridLengthCount));
+}
+
+TEST_CASE ("EditorMenuModel: Note Division lists Straight, Triplet and Dotted (no Swing), ticked by the current note division and enabled with a track", "[menu-model][editor-menu][note-length]")
+{
+    const auto divisionMenu = [] (const EditorMenuState& s)
+    {
+        const auto options = menuNamed (editorMenus (s), "Options");
+        REQUIRE (options.items.size() == 9);
+        return options.items[8];
+    };
+
+    EditorMenuState s;
+    const auto none = divisionMenu (s);
+    CHECK (none.isSubmenu);
+    CHECK (none.label == "Note Division");
+    REQUIRE (childLabels (none) == V { "Straight", "Triplet", "Dotted" });
+    CHECK (none.children[0].ticked);   // Straight unless changed
+    for (const auto& c : none.children)
+        CHECK_FALSE (c.enabled);       // no track loaded
+
+    s.hasTrack = true;
+    s.noteDivision = GridDivision::Dotted;
+    const auto menu = divisionMenu (s);
+    for (size_t i = 0; i < 3; ++i)
+    {
+        CAPTURE (i);
+        CHECK (menu.children[i].id == EditorNoteDivisionBase + (int) i);
+        CHECK (isEditorNoteDivisionCommand (menu.children[i].id));
+        CHECK (menu.children[i].enabled);
+        CHECK (menu.children[i].ticked == ((GridDivision) i == GridDivision::Dotted));
+    }
+    CHECK (EditorNoteDivisionBase == 1500);
+    CHECK_FALSE (isEditorNoteDivisionCommand (EditorNoteDivisionBase + (int) GridDivision::Swing));
 }

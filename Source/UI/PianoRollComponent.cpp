@@ -451,6 +451,22 @@ void PianoRollComponent::setPitchFilter (std::function<bool (int pitch)> allowed
         sourceEditor->setPitchFilter (std::move (allowed));
 }
 
+void PianoRollComponent::setNoteLength (GridLength length, GridDivision division)
+{
+    if (sourceEditor != nullptr)
+        sourceEditor->setNoteLength (length, division);
+}
+
+GridLength PianoRollComponent::getNoteLength() const noexcept
+{
+    return sourceEditor != nullptr ? sourceEditor->getNoteLength() : GridLength::Off;
+}
+
+GridDivision PianoRollComponent::getNoteDivision() const noexcept
+{
+    return sourceEditor != nullptr ? sourceEditor->getNoteDivision() : GridDivision::Straight;
+}
+
 void PianoRollComponent::setNoteChangeListener (NoteChangeListener listener)
 {
     if (sourceEditor != nullptr)

@@ -65,6 +65,17 @@ public:
     void setSnapToGrid (bool on) noexcept { snapToGrid = on; }
     bool getSnapToGrid() const noexcept { return snapToGrid; }
 
+    // Options ▸ Note Length / Note Division: a double-clicked note is this long
+    // (editorGridTicks at geometry's PPQ), snapped or not; the grid still places
+    // its start. Off (the default) leaves the length to the grid, as above.
+    void setNoteLength (GridLength length, GridDivision division) noexcept
+    {
+        noteLength = length;
+        noteDivision = division;
+    }
+    GridLength getNoteLength() const noexcept { return noteLength; }
+    GridDivision getNoteDivision() const noexcept { return noteDivision; }
+
     // Options ▸ Snap to Key: which pitches a double-click may create a note on.
     // Empty (the default) allows every pitch. A refused pitch changes nothing --
     // no note, no selection change, no undo step. Moves, resizes and every other
@@ -165,6 +176,8 @@ private:
     PianoRollGeometry geometry;
     std::function<EditorGrid()> gridSource;
     bool snapToGrid = false;
+    GridLength noteLength = GridLength::Off;
+    GridDivision noteDivision = GridDivision::Straight;
     std::function<bool (int pitch)> pitchAllowed;
     NoteChangeListener noteChanged;
 

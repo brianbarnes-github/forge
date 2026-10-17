@@ -45,7 +45,11 @@ enum EditorMenuCommandId : int
     // Options > Grid Length: EditorGridLengthBase + (int) GridLength.
     EditorGridLengthBase = 1200,
     // Options > Grid Division: EditorGridDivisionBase + (int) GridDivision.
-    EditorGridDivisionBase = 1300
+    EditorGridDivisionBase = 1300,
+    // Options > Note Length: EditorNoteLengthBase + (int) GridLength.
+    EditorNoteLengthBase = 1400,
+    // Options > Note Division: EditorNoteDivisionBase + (int) GridDivision, Swing excluded.
+    EditorNoteDivisionBase = 1500
 };
 
 constexpr bool isEditorSnapRootCommand (int id) noexcept
@@ -66,6 +70,17 @@ constexpr bool isEditorGridLengthCommand (int id) noexcept
 constexpr bool isEditorGridDivisionCommand (int id) noexcept
 {
     return id >= EditorGridDivisionBase && id < EditorGridDivisionBase + gridDivisionCount;
+}
+
+constexpr bool isEditorNoteLengthCommand (int id) noexcept
+{
+    return id >= EditorNoteLengthBase && id < EditorNoteLengthBase + gridLengthCount;
+}
+
+// A note length has no swing: Straight, Triplet and Dotted only.
+constexpr bool isEditorNoteDivisionCommand (int id) noexcept
+{
+    return id >= EditorNoteDivisionBase && id < EditorNoteDivisionBase + (int) GridDivision::Swing;
 }
 
 struct EditorMenuState
@@ -90,6 +105,8 @@ struct EditorMenuState
     NotePreviewSettings notePreview; // Options > Note Preview's ticks
     GridLength gridLength = GridLength::Off;              // Options > Grid Length's tick
     GridDivision gridDivision = GridDivision::Straight;   // Options > Grid Division's tick
+    GridLength noteLength = GridLength::Off;              // Options > Note Length's tick
+    GridDivision noteDivision = GridDivision::Straight;   // Options > Note Division's tick
 };
 
 namespace menu_detail
@@ -103,27 +120,27 @@ namespace menu_detail
             item (EditorOptionsPreviewOnVelocity, "Preview notes when velocity changes", {}, true, s.notePreview.onVelocity) });
     }
 
-    // Both need a track: a newly opened editor starts again from the default grid.
-    inline MenuItemDesc gridLengthSubmenu (const EditorMenuState& s)
+    // Grid and Note Length/Division all need a track: a newly opened editor starts again
+    // from the default grid and note length.
+    inline MenuItemDesc lengthSubmenu (const char* name, int base, GridLength current, bool enabled)
     {
-        const auto lengthItem = [&s] (GridLength length)
+        const auto lengthItem = [=] (GridLength length)
         {
-            return item (EditorGridLengthBase + (int) length, gridLengthName (length), {}, s.hasTrack,
-                         length == s.gridLength);
+            return item (base + (int) length, gridLengthName (length), {}, enabled, length == current);
         };
         std::vector<MenuItemDesc> items { lengthItem (GridLength::Off), separator() };
         for (int i = (int) GridLength::Whole; i < gridLengthCount; ++i)
             items.push_back (lengthItem ((GridLength) i));
-        return submenu ("Grid Length", std::move (items));
+        return submenu (name, std::move (items));
     }
 
-    inline MenuItemDesc gridDivisionSubmenu (const EditorMenuState& s)
+    inline MenuItemDesc divisionSubmenu (const char* name, int base, int count, GridDivision current, bool enabled)
     {
         std::vector<MenuItemDesc> items;
-        for (int i = 0; i < gridDivisionCount; ++i)
-            items.push_back (item (EditorGridDivisionBase + i, gridDivisionName ((GridDivision) i), {}, s.hasTrack,
-                                   (GridDivision) i == s.gridDivision));
-        return submenu ("Grid Division", std::move (items));
+        for (int i = 0; i < count; ++i)
+            items.push_back (item (base + i, gridDivisionName ((GridDivision) i), {}, enabled,
+                                   (GridDivision) i == current));
+        return submenu (name, std::move (items));
     }
 
     // Enabled and Type need a key (the song's or a picked root); Root is always open.
@@ -192,8 +209,12 @@ inline std::vector<MenuDesc> editorMenus (const EditorMenuState& s)
                  snapToKeySubmenu (s),
                  notePreviewSubmenu (s),
                  separator(),
-                 gridLengthSubmenu (s),
-                 gridDivisionSubmenu (s) } },
+                 lengthSubmenu ("Grid Length", EditorGridLengthBase, s.gridLength, s.hasTrack),
+                 divisionSubmenu ("Grid Division", EditorGridDivisionBase, gridDivisionCount, s.gridDivision, s.hasTrack),
+                 separator(),
+                 lengthSubmenu ("Note Length", EditorNoteLengthBase, s.noteLength, s.hasTrack),
+                 divisionSubmenu ("Note Division", EditorNoteDivisionBase, (int) GridDivision::Swing, s.noteDivision,
+                                  s.hasTrack) } },
              { "View", {} } };
 }
 

@@ -100,6 +100,12 @@ namespace lotro
         GridLength getGridLength() const noexcept { return roll.getGridLength(); }
         GridDivision getGridDivision() const noexcept { return roll.getGridDivision(); }
         int getGridTicks() const;
+        // Options > Note Length / Note Division: a double-clicked note's length
+        // (Off follows the grid). Session-only; setting either reports nothing.
+        void setNoteLength (GridLength length);
+        void setNoteDivision (GridDivision division);
+        GridLength getNoteLength() const noexcept { return roll.getNoteLength(); }
+        GridDivision getNoteDivision() const noexcept { return roll.getNoteDivision(); }
         // The Swing division's strength (percent, -100..100; kept but inert off Swing) and the
         // grid as a value, swung lines included. Session-only; setting reports nothing.
         void setSwing (int percent);

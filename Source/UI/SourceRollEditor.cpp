@@ -428,8 +428,11 @@ void SourceRollEditor::createNoteAt (juce::Point<int> pos, bool snap)
     const int tick = std::max (0, geometry.tickForX (pos.x));
     const EditorGrid g = grid();
     const int startTick = snap ? (int) editorGridLineAtOrBefore (g, tick) : tick;
-    // Snapped, it runs to the next line; unsnapped it is one grid spacing long (a quarter with no grid).
-    const int duration = snap ? (int) editorGridLineAfter (g, startTick) - startTick
+    // A Note Length sets it outright. Otherwise, snapped, it runs to the next line; unsnapped it
+    // is one grid spacing long (a quarter with no grid).
+    const int noteTicks = editorGridTicks (noteLength, noteDivision, geometry.getTicksPerQuarter());
+    const int duration = noteTicks > 0 ? noteTicks
+                       : snap ? (int) editorGridLineAfter (g, startTick) - startTick
                               : g.spacingTicks > 0 ? g.spacingTicks : geometry.getTicksPerQuarter();
 
     juce::ValueTree note (SongIDs::NOTE);

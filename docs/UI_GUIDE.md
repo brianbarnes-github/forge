@@ -334,7 +334,17 @@ When you say…       …I'll know you mean
   The main window's Edit ▸ Grid Size sets the Grid Length too (keeping the
   division) and ticks the editor's length when it is one of its four sizes; an editor opened afresh (first time, or after New / Open) starts
   from Preferences ▸ Editing's default grid, Straight, while switching tracks
-  keeps both. **Navigate → Move Marker Left by Grid** / **Right by
+  keeps both. **Options → Note Length ▸** (Off, then 1/1 … 1/64) and **Note
+  Division ▸** (Straight, Triplet, Dotted; no Swing), after another separator
+  and greyed with no track loaded, set how long a double-clicked note is, the
+  current choice ticked: 1/8 Triplet gives 160 ticks at 480 PPQ, the same
+  maths as the grid. The grid still places the note's start (snapped or, with
+  Alt or snap off, exactly where clicked); only its length changes. **Off**
+  (the default) leaves the length to the grid as above: to the next grid line,
+  or one grid spacing (a quarter with no grid) when not snapped. Moving,
+  resizing, quantizing and existing notes are unaffected. Session-only like the
+  grid: switching tracks keeps them, and an editor opened afresh starts at Off,
+  Straight. **Navigate → Move Marker Left by Grid** / **Right by
   Grid** (`Left` / `Right` while the editor has keyboard focus) move the start
   marker to the previous / next grid line whether snap is on or off (from between
   two lines, to the nearer one on that side; Left stops at the song start; with no

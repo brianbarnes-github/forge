@@ -1261,3 +1261,47 @@ TEST_CASE ("SourceRollEditor: quantize moves starts to the nearest swung line an
     CHECK ((int) f.noteA.getProperty (SongIDs::startTick) == 840);
     CHECK ((int) f.noteA.getProperty (SongIDs::durationTicks) == 240);
 }
+
+TEST_CASE ("SourceRollEditor: a Note Length gives a double-clicked note that length, snapped or not; the grid still places its start", "[source-roll-editor][note-length]")
+{
+    Fixture f;
+    f.editor.setGridTicks (ticksPerQuarter);   // 1/4 grid
+    f.editor.setSnapToGrid (true);
+    f.editor.setNoteLength (GridLength::Eighth, GridDivision::Straight);
+    CHECK (f.editor.getNoteLength() == GridLength::Eighth);
+    CHECK (f.editor.getNoteDivision() == GridDivision::Straight);
+
+    const juce::Point<int> cell (f.geometry.xForTick (3 * ticksPerQuarter + 200), f.geometry.yForPitch (72));
+    f.editor.mouseDown (cell, {}, true);
+    auto snapped = SongDocument::getNotesNode (f.track).getChild (2);
+    CHECK ((int) snapped.getProperty (SongIDs::startTick) == 3 * ticksPerQuarter);
+    CHECK ((int) snapped.getProperty (SongIDs::durationTicks) == 240);   // the note length, not the 480 grid cell
+
+    f.editor.setNoteLength (GridLength::Eighth, GridDivision::Triplet);
+    const juce::Point<int> other (f.geometry.xForTick (5 * ticksPerQuarter + 200), f.geometry.yForPitch (72));
+    f.editor.mouseDown (other, juce::ModifierKeys (juce::ModifierKeys::altModifier), true);
+    auto free = SongDocument::getNotesNode (f.track).getChild (3);
+    CHECK ((int) free.getProperty (SongIDs::startTick) == f.geometry.tickForX (other.x));
+    CHECK ((int) free.getProperty (SongIDs::durationTicks) == 160);
+}
+
+TEST_CASE ("SourceRollEditor: a dotted Note Length applies with no grid at all", "[source-roll-editor][note-length]")
+{
+    Fixture f;   // no grid: today a quarter note
+    f.editor.setNoteLength (GridLength::Quarter, GridDivision::Dotted);
+    const juce::Point<int> cell (f.geometry.xForTick (3 * ticksPerQuarter), f.geometry.yForPitch (72));
+    f.editor.mouseDown (cell, {}, true);
+    CHECK ((int) SongDocument::getNotesNode (f.track).getChild (2).getProperty (SongIDs::durationTicks) == 720);
+}
+
+TEST_CASE ("SourceRollEditor: Note Length Off follows the grid as before, whatever the note division", "[source-roll-editor][note-length]")
+{
+    Fixture f;
+    CHECK (f.editor.getNoteLength() == GridLength::Off);   // the default
+    f.editor.setGridTicks (ticksPerQuarter);
+    f.editor.setSnapToGrid (true);
+    f.editor.setNoteLength (GridLength::Off, GridDivision::Triplet);
+    const juce::Point<int> cell (f.geometry.xForTick (3 * ticksPerQuarter + 200), f.geometry.yForPitch (72));
+    f.editor.mouseDown (cell, {}, true);
+    CHECK ((int) SongDocument::getNotesNode (f.track).getChild (2).getProperty (SongIDs::durationTicks) == ticksPerQuarter);
+}

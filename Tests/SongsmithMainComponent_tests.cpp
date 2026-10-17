@@ -1496,6 +1496,32 @@ TEST_CASE ("SongsmithMainComponent: a newly opened editor starts on the default 
     CHECK (Access::activeEditorGridTicks (main) == 480);
 }
 
+TEST_CASE ("SongsmithMainComponent: the editor's note length is kept across tracks and reset to Off, Straight when the editor opens afresh", "[track-editor][note-length]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    auto track = doc.addTrack ("Track A", (int) 0xFFAABBCCu, 0, 0);
+    auto other = doc.addTrack ("Track B", (int) 0xFFAABBCCu, 0, 0);
+    const auto trackId = (juce::int64) track.getProperty (SongIDs::trackId);
+    const auto otherId = (juce::int64) other.getProperty (SongIDs::trackId);
+
+    SongsmithMainComponent main (doc);
+    main.setSize (1000, 700);
+    Access::trackDoubleClicked (main, trackId);
+    auto& editor = Access::trackEditor (main);
+    editor.invokeMenuCommand (EditorNoteLengthBase + (int) GridLength::Eighth);
+    editor.invokeMenuCommand (EditorNoteDivisionBase + (int) GridDivision::Triplet);
+
+    Access::trackDoubleClicked (main, otherId);   // switching tracks keeps it
+    CHECK (editor.getNoteLength() == GridLength::Eighth);
+    CHECK (editor.getNoteDivision() == GridDivision::Triplet);
+
+    main.documentReplaced();                      // emptied: the next track starts afresh
+    Access::trackDoubleClicked (main, trackId);
+    CHECK (editor.getNoteLength() == GridLength::Off);
+    CHECK (editor.getNoteDivision() == GridDivision::Straight);
+}
+
 TEST_CASE ("SongsmithMainComponent: the editor's swing is kept across tracks and reset when the editor opens afresh", "[songsmith][swing]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

@@ -509,7 +509,7 @@ TEST_CASE ("TrackEditorPanel: a 24 px menu bar with File, Edit, Navigate, Option
     CHECK (model->getMenuBarNames() == juce::StringArray { "File", "Edit", "Navigate", "Options", "View" });
     CHECK (model->getMenuForIndex (0, "File").getNumItems() == 2);   // export, close (separators are not counted)
     CHECK (model->getMenuForIndex (2, "Navigate").getNumItems() == 14);   // marker left, right, semitone up, down, select / add nearest note, previous / next note, previous / next / all of the same pitch, add previous / next, cursor to selection start
-    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 5);    // snap to grid, snap to key, note preview, grid length, grid division
+    CHECK (model->getMenuForIndex (3, "Options").getNumItems() == 7);    // snap to grid, snap to key, note preview, grid length, grid division, note length, note division
     for (int i : { 1, 4 })
         CHECK (model->getMenuForIndex (i, {}).getNumItems() == 0);
 
@@ -1644,4 +1644,35 @@ TEST_CASE ("TrackEditorPanel: Grid Length and Grid Division are greyed with no t
     TrackEditorPanel panel (doc);
     CHECK_FALSE (optionsItemState (panel, EditorGridLengthBase + (int) GridLength::Quarter).second);
     CHECK_FALSE (optionsItemState (panel, EditorGridDivisionBase + (int) GridDivision::Triplet).second);
+}
+
+TEST_CASE ("TrackEditorPanel: Options > Note Length and Note Division set a double-clicked note's length and are ticked by it", "[track-editor-window][editor-menu][note-length]")
+{
+    MarkerPanelFixture f;   // 480 PPQ, 1/4 grid
+    CHECK (f.panel->getNoteLength() == GridLength::Off);
+    CHECK (f.panel->getNoteDivision() == GridDivision::Straight);
+    CHECK (optionsItemState (*f.panel, EditorNoteLengthBase + (int) GridLength::Off) == std::pair { true, true });
+    CHECK (optionsItemState (*f.panel, EditorNoteDivisionBase + (int) GridDivision::Straight) == std::pair { true, true });
+
+    f.panel->invokeMenuCommand (EditorNoteLengthBase + (int) GridLength::Sixteenth);
+    f.panel->invokeMenuCommand (EditorNoteDivisionBase + (int) GridDivision::Dotted);
+    CHECK (f.panel->getNoteLength() == GridLength::Sixteenth);
+    CHECK (f.panel->getNoteDivision() == GridDivision::Dotted);
+    CHECK (optionsItemState (*f.panel, EditorNoteLengthBase + (int) GridLength::Sixteenth).first);
+    CHECK (optionsItemState (*f.panel, EditorNoteDivisionBase + (int) GridDivision::Dotted).first);
+    CHECK (f.panel->getGridLength() == GridLength::Quarter);        // the grid is untouched
+    CHECK (f.panel->getGridDivision() == GridDivision::Straight);
+
+    TrackEditorPanelTestAccess::doubleClickRow (*f.panel, 62);
+    REQUIRE (SongDocument::getNotesNode (f.track).getNumChildren() == 2);
+    CHECK ((int) SongDocument::getNotesNode (f.track).getChild (1).getProperty (SongIDs::durationTicks) == 180);
+}
+
+TEST_CASE ("TrackEditorPanel: Note Length and Note Division are greyed with no track loaded", "[track-editor-window][editor-menu][note-length]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SongDocument doc;
+    TrackEditorPanel panel (doc);
+    CHECK_FALSE (optionsItemState (panel, EditorNoteLengthBase + (int) GridLength::Quarter).second);
+    CHECK_FALSE (optionsItemState (panel, EditorNoteDivisionBase + (int) GridDivision::Triplet).second);
 }
