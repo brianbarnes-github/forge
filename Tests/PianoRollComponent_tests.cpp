@@ -2037,6 +2037,30 @@ TEST_CASE ("PianoRollComponent: selecting a nearest note off screen scrolls just
     CHECK (bounds.x + bounds.width <= viewX + viewport.getMaximumVisibleWidth());
 }
 
+TEST_CASE ("PianoRollComponent: selecting a diamond off screen to the left scrolls its whole diamond clear of the keyboard", "[piano-roll][note-nav][note-display]")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    SourceRollFixture fixture ({ 60, 64, 67 });   // starts 0, 480, 960
+    noteAt (fixture, 2).setProperty (SongIDs::durationTicks, ticksPerQuarter * 16, nullptr);
+    const auto& geometry = Access::geometry (fixture.roll);
+    auto& viewport = Access::viewport (fixture.roll);
+    const int gutterWidth = geometry.getKeyboardGutterWidth();
+
+    for (auto shape : { NoteShape::diamond, NoteShape::diamondLength })
+    {
+        CAPTURE ((int) shape);
+        fixture.roll.setNoteShape (shape);
+        for (int i = 0; i < 10; ++i)
+            Access::zoom (fixture.roll, 1.0f);
+        viewport.setViewPosition (Access::canvas (fixture.roll).getWidth(), viewport.getViewPositionY());
+        const auto footprint = noteFootprint (geometry.noteBounds (fixture.source->getNote (1)), shape);
+        REQUIRE (footprint.body.getRight() < viewport.getViewPositionX());
+
+        REQUIRE (fixture.roll.selectNoteNearest ((double) ticksPerQuarter));
+        CHECK (footprint.body.getX() >= viewport.getViewPositionX() + gutterWidth);
+    }
+}
+
 TEST_CASE ("PianoRollComponent: addNoteNearestToSelection grows the selection outward from the tick, skipping selected notes", "[piano-roll][note-nav]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

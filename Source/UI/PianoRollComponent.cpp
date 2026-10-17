@@ -695,8 +695,10 @@ bool PianoRollComponent::pickNoteNearest (double tick, bool add)
 
 void PianoRollComponent::scrollNoteIntoView (int index)
 {
+    // The footprint, so a diamond's left half is not left under the keyboard.
     const auto bounds = geometry.noteBounds (noteSource->getNote (index));
-    scrollIntoView ({ bounds.x, bounds.y, juce::jmax (1, bounds.width), juce::jmax (1, bounds.height) });
+    const auto area = noteFootprint (bounds, role == Role::Source ? noteShape : NoteShape::rectangle).hit;
+    scrollIntoView ({ area.getX(), area.getY(), juce::jmax (1, area.getWidth()), juce::jmax (1, area.getHeight()) });
 }
 
 void PianoRollComponent::noteStartsAndSelection (std::vector<NoteStart>& starts, std::vector<bool>& selected) const
