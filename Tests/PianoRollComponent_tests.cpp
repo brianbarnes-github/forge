@@ -409,7 +409,7 @@ TEST_CASE ("PianoRollComponent: a selected source-role note paints with the sele
     CHECK (topBorderPixel == juce::Colour (SongsmithColours::selectionHighlight));
 }
 
-TEST_CASE ("PianoRollComponent: ghost tracks render translucently and only for Role::Source", "[piano-roll][ghost-tracks]")
+TEST_CASE ("PianoRollComponent: ghost tracks render translucently in their track colour and only for Role::Source", "[piano-roll][ghost-tracks]")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
@@ -447,15 +447,15 @@ TEST_CASE ("PianoRollComponent: ghost tracks render translucently and only for R
     // fillRect (whose height is exactly one row), and -- like the ghost's
     // own row -- is a white-key row band (pitch 60 is C, pitch 59 is B), so
     // its rendered colour is exactly the ghost's own row's underlying
-    // background before the ghost was painted on top. Compositing
-    // accentCopper@0.25 onto that colour and comparing proves the ghost
-    // renders as a translucent overlay, not a fully opaque note fill.
+    // background before the ghost was painted on top. Compositing the
+    // ghost track's own colour @0.25 onto that colour and comparing proves the
+    // ghost renders as a translucent overlay, not a fully opaque note fill.
     const auto underlyingBeneathGhost = image.getPixelAt (sampleX, ghostY + rowHeight);
     juce::Image reference (juce::Image::ARGB, 1, 1, true, juce::SoftwareImageType());
     {
         juce::Graphics rg (reference);
         rg.fillAll (underlyingBeneathGhost);
-        rg.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.25f));
+        rg.setColour (juce::Colour (0xFFAABBCCu).withAlpha (0.25f));
         rg.fillRect (0, 0, 1, 1);
     }
 

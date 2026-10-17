@@ -1154,10 +1154,9 @@ void PianoRollComponent::drawGhostTracks (juce::Graphics& g, juce::Rectangle<int
     if (role != Role::Source || ghostTracks.empty())
         return;
 
-    g.setColour (juce::Colour (SongsmithColours::accentCopper).withAlpha (0.25f));
-
     for (auto& ghostTrack : ghostTracks)
     {
+        g.setColour (juce::Colour ((juce::uint32) (int) ghostTrack.getProperty (SongIDs::colorArgb)).withAlpha (0.25f));
         auto notes = SongDocument::getNotesNode (ghostTrack);
         for (int i = 0; i < notes.getNumChildren(); ++i)
         {
