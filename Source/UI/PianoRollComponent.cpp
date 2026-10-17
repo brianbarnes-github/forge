@@ -1171,11 +1171,15 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         // Glow and selection edge reach noteOverhang px beyond the note.
         // A diamond reaches half a row left of the note's start.
         const auto paintedRect = footprint.hit.expanded (ThemePaint::noteOverhang);
-        // A label is never shortened, so it can reach well past its note.
-        const auto label = showLabels ? noteLabelText (noteLabels, note.pitch, note.velocity) : juce::String();
-        const juce::Rectangle<int> labelRect = showLabels
-            ? juce::Rectangle<int> (noteLabelX (footprint), bounds.y,
-                                    juce::GlyphArrangement::getStringWidthInt (labelFont, label) + 2, bounds.height)
+        // A label is never shortened, so it can reach well past its note, but only
+        // rightward along its own row: measure it only when that could meet the clip.
+        const int labelX = noteLabelX (footprint);
+        const bool labelMayShow = showLabels && labelX < clip.getRight()
+            && bounds.y < clip.getBottom() && bounds.y + bounds.height > clip.getY();
+        const auto label = labelMayShow ? noteLabelText (noteLabels, note.pitch, note.velocity) : juce::String();
+        const juce::Rectangle<int> labelRect = labelMayShow
+            ? juce::Rectangle<int> (labelX, bounds.y, juce::GlyphArrangement::getStringWidthInt (labelFont, label) + 2,
+                                    bounds.height)
             : juce::Rectangle<int>();
         if (! (hasGhost ? paintedRect.getUnion (ghostRect) : paintedRect.getUnion (labelRect)).intersects (clip))
             continue;
@@ -1194,7 +1198,7 @@ void PianoRollComponent::drawNotes (juce::Graphics& g, juce::Rectangle<int> clip
         else
             ThemePaint::paintDiamondNote (g, footprint.body, footprint.lengthLine, fill, style);
 
-        if (showLabels)
+        if (labelMayShow)
         {
             // Over a rectangle's fill in a contrasting colour; past it, or beside a
             // diamond, in the roll's text colour.

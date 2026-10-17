@@ -367,7 +367,9 @@ When you say…       …I'll know you mean
   one line (`C4 96`) on every note of the edited track: inside a rectangle from
   its left edge, or just right of a diamond (over a Diamond + Length's line).
   The text is never hidden or shortened; on a note too short for it, it spills
-  past the note's end, and a later note draws over an earlier note's text. Text
+  past the note's end, where the next note may cover it (notes draw in the
+  track's stored order, not strictly by time, so after edits a spill can also
+  sit over a neighbour). Text
   over a rectangle's fill picks a dark or light colour for contrast; text past
   it or beside a diamond uses the roll's text colour. Saved
   (`view.noteNames`, `view.noteVelocities`, both off by default); ghost tracks,
