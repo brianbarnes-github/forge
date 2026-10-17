@@ -4,6 +4,7 @@
 
 #include "GridSize.h"
 #include "KeyboardLabels.h"
+#include "NoteDisplay.h"
 #include "MergeScope.h"
 #include "NotePreview.h"
 #include "TrackHeadWidth.h"
@@ -120,6 +121,40 @@ public:
         return save();
     }
 
+    // The MIDI editor's View > Piano Roll Notes. Absent or unrecognised reads rectangle.
+    NoteShape noteShape() const
+    {
+        const auto value = file.getValue (keyNoteShape);
+        return value == "diamond"       ? NoteShape::diamond
+             : value == "diamondLength" ? NoteShape::diamondLength
+                                        : NoteShape::rectangle;
+    }
+    bool setNoteShape (NoteShape shape)
+    {
+        file.setValue (keyNoteShape, shape == NoteShape::diamond       ? "diamond"
+                                   : shape == NoteShape::diamondLength ? "diamondLength"
+                                                                       : "rect");
+        return save();
+    }
+
+    // The MIDI editor's View > Color Note by. Absent or unrecognised reads track.
+    NoteColourMode noteColourMode() const
+    {
+        const auto value = file.getValue (keyNoteColour);
+        return value == "velocity" ? NoteColourMode::velocity
+             : value == "channel"  ? NoteColourMode::channel
+             : value == "pitch"    ? NoteColourMode::pitch
+                                   : NoteColourMode::track;
+    }
+    bool setNoteColourMode (NoteColourMode mode)
+    {
+        file.setValue (keyNoteColour, mode == NoteColourMode::velocity ? "velocity"
+                                    : mode == NoteColourMode::channel  ? "channel"
+                                    : mode == NoteColourMode::pitch    ? "pitch"
+                                                                       : "track");
+        return save();
+    }
+
     // What a newly opened track editor starts on. Absent or unrecognised reads Off.
     GridSize defaultGrid() const
     {
@@ -214,6 +249,8 @@ private:
     static constexpr const char* keyPreviewOnEdit      = "editing.previewOnEdit";
     static constexpr const char* keyPreviewOnVelocity  = "editing.previewOnVelocity";
     static constexpr const char* keyKeyboardLabels     = "view.keyboardLabels";
+    static constexpr const char* keyNoteShape          = "view.noteShape";
+    static constexpr const char* keyNoteColour         = "view.noteColour";
     static constexpr const char* keyDockLayout         = "dock.layout";
     static constexpr const char* keySavedLayouts       = "dock.savedLayouts";
     static constexpr const char* keyStripButtons       = "strip.buttons";

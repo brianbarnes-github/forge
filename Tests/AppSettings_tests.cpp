@@ -431,6 +431,65 @@ TEST_CASE ("AppSettings: keyboard labels default to piano notes, round-trip and 
     CHECK (AppSettings (junk).keyboardLabels() == KeyboardLabels::pianoNotes);
 }
 
+TEST_CASE ("AppSettings: note shape defaults to rectangle, round-trips and persists; junk reads rectangle", "[app-settings][note-display]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.noteShape() == NoteShape::rectangle);
+        for (auto shape : { NoteShape::diamond, NoteShape::diamondLength, NoteShape::rectangle, NoteShape::diamondLength })
+        {
+            CHECK (settings.setNoteShape (shape));
+            CHECK (settings.noteShape() == shape);
+        }
+    }
+    {
+        juce::PropertiesFile reopened (file, {});
+        const AppSettings settings (reopened);
+        CHECK (settings.noteShape() == NoteShape::diamondLength);
+        CHECK (reopened.getValue ("view.noteShape") == "diamondLength");
+    }
+    juce::PropertiesFile junk (file, {});
+    junk.setValue ("view.noteShape", "junk");
+    CHECK (AppSettings (junk).noteShape() == NoteShape::rectangle);
+    junk.setValue ("view.noteShape", "diamond");
+    CHECK (AppSettings (junk).noteShape() == NoteShape::diamond);
+    junk.setValue ("view.noteShape", "rect");
+    CHECK (AppSettings (junk).noteShape() == NoteShape::rectangle);
+}
+
+TEST_CASE ("AppSettings: note colour mode defaults to track, round-trips and persists; junk reads track", "[app-settings][note-display]")
+{
+    auto file = juce::File::createTempFile (".settings");
+    const juce::ScopeGuard cleanup { [&] { file.deleteFile(); } };
+    {
+        juce::PropertiesFile props (file, {});
+        AppSettings settings (props);
+        CHECK (settings.noteColourMode() == NoteColourMode::track);
+        for (auto mode : { NoteColourMode::velocity, NoteColourMode::channel, NoteColourMode::pitch,
+                           NoteColourMode::track, NoteColourMode::channel })
+        {
+            CHECK (settings.setNoteColourMode (mode));
+            CHECK (settings.noteColourMode() == mode);
+        }
+    }
+    {
+        juce::PropertiesFile reopened (file, {});
+        const AppSettings settings (reopened);
+        CHECK (settings.noteColourMode() == NoteColourMode::channel);
+        CHECK (reopened.getValue ("view.noteColour") == "channel");
+    }
+    juce::PropertiesFile junk (file, {});
+    for (auto [value, mode] : { std::pair { "track", NoteColourMode::track }, std::pair { "velocity", NoteColourMode::velocity },
+                                std::pair { "pitch", NoteColourMode::pitch }, std::pair { "junk", NoteColourMode::track } })
+    {
+        junk.setValue ("view.noteColour", value);
+        CHECK (AppSettings (junk).noteColourMode() == mode);
+    }
+}
+
 TEST_CASE ("AppSettings: a junk note preview value reads off", "[app-settings][note-preview]")
 {
     auto file = juce::File::createTempFile (".settings");
